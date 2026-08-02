@@ -1,0 +1,31 @@
+name: Sanity Studio deployen
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sanity/**'
+      - 'sanity.config.ts'
+      - '.github/workflows/sanity-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code ophalen
+        uses: actions/checkout@v4
+
+      - name: Node.js instellen
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Dependencies installeren
+        run: npm install
+
+      - name: Studio deployen naar Sanity
+        run: npx sanity deploy --yes
+        env:
+          SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+          SANITY_STUDIO_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
