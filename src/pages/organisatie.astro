@@ -1,0 +1,67 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+
+/*
+  ANBI-publicatieplicht.
+
+  Een ANBI moet een vaste set gegevens op internet publiceren. De kerngegevens
+  hieronder zijn aangeleverd. De rest staat als openstaand gemarkeerd en is
+  BLOKKEREND VOOR LIVEGANG: zonder deze gegevens voldoet de stichting niet aan
+  de publicatieplicht. Niets hiervan wordt met aannames ingevuld
+  (00_PROJECT_RULES.md §4).
+*/
+const ontbreekt = [
+  'Contactgegevens van het bestuur',
+  'Bestuurssamenstelling',
+  'Beleidsplan op hoofdlijnen',
+  'Beloningsbeleid',
+  'Doelstelling',
+  'Verslag van de uitgeoefende activiteiten',
+  'Financiële verantwoording (balans, staat van baten en lasten)',
+];
+---
+
+<Base
+  title="Organisatie"
+  description="Stichting Het Kerkje van Persingen: RSIN, KvK-nummer en ANBI-gegevens."
+>
+  <PageHeader eyebrow="Stichting" title="Organisatie" mark="kruis" />
+
+  <div class="wrap-narrow">
+    <h2>Stichting Het Kerkje van Persingen</h2>
+    <dl class="gegevens">
+      <div><dt>Fiscaal nummer (RSIN)</dt><dd>802560374</dd></div>
+      <div><dt>KvK-nummer</dt><dd>41058732</dd></div>
+      <div><dt>ANBI-status</dt><dd>Erkend sinds 26 augustus 2000</dd></div>
+      <div><dt>Culturele ANBI</dt><dd>Erkend sinds 1 januari 2012</dd></div>
+      <div><dt>Telefoon</dt><dd><a href="tel:+31652668449">06 52 66 84 49</a></dd></div>
+      <div><dt>Adres</dt><dd>Persingensestraat, Persingen</dd></div>
+    </dl>
+
+    <!-- TODO — BLOKKEREND VOOR LIVEGANG. Aan te leveren door het bestuur;
+         penningmeester voor het financiële deel. Verwijder dit blok zodra
+         de gegevens erin staan. -->
+    <section class="openstaand">
+      <h2>Nog aan te leveren</h2>
+      <p>
+        De volgende verplichte ANBI-publicatiegegevens ontbreken nog. Zolang ze ontbreken,
+        voldoet de stichting niet aan de publicatieplicht.
+      </p>
+      <ul>
+        {ontbreekt.map((item) => <li>{item}</li>)}
+      </ul>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .gegevens { display: grid; gap: var(--s-4); margin: 0 0 var(--s-16); max-width: 560px; }
+  .gegevens > div { display: flex; justify-content: space-between; gap: var(--s-6); padding-bottom: var(--s-3); border-bottom: var(--border); }
+  .gegevens dt { color: var(--ink-mute); font-size: var(--t-sm); }
+  .gegevens dd { margin: 0; font-weight: 500; text-align: right; }
+  .openstaand { background: var(--cream-deep); border: 1px dashed var(--sand); border-radius: var(--radius-lg); padding: var(--s-8); }
+  .openstaand h2 { margin-top: 0; font-size: var(--t-xl); }
+  .openstaand ul { padding-left: var(--s-6); color: var(--ink-soft); }
+  .openstaand li + li { margin-top: var(--s-2); }
+</style>

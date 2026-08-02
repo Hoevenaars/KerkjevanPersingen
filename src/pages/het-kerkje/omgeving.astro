@@ -1,0 +1,53 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Button from '../../components/Button.astro';
+
+const plekken = [
+  { naam: 'Thornsche Molen', tekst: 'De molen waar de heerlijkheid Persinghen ooit tot aan reikte.' },
+  { naam: 'Het Meertje en het Zicht', tekst: 'Water dat eeuwenlang de natuurlijke grens van de heerlijkheid vormde.' },
+  { naam: 'Oortjeshekken', tekst: 'Karakteristiek punt in de polder.' },
+  { naam: 'Kasteel Spijker', tekst: 'Op korte afstand.' },
+  { naam: 'Walk of Wisdom', tekst: 'Wandelroute langs plekken met een verhaal.' },
+];
+---
+
+<Base title="Omgeving" description="Het kerkje ligt in de Ooijpolder, tussen Thornsche Molen, Oortjeshekken en Kasteel Spijker.">
+  <PageHeader
+    eyebrow="Ooijpolder"
+    title="Persingen is klein, de omgeving niet"
+    intro="Rondom het kerkje ligt de Ooijpolder, een van de weinige plekken in Nederland waar je nog kunt zien dat de rivier hier ooit de baas was."
+    mark="kruis"
+  />
+
+  <div class="wrap layout">
+    <div>
+      <ul class="plekken">
+        {plekken.map((p) => (
+          <li>
+            <h2>{p.naam}</h2>
+            <p>{p.tekst}</p>
+          </li>
+        ))}
+      </ul>
+      <p class="na">
+        Een trouwerij of expositie hier betekent dat je gasten door dit landschap rijden of
+        fietsen voordat ze aankomen. Dat is een deel van wat de locatie doet.
+      </p>
+      <Button href="/verhuur/" variant="secondary">Bekijk de mogelijkheden</Button>
+    </div>
+    <div class="frame frame--portrait">
+      <img src="/foto/bijenhotel.jpg" alt="Uitzicht over de Ooijpolder vanaf het terrein bij het kerkje" width="720" height="960" loading="lazy" />
+    </div>
+  </div>
+</Base>
+
+<style>
+  .layout { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: var(--s-16); align-items: start; }
+  .plekken { list-style: none; margin: 0 0 var(--s-8); padding: 0; display: grid; gap: var(--s-6); }
+  .plekken li { border-left: 2px solid var(--sand); padding-left: var(--s-6); }
+  .plekken h2 { font-size: var(--t-xl); margin-bottom: var(--s-2); }
+  .plekken p { margin: 0; color: var(--ink-soft); }
+  .na { color: var(--ink-soft); }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+</style>

@@ -1,0 +1,168 @@
+---
+const FACEBOOK = 'https://www.facebook.com/profile.php?id=100082161927118&locale=nl_NL';
+const year = new Date().getFullYear();
+---
+
+<div class="zegel-band">
+  <img
+    src="/logo-klein.png"
+    width="150"
+    height="153"
+    alt="Zegel van het Kerkje van Persingen, opgericht 1350"
+    loading="lazy"
+  />
+</div>
+
+<footer class="site-footer">
+  <div class="wrap inner">
+    <div class="col">
+      <div class="brand">
+        <img src="/favicon.svg" width="22" height="22" alt="" />
+        <span>Stichting Het Kerkje van Persingen</span>
+      </div>
+      <p class="small">Persingensestraat, Persingen — het kleinste dorp van Nederland.</p>
+      <p class="small">
+        <a href="tel:+31652668449">06 52 66 84 49</a>
+      </p>
+    </div>
+
+    <nav class="col" aria-label="Footernavigatie">
+      <h2 class="head">Pagina's</h2>
+      <ul>
+        <li><a href="/het-kerkje/">Het kerkje</a></li>
+        <li><a href="/het-kerkje/geschiedenis/">Geschiedenis</a></li>
+        <li><a href="/het-kerkje/omgeving/">Omgeving</a></li>
+        <li><a href="/verhuur/">Verhuur</a></li>
+        <li><a href="/agenda/">Agenda</a></li>
+      </ul>
+    </nav>
+
+    <nav class="col" aria-label="Over de stichting">
+      <h2 class="head">Stichting</h2>
+      <ul>
+        <li><a href="/steun-ons/">Steun ons</a></li>
+        <li><a href="/organisatie/">Organisatie en ANBI</a></li>
+        <li><a href="/contact/">Contact</a></li>
+        <li><a href="/privacyverklaring/">Privacyverklaring</a></li>
+      </ul>
+    </nav>
+
+    <div class="col">
+      <h2 class="head">Volgen</h2>
+      <a class="social" href={FACEBOOK} target="_blank" rel="noopener noreferrer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"
+          ></path>
+        </svg>
+        <span>Facebook</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="wrap base">
+    <p class="small">&copy; {year} Stichting Het Kerkje van Persingen. Rijksmonument sinds de 14e eeuw.</p>
+  </div>
+</footer>
+
+<style>
+  .zegel-band {
+    background: var(--cream);
+    border-top: var(--border);
+    display: flex;
+    justify-content: center;
+    padding-block: var(--s-12);
+    margin-top: var(--s-24);
+  }
+
+  .zegel-band img {
+    width: 150px;
+    height: auto;
+  }
+
+  .site-footer {
+    background: var(--pine);
+    color: var(--cream);
+    padding-top: var(--s-16);
+  }
+
+  .inner {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1fr 0.8fr;
+    gap: var(--s-8);
+    padding-bottom: var(--s-12);
+  }
+
+  @media (max-width: 860px) {
+    .inner {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 520px) {
+    .inner {
+      grid-template-columns: 1fr;
+      gap: var(--s-8);
+    }
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    font-family: var(--font-display);
+    font-size: var(--t-base);
+    font-weight: 600;
+    margin-bottom: var(--s-3);
+  }
+
+  .head {
+    font-family: var(--font-body);
+    font-size: var(--t-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sand);
+    margin: 0 0 var(--s-4);
+    font-weight: 600;
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s-2);
+  }
+
+  a {
+    color: var(--cream);
+    font-size: var(--t-sm);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--sand);
+    text-decoration: underline;
+  }
+
+  .small {
+    font-size: var(--t-sm);
+    color: var(--sand);
+    margin: 0 0 var(--s-2);
+    max-width: 32ch;
+  }
+
+  .social {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-size: var(--t-sm);
+  }
+
+  .base {
+    border-top: 1px solid rgba(250, 248, 243, 0.18);
+    padding-block: var(--s-6) var(--s-8);
+  }
+  .base .small {
+    max-width: none;
+    margin: 0;
+  }
+</style>

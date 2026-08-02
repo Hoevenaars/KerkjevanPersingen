@@ -1,0 +1,65 @@
+/*
+  Design tokens — Kerkje van Persingen
+  13_UI_UX_DESIGN.md §3: alle kleur, spacing en typografie centraal, nooit hardcoded per component.
+
+  Palet komt uit het bestaande ontwerp (cream/olive/sand/pine) plus één toevoeging:
+  --brick. Die is ontleend aan het metselwerk van het gebouw zelf en is er
+  uitsluitend voor de primaire actie. Verhuur is het zakelijke doel, dus
+  "Reserveren" moet de enige knop in die kleur zijn. Gebruik --brick nergens
+  decoratief; zodra hij twee keer op een scherm staat, verliest hij zijn functie.
+*/
+
+:root {
+  /* Kleur */
+  --ink: #1a1a1a;
+  --ink-soft: #3a3a35;
+  --ink-mute: #6b6b63;
+  --cream: #faf8f3;
+  --cream-deep: #f3efe6;
+  --sand: #d9cfbc;
+  --olive: #7c8460;
+  --olive-dark: #5f6549;
+  --pine: #4a5235;
+  --brick: #9c4a2f;
+  --brick-dark: #7d3a24;
+  --white: #ffffff;
+
+  /* Functioneel */
+  --error: #8c2f1f;
+  --success: #4a5235;
+
+  /* Spacing — 4px-grid */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-6: 1.5rem;
+  --s-8: 2rem;
+  --s-12: 3rem;
+  --s-16: 4rem;
+  --s-24: 6rem;
+  --s-32: 8rem;
+
+  /* Typografie */
+  --font-display: 'Source Serif 4', Georgia, serif;
+  --font-body: 'Work Sans', system-ui, -apple-system, sans-serif;
+
+  --t-xs: 0.75rem;
+  --t-sm: 0.875rem;
+  --t-base: 1rem;
+  --t-lg: 1.125rem;
+  --t-xl: 1.375rem;
+  --t-2xl: clamp(1.5rem, 3vw, 1.875rem);
+  --t-3xl: clamp(1.875rem, 4vw, 2.5rem);
+  --t-4xl: clamp(2.25rem, 5.5vw, 3.5rem);
+
+  /* Overig */
+  --radius: 4px;
+  --radius-lg: 8px;
+  --measure: 62ch;
+  --wrap: 1080px;
+  --wrap-narrow: 720px;
+  --border: 1px solid var(--sand);
+  --shadow: 0 1px 2px rgba(26, 26, 26, 0.04), 0 8px 24px rgba(26, 26, 26, 0.06);
+  --ease: cubic-bezier(0.2, 0.6, 0.3, 1);
+}

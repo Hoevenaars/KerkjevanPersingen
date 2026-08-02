@@ -1,0 +1,58 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Button from '../../components/Button.astro';
+import { getPubliekeActiviteiten, imageUrl, formatDatum } from '../../lib/sanity';
+
+const activiteiten = await getPubliekeActiviteiten();
+---
+
+<Base title="Agenda" description="Exposities, concerten en bijeenkomsten in het kerkje van Persingen.">
+  <PageHeader eyebrow="Agenda" title="Wat er te zien en te doen is" mark="kruis" />
+
+  <div class="wrap">
+    {
+      activiteiten.length > 0 ? (
+        <ul class="lijst">
+          {activiteiten.map((a) => {
+            const foto = a.foto ? imageUrl(a.foto, 800, 600) : null;
+            return (
+              <li class="kaart">
+                {foto && (
+                  <div class="frame frame--photo">
+                    <img src={foto} alt={a.fotoAlt ?? ''} width="800" height="600" loading="lazy" />
+                  </div>
+                )}
+                <div class="kaart-tekst">
+                  <p class="datum">{formatDatum(a.start)}</p>
+                  <h2>{a.publiekeTitel}</h2>
+                  {a.omschrijving && <p>{a.omschrijving}</p>}
+                  {a.slug && <a class="meer" href={`/agenda/${a.slug}/`}>Meer over deze activiteit →</a>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div class="leeg">
+          <h2>Nog niets gepland</h2>
+          <p>Er staat op dit moment niets op de agenda. Wil je zelf iets organiseren?</p>
+          <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
+        </div>
+      )
+    }
+  </div>
+</Base>
+
+<style>
+  .lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-12); }
+  .kaart { display: grid; grid-template-columns: 320px 1fr; gap: var(--s-8); align-items: start; padding-bottom: var(--s-12); border-bottom: var(--border); }
+  .kaart:last-child { border-bottom: none; }
+  .datum { font-weight: 600; color: var(--olive-dark); margin-bottom: var(--s-2); font-size: var(--t-sm); text-transform: uppercase; letter-spacing: 0.06em; }
+  .kaart h2 { font-size: var(--t-2xl); margin-bottom: var(--s-3); }
+  .meer { font-weight: 600; text-decoration: none; }
+  .meer:hover { text-decoration: underline; }
+  .leeg { max-width: var(--wrap-narrow); margin-inline: auto; text-align: center; padding: var(--s-16) var(--s-6); border: 1px dashed var(--sand); border-radius: var(--radius-lg); background: var(--white); }
+  .leeg p { margin-inline: auto; }
+  @media (max-width: 720px) { .kaart { grid-template-columns: 1fr; } }
+</style>

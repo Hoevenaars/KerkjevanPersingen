@@ -1,0 +1,54 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+
+/*
+  BLOKKEREND VOOR LIVEGANG.
+
+  Zodra het contactformulier persoonsgegevens verwerkt, is een privacyverklaring
+  wettelijk verplicht. Hieronder staat uitsluitend een structuurvoorstel — geen
+  juridische tekst. Claude stelt geen juridische documenten op
+  (03_SECURITY_PRIVACY.md §8).
+
+  Twee punten die vóór publicatie een besluit vragen:
+  1. Bewaartermijn. Een verklaring zonder bewaartermijn is onvolledig.
+  2. De BCC naar een persoonlijk e-mailadres is een verwerking en hoort vermeld.
+*/
+const onderdelen = [
+  'Wie we zijn en hoe je ons bereikt',
+  'Welke gegevens we verzamelen via het formulier',
+  'Waarvoor we ze gebruiken: afhandeling van verhuuraanvragen',
+  'Delen met derden — in principe niet, tenzij wettelijk verplicht',
+  'Hoe lang we gegevens bewaren',
+  'Rechten: inzage, correctie en verwijdering',
+  'Cookies en tracking, voor zover van toepassing',
+  'Contactgegevens voor privacyvragen',
+];
+---
+
+<Base title="Privacyverklaring" description="Privacyverklaring van Stichting Het Kerkje van Persingen." noindex={true}>
+  <PageHeader eyebrow="Juridisch" title="Privacyverklaring" mark="ruit" />
+
+  <div class="wrap-narrow">
+    <div class="let-op">
+      <h2>Nog niet vastgesteld</h2>
+      <p>
+        Deze pagina is nog niet ingevuld. Hieronder staat de voorgestelde opbouw. De
+        definitieve tekst wordt door het bestuur aangeleverd en juridisch getoetst voordat
+        de site live gaat.
+      </p>
+    </div>
+
+    <h2>Voorgestelde opbouw</h2>
+    <ol class="opbouw">
+      {onderdelen.map((o) => <li>{o}</li>)}
+    </ol>
+  </div>
+</Base>
+
+<style>
+  .let-op { background: var(--cream-deep); border: 1px dashed var(--sand); border-radius: var(--radius-lg); padding: var(--s-8); margin-bottom: var(--s-12); }
+  .let-op h2 { margin-top: 0; font-size: var(--t-xl); }
+  .opbouw { padding-left: var(--s-6); max-width: var(--measure); }
+  .opbouw li + li { margin-top: var(--s-3); }
+</style>

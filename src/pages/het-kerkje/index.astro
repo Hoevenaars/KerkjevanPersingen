@@ -1,0 +1,61 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Button from '../../components/Button.astro';
+---
+
+<Base
+  title="Het kerkje"
+  description="Rijksmonument uit circa 1350, met een toren die niet haaks staat en tekens in de muren die nooit verklaard zijn."
+>
+  <PageHeader eyebrow="Het gebouw" title="Dit gebouw staat er ondanks, niet dankzij" mark="boog" />
+
+  <div class="wrap layout">
+    <div class="prose">
+      <p>
+        De kerk werd rond 1350 gebouwd, de toren een eeuw later. Beide zijn rijksmonument.
+        Van de heerlijkheid Persinghen is dit het enige gebouw dat overeind bleef. Waar ooit
+        een nederzetting met een eigen kasteel lag, staan nu een kerkje en twee boerderijen.
+      </p>
+      <p>
+        De toren staat niet haaks op het schip en is in een ander metselverband opgetrokken.
+        Bouwhistorici hebben daar geen sluitende verklaring voor. In de muren zitten tekens
+        van vóór 1570: ruitvormige ing-runen, een tweede gezicht dat je pas ziet als je ernaar
+        zoekt, en motieven die ook in Romeinse bouwwerken voorkomen en hier mogelijk zijn
+        hergebruikt. Archeologisch onderzoek is er nooit geweest.
+      </p>
+      <p>
+        Sinds 1978 is het kerkje vooral expositieruimte. Het interieur is sober en wit
+        gepleisterd. Negen gotische ramen laten het licht binnen. Eén ervan is net iets breder
+        dan de rest en kijkt uit op de opkomende zon. Dat raam is gewijd aan Dionysius, de
+        patroonheilige van deze plek.
+      </p>
+      <div class="acties">
+        <Button href="/het-kerkje/geschiedenis/" variant="secondary">Naar de geschiedenis</Button>
+        <Button href="/het-kerkje/omgeving/" variant="text">De omgeving →</Button>
+      </div>
+    </div>
+
+    <aside>
+      <div class="frame frame--portrait">
+        <img src="/foto/doorzicht-toren.jpg" alt="Doorkijk naar de toren vanuit het witgepleisterde interieur van het kerkje" width="720" height="960" loading="lazy" />
+      </div>
+      <dl class="feiten">
+        <div><dt>Gebouwd</dt><dd>circa 1350</dd></div>
+        <div><dt>Toren</dt><dd>circa 1420</dd></div>
+        <div><dt>Status</dt><dd>Rijksmonument</dd></div>
+        <div><dt>Orgel</dt><dd>Lindsen, 1861</dd></div>
+      </dl>
+    </aside>
+  </div>
+</Base>
+
+<style>
+  .layout { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: var(--s-16); align-items: start; }
+  .acties { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-8); }
+  .feiten { margin: var(--s-6) 0 0; display: grid; gap: var(--s-3); }
+  .feiten > div { display: flex; justify-content: space-between; gap: var(--s-4); padding-bottom: var(--s-3); border-bottom: var(--border); }
+  .feiten dt { font-size: var(--t-sm); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-mute); }
+  .feiten dd { margin: 0; font-family: var(--font-display); font-weight: 600; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+</style>

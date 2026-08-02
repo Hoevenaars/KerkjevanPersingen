@@ -1,0 +1,26 @@
+---
+import Base from '../layouts/Base.astro';
+import Button from '../components/Button.astro';
+---
+
+<Base title="Pagina niet gevonden" description="Deze pagina bestaat niet." noindex={true}>
+  <div class="wrap-narrow blok">
+    <img src="/logo-klein.png" width="130" height="132" alt="" class="zegel" />
+    <h1>Deze pagina is er niet</h1>
+    <p>
+      Verdwenen, net als het grootste deel van Persingen. Wat er wel is, staat hieronder.
+    </p>
+    <div class="acties">
+      <Button href="/" variant="secondary">Naar de voorpagina</Button>
+      <Button href="/verhuur/" variant="text">Verhuur →</Button>
+      <Button href="/agenda/" variant="text">Agenda →</Button>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .blok { text-align: center; padding-block: var(--s-32); }
+  .zegel { width: 130px; height: auto; margin: 0 auto var(--s-8); opacity: 0.85; }
+  .blok p { margin-inline: auto; }
+  .acties { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--s-4); margin-top: var(--s-8); }
+</style>

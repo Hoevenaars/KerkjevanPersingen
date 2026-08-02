@@ -1,0 +1,28 @@
+---
+import MasonMark from './MasonMark.astro';
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  intro?: string;
+  mark?: 'ruit' | 'kruis' | 'gezicht' | 'boog';
+}
+
+const { eyebrow, title, intro, mark = 'ruit' } = Astro.props;
+---
+
+<header class="page-header">
+  <div class="wrap-narrow">
+    <p class="eyebrow"><MasonMark variant={mark} size={14} /> {eyebrow}</p>
+    <h1>{title}</h1>
+    {intro && <p class="lead">{intro}</p>}
+  </div>
+</header>
+
+<style>
+  .page-header {
+    padding-block: var(--s-16) var(--s-8);
+    border-bottom: var(--border);
+    margin-bottom: var(--s-16);
+  }
+</style>

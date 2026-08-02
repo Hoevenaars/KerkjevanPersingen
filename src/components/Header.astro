@@ -1,0 +1,205 @@
+---
+const path = Astro.url.pathname;
+
+// Vijf items plus één knop. Organisatie staat bewust alleen in de footer:
+// niemand kiest een trouwlocatie via "Organisatie".
+const nav = [
+  { href: '/het-kerkje/', label: 'Het kerkje' },
+  { href: '/verhuur/', label: 'Verhuur' },
+  { href: '/agenda/', label: 'Agenda' },
+  { href: '/steun-ons/', label: 'Steun ons' },
+  { href: '/contact/', label: 'Contact' },
+];
+
+const isActive = (href: string) => path === href || path.startsWith(href);
+---
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a href="/" class="brand">
+      <img src="/favicon.svg" width="34" height="34" alt="" class="brand-mark" />
+      <span class="brand-name">Kerkje van Persingen</span>
+    </a>
+
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" />
+    <label for="nav-toggle" class="nav-button">
+      <span class="visually-hidden">Menu openen of sluiten</span>
+      <span class="bars" aria-hidden="true"></span>
+    </label>
+
+    <nav class="nav" aria-label="Hoofdnavigatie">
+      <ul>
+        {
+          nav.map((item) => (
+            <li>
+              <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      <a class="reserve" href="/verhuur/aanvragen/">Reserveren</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    background: var(--cream);
+    border-bottom: var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-6);
+    padding-block: var(--s-4);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    text-decoration: none;
+    color: var(--ink);
+  }
+
+  .brand-mark {
+    flex: none;
+    border-radius: 50%;
+  }
+
+  .brand-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--t-lg);
+    white-space: nowrap;
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: var(--s-8);
+  }
+
+  .nav ul {
+    display: flex;
+    gap: var(--s-6);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .nav a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: var(--t-sm);
+    font-weight: 500;
+    padding-block: var(--s-2);
+    border-bottom: 2px solid transparent;
+  }
+
+  .nav a:hover {
+    color: var(--ink);
+    border-bottom-color: var(--sand);
+  }
+
+  .nav a[aria-current='page'] {
+    color: var(--ink);
+    border-bottom-color: var(--olive);
+  }
+
+  .reserve {
+    background: var(--brick);
+    color: var(--cream) !important;
+    padding: var(--s-3) var(--s-5, 1.25rem) !important;
+    border-radius: var(--radius);
+    font-weight: 600;
+    border-bottom: none !important;
+  }
+
+  .reserve:hover {
+    background: var(--brick-dark);
+  }
+
+  /* Mobiel menu zonder JavaScript — 10_FRONTEND_STANDARDS.md §4 */
+  .nav-toggle,
+  .nav-button {
+    display: none;
+  }
+
+  @media (max-width: 860px) {
+    .nav-button {
+      display: block;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .bars,
+    .bars::before,
+    .bars::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      width: 24px;
+      height: 2px;
+      background: var(--ink);
+      transition: transform 0.2s var(--ease);
+    }
+    .bars {
+      top: 19px;
+    }
+    .bars::before {
+      top: -7px;
+    }
+    .bars::after {
+      top: 7px;
+    }
+
+    .nav {
+      display: none;
+      position: absolute;
+      inset-inline: 0;
+      top: 100%;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+      background: var(--cream);
+      border-bottom: var(--border);
+      padding: var(--s-4) var(--s-6) var(--s-6);
+    }
+
+    .nav ul {
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .nav ul a {
+      display: block;
+      padding: var(--s-4) 0;
+      border-bottom: 1px solid var(--sand);
+      font-size: var(--t-base);
+    }
+
+    .reserve {
+      margin-top: var(--s-4);
+      text-align: center;
+    }
+
+    .nav-toggle:checked ~ .nav {
+      display: flex;
+    }
+
+    .nav-toggle:focus-visible + .nav-button {
+      outline: 3px solid var(--brick);
+      outline-offset: 2px;
+    }
+  }
+</style>

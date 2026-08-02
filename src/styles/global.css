@@ -1,0 +1,193 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--t-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0 0 var(--s-4);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--t-4xl);
+}
+h2 {
+  font-size: var(--t-3xl);
+}
+h3 {
+  font-size: var(--t-xl);
+}
+
+p {
+  margin: 0 0 var(--s-4);
+  max-width: var(--measure);
+}
+
+a {
+  color: var(--pine);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  color: var(--brick);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* 15_ACCESSIBILITY.md §2 — altijd een zichtbare focus-indicator */
+:focus-visible {
+  outline: 3px solid var(--brick);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Layout-helpers */
+.wrap {
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-inline: var(--s-6);
+}
+
+.wrap-narrow {
+  max-width: var(--wrap-narrow);
+  margin-inline: auto;
+  padding-inline: var(--s-6);
+}
+
+.section {
+  padding-block: var(--s-24);
+}
+
+.section-tight {
+  padding-block: var(--s-16);
+}
+
+.band {
+  background: var(--cream-deep);
+  border-block: var(--border);
+}
+
+.eyebrow {
+  font-size: var(--t-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--olive-dark);
+  margin: 0 0 var(--s-4);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.lead {
+  font-size: var(--t-lg);
+  color: var(--ink-soft);
+}
+
+.prose > * + * {
+  margin-top: var(--s-4);
+}
+
+.prose h3 {
+  margin-top: var(--s-12);
+}
+
+.prose ul {
+  max-width: var(--measure);
+  padding-left: var(--s-6);
+}
+
+.prose li + li {
+  margin-top: var(--s-2);
+}
+
+/* Beeld: vaste verhouding vangt de wisselende fotokwaliteit op.
+   Zonder professionele shoot is een consistent kader belangrijker dan de foto zelf. */
+.frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--sand);
+  border: var(--border);
+}
+
+.frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.frame--wide {
+  aspect-ratio: 16 / 9;
+}
+.frame--photo {
+  aspect-ratio: 4 / 3;
+}
+.frame--portrait {
+  aspect-ratio: 3 / 4;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--ink);
+  color: var(--cream);
+  padding: var(--s-3) var(--s-4);
+  z-index: 100;
+  border-radius: 0 0 var(--radius) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,89 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Button from '../../components/Button.astro';
+import Kalender from '../../components/Kalender.astro';
+import { getBezetteData } from '../../lib/sanity';
+
+export const prerender = false;
+
+const bezet = await getBezetteData();
+
+// Maand uit de URL, met de huidige maand als terugval. Zo is elke maand deelbaar
+// en werkt navigeren zonder JavaScript.
+const nu = new Date();
+const gevraagd = Astro.url.searchParams.get('maand') ?? '';
+const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagd)
+  ? gevraagd
+  : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
+
+const soorten = [
+  { titel: 'Bruiloften', tekst: 'Trouwen in een rijksmonument uit 1350, met licht door negen gotische ramen.' },
+  { titel: 'Exposities', tekst: 'Sinds 1978 is het kerkje vooral expositieruimte. Witte wanden, sober interieur.' },
+  { titel: 'Concerten', tekst: 'Akoestiek van een gebouw dat er acht eeuwen voor stond. Met het Lindsenorgel uit 1861.' },
+  { titel: 'Vieringen', tekst: 'Voor momenten die niet in een zaal passen.' },
+  { titel: 'Bijeenkomsten en vergaderingen', tekst: 'Een plek die het gesprek anders maakt dan een vergaderzaal dat doet.' },
+];
+---
+
+<Base
+  title="Verhuur"
+  description="Het kerkje van Persingen huren voor een bruiloft, expositie, concert of bijeenkomst. Altijd maatwerk, vraag vrijblijvend aan."
+>
+  <PageHeader
+    eyebrow="Verhuur"
+    title="Een gebouw dat al af is"
+    intro="De meeste zalen moet je aankleden voordat er iets van te maken valt. Hier hoeft dat niet. Acht eeuwen geschiedenis, een sober wit interieur en licht dat door negen gotische ramen valt."
+    mark="boog"
+  />
+
+  <div class="wrap">
+    <div class="beeld frame frame--wide">
+      <img src="/foto/doorzicht-toren.jpg" alt="Het interieur van het kerkje, wit gepleisterd, met zicht op de toren" width="1200" height="675" />
+    </div>
+
+    <section class="section-tight">
+      <h2>Geschikt voor</h2>
+      <ul class="soorten">
+        {soorten.map((s) => (
+          <li>
+            <h3>{s.titel}</h3>
+            <p>{s.tekst}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="tarieven">
+      <div>
+        <h2>Tarieven</h2>
+        <p>
+          Wat het kost, hangt af van de datum, het soort gebruik en het aantal mensen.
+          We maken liever een voorstel dat klopt dan een prijslijst die dat niet doet.
+          Vraag vrijblijvend aan, dan nemen we contact met je op.
+        </p>
+        <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
+      </div>
+    </section>
+
+    <section class="section-tight" id="kalender">
+      <h2>Beschikbaarheid</h2>
+      <p>
+        Grijs is bezet. Klik op een vrije dag om die datum meteen aan te vragen.
+        Reserveringen worden pas definitief na bevestiging door het bestuur.
+      </p>
+      <Kalender bezet={bezet} maand={maand} basisPad="/verhuur/" />
+    </section>
+
+  </div>
+</Base>
+
+<style>
+  .beeld { margin-bottom: var(--s-16); }
+  .soorten { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-8); }
+  .soorten h3 { margin-bottom: var(--s-2); }
+  .soorten p { margin: 0; color: var(--ink-soft); }
+  .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
+  .tarieven h2 { margin-top: 0; }
+  @media (max-width: 720px) { .soorten { grid-template-columns: 1fr; } .tarieven { padding: var(--s-8); } }
+</style>

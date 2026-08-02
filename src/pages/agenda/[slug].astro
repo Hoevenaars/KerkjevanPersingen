@@ -1,0 +1,64 @@
+---
+import Base from '../../layouts/Base.astro';
+import Button from '../../components/Button.astro';
+import MasonMark from '../../components/MasonMark.astro';
+import { getActiviteitBySlug, imageUrl, formatDatum } from '../../lib/sanity';
+
+const { slug } = Astro.params;
+const activiteit = slug ? await getActiviteitBySlug(slug) : null;
+
+if (!activiteit) {
+  return Astro.redirect('/agenda/', 302);
+}
+
+const foto = activiteit.foto ? imageUrl(activiteit.foto, 1200, 800) : null;
+const beschrijving =
+  activiteit.omschrijving?.slice(0, 155) ??
+  `${activiteit.publiekeTitel} in het kerkje van Persingen.`;
+---
+
+<Base title={activiteit.publiekeTitel ?? 'Activiteit'} description={beschrijving}>
+  <article class="wrap-narrow artikel">
+    <p class="eyebrow"><MasonMark variant="kruis" size={14} /> Agenda</p>
+    <h1>{activiteit.publiekeTitel}</h1>
+    <p class="datum">{formatDatum(activiteit.start)}</p>
+
+    {
+      foto && (
+        <div class="frame frame--wide beeld">
+          <img src={foto} alt={activiteit.fotoAlt ?? ''} width="1200" height="675" />
+        </div>
+      )
+    }
+
+    {activiteit.omschrijving && <div class="prose"><p>{activiteit.omschrijving}</p></div>}
+
+    <div class="slot">
+      <Button href="/agenda/" variant="text">← Terug naar de agenda</Button>
+      <Button href="/verhuur/aanvragen/" variant="secondary">Zelf iets organiseren</Button>
+    </div>
+  </article>
+</Base>
+
+<style>
+  .artikel {
+    padding-block: var(--s-16);
+  }
+  .datum {
+    font-weight: 600;
+    color: var(--olive-dark);
+    margin-bottom: var(--s-8);
+  }
+  .beeld {
+    margin-bottom: var(--s-8);
+  }
+  .slot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-6);
+    margin-top: var(--s-16);
+    padding-top: var(--s-8);
+    border-top: var(--border);
+  }
+</style>

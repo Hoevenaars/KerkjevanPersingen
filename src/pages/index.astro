@@ -1,0 +1,276 @@
+---
+import Base from '../layouts/Base.astro';
+import Button from '../components/Button.astro';
+import MasonMark from '../components/MasonMark.astro';
+import { getEerstvolgende, imageUrl, formatDatum } from '../lib/sanity';
+
+const eerstvolgende = await getEerstvolgende();
+const activiteitFoto = eerstvolgende?.foto ? imageUrl(eerstvolgende.foto, 900, 600) : null;
+---
+
+<Base
+  title="home"
+  description="Rijksmonumentaal kerkje uit 1350 in de Ooijpolder. Te huur voor bruiloften, exposities, concerten en bijeenkomsten."
+>
+  <!-- Hero: de thesis van deze site. Het gebouw is er nog, en dat is het verhaal. -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-text">
+        <p class="eyebrow">
+          <MasonMark variant="ruit" size={14} /> Persingen, Ooijpolder
+        </p>
+        <h1>Acht eeuwen geleden gebouwd.<br />Sindsdien nooit meer weggegaan.</h1>
+        <p class="lead">
+          Sinds 1350 staat dit kerkje in de Ooijpolder. Het water nam het dorp eromheen mee.
+          Een aannemer kocht het in 1899 om het af te breken. Het staat er nog, en het is nu
+          aan de beurt voor jouw moment.
+        </p>
+        <div class="acties">
+          <Button href="/verhuur/aanvragen/" variant="primary">Reserveren</Button>
+          <Button href="/agenda/" variant="secondary">Bekijk de agenda</Button>
+        </div>
+      </div>
+
+      <div class="hero-beeld">
+        <div class="frame frame--portrait">
+          <img
+            src="/foto/nieuwe-vlag.jpg"
+            alt="Het kerkje van Persingen met de vlag in top, gezien vanaf de polder"
+            width="720"
+            height="960"
+            fetchpriority="high"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Verhuur: grootste blok, want dit is het doel van de site. -->
+  <section class="section band">
+    <div class="wrap verhuur">
+      <div>
+        <p class="eyebrow"><MasonMark variant="boog" size={14} /> Verhuur</p>
+        <h2>Geen zaal, een gebouw</h2>
+        <p>
+          Bruiloft, expositie, concert, vergadering of viering. Dit kerkje hoeft niet
+          aangekleed te worden. Vraag je datum aan en we denken met je mee.
+        </p>
+        <Button href="/verhuur/" variant="secondary">Bekijk de mogelijkheden</Button>
+      </div>
+      <ul class="soorten">
+        <li>Bruiloften</li>
+        <li>Exposities</li>
+        <li>Concerten</li>
+        <li>Vieringen</li>
+        <li>Vergaderingen</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Eerstvolgende activiteit uit het CMS. Geen activiteit betekent geen leeg blok:
+       een lege agenda is juist het moment om een aanvraag uit te lokken. -->
+  <section class="section">
+    <div class="wrap">
+      {
+        eerstvolgende ? (
+          <div class="activiteit">
+            <div class="activiteit-tekst">
+              <p class="eyebrow">
+                <MasonMark variant="kruis" size={14} /> Binnenkort in het kerkje
+              </p>
+              <h2>{eerstvolgende.publiekeTitel}</h2>
+              <p class="datum">{formatDatum(eerstvolgende.start)}</p>
+              {eerstvolgende.omschrijving && <p>{eerstvolgende.omschrijving}</p>}
+              <Button
+                href={eerstvolgende.slug ? `/agenda/${eerstvolgende.slug}/` : '/agenda/'}
+                variant="secondary"
+              >
+                Naar de agenda
+              </Button>
+            </div>
+            {activiteitFoto && (
+              <div class="frame frame--photo">
+                <img
+                  src={activiteitFoto}
+                  alt={eerstvolgende.fotoAlt ?? ''}
+                  width="900"
+                  height="675"
+                  loading="lazy"
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div class="leeg">
+            <p class="eyebrow">
+              <MasonMark variant="kruis" size={14} /> De agenda is open
+            </p>
+            <h2>Zelf iets organiseren?</h2>
+            <p>
+              Er staat op dit moment niets gepland. Dat is precies het moment om iets aan
+              te vragen.
+            </p>
+            <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
+          </div>
+        )
+      }
+    </div>
+  </section>
+
+  <!-- Het kerkje: het verhaal dat de locatie verkoopt. -->
+  <section class="section band">
+    <div class="wrap tweeluik">
+      <div class="frame frame--photo">
+        <img
+          src="/foto/doorzicht-toren.jpg"
+          alt="Doorkijk naar de toren vanuit het witgepleisterde interieur"
+          width="900"
+          height="675"
+          loading="lazy"
+        />
+      </div>
+      <div>
+        <p class="eyebrow"><MasonMark variant="gezicht" size={14} /> Het kerkje</p>
+        <h2>Eén kerkje, twee boerderijen</h2>
+        <p>
+          Dat is wat er van Persingen over is, het kleinste dorp van Nederland. In de muren
+          van de kerk zitten tekens die nooit iemand heeft kunnen verklaren.
+        </p>
+        <Button href="/het-kerkje/geschiedenis/" variant="secondary">Lees de geschiedenis</Button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Steun ons: bewust secundair. Nooit een knop naast Reserveren. -->
+  <section class="section">
+    <div class="wrap-narrow steun">
+      <p class="eyebrow"><MasonMark variant="ruit" size={14} /> Vrienden van het kerkje</p>
+      <h2>Dit gebouw is een keer gered</h2>
+      <p>
+        In 1907 kocht de gemeenschap het los van de slopershamer. Het onderhoud sindsdien
+        komt van bestuur en vrijwilligers. Doe je mee?
+      </p>
+      <Button href="/steun-ons/" variant="text">Word Vriend van het Kerkje →</Button>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    padding-block: var(--s-16) var(--s-24);
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: var(--s-16);
+    align-items: center;
+  }
+
+  .hero h1 {
+    margin-bottom: var(--s-6);
+  }
+
+  .hero .lead {
+    margin-bottom: var(--s-8);
+  }
+
+  .acties {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-4);
+  }
+
+  .hero-beeld .frame {
+    max-width: 380px;
+    margin-left: auto;
+  }
+
+  .verhuur {
+    display: grid;
+    grid-template-columns: 1.4fr 0.6fr;
+    gap: var(--s-16);
+    align-items: start;
+  }
+
+  .soorten {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s-3);
+    border-left: 2px solid var(--olive);
+    padding-left: var(--s-6);
+  }
+
+  .soorten li {
+    font-family: var(--font-display);
+    font-size: var(--t-lg);
+    color: var(--ink-soft);
+  }
+
+  .activiteit,
+  .tweeluik {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-16);
+    align-items: center;
+  }
+
+  .datum {
+    font-weight: 600;
+    color: var(--olive-dark);
+  }
+
+  .leeg {
+    max-width: var(--wrap-narrow);
+    margin-inline: auto;
+    text-align: center;
+    padding: var(--s-16) var(--s-6);
+    border: 1px dashed var(--sand);
+    border-radius: var(--radius-lg);
+    background: var(--white);
+  }
+
+  .leeg p {
+    margin-inline: auto;
+  }
+
+  .leeg .eyebrow {
+    justify-content: center;
+  }
+
+  .steun {
+    text-align: center;
+  }
+
+  .steun p,
+  .steun .eyebrow {
+    margin-inline: auto;
+    justify-content: center;
+  }
+
+  @media (max-width: 860px) {
+    .hero-grid,
+    .verhuur,
+    .activiteit,
+    .tweeluik {
+      grid-template-columns: 1fr;
+      gap: var(--s-8);
+    }
+
+    .hero-beeld .frame {
+      margin-inline: 0;
+      max-width: none;
+    }
+
+    .tweeluik .frame {
+      order: 2;
+    }
+
+    .soorten {
+      grid-template-columns: repeat(2, 1fr);
+      display: grid;
+    }
+  }
+</style>

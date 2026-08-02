@@ -1,0 +1,25 @@
+{
+  "name": "kerkje-van-persingen",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "sanity": "sanity dev",
+    "sanity:deploy": "sanity deploy",
+    "sanity:export": "sanity dataset export production ./backups/production.tar.gz",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@astrojs/vercel": "^8.0.0",
+    "@sanity/client": "^6.22.0",
+    "@sanity/image-url": "^1.1.0",
+    "astro": "^5.0.0",
+    "resend": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

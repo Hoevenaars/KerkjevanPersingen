@@ -1,0 +1,10 @@
+/* STICHTING */
+Naam: Stichting Het Kerkje van Persingen
+Plaats: Persingen, Ooijpolder, Nederland
+Sinds: circa 1350 (het gebouw), stichting met ANBI-status sinds 2000
+
+/* SITE */
+Standaard: HTML5, CSS3
+Componenten: Astro, Sanity, Resend
+Hosting: Vercel
+Taal: Nederlands

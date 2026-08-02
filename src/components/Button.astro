@@ -1,0 +1,73 @@
+---
+/*
+  13_UI_UX_DESIGN.md §4: op elk scherm is maximaal één knop `primary`.
+  Primair = --brick en is voorbehouden aan reserveren/aanvragen.
+  Doneren is altijd `secondary` of `text` — nooit gelijkwaardig aan reserveren.
+*/
+interface Props {
+  href: string;
+  variant?: 'primary' | 'secondary' | 'text';
+  class?: string;
+  type?: 'button' | 'submit';
+}
+
+const { href, variant = 'secondary', class: className = '' } = Astro.props;
+---
+
+<a href={href} class={`btn btn--${variant} ${className}`}>
+  <slot />
+</a>
+
+<style>
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: var(--t-base);
+    line-height: 1;
+    padding: var(--s-4) var(--s-6);
+    border-radius: var(--radius);
+    text-decoration: none;
+    border: 1.5px solid transparent;
+    transition:
+      background-color 0.15s var(--ease),
+      border-color 0.15s var(--ease),
+      transform 0.15s var(--ease);
+  }
+
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  .btn--primary {
+    background: var(--brick);
+    color: var(--cream);
+  }
+  .btn--primary:hover {
+    background: var(--brick-dark);
+    color: var(--cream);
+  }
+
+  .btn--secondary {
+    background: transparent;
+    color: var(--pine);
+    border-color: var(--olive);
+  }
+  .btn--secondary:hover {
+    background: var(--olive);
+    color: var(--cream);
+    border-color: var(--olive);
+  }
+
+  .btn--text {
+    padding: var(--s-2) 0;
+    color: var(--pine);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .btn--text:hover {
+    color: var(--brick);
+  }
+</style>

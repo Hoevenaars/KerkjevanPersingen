@@ -1,0 +1,59 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Button from '../components/Button.astro';
+---
+
+<Base
+  title="Steun ons"
+  description="Word Vriend van het Kerkje van Persingen. De stichting heeft een culturele ANBI-status."
+>
+  <PageHeader
+    eyebrow="Vrienden van het kerkje"
+    title="Er stond hier ooit een slopershamer klaar"
+    mark="ruit"
+  />
+
+  <div class="wrap layout">
+    <div class="prose">
+      <p>
+        In 1899 was het bijna afgelopen. Wat het kerkje toen overeind hield, was geen
+        overheid en geen instantie, maar mensen die vonden dat het niet mocht verdwijnen.
+        Sindsdien is dat niet veranderd.
+      </p>
+
+      <h3>Wat je bijdrage doet</h3>
+      <p>
+        Onderhoud, restauratie en het openhouden van de ruimte kosten geld. Als Vriend van
+        het Kerkje draag je daar rechtstreeks aan bij.
+      </p>
+
+      <h3>ANBI</h3>
+      <p>
+        Stichting Het Kerkje van Persingen heeft een culturele ANBI-status. Je gift kan
+        daardoor fiscaal aftrekbaar zijn. De verplichte publicatiegegevens staan op de
+        pagina <a href="/organisatie/">Organisatie</a>.
+      </p>
+
+      <div class="acties">
+        <Button href="/contact/" variant="secondary">Word Vriend</Button>
+        <Button href="/contact/" variant="text">Eenmalig doneren →</Button>
+      </div>
+
+      <p class="klein">
+        Neem contact op via het formulier, dan laten we weten hoe je kunt bijdragen.
+      </p>
+    </div>
+
+    <div class="frame frame--photo">
+      <img src="/foto/gevelrestauratie.jpg" alt="Restauratiewerk aan de gevel van het kerkje" width="720" height="540" loading="lazy" />
+    </div>
+  </div>
+</Base>
+
+<style>
+  .layout { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: var(--s-16); align-items: start; }
+  .acties { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-8); }
+  .klein { font-size: var(--t-sm); color: var(--ink-mute); margin-top: var(--s-4); }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+</style>

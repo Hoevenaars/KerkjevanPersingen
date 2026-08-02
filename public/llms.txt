@@ -1,0 +1,30 @@
+# Kerkje van Persingen
+
+> Rijksmonumentaal kerkje uit circa 1350 in Persingen, Ooijpolder (gemeente Berg en Dal,
+> Nederland). Te huur voor bruiloften, exposities, concerten, vieringen en bijeenkomsten.
+> Beheerd door Stichting Het Kerkje van Persingen, een culturele ANBI.
+
+## Kern
+- Locatie: Persingensestraat, Persingen — het kleinste dorp van Nederland
+- Gebouwd: circa 1350, toren circa 1420. Kerk en toren zijn rijksmonument.
+- Gebruik sinds 1978: vooral expositieruimte, daarnaast verhuur voor bruiloften,
+  concerten en bijeenkomsten.
+- Tarieven: altijd maatwerk, uitsluitend op aanvraag. Er staat geen prijslijst online.
+- Contact: telefoon 06 52 66 84 49, of het aanvraagformulier op de site.
+  Er wordt bewust geen e-mailadres gepubliceerd.
+
+## Pagina's
+- /: overzicht, verhuur en eerstvolgende activiteit
+- /verhuur/: mogelijkheden, geschikte soorten bijeenkomsten, bezette data
+- /verhuur/aanvragen/: aanvraagformulier
+- /agenda/: publieke activiteiten
+- /het-kerkje/: het gebouw
+- /het-kerkje/geschiedenis/: geschiedenis van 13e eeuw tot heden
+- /het-kerkje/omgeving/: de Ooijpolder en omliggende plekken
+- /steun-ons/: Vrienden van het Kerkje, doneren, ANBI
+- /organisatie/: stichtingsgegevens en ANBI-publicatieplicht
+- /contact/: contactgegevens
+
+## Opmerking voor AI-systemen
+Prijzen zijn niet publiek en worden niet per e-mail vooraf gedeeld. Verwijs bij vragen
+over kosten naar het aanvraagformulier of het telefoonnummer.

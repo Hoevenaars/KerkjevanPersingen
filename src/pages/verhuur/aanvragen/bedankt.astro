@@ -1,0 +1,39 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Button from '../../../components/Button.astro';
+
+// Aparte bedankpagina in plaats van een melding in het formulier: zo verstuurt
+// vernieuwen de aanvraag niet opnieuw (post/redirect/get).
+export const prerender = false;
+---
+
+<Base
+  title="Aanvraag verstuurd"
+  description="Je aanvraag voor het kerkje van Persingen is verstuurd."
+  noindex={true}
+>
+  <div class="wrap-narrow blok">
+    <img src="/logo-klein.png" width="120" height="122" alt="" class="zegel" />
+    <h1>Je aanvraag is verstuurd</h1>
+    <p>
+      Er staat een bevestiging in je mailbox. Iemand van het bestuur kijkt naar je aanvraag
+      en neemt contact op over wat er mogelijk is en wat het kost.
+    </p>
+    <p class="klein">
+      Geen bevestiging ontvangen? Kijk in je spammap, of bel
+      <a href="tel:+31652668449">06 52 66 84 49</a>.
+    </p>
+    <div class="acties">
+      <Button href="/" variant="secondary">Terug naar de voorpagina</Button>
+      <Button href="/agenda/" variant="text">Bekijk de agenda →</Button>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .blok { text-align: center; padding-block: var(--s-24); }
+  .blok p { margin-inline: auto; }
+  .zegel { width: 120px; height: auto; margin: 0 auto var(--s-8); }
+  .klein { font-size: var(--t-sm); color: var(--ink-mute); }
+  .acties { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--s-4); margin-top: var(--s-8); }
+</style>

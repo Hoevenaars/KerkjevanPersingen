@@ -1,0 +1,390 @@
+---
+import type { Activiteit } from '../lib/sanity';
+
+/*
+  Beschikbaarheidskalender.
+
+  Server-gerenderd, navigeren gebeurt met gewone links (?maand=2027-05). Daarmee werkt
+  hij zonder JavaScript, is hij deelbaar per maand en indexeerbaar.
+
+  Het bestuur plant tot in 2028, dus naast maandnavigatie zit er een jaarrij in —
+  twaalf keer doorklikken om bij volgend jaar te komen is geen kalender maar een straf.
+
+  Bezet wordt niet alleen met kleur aangegeven maar ook met tekst (15_ACCESSIBILITY.md §1).
+*/
+
+interface Props {
+  bezet: Activiteit[];
+  maand: string; // 'YYYY-MM'
+  basisPad: string;
+}
+
+const { bezet, maand, basisPad } = Astro.props;
+
+const MAANDEN = [
+  'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+  'juli', 'augustus', 'september', 'oktober', 'november', 'december',
+];
+const DAGEN = [
+  { kort: 'ma', lang: 'maandag' },
+  { kort: 'di', lang: 'dinsdag' },
+  { kort: 'wo', lang: 'woensdag' },
+  { kort: 'do', lang: 'donderdag' },
+  { kort: 'vr', lang: 'vrijdag' },
+  { kort: 'za', lang: 'zaterdag' },
+  { kort: 'zo', lang: 'zondag' },
+];
+
+const [jaarStr, maandStr] = maand.split('-');
+const jaar = Number(jaarStr);
+const maandIndex = Number(maandStr) - 1;
+
+/** Lokale datumsleutel, bewust niet via toISOString: die rekent om naar UTC en
+ *  schuift in de zomertijd een dag op. */
+function sleutel(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dag = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${dag}`;
+}
+
+// Bezette dagen uitrollen, inclusief meerdaagse boekingen zoals exposities.
+const bezetteDagen = new Set<string>();
+for (const item of bezet) {
+  const van = new Date(item.start);
+  const tot = item.eind ? new Date(item.eind) : van;
+  const loper = new Date(van.getFullYear(), van.getMonth(), van.getDate());
+  const eindDag = new Date(tot.getFullYear(), tot.getMonth(), tot.getDate());
+  let veiligheid = 0;
+  while (loper <= eindDag && veiligheid < 400) {
+    bezetteDagen.add(sleutel(loper));
+    loper.setDate(loper.getDate() + 1);
+    veiligheid++;
+  }
+}
+
+const eersteVanDeMaand = new Date(jaar, maandIndex, 1);
+const dagenInMaand = new Date(jaar, maandIndex + 1, 0).getDate();
+// getDay(): 0 = zondag. Wij beginnen de week op maandag.
+const startOffset = (eersteVanDeMaand.getDay() + 6) % 7;
+
+interface Cel {
+  dag: number | null;
+  datum?: string;
+  bezet?: boolean;
+  verleden?: boolean;
+  vandaag?: boolean;
+}
+
+const nu = new Date();
+const vandaagSleutel = sleutel(nu);
+
+const cellen: Cel[] = [];
+for (let i = 0; i < startOffset; i++) cellen.push({ dag: null });
+for (let d = 1; d <= dagenInMaand; d++) {
+  const datum = sleutel(new Date(jaar, maandIndex, d));
+  cellen.push({
+    dag: d,
+    datum,
+    bezet: bezetteDagen.has(datum),
+    verleden: datum < vandaagSleutel,
+    vandaag: datum === vandaagSleutel,
+  });
+}
+while (cellen.length % 7 !== 0) cellen.push({ dag: null });
+
+const weken: Cel[][] = [];
+for (let i = 0; i < cellen.length; i += 7) weken.push(cellen.slice(i, i + 7));
+
+function maandSleutel(j: number, m: number): string {
+  return `${j}-${String(m + 1).padStart(2, '0')}`;
+}
+
+const vorige = maandIndex === 0 ? maandSleutel(jaar - 1, 11) : maandSleutel(jaar, maandIndex - 1);
+const volgende = maandIndex === 11 ? maandSleutel(jaar + 1, 0) : maandSleutel(jaar, maandIndex + 1);
+
+const huidigJaar = nu.getFullYear();
+const jaren = [huidigJaar, huidigJaar + 1, huidigJaar + 2, huidigJaar + 3];
+
+const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length;
+---
+
+<div class="kalender">
+  <div class="balk">
+    <a class="stap" href={`${basisPad}?maand=${vorige}#kalender`} rel="prev">
+      <span aria-hidden="true">←</span>
+      <span class="visually-hidden">Vorige maand</span>
+    </a>
+
+    <h3 id="kalender-titel">{MAANDEN[maandIndex]} {jaar}</h3>
+
+    <a class="stap" href={`${basisPad}?maand=${volgende}#kalender`} rel="next">
+      <span aria-hidden="true">→</span>
+      <span class="visually-hidden">Volgende maand</span>
+    </a>
+  </div>
+
+  <nav class="jaren" aria-label="Spring naar een jaar">
+    {
+      jaren.map((j) => (
+        <a
+          href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}#kalender`}
+          aria-current={j === jaar ? 'true' : undefined}
+        >
+          {j}
+        </a>
+      ))
+    }
+  </nav>
+
+  <table>
+    <caption class="visually-hidden">
+      Beschikbaarheid in {MAANDEN[maandIndex]} {jaar}. Bezette dagen zijn als zodanig
+      gemarkeerd, vrije dagen zijn aan te vragen.
+    </caption>
+    <thead>
+      <tr>
+        {
+          DAGEN.map((d) => (
+            <th scope="col">
+              <abbr title={d.lang}>{d.kort}</abbr>
+            </th>
+          ))
+        }
+      </tr>
+    </thead>
+    <tbody>
+      {
+        weken.map((week) => (
+          <tr>
+            {week.map((cel) =>
+              cel.dag === null ? (
+                <td class="leeg" />
+              ) : cel.bezet ? (
+                <td class="dag bezet" aria-current={cel.vandaag ? 'date' : undefined}>
+                  <span class="cijfer">{cel.dag}</span>
+                  <span class="status">bezet</span>
+                </td>
+              ) : cel.verleden ? (
+                <td class="dag verleden" aria-current={cel.vandaag ? 'date' : undefined}>
+                  <span class="cijfer">{cel.dag}</span>
+                </td>
+              ) : (
+                <td class="dag vrij" aria-current={cel.vandaag ? 'date' : undefined}>
+                  <a href={`/verhuur/aanvragen/?datum=${cel.datum}`}>
+                    <span class="cijfer">{cel.dag}</span>
+                    <span class="visually-hidden">
+                      {cel.dag} {MAANDEN[maandIndex]} {jaar} is vrij, deze datum aanvragen
+                    </span>
+                  </a>
+                </td>
+              )
+            )}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <p class="legenda">
+    <span class="staal staal--vrij" aria-hidden="true"></span> Vrij, klik om aan te vragen
+    <span class="staal staal--bezet" aria-hidden="true"></span> Bezet
+  </p>
+
+  <p class="samenvatting">
+    {
+      aantalBezetDezeMaand === 0
+        ? `In ${MAANDEN[maandIndex]} ${jaar} is nog geen dag bezet.`
+        : `${aantalBezetDezeMaand} ${aantalBezetDezeMaand === 1 ? 'dag is' : 'dagen zijn'} bezet in ${MAANDEN[maandIndex]} ${jaar}.`
+    }
+  </p>
+</div>
+
+<style>
+  .kalender {
+    max-width: 620px;
+  }
+
+  .balk {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+    margin-bottom: var(--s-4);
+  }
+
+  .balk h3 {
+    margin: 0;
+    font-size: var(--t-xl);
+    text-align: center;
+    flex: 1;
+  }
+
+  .stap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1.5px solid var(--sand);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--pine);
+    font-size: var(--t-lg);
+    flex: none;
+  }
+
+  .stap:hover {
+    background: var(--olive);
+    border-color: var(--olive);
+    color: var(--cream);
+  }
+
+  .jaren {
+    display: flex;
+    gap: var(--s-2);
+    margin-bottom: var(--s-6);
+    flex-wrap: wrap;
+  }
+
+  .jaren a {
+    font-size: var(--t-sm);
+    font-weight: 500;
+    padding: var(--s-2) var(--s-4);
+    border: 1px solid var(--sand);
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--ink-soft);
+  }
+
+  .jaren a:hover {
+    border-color: var(--olive);
+    color: var(--pine);
+  }
+
+  .jaren a[aria-current='true'] {
+    background: var(--pine);
+    border-color: var(--pine);
+    color: var(--cream);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  th {
+    font-size: var(--t-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    font-weight: 600;
+    padding-bottom: var(--s-2);
+  }
+
+  th abbr {
+    text-decoration: none;
+    border: none;
+  }
+
+  td {
+    border: 1px solid var(--sand);
+    padding: 0;
+    height: 62px;
+    vertical-align: top;
+    background: var(--white);
+  }
+
+  td.leeg {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .cijfer {
+    display: block;
+    padding: var(--s-2);
+    font-size: var(--t-sm);
+    font-weight: 500;
+  }
+
+  .vrij a {
+    display: block;
+    height: 100%;
+    text-decoration: none;
+    color: var(--ink);
+  }
+
+  .vrij a:hover {
+    background: var(--olive);
+    color: var(--cream);
+  }
+
+  .bezet {
+    background: var(--sand);
+    color: var(--ink-soft);
+  }
+
+  .bezet .status {
+    display: block;
+    padding: 0 var(--s-2);
+    font-size: var(--t-xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--olive-dark);
+    font-weight: 600;
+  }
+
+  .verleden {
+    background: var(--cream-deep);
+    color: var(--ink-mute);
+  }
+
+  td[aria-current='date'] {
+    outline: 2px solid var(--brick);
+    outline-offset: -2px;
+  }
+
+  .legenda {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+    font-size: var(--t-sm);
+    color: var(--ink-soft);
+    margin-top: var(--s-4);
+  }
+
+  .staal {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--sand);
+    border-radius: 2px;
+  }
+
+  .staal--vrij {
+    background: var(--white);
+  }
+  .staal--bezet {
+    background: var(--sand);
+  }
+  .legenda .staal + .staal,
+  .legenda .staal:not(:first-child) {
+    margin-left: var(--s-4);
+  }
+
+  .samenvatting {
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+    margin-top: var(--s-2);
+  }
+
+  @media (max-width: 520px) {
+    td {
+      height: 52px;
+    }
+    .bezet .status {
+      font-size: 0.62rem;
+    }
+  }
+</style>

@@ -1,0 +1,214 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Button from '../../components/Button.astro';
+
+/*
+  Jaartallen als structuurdrager.
+
+  Dit is geen decoratieve nummering: de geschiedenis van dit gebouw ís een chronologie
+  waarin de volgorde betekenis draagt. Bijna gesloopt in 1899, gered in 1907, toevlucht
+  in 1944, hersteld in 1996 — dat verhaal werkt alleen op volgorde.
+*/
+const tijdlijn = [
+  {
+    jaar: '13e eeuw',
+    kop: 'Een houten kapel',
+    tekst:
+      'Hier stond een houten kapel, gewijd aan de heilige Dionysius. Hoe die verering hier terechtkwam, weet niemand.',
+  },
+  {
+    jaar: '1350',
+    kop: 'De kerk verrijst',
+    tekst: 'Rond 1350 verrees de huidige kerk. In 1420 kreeg de toren zijn spits.',
+  },
+  {
+    jaar: '15e eeuw',
+    kop: 'Bloei en verval',
+    tekst:
+      'Persingen groeide uit tot een heerlijkheid met een eigen kasteel en bestuurlijke zelfstandigheid. De bloeiperiode viel na sluiting van de ringdijk rond de Ooijpolder. Daarna kreeg de rivier de overhand. De Waal overstroomde de polder keer op keer en nam telkens een stuk van het dorp mee. In 1809 spoelden de laatste resten van het kasteel weg.',
+  },
+  {
+    jaar: '1551',
+    kop: 'Zonder functie',
+    tekst:
+      'Na de reformatie verloor de kerk haar functie. Van 1555 tot 1746 woonden er mensen in het gebouw. Een protestantse commissie gaf in 1744 opdracht de kerk weer geschikt te maken voor de eredienst. Dat duurde nog twee jaar.',
+  },
+  {
+    jaar: '1899',
+    kop: 'Bijna gesloopt',
+    tekst:
+      'Aannemer Herman Braam kocht de kerk om haar af te breken. De stenen van de kosterij waren al onderweg naar Dordrecht. Toen kwam er verzet uit de omgeving. Burgemeester J. Dommer van Polderveld kocht de kerk in 1907 alsnog aan voor de gemeente, voor 500 gulden. Aan de zuidzijde van de toren zit nog altijd de gedenksteen.',
+  },
+  {
+    jaar: '1926',
+    kop: 'Gered is niet in orde',
+    tekst:
+      'Het verval ging door. De kerk stond eenzaam in een ondergelopen polder, met het vee erin.',
+  },
+  {
+    jaar: '1944',
+    kop: 'Toevluchtsoord',
+    tekst:
+      'Toen sanatorium Kalorama in Beek ontruimd moest worden, kwamen 106 tbc-patiënten, artsen en religieuzen naar dit kerkje, dat toen alleen nog als opslag in gebruik was. Tegelijk zochten bijna driehonderd vluchtelingen er onderdak. Op de zandweg ernaartoe vielen granaten en kwamen drie mensen om. Die eerste zaterdagochtend werd er voor het eerst in tweehonderd jaar weer een mis opgedragen, terwijl broeders buiten onder granaatvuur koeien melkten om driehonderd monden te voeden.',
+  },
+  {
+    jaar: '1996',
+    kop: 'Restauratie',
+    tekst:
+      'Bestuur en vrijwilligers restaureerden het kerkje volledig. Er kwam een nieuwe vloer met vloerverwarming, en op de oude fundamenten verrees opnieuw een kosterij. Tijdens het werk kwam een vloer uit ongeveer 1300 tevoorschijn, met aardewerk, een koperen duit uit 1758 en een musketkogeltang. Verder onderzoek bleef uit. De vloer ligt er zwevend bij, klaar voor wie het ooit wel wil uitzoeken.',
+  },
+  {
+    jaar: 'Vandaag',
+    kop: 'In gebruik',
+    tekst:
+      'Kerk en toren zijn rijksmonument. Het Lindsenorgel uit 1861 is gemeentelijk beschermd. Sinds 1978 is het kerkje vooral expositieruimte, en het wordt daarnaast gebruikt voor bruiloften, concerten en bijeenkomsten.',
+  },
+];
+---
+
+<Base
+  title="Geschiedenis"
+  description="Van houten kapel in de 13e eeuw tot toevluchtsoord in 1944. De geschiedenis van het kerkje van Persingen."
+>
+  <PageHeader
+    eyebrow="Geschiedenis"
+    title="Het dorp dat weigerde te verdwijnen"
+    intro="Het water nam het dorp mee, een aannemer kocht de kerk om haar te slopen, en in de oorlog werd ze een schuilplaats voor driehonderd mensen. Ze staat er nog."
+    mark="gezicht"
+  />
+
+  <div class="wrap">
+    <ol class="tijdlijn">
+      {
+        tijdlijn.map((item) => (
+          <li>
+            <div class="jaar">{item.jaar}</div>
+            <div class="inhoud">
+              <h2>{item.kop}</h2>
+              <p>{item.tekst}</p>
+            </div>
+          </li>
+        ))
+      }
+    </ol>
+
+    <section class="muren">
+      <h2>De muren spreken</h2>
+      <p>
+        In het metselwerk zitten tekens van vóór 1570. Ruitvormige ing-runen, motieven die
+        ook in Romeinse bouwwerken voorkomen, en een gezicht dat je pas ziet als iemand het
+        aanwijst. Er is nooit archeologisch onderzoek gedaan. Wat de tekens betekenen, weet
+        niemand.
+      </p>
+      <div class="beelden">
+        <div class="frame frame--photo">
+          <img src="/foto/muren-spreken-1.jpg" alt="Close-up van een metselteken in de muur van het kerkje" width="600" height="450" loading="lazy" />
+        </div>
+        <div class="frame frame--photo">
+          <img src="/foto/muren-spreken-2.jpg" alt="Metselwerk met een herkenbaar gezicht in de steen" width="600" height="450" loading="lazy" />
+        </div>
+        <div class="frame frame--photo">
+          <img src="/foto/gevelrestauratie.jpg" alt="Gevelrestauratie van het kerkje in uitvoering" width="600" height="450" loading="lazy" />
+        </div>
+      </div>
+    </section>
+
+    <div class="slot">
+      <Button href="/agenda/" variant="secondary">Bekijk wat er nu te doen is</Button>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .tijdlijn {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 900px;
+  }
+
+  .tijdlijn li {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: var(--s-8);
+    padding-bottom: var(--s-12);
+    position: relative;
+  }
+
+  .tijdlijn li::before {
+    content: '';
+    position: absolute;
+    left: 139px;
+    top: 0.55rem;
+    bottom: 0;
+    width: 1px;
+    background: var(--sand);
+  }
+
+  .tijdlijn li:last-child::before {
+    display: none;
+  }
+
+  .jaar {
+    font-family: var(--font-display);
+    font-size: var(--t-lg);
+    font-weight: 600;
+    color: var(--brick);
+    text-align: right;
+    padding-right: var(--s-6);
+  }
+
+  .inhoud {
+    padding-left: var(--s-6);
+  }
+
+  .inhoud h2 {
+    font-size: var(--t-xl);
+    margin-bottom: var(--s-2);
+  }
+
+  .inhoud p {
+    margin: 0;
+    color: var(--ink-soft);
+  }
+
+  .muren {
+    margin-top: var(--s-16);
+    padding-top: var(--s-16);
+    border-top: var(--border);
+  }
+
+  .beelden {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s-4);
+    margin-top: var(--s-8);
+  }
+
+  .slot {
+    margin-top: var(--s-16);
+  }
+
+  @media (max-width: 720px) {
+    .tijdlijn li {
+      grid-template-columns: 1fr;
+      gap: var(--s-2);
+    }
+    .tijdlijn li::before {
+      display: none;
+    }
+    .jaar {
+      text-align: left;
+      padding-right: 0;
+    }
+    .inhoud {
+      padding-left: 0;
+      border-left: 2px solid var(--sand);
+      padding-left: var(--s-4);
+    }
+    .beelden {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

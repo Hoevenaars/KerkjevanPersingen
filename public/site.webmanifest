@@ -1,0 +1,24 @@
+{
+  "name": "Kerkje van Persingen",
+  "short_name": "Kerkje",
+  "description": "Rijksmonumentaal kerkje uit 1350 in de Ooijpolder, te huur voor bruiloften, exposities en concerten.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F3",
+  "theme_color": "#4A5235",
+  "lang": "nl-NL",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

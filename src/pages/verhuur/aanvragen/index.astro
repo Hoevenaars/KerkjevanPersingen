@@ -1,0 +1,377 @@
+---
+import Base from '../../../layouts/Base.astro';
+import PageHeader from '../../../components/PageHeader.astro';
+import {
+  LEGE_AANVRAAG,
+  SOORTEN,
+  leesFormulier,
+  valideer,
+  verstuurAanvraag,
+  teVaak,
+  type Aanvraag,
+  type Fouten,
+} from '../../../lib/aanvraag';
+
+export const prerender = false;
+
+/*
+  Verwerking gebeurt hier, in de pagina zelf, met een gewone POST.
+
+  Reden: het formulier moet werken zonder JavaScript. Draaide de verzending alleen op
+  fetch, dan deed de knop niets zodra een script faalt of geblokkeerd wordt — zonder
+  melding, bij precies de pagina waar de boekingen binnenkomen. JavaScript is nu nergens
+  meer voor nodig.
+
+  Bij succes een redirect naar de bedankpagina, zodat vernieuwen niet opnieuw verstuurt
+  (post/redirect/get).
+*/
+
+let waarden: Aanvraag = { ...LEGE_AANVRAAG };
+let fouten: Fouten = {};
+
+// Datum vooraf invullen vanuit de kalender: /verhuur/aanvragen/?datum=2027-05-14
+const vooraf = Astro.url.searchParams.get('datum');
+if (vooraf && /^\d{4}-\d{2}-\d{2}$/.test(vooraf)) {
+  waarden.datum = vooraf;
+}
+
+if (Astro.request.method === 'POST') {
+  try {
+    const data = await Astro.request.formData();
+
+    // Honeypot: verborgen voor mensen, ingevuld door bots. Stilzwijgend accepteren.
+    if (String(data.get('website') ?? '').length > 0) {
+      return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
+    }
+
+    waarden = leesFormulier(data);
+
+    if (teVaak(Astro.clientAddress ?? 'onbekend')) {
+      fouten = {
+        algemeen: 'Er zijn net veel aanvragen verstuurd. Probeer het over een kwartier opnieuw.',
+      };
+    } else {
+      fouten = valideer(waarden);
+      if (Object.keys(fouten).length === 0) {
+        const uitkomst = await verstuurAanvraag(waarden);
+        if (uitkomst.ok) {
+          return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
+        }
+        fouten = uitkomst.fouten ?? {};
+      }
+    }
+  } catch (error) {
+    console.error('[aanvraag] onverwachte fout bij verwerken formulier', error);
+    fouten = { algemeen: 'Er ging iets mis. Bel 06 52 66 84 49, dan pakken we het direct op.' };
+  }
+}
+
+const heeftFouten = Object.keys(fouten).length > 0;
+const vandaag = new Date().toISOString().split('T')[0];
+---
+
+<Base
+  title="Aanvragen"
+  description="Vraag het kerkje van Persingen aan voor je bruiloft, expositie, concert of bijeenkomst."
+>
+  <PageHeader
+    eyebrow="Verhuur"
+    title="Vertel wat je van plan bent"
+    intro="Vul het formulier in, dan kijken we of en hoe het kan. Je hoort van ons wat er mogelijk is en wat het kost."
+    mark="boog"
+  />
+
+  <div class="wrap-narrow">
+    {
+      heeftFouten && (
+        <div class="samenvatting" role="alert" tabindex="-1" id="foutmelding">
+          <h2>Je aanvraag is nog niet verstuurd</h2>
+          {fouten.algemeen ? (
+            <p>{fouten.algemeen}</p>
+          ) : (
+            <>
+              <p>Controleer het volgende:</p>
+              <ul>
+                {Object.entries(fouten).map(([veld, melding]) => (
+                  <li>
+                    <a href={`#${veld}`}>{melding}</a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )
+    }
+
+    <form method="POST" action="/verhuur/aanvragen/">
+      <div class="veld">
+        <label for="datum">Gewenste datum</label>
+        <input
+          type="date"
+          id="datum"
+          name="datum"
+          min={vandaag}
+          value={waarden.datum}
+          required
+          aria-invalid={fouten.datum ? 'true' : undefined}
+          aria-describedby={fouten.datum ? 'fout-datum' : undefined}
+        />
+        {fouten.datum && <p class="fout" id="fout-datum">{fouten.datum}</p>}
+      </div>
+
+      <div class="veld">
+        <label for="soort">Wat voor bijeenkomst wordt het?</label>
+        <select
+          id="soort"
+          name="soort"
+          required
+          aria-invalid={fouten.soort ? 'true' : undefined}
+          aria-describedby={fouten.soort ? 'fout-soort' : undefined}
+        >
+          <option value="">Maak een keuze</option>
+          {
+            SOORTEN.map((s) => (
+              <option value={s.waarde} selected={waarden.soort === s.waarde}>
+                {s.label}
+              </option>
+            ))
+          }
+        </select>
+        {fouten.soort && <p class="fout" id="fout-soort">{fouten.soort}</p>}
+      </div>
+
+      <div class="veld">
+        <label for="personen">Hoeveel mensen verwacht je?</label>
+        <input
+          type="number"
+          id="personen"
+          name="personen"
+          min="1"
+          max="500"
+          inputmode="numeric"
+          value={waarden.personen}
+          required
+          aria-invalid={fouten.personen ? 'true' : undefined}
+          aria-describedby={`hint-personen${fouten.personen ? ' fout-personen' : ''}`}
+        />
+        <p class="hint" id="hint-personen">Een schatting is genoeg.</p>
+        {fouten.personen && <p class="fout" id="fout-personen">{fouten.personen}</p>}
+      </div>
+
+      <fieldset>
+        <legend>Je gegevens</legend>
+
+        <div class="veld">
+          <label for="naam">Naam</label>
+          <input
+            type="text"
+            id="naam"
+            name="naam"
+            autocomplete="name"
+            value={waarden.naam}
+            required
+            aria-invalid={fouten.naam ? 'true' : undefined}
+            aria-describedby={fouten.naam ? 'fout-naam' : undefined}
+          />
+          {fouten.naam && <p class="fout" id="fout-naam">{fouten.naam}</p>}
+        </div>
+
+        <div class="veld">
+          <label for="email">E-mailadres</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            autocomplete="email"
+            value={waarden.email}
+            required
+            aria-invalid={fouten.email ? 'true' : undefined}
+            aria-describedby={fouten.email ? 'fout-email' : undefined}
+          />
+          {fouten.email && <p class="fout" id="fout-email">{fouten.email}</p>}
+        </div>
+
+        <div class="veld">
+          <label for="telefoon">
+            Telefoonnummer <span class="optioneel">(mag je leeg laten)</span>
+          </label>
+          <input
+            type="tel"
+            id="telefoon"
+            name="telefoon"
+            autocomplete="tel"
+            value={waarden.telefoon}
+            aria-invalid={fouten.telefoon ? 'true' : undefined}
+            aria-describedby={fouten.telefoon ? 'fout-telefoon' : undefined}
+          />
+          {fouten.telefoon && <p class="fout" id="fout-telefoon">{fouten.telefoon}</p>}
+        </div>
+      </fieldset>
+
+      <div class="veld">
+        <label for="toelichting">
+          Waar denk je aan? <span class="optioneel">(mag je leeg laten)</span>
+        </label>
+        <textarea id="toelichting" name="toelichting" rows="5" aria-describedby="hint-toelichting"
+          >{waarden.toelichting}</textarea
+        >
+        <p class="hint" id="hint-toelichting">
+          Bijvoorbeeld de tijden die je in gedachten hebt, of wat je in de ruimte wilt doen.
+        </p>
+      </div>
+
+      <div class="honeypot" aria-hidden="true">
+        <label for="website">Website</label>
+        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+      </div>
+
+      <div>
+        <button type="submit" class="verstuur">Verstuur aanvraag</button>
+      </div>
+    </form>
+  </div>
+</Base>
+
+<script>
+  // Enige rol van JavaScript: na een POST met fouten de melding onder de aandacht
+  // brengen. Het formulier werkt volledig zonder dit script.
+  document.getElementById('foutmelding')?.focus();
+</script>
+
+<style>
+  form {
+    display: grid;
+    gap: var(--s-6);
+    max-width: 560px;
+  }
+
+  .samenvatting {
+    max-width: 560px;
+    background: #fdf2ef;
+    border: 1.5px solid var(--error);
+    border-radius: var(--radius-lg);
+    padding: var(--s-6);
+    margin-bottom: var(--s-8);
+  }
+
+  .samenvatting:focus-visible {
+    outline: 3px solid var(--error);
+    outline-offset: 3px;
+  }
+
+  .samenvatting h2 {
+    font-size: var(--t-xl);
+    margin: 0 0 var(--s-3);
+  }
+
+  .samenvatting p {
+    margin: 0 0 var(--s-2);
+  }
+
+  .samenvatting ul {
+    margin: 0;
+    padding-left: var(--s-6);
+  }
+
+  .samenvatting a {
+    color: var(--error);
+  }
+
+  fieldset {
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--s-6);
+    margin: 0;
+    display: grid;
+    gap: var(--s-6);
+  }
+
+  legend {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--t-lg);
+    padding-inline: var(--s-2);
+  }
+
+  .veld {
+    display: grid;
+    gap: var(--s-2);
+  }
+
+  label {
+    font-weight: 500;
+  }
+
+  .optioneel {
+    font-weight: 400;
+    color: var(--ink-mute);
+    font-size: var(--t-sm);
+  }
+
+  input,
+  select,
+  textarea {
+    font-family: var(--font-body);
+    font-size: var(--t-base);
+    padding: var(--s-3) var(--s-4);
+    border: 1.5px solid var(--sand);
+    border-radius: var(--radius);
+    background: var(--white);
+    color: var(--ink);
+    width: 100%;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--olive);
+  }
+
+  input[aria-invalid='true'],
+  select[aria-invalid='true'] {
+    border-color: var(--error);
+    background: #fdf7f6;
+  }
+
+  .hint {
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+    margin: 0;
+  }
+
+  .fout {
+    font-size: var(--t-sm);
+    color: var(--error);
+    font-weight: 500;
+    margin: 0;
+  }
+
+  .honeypot {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .verstuur {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: var(--t-base);
+    padding: var(--s-4) var(--s-6);
+    background: var(--brick);
+    color: var(--cream);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .verstuur:hover {
+    background: var(--brick-dark);
+  }
+</style>
