@@ -15,7 +15,10 @@ import { schemaTypes } from './sanity/schemas';
 export default defineConfig({
   name: 'kerkje-van-persingen',
   title: 'Kerkje van Persingen',
-  projectId: process.env.SANITY_STUDIO_PROJECT_ID ?? '',
+  // Hardcoded, met env-variabele als terugval. De GitHub Action die dit deployt
+  // geeft alleen SANITY_STUDIO_PROJECT_ID mee, geen dataset-variabele — vaste
+  // waarde hier voorkomt dat de Studio zonder project-ID probeert te bouwen.
+  projectId: process.env.SANITY_STUDIO_PROJECT_ID ?? '8le5jso9',
   dataset: process.env.SANITY_STUDIO_DATASET ?? 'production',
   plugins: [
     structureTool({
