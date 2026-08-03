@@ -1,0 +1,6 @@
+---
+// Doorverwijzing naar Sanity Studio. Geen echte proxy (te fragiel, te veel
+// onderhoud) — gewoon een korte, onthoudbare weg naar de beheeromgeving.
+export const prerender = false;
+return Astro.redirect('https://kerkje-van-persingen.sanity.studio/', 302);
+---
