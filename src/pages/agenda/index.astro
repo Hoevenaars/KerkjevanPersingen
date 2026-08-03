@@ -2,9 +2,9 @@
 import Base from '../../layouts/Base.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Button from '../../components/Button.astro';
-import { getPubliekeActiviteiten, imageUrl, formatDatum } from '../../lib/sanity';
+import { getPubliekeAgenda, imageUrl, formatDatum } from '../../lib/sanity';
 
-const activiteiten = await getPubliekeActiviteiten();
+const activiteiten = await getPubliekeAgenda(50);
 ---
 
 <Base title="Agenda" description="Exposities, concerten en bijeenkomsten in het kerkje van Persingen.">
