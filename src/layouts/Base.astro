@@ -76,6 +76,15 @@ const jsonLd = {
       href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Work+Sans:wght@400;500;600&display=swap"
     />
 
+    <!-- Vercel Analytics: geen cookies, geen consent-banner nodig.
+         Telt alleen bezoek op kerkjepersingen.nl zelf — de andere vijf
+         domeinen redirecten (308) al vóór deze pagina geladen wordt, dus
+         er is geen risico op dubbeltellingen via een oude domeinnaam. -->
+    <script is:inline>
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />
   </head>
 
