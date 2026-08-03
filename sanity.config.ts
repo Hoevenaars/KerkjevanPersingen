@@ -5,19 +5,13 @@ import { schemaTypes } from './sanity/schemas';
 /**
  * Sanity Studio, ingericht voor bestuursleden die niet handig zijn met computers.
  *
- * Uitgangspunten:
- * - Nederlandse labels overal, geen Engelse termen.
- * - "Agenda en boekingen" staat bovenaan, want dat is de enige dagelijkse taak.
- * - "Instellingen" is een apart, enkelvoudig item onderin — daar hoort het
- *   ontvangstadres, niet tussen de activiteiten waar het per ongeluk leeggemaakt
- *   kan worden.
+ * "Aankomend" staat bovenaan en is de standaardweergave: alleen toekomstige
+ * activiteiten, zodat je niet eerst langs de historische boekingen hoeft te
+ * scrollen om bij vandaag te komen. "Alles" bevat het volledige archief.
  */
 export default defineConfig({
   name: 'kerkje-van-persingen',
   title: 'Kerkje van Persingen',
-  // Hardcoded, met env-variabele als terugval. De GitHub Action die dit deployt
-  // geeft alleen SANITY_STUDIO_PROJECT_ID mee, geen dataset-variabele — vaste
-  // waarde hier voorkomt dat de Studio zonder project-ID probeert te bouwen.
   projectId: process.env.SANITY_STUDIO_PROJECT_ID ?? '8le5jso9',
   dataset: process.env.SANITY_STUDIO_DATASET ?? 'production',
   plugins: [
@@ -29,9 +23,26 @@ export default defineConfig({
             S.listItem()
               .title('Agenda en boekingen')
               .child(
-                S.documentTypeList('activiteit')
+                S.list()
                   .title('Agenda en boekingen')
-                  .defaultOrdering([{ field: 'start', direction: 'asc' }])
+                  .items([
+                    S.listItem()
+                      .title('Aankomend')
+                      .child(
+                        S.documentList()
+                          .title('Aankomende activiteiten')
+                          .filter('_type == "activiteit" && start >= now()')
+                          .defaultOrdering([{ field: 'start', direction: 'asc' }])
+                      ),
+                    S.listItem()
+                      .title('Alles (archief)')
+                      .child(
+                        S.documentList()
+                          .title('Alle activiteiten')
+                          .filter('_type == "activiteit"')
+                          .defaultOrdering([{ field: 'start', direction: 'desc' }])
+                      ),
+                  ])
               ),
             S.divider(),
             S.listItem()
