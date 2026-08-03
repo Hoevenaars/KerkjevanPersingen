@@ -15,14 +15,12 @@ const activiteiten = await getPubliekeAgenda(50);
       activiteiten.length > 0 ? (
         <ul class="lijst">
           {activiteiten.map((a) => {
-            const foto = a.foto ? imageUrl(a.foto, 800, 600) : null;
+            const foto = a.foto ? imageUrl(a.foto, 800, 600) : '/foto/geen-foto.jpg';
             return (
               <li class="kaart">
-                {foto && (
-                  <div class="frame frame--photo">
-                    <img src={foto} alt={a.fotoAlt ?? ''} width="800" height="600" loading="lazy" />
-                  </div>
-                )}
+                <div class="frame frame--photo">
+                  <img src={foto} alt={a.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="800" height="600" loading="lazy" />
+                </div>
                 <div class="kaart-tekst">
                   <p class="datum">{formatDatum(a.start)}</p>
                   <h2>{a.publiekeTitel}</h2>
