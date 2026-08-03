@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getPubliekeActiviteiten } from '../lib/sanity';
+import { getPubliekeAgenda } from '../lib/sanity';
 
 export const prerender = false;
 
@@ -19,7 +19,7 @@ const vast = [
 ];
 
 export const GET: APIRoute = async () => {
-  const activiteiten = await getPubliekeActiviteiten();
+  const activiteiten = await getPubliekeAgenda(100);
   const vandaag = new Date().toISOString().split('T')[0];
 
   const urls = [
