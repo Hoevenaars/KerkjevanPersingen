@@ -24,10 +24,9 @@ const beschrijving =
     <p class="datum">{formatDatum(activiteit.start)}</p>
 
     {
-      foto && (
-        <div class="frame frame--wide beeld">
-          <img src={foto} alt={activiteit.fotoAlt ?? ''} width="1200" height="675" />
-        </div>
+    <div class="frame frame--wide beeld">
+      <img src={foto} alt={activiteit.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="1200" height="675" />
+    </div>
       )
     }
 
