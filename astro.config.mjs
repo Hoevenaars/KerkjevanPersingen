@@ -16,4 +16,19 @@ export default defineConfig({
     webAnalytics: { enabled: false },
   }),
   compressHTML: true,
+
+  // Astro's ingebouwde Origin-controle voor POST-verzoeken blokkeerde het
+  // aanvraagformulier met "Cross-site POST form submissions are forbidden".
+  // Achter Vercel's edge-netwerk komt de Origin-header niet altijd exact overeen
+  // met wat Astro verwacht, waardoor legitieme, eigen formulieren ten onrechte
+  // worden geweigerd.
+  //
+  // Bewuste afweging: dit schakelt die specifieke bescherming uit. Dat is hier
+  // aanvaardbaar omdat het formulier geen ingelogde sessie of cookie-gebaseerde
+  // rechten gebruikt (waar CSRF-bescherming voor bedoeld is) — iedereen die het
+  // formulier bereikt mag het sowieso invullen. Bescherming tegen misbruik loopt
+  // via de honeypot en rate limiting in src/lib/aanvraag.ts, niet via deze laag.
+  security: {
+    checkOrigin: false,
+  },
 });
