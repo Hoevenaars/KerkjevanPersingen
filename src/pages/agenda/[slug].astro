@@ -11,7 +11,7 @@ if (!activiteit) {
   return Astro.redirect('/agenda/', 302);
 }
 
-const foto = activiteit.foto ? imageUrl(activiteit.foto, 1200, 800) : null;
+const foto = activiteit.foto ? imageUrl(activiteit.foto, 1200, 800) : '/foto/geen-foto.jpg';
 const beschrijving =
   activiteit.omschrijving?.slice(0, 155) ??
   `${activiteit.publiekeTitel} in het kerkje van Persingen.`;
