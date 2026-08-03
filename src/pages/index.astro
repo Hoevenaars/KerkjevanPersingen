@@ -5,8 +5,8 @@ import MasonMark from '../components/MasonMark.astro';
 import { getAgendaOverzicht, imageUrl, formatDatum } from '../lib/sanity';
 
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
-const vandaagFoto = vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : null;
-const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : null;
+const vandaagFoto = vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : '/foto/geen-foto.jpg';
+const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto/geen-foto.jpg';
 ---
 
 <Base
@@ -89,11 +89,9 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : null;
                 Meer over vandaag
               </Button>
             </div>
-            {vandaagFoto && (
-              <div class="frame frame--photo">
-                <img src={vandaagFoto} alt={vandaag.fotoAlt ?? ''} width="900" height="675" loading="lazy" />
-              </div>
-            )}
+            <div class="frame frame--photo">
+              <img src={vandaagFoto} alt={vandaag.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="900" height="675" loading="lazy" />
+            </div>
           </div>
         )
       }
@@ -120,11 +118,9 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : null;
                 Naar de agenda
               </Button>
             </div>
-            {volgendeFoto && (
-              <div class="frame frame--photo">
-                <img src={volgendeFoto} alt={volgende.fotoAlt ?? ''} width="900" height="675" loading="lazy" />
-              </div>
-            )}
+            <div class="frame frame--photo">
+              <img src={volgendeFoto} alt={volgende.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="900" height="675" loading="lazy" />
+            </div>
           </div>
         ) : (
           !vandaag && (
