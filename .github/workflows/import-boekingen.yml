@@ -1,0 +1,21 @@
+name: Boekingen importeren (eenmalig)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code ophalen
+        uses: actions/checkout@v4
+
+      - name: Mutaties versturen naar Sanity
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.SANITY_IMPORT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data @scripts/import-mutaties.json \
+            "https://8le5jso9.api.sanity.io/v2024-10-01/data/mutate/production" \
+            -o resultaat.json -w "HTTP status: %{http_code}\n"
+          cat resultaat.json
