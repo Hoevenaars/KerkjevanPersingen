@@ -23,12 +23,9 @@ const beschrijving =
     <h1>{activiteit.publiekeTitel}</h1>
     <p class="datum">{formatDatum(activiteit.start)}</p>
 
-    {
     <div class="frame frame--wide beeld">
       <img src={foto} alt={activiteit.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="1200" height="675" />
     </div>
-      )
-    }
 
     {activiteit.omschrijving && <div class="prose"><p>{activiteit.omschrijving}</p></div>}
 
