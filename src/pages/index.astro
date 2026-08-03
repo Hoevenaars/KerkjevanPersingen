@@ -2,10 +2,11 @@
 import Base from '../layouts/Base.astro';
 import Button from '../components/Button.astro';
 import MasonMark from '../components/MasonMark.astro';
-import { getEerstvolgende, imageUrl, formatDatum } from '../lib/sanity';
+import { getAgendaOverzicht, imageUrl, formatDatum } from '../lib/sanity';
 
-const eerstvolgende = await getEerstvolgende();
-const activiteitFoto = eerstvolgende?.foto ? imageUrl(eerstvolgende.foto, 900, 600) : null;
+const { vandaag, volgende, daarna } = await getAgendaOverzicht();
+const vandaagFoto = vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : null;
+const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : null;
 ---
 
 <Base
@@ -67,51 +68,78 @@ const activiteitFoto = eerstvolgende?.foto ? imageUrl(eerstvolgende.foto, 900, 6
     </div>
   </section>
 
-  <!-- Eerstvolgende activiteit uit het CMS. Geen activiteit betekent geen leeg blok:
-       een lege agenda is juist het moment om een aanvraag uit te lokken. -->
+  <!-- Vandaag, volgende en daarna uit het CMS. Geen van beide betekent geen leeg
+       blok: een lege agenda is juist het moment om een aanvraag uit te lokken. -->
   <section class="section">
     <div class="wrap">
       {
-        eerstvolgende ? (
+        vandaag && (
+          <div class="activiteit activiteit--vandaag">
+            <div class="activiteit-tekst">
+              <p class="eyebrow">
+                <MasonMark variant="kruis" size={14} /> Vandaag in het kerkje
+              </p>
+              <h2>{vandaag.publiekeTitel}</h2>
+              <p class="datum">{formatDatum(vandaag.start)}</p>
+              {vandaag.omschrijving && <p>{vandaag.omschrijving}</p>}
+              <Button
+                href={vandaag.slug ? `/agenda/${vandaag.slug}/` : '/agenda/'}
+                variant="secondary"
+              >
+                Meer over vandaag
+              </Button>
+            </div>
+            {vandaagFoto && (
+              <div class="frame frame--photo">
+                <img src={vandaagFoto} alt={vandaag.fotoAlt ?? ''} width="900" height="675" loading="lazy" />
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      {
+        volgende ? (
           <div class="activiteit">
             <div class="activiteit-tekst">
               <p class="eyebrow">
                 <MasonMark variant="kruis" size={14} /> Binnenkort in het kerkje
               </p>
-              <h2>{eerstvolgende.publiekeTitel}</h2>
-              <p class="datum">{formatDatum(eerstvolgende.start)}</p>
-              {eerstvolgende.omschrijving && <p>{eerstvolgende.omschrijving}</p>}
+              <h2>{volgende.publiekeTitel}</h2>
+              <p class="datum">{formatDatum(volgende.start)}</p>
+              {volgende.omschrijving && <p>{volgende.omschrijving}</p>}
+              {daarna && (
+                <p class="daarna">
+                  Daarna: <strong>{daarna.publiekeTitel}</strong>, {formatDatum(daarna.start, false)}
+                </p>
+              )}
               <Button
-                href={eerstvolgende.slug ? `/agenda/${eerstvolgende.slug}/` : '/agenda/'}
+                href={volgende.slug ? `/agenda/${volgende.slug}/` : '/agenda/'}
                 variant="secondary"
               >
                 Naar de agenda
               </Button>
             </div>
-            {activiteitFoto && (
+            {volgendeFoto && (
               <div class="frame frame--photo">
-                <img
-                  src={activiteitFoto}
-                  alt={eerstvolgende.fotoAlt ?? ''}
-                  width="900"
-                  height="675"
-                  loading="lazy"
-                />
+                <img src={volgendeFoto} alt={volgende.fotoAlt ?? ''} width="900" height="675" loading="lazy" />
               </div>
             )}
           </div>
         ) : (
-          <div class="leeg">
-            <p class="eyebrow">
-              <MasonMark variant="kruis" size={14} /> De agenda is open
-            </p>
-            <h2>Zelf iets organiseren?</h2>
-            <p>
-              Er staat op dit moment niets gepland. Dat is precies het moment om iets aan
-              te vragen.
-            </p>
-            <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
-          </div>
+          !vandaag && (
+            <div class="leeg">
+              <p class="eyebrow">
+                <MasonMark variant="kruis" size={14} /> De agenda is open
+              </p>
+              <h2>Zelf iets organiseren?</h2>
+              <p>
+                Er staat op dit moment niets gepland. Dat is precies het moment om iets aan
+                te vragen.
+              </p>
+              <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
+            </div>
+          )
         )
       }
     </div>
@@ -217,9 +245,22 @@ const activiteitFoto = eerstvolgende?.foto ? imageUrl(eerstvolgende.foto, 900, 6
     align-items: center;
   }
 
+  .activiteit--vandaag {
+    background: var(--cream-deep);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--s-8);
+    margin-bottom: var(--s-12);
+  }
+
   .datum {
     font-weight: 600;
     color: var(--olive-dark);
+  }
+
+  .daarna {
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
   }
 
   .leeg {
@@ -254,7 +295,8 @@ const activiteitFoto = eerstvolgende?.foto ? imageUrl(eerstvolgende.foto, 900, 6
     .hero-grid,
     .verhuur,
     .activiteit,
-    .tweeluik {
+    .tweeluik,
+    .activiteit--vandaag {
       grid-template-columns: 1fr;
       gap: var(--s-8);
     }
