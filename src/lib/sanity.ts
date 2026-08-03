@@ -73,21 +73,54 @@ async function veiligeQuery<T>(query: string, params: Record<string, unknown> = 
   }
 }
 
-/** Publieke agenda: alleen wat het bestuur bewust openbaar heeft gezet. */
-export function getPubliekeActiviteiten(): Promise<Activiteit[]> {
-  return veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && zichtbaarheid == "publiek" && start >= now()]
-     | order(start asc) { ${ACTIVITEIT_VELDEN} }`
-  );
+/**
+ * Start van vandaag (00:00 UTC), niet het exacte huidige moment.
+ *
+ * Reden: met `start >= now()` verdween een activiteit uit beeld zodra de klok voorbij
+ * de starttijd was, ook al liep hij die dag nog gewoon door. Deze cutoff houdt een
+ * activiteit de hele dag zichtbaar, ongeacht hoe laat hij begon.
+ *
+ * Bekende beperking: dit rekent in UTC, terwijl het bestuur in Nederlandse tijd denkt
+ * (UTC+1 of +2). Rond middernacht kan een activiteit daardoor een uur te vroeg of te
+ * laat wisselen van status. Voor een agenda die per dag plant is dat verwaarloosbaar;
+ * zou het ooit knellen, dan is een tijdzone-bibliotheek de volgende stap.
+ */
+function cutoffVandaag(): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
+}
+
+function startVanDag(iso: string): number {
+  const d = new Date(iso);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/** Loopt deze activiteit vandaag, ongeacht wanneer hij begon of eindigt? */
+function loopVandaag(a: Activiteit, vandaag: number): boolean {
+  const start = startVanDag(a.start);
+  const eind = a.eind ? startVanDag(a.eind) : start;
+  return start <= vandaag && vandaag <= eind;
 }
 
 /**
- * Beschikbaarheidskalender: alles wat de datum blokkeert, zonder details prijs te geven.
- *
- * Bewust zonder datumfilter. Het bestuur plant tot in 2028, en de kalender moet ook
- * maanden ver vooruit kloppen. Bij een paar honderd boekingen is dat verwaarloosbaar;
- * loopt dat op, dan wordt een filter per zichtbare periode de volgende stap.
+ * Publieke agenda: alles wat nog relevant is — lopend of toekomstig.
+ * Meerdaagse activiteiten (bijv. een expositie van vijf dagen) blijven zichtbaar
+ * zolang de einddatum niet gepasseerd is, ook als de startdatum al voorbij is.
  */
+export function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
+  return veiligeQuery<Activiteit>(
+    `*[_type == "activiteit" && zichtbaarheid == "publiek"
+       && (
+         (defined(eind) && eind >= $cutoff) ||
+         (!defined(eind) && start >= $cutoff)
+       )
+     ] | order(start asc) [0...$limit] { ${ACTIVITEIT_VELDEN} }`,
+    { cutoff: cutoffVandaag(), limit }
+  );
+}
+
+/** Beschikbaarheidskalender: alles wat de datum blokkeert, zonder details prijs te geven.
+ *  Bewust zonder datumfilter — het bestuur plant tot in 2028. */
 export function getBezetteData(): Promise<Activiteit[]> {
   return veiligeQuery<Activiteit>(
     `*[_type == "activiteit" && zichtbaarheid != "verborgen"]
@@ -95,12 +128,30 @@ export function getBezetteData(): Promise<Activiteit[]> {
   );
 }
 
-export async function getEerstvolgende(): Promise<Activiteit | null> {
-  const rij = await veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && zichtbaarheid == "publiek" && start >= now()]
-     | order(start asc)[0...1] { ${ACTIVITEIT_VELDEN} }`
-  );
-  return rij[0] ?? null;
+export interface AgendaOverzicht {
+  vandaag: Activiteit | null;
+  volgende: Activiteit | null;
+  daarna: Activiteit | null;
+}
+
+/**
+ * Verdeelt de publieke agenda in drie blokken voor de landingspagina: wat vandaag
+ * loopt, wat daarna als eerste komt, en wat daarop weer volgt. Een activiteit die
+ * vandaag loopt telt niet mee als "volgende" — dat voorkomt dat dezelfde activiteit
+ * dubbel in beeld komt.
+ */
+export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
+  const lijst = await getPubliekeAgenda(20);
+  const vandaag = startVanDag(new Date().toISOString());
+
+  const lopend = lijst.find((a) => loopVandaag(a, vandaag)) ?? null;
+  const toekomstig = lijst.filter((a) => startVanDag(a.start) > vandaag);
+
+  return {
+    vandaag: lopend,
+    volgende: toekomstig[0] ?? null,
+    daarna: toekomstig[1] ?? null,
+  };
 }
 
 export async function getActiviteitBySlug(slug: string): Promise<Activiteit | null> {
