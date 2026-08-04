@@ -1,0 +1,31 @@
+---
+/*
+  De brede landschapsfoto van het informatiebord, ook op de site.
+  Consequent gebruik: dit component staat in Base.astro, dus verschijnt op elke
+  pagina, direct vóór de footer — precies de plek waar het ook op het bord staat.
+*/
+---
+
+<div class="footer-banner">
+  <img
+    src="/foto/footer-landschap.jpg"
+    alt="Het kerkje van Persingen in het landschap van de Ooijpolder, gezien vanaf de weilanden"
+    width="2172"
+    height="724"
+    loading="lazy"
+  />
+</div>
+
+<style>
+  .footer-banner {
+    width: 100%;
+    overflow: hidden;
+    line-height: 0;
+  }
+
+  .footer-banner img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+</style>
