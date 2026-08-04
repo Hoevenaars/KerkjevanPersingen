@@ -3,15 +3,22 @@ const FACEBOOK = 'https://www.facebook.com/profile.php?id=100082161927118&locale
 const year = new Date().getFullYear();
 ---
 
-<div class="zegel-band">
-  <img
-    src="/logo-klein.png"
-    width="150"
-    height="153"
-    alt="Zegel van het Kerkje van Persingen, opgericht 1350"
-    loading="lazy"
-  />
-</div>
+<!--
+  Zegel-band: bewaard voor eventueel later gebruik, nu uitgeschakeld op verzoek
+  (bracht een ongewenste cream-onderbreking tussen de landschapsbanner en het
+  groene blok). Terugzetten: haal dit commentaarblok weg, en haal ook de
+  bijbehorende CSS hieronder uit commentaar.
+
+  <div class="zegel-band">
+    <img
+      src="/logo-klein.png"
+      width="150"
+      height="153"
+      alt="Zegel van het Kerkje van Persingen, opgericht 1350"
+      loading="lazy"
+    />
+  </div>
+-->
 
 <footer class="site-footer">
   <div class="wrap inner">
@@ -20,7 +27,7 @@ const year = new Date().getFullYear();
         <img src="/favicon.svg" width="22" height="22" alt="" />
         <span>Stichting Het Kerkje van Persingen</span>
       </div>
-          <p class="small">
+      <p class="small">
         Persingensestraat 7<br />
         6575 JA Persingen
       </p>
@@ -71,6 +78,7 @@ const year = new Date().getFullYear();
 </footer>
 
 <style>
+  /* Zegel-band — bewaard, zie commentaarblok bovenin dit bestand.
   .zegel-band {
     background: var(--cream);
     border-top: var(--border);
@@ -84,6 +92,7 @@ const year = new Date().getFullYear();
     width: 150px;
     height: auto;
   }
+  */
 
   .site-footer {
     background: var(--pine);
