@@ -46,24 +46,24 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
     </div>
   </section>
 
-  <!-- Verhuur: grootste blok, want dit is het doel van de site. -->
+  <!-- Verhuur: grootste blok, want dit is het doel van de site. Exposities voorop:
+       dat is de corebusiness volgens het bestuur. Vergaderingen bewust weggehaald. -->
   <section class="section band">
     <div class="wrap verhuur">
       <div>
         <p class="eyebrow"><MasonMark variant="boog" size={14} /> Verhuur</p>
         <h2>Geen zaal, een gebouw</h2>
         <p>
-          Bruiloft, expositie, concert, vergadering of viering. Dit kerkje hoeft niet
-          aangekleed te worden. Vraag je datum aan en we denken met je mee.
+          Expositie, bruiloft, concert of viering. Dit kerkje hoeft niet aangekleed te
+          worden. Vraag je datum aan en we denken met je mee.
         </p>
         <Button href="/verhuur/" variant="secondary">Bekijk de mogelijkheden</Button>
       </div>
       <ul class="soorten">
+        <li class="soorten-accent">Exposities</li>
         <li>Bruiloften</li>
-        <li>Exposities</li>
         <li>Concerten</li>
         <li>Vieringen</li>
-        <li>Vergaderingen</li>
       </ul>
     </div>
   </section>
@@ -231,6 +231,11 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
     font-family: var(--font-display);
     font-size: var(--t-lg);
     color: var(--ink-soft);
+  }
+
+  .soorten-accent {
+    color: var(--brick) !important;
+    font-weight: 600;
   }
 
   .activiteit,
