@@ -5,22 +5,24 @@ import PageHeader from '../components/PageHeader.astro';
 /*
   ANBI-publicatieplicht.
 
-  Een ANBI moet een vaste set gegevens op internet publiceren. De kerngegevens
-  hieronder zijn aangeleverd. De rest staat als openstaand gemarkeerd en is
-  BLOKKEREND VOOR LIVEGANG: zonder deze gegevens voldoet de stichting niet aan
-  de publicatieplicht. Niets hiervan wordt met aannames ingevuld
-  (00_PROJECT_RULES.md §4).
+  Doelstelling en bestuurssamenstelling aangeleverd door het bestuur (4 augustus 2026).
+  Bestuur wordt gepubliceerd als naam + functie — geen privéadressen of telefoonnummers,
+  want dat is niet vereist voor de ANBI-publicatieplicht en zijn persoonsgegevens die
+  niet zomaar online hoeven (03_SECURITY_PRIVACY.md).
 
-  Let op: er is een tweede adres bekend (De Geest 35, Beek) — dat is het privéadres
-  van een bestuurslid en wordt bewust NIET gepubliceerd. Alleen het officiële
-  KVK-adres van de hoofdvestiging staat hier.
+  Nog steeds ontbrekend en BLOKKEREND VOOR LIVEGANG: beleidsplan, beloningsbeleid,
+  activiteitenverslag, financiële verantwoording.
 */
+const bestuur = [
+  { naam: 'Hans Maas', functie: 'Voorzitter' },
+  { naam: 'Paul Verhoeven', functie: 'Penningmeester' },
+  { naam: 'Nelleke van der Pol', functie: 'Contractbeheer' },
+  { naam: 'Geert Kroes', functie: 'Algemene zaken' },
+];
+
 const ontbreekt = [
-  'Contactgegevens van het bestuur',
-  'Bestuurssamenstelling',
   'Beleidsplan op hoofdlijnen',
   'Beloningsbeleid',
-  'Doelstelling',
   'Verslag van de uitgeoefende activiteiten',
   'Financiële verantwoording (balans, staat van baten en lasten)',
 ];
@@ -28,7 +30,7 @@ const ontbreekt = [
 
 <Base
   title="Organisatie"
-  description="Stichting Het Kerkje van Persingen: RSIN, KvK-nummer en ANBI-gegevens."
+  description="Stichting Het Kerkje van Persingen: doelstelling, bestuur, RSIN, KvK-nummer en ANBI-gegevens."
 >
   <PageHeader eyebrow="Stichting" title="Organisatie" mark="kruis" />
 
@@ -45,9 +47,33 @@ const ontbreekt = [
       <div><dt>Adres</dt><dd>Persingensestraat 7<br />6575 JA Persingen</dd></div>
     </dl>
 
-    <!-- TODO — BLOKKEREND VOOR LIVEGANG. Aan te leveren door het bestuur;
-         penningmeester voor het financiële deel. Verwijder dit blok zodra
-         de gegevens erin staan. -->
+    <section class="blok">
+      <h2>Doelstelling</h2>
+      <p>
+        De Stichting heeft ten doel de instandhouding en het bewaren van het Kerkje van
+        Persingen, waarbij het kerkje dusdanig zal worden beheerd en geëxploiteerd, dat het
+        kerkje voor het publiek toegankelijk wordt en blijft en het gebruik recht doet aan
+        de monumentale en cultuurhistorische waarde van het gebouw.
+      </p>
+      <p>
+        De Stichting probeert dat doel te verwezenlijken door het kerkje in eigendom te
+        verwerven en te hebben en dit als monument te onderhouden. Het organiseren van
+        evenementen in het kerkje vormt daarvan onderdeel.
+      </p>
+    </section>
+
+    <section class="blok">
+      <h2>Bestuurssamenstelling</h2>
+      <dl class="gegevens">
+        {
+          bestuur.map((lid) => (
+            <div><dt>{lid.functie}</dt><dd>{lid.naam}</dd></div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <!-- TODO — BLOKKEREND VOOR LIVEGANG. Financieel deel via penningmeester. -->
     <section class="openstaand">
       <h2>Nog aan te leveren</h2>
       <p>
@@ -62,10 +88,12 @@ const ontbreekt = [
 </Base>
 
 <style>
-  .gegevens { display: grid; gap: var(--s-4); margin: 0 0 var(--s-16); max-width: 560px; }
+  .gegevens { display: grid; gap: var(--s-4); margin: 0 0 var(--s-12); max-width: 560px; }
   .gegevens > div { display: flex; justify-content: space-between; gap: var(--s-6); padding-bottom: var(--s-3); border-bottom: var(--border); }
   .gegevens dt { color: var(--ink-mute); font-size: var(--t-sm); }
   .gegevens dd { margin: 0; font-weight: 500; text-align: right; }
+  .blok { margin-bottom: var(--s-16); }
+  .blok h2 { font-size: var(--t-xl); }
   .openstaand { background: var(--cream-deep); border: 1px dashed var(--sand); border-radius: var(--radius-lg); padding: var(--s-8); }
   .openstaand h2 { margin-top: 0; font-size: var(--t-xl); }
   .openstaand ul { padding-left: var(--s-6); color: var(--ink-soft); }
