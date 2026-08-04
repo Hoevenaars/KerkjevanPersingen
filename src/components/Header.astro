@@ -29,14 +29,25 @@ const isActive = (href: string) => path === href || path.startsWith(href);
 
     <nav class="nav" aria-label="Hoofdnavigatie">
       <ul>
+        <li class="heeft-submenu">
+          <a href="/het-kerkje/" aria-current={isActive('/het-kerkje/') ? 'page' : undefined}>
+            Het kerkje
+          </a>
+          <ul class="submenu">
+            <li><a href="/het-kerkje/geschiedenis/">Geschiedenis</a></li>
+            <li><a href="/het-kerkje/omgeving/">Omgeving</a></li>
+          </ul>
+        </li>
         {
-          nav.map((item) => (
-            <li>
-              <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
-                {item.label}
-              </a>
-            </li>
-          ))
+          nav
+            .filter((item) => item.href !== '/het-kerkje/')
+            .map((item) => (
+              <li>
+                <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              </li>
+            ))
         }
       </ul>
       <a class="reserve" href="/verhuur/aanvragen/">Reserveren</a>
@@ -127,6 +138,60 @@ const isActive = (href: string) => path === href || path.startsWith(href);
     background: var(--brick-dark);
   }
 
+  .heeft-submenu {
+    position: relative;
+  }
+
+  /*
+    Bewust GEEN display:none/block-toggle. Een element met display:none is niet
+    focusbaar via het toetsenbord, dus zou dit submenu voor toetsenbordgebruikers
+    permanent onbereikbaar zijn geweest. In plaats daarvan blijft het element altijd
+    aanwezig (dus focusbaar), en wisselt alleen de zichtbaarheid en klikbaarheid.
+
+    Ook geen margin tussen link en submenu — dat gaf een "dood gebied" waar de muis
+    de hover-status kon verliezen vóór het submenu bereikt werd. In plaats daarvan
+    zit de visuele ruimte als padding BINNEN het submenu zelf, zodat er geen moment
+    is waarop de cursor over niets beweegt.
+  */
+  .submenu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin: 0;
+    padding: var(--s-3) var(--s-2) var(--s-2);
+    min-width: 180px;
+    background: var(--cream);
+    border: var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    list-style: none;
+    z-index: 30;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s var(--ease);
+  }
+
+  .heeft-submenu:hover .submenu,
+  .heeft-submenu:focus-within .submenu {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .submenu li {
+    display: block;
+  }
+
+  .submenu a {
+    display: block;
+    padding: var(--s-2) var(--s-3);
+    border-bottom: none;
+    white-space: nowrap;
+  }
+
+  .submenu a:hover {
+    background: var(--cream-deep);
+  }
+
   /* Mobiel menu zonder JavaScript — 10_FRONTEND_STANDARDS.md §4 */
   .nav-toggle,
   .nav-button {
@@ -186,6 +251,18 @@ const isActive = (href: string) => path === href || path.startsWith(href);
       padding: var(--s-4) 0;
       border-bottom: 1px solid var(--sand);
       font-size: var(--t-base);
+    }
+
+    /* Op mobiel altijd zichtbaar onder "Het kerkje" — geen hover op een telefoon,
+       en een extra tik toevoegen is meer moeite dan het waard voor twee links. */
+    .submenu {
+      position: static;
+      opacity: 1;
+      pointer-events: auto;
+      box-shadow: none;
+      border: none;
+      background: transparent;
+      padding: 0 0 0 var(--s-4);
     }
 
     .reserve {
