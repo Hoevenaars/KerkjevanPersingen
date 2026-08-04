@@ -2,11 +2,17 @@
 import Base from '../layouts/Base.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Button from '../components/Button.astro';
+
+// IBAN aangeleverd door het bestuur (4 augustus 2026). Geen betaalprovider
+// gekoppeld — dat blijft een upsell voor later (zie decision log). Voor nu:
+// duidelijke overschrijvingsinstructie, geen geautomatiseerde iDEAL-koppeling.
+const IBAN = 'NL21 RABO 0105101699';
+const TENAAMSTELLING = 'Stichting Het Kerkje van Persingen';
 ---
 
 <Base
   title="Steun ons"
-  description="Word Vriend van het Kerkje van Persingen. De stichting heeft een culturele ANBI-status."
+  description="Word Vriend van het Kerkje van Persingen of doneer eenmalig. De stichting heeft een culturele ANBI-status."
 >
   <PageHeader
     eyebrow="Vrienden van het kerkje"
@@ -35,14 +41,27 @@ import Button from '../components/Button.astro';
         pagina <a href="/organisatie/">Organisatie</a>.
       </p>
 
-      <div class="acties">
-        <Button href="/contact/" variant="secondary">Word Vriend</Button>
-        <Button href="/contact/" variant="text">Eenmalig doneren →</Button>
+      <div class="doneer">
+        <h3>Doneren via bankoverschrijving</h3>
+        <dl class="rekening">
+          <div>
+            <dt>IBAN</dt>
+            <dd class="iban">{IBAN}</dd>
+          </div>
+          <div>
+            <dt>Ten name van</dt>
+            <dd>{TENAAMSTELLING}</dd>
+          </div>
+        </dl>
+        <p class="klein">
+          Vermeld bij voorkeur "Gift" of "Vriend van het Kerkje" als omschrijving, dat
+          scheelt ons administratief uitzoekwerk.
+        </p>
       </div>
 
-      <p class="klein">
-        Neem contact op via het formulier, dan laten we weten hoe je kunt bijdragen.
-      </p>
+      <div class="acties">
+        <Button href="/contact/" variant="secondary">Vraag naar de mogelijkheden</Button>
+      </div>
     </div>
 
     <div class="frame frame--photo">
@@ -53,6 +72,19 @@ import Button from '../components/Button.astro';
 
 <style>
   .layout { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: var(--s-16); align-items: start; }
+  .doneer {
+    background: var(--cream-deep);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--s-8);
+    margin-top: var(--s-8);
+  }
+  .doneer h3 { margin-top: 0; }
+  .rekening { display: grid; gap: var(--s-3); margin: var(--s-4) 0; }
+  .rekening > div { display: flex; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; }
+  .rekening dt { color: var(--ink-mute); font-size: var(--t-sm); }
+  .rekening dd { margin: 0; font-weight: 600; }
+  .iban { font-family: monospace; font-size: var(--t-lg); letter-spacing: 0.02em; }
   .acties { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-8); }
   .klein { font-size: var(--t-sm); color: var(--ink-mute); margin-top: var(--s-4); }
   @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
