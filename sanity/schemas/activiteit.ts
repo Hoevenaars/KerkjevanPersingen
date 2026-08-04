@@ -11,6 +11,10 @@ import { defineType, defineField } from 'sanity';
  * Zou 'verborgen' de standaard zijn, dan toont de kalender een bezette datum als vrij
  * en volgen er dubbele boekingen. Privacy staat hiermee standaard aan zonder dat het
  * de kalender onbetrouwbaar maakt.
+ *
+ * "Vergadering" is bewust geen optie meer — het bestuur wil dit type verhuur niet
+ * aanbieden. Bestaande data met die waarde (indien aanwezig) blijft geldig, maar
+ * kan niet meer opnieuw gekozen worden.
  */
 export const activiteit = defineType({
   name: 'activiteit',
@@ -43,10 +47,9 @@ export const activiteit = defineType({
       type: 'string',
       options: {
         list: [
+          { title: 'Expositie', value: 'expositie' },
           { title: 'Bruiloft', value: 'bruiloft' },
           { title: 'Concert', value: 'concert' },
-          { title: 'Expositie', value: 'expositie' },
-          { title: 'Vergadering', value: 'vergadering' },
           { title: 'Viering of dienst', value: 'viering' },
           { title: 'Blokkade (onderhoud, niet verhuurbaar)', value: 'blokkade' },
         ],
