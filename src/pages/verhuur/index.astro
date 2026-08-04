@@ -17,18 +17,19 @@ const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagd)
   ? gevraagd
   : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
 
+// Exposities voorop: corebusiness volgens het bestuur, krijgt daarom een volle
+// rij en visueel gewicht i.p.v. gelijk gewicht met de rest. Vergaderingen eruit.
 const soorten = [
+  { titel: 'Exposities', tekst: 'Onze corebusiness. Sinds 1978 is het kerkje vooral expositieruimte — witte wanden, sober interieur, negen gotische ramen die het licht binnenlaten.', accent: true },
   { titel: 'Bruiloften', tekst: 'Trouwen in een rijksmonument uit 1350, met licht door negen gotische ramen.' },
-  { titel: 'Exposities', tekst: 'Sinds 1978 is het kerkje vooral expositieruimte. Witte wanden, sober interieur.' },
   { titel: 'Concerten', tekst: 'Akoestiek van een gebouw dat er acht eeuwen voor stond. Met het Lindsenorgel uit 1861.' },
   { titel: 'Vieringen', tekst: 'Voor momenten die niet in een zaal passen.' },
-  { titel: 'Bijeenkomsten en vergaderingen', tekst: 'Een plek die het gesprek anders maakt dan een vergaderzaal dat doet.' },
 ];
 ---
 
 <Base
   title="Verhuur"
-  description="Het kerkje van Persingen huren voor een bruiloft, expositie, concert of bijeenkomst. Altijd maatwerk, vraag vrijblijvend aan."
+  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst. Altijd maatwerk, vraag vrijblijvend aan."
 >
   <PageHeader
     eyebrow="Verhuur"
@@ -46,7 +47,7 @@ const soorten = [
       <h2>Geschikt voor</h2>
       <ul class="soorten">
         {soorten.map((s) => (
-          <li>
+          <li class={s.accent ? 'soort-accent' : ''}>
             <h3>{s.titel}</h3>
             <p>{s.tekst}</p>
           </li>
@@ -82,6 +83,8 @@ const soorten = [
   .soorten { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-8); }
   .soorten h3 { margin-bottom: var(--s-2); }
   .soorten p { margin: 0; color: var(--ink-soft); }
+  .soort-accent { grid-column: 1 / -1; }
+  .soort-accent h3 { color: var(--brick); }
   .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
   .tarieven h2 { margin-top: 0; }
   @media (max-width: 720px) { .soorten { grid-template-columns: 1fr; } .tarieven { padding: var(--s-8); } }
