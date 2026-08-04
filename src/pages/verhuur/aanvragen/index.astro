@@ -11,6 +11,7 @@ import {
   type Aanvraag,
   type Fouten,
 } from '../../../lib/aanvraag';
+import { getBezetteData } from '../../../lib/sanity';
 
 export const prerender = false;
 
@@ -52,6 +53,28 @@ if (Astro.request.method === 'POST') {
       };
     } else {
       fouten = valideer(waarden);
+
+      // Extra check: is deze datum al bezet? Het native datumveld kan dat niet
+      // afdwingen zonder JavaScript, dus we controleren het hier, vóór verzending.
+      if (!fouten.datum && waarden.datum) {
+        const bezet = await getBezetteData();
+        const gekozen = Date.UTC(
+          Number(waarden.datum.slice(0, 4)),
+          Number(waarden.datum.slice(5, 7)) - 1,
+          Number(waarden.datum.slice(8, 10))
+        );
+        const isBezet = bezet.some((a) => {
+          const start = new Date(a.start);
+          const startDag = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+          const eind = a.eind ? new Date(a.eind) : start;
+          const eindDag = Date.UTC(eind.getUTCFullYear(), eind.getUTCMonth(), eind.getUTCDate());
+          return startDag <= gekozen && gekozen <= eindDag;
+        });
+        if (isBezet) {
+          fouten.datum = 'Deze datum is helaas al bezet. Kies een andere datum, of bel 06 52 66 84 49.';
+        }
+      }
+
       if (Object.keys(fouten).length === 0) {
         const uitkomst = await verstuurAanvraag(waarden);
         if (uitkomst.ok) {
