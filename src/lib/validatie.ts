@@ -4,13 +4,15 @@
  * Deze module raakt geen netwerk, geen CMS en geen mailkoppeling. Daardoor is hij zonder
  * bouwstap of mocks te testen, en dat is precies wat je wilt bij de enige echte logica
  * in dit project: een aanvraag die onterecht wordt afgekeurd, merkt niemand op.
+ *
+ * "Vergadering" is bewust verwijderd — het bestuur wil dit type verhuur niet aanbieden.
+ * Expositie staat voorop: dat is de corebusiness.
  */
 
 export const SOORTEN = [
+  { waarde: 'expositie', label: 'Expositie' },
   { waarde: 'bruiloft', label: 'Bruiloft' },
   { waarde: 'concert', label: 'Concert' },
-  { waarde: 'expositie', label: 'Expositie' },
-  { waarde: 'vergadering', label: 'Vergadering' },
   { waarde: 'viering', label: 'Viering' },
   { waarde: 'anders', label: 'Iets anders' },
 ] as const;
