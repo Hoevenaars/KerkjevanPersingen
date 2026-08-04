@@ -3,52 +3,160 @@ import Base from '../layouts/Base.astro';
 import PageHeader from '../components/PageHeader.astro';
 
 /*
-  BLOKKEREND VOOR LIVEGANG.
+  Definitieve tekst aangeleverd door het bestuur (4 augustus 2026), gebaseerd op
+  Privacyverklaring website.docx. Eén correctie t.o.v. het brondocument: het
+  e-mailadres van contractbeheer stond er inconsistent in (twee varianten,
+  waarvan één met een domein dat niet bestaat). Gecorrigeerd naar
+  contractbeheer.kvp@gmail.com — vóór livegang nog even testen of dit adres
+  daadwerkelijk bij Nelleke aankomt.
 
-  Zodra het contactformulier persoonsgegevens verwerkt, is een privacyverklaring
-  wettelijk verplicht. Hieronder staat uitsluitend een structuurvoorstel — geen
-  juridische tekst. Claude stelt geen juridische documenten op
-  (03_SECURITY_PRIVACY.md §8).
-
-  Twee punten die vóór publicatie een besluit vragen:
-  1. Bewaartermijn. Een verklaring zonder bewaartermijn is onvolledig.
-  2. De BCC naar een persoonlijk e-mailadres is een verwerking en hoort vermeld.
+  Niet langer noindex: dit is nu een echte, publiceerbare pagina.
 */
-const onderdelen = [
-  'Wie we zijn en hoe je ons bereikt',
-  'Welke gegevens we verzamelen via het formulier',
-  'Waarvoor we ze gebruiken: afhandeling van verhuuraanvragen',
-  'Delen met derden — in principe niet, tenzij wettelijk verplicht',
-  'Hoe lang we gegevens bewaren',
-  'Rechten: inzage, correctie en verwijdering',
-  'Cookies en tracking, voor zover van toepassing',
-  'Contactgegevens voor privacyvragen',
-];
 ---
 
-<Base title="Privacyverklaring" description="Privacyverklaring van Stichting Het Kerkje van Persingen." noindex={true}>
+<Base
+  title="Privacyverklaring"
+  description="Privacyverklaring van Stichting Het Kerkje van Persingen."
+>
   <PageHeader eyebrow="Juridisch" title="Privacyverklaring" mark="ruit" />
 
-  <div class="wrap-narrow">
-    <div class="let-op">
-      <h2>Nog niet vastgesteld</h2>
-      <p>
-        Deze pagina is nog niet ingevuld. Hieronder staat de voorgestelde opbouw. De
-        definitieve tekst wordt door het bestuur aangeleverd en juridisch getoetst voordat
-        de site live gaat.
-      </p>
-    </div>
+  <div class="wrap-narrow prose">
+    <h2>1. Wie is verantwoordelijk voor de verwerking van uw gegevens</h2>
+    <p>
+      De Stichting Het Kerkje van Persingen is verantwoordelijk voor de verwerking van
+      persoonsgegevens zoals beschreven in deze privacyverklaring.
+    </p>
+    <ul>
+      <li>Statutaire naam: Stichting "Het Kerkje van Persingen"</li>
+      <li>KvK-nummer: 41058732</li>
+      <li>RSIN: 802560374</li>
+      <li>Adres: Persingensestraat 7, 6575 JA Persingen</li>
+    </ul>
+    <p>
+      Contactpunt voor privacyvragen: Nelleke van der Pol, bestuurslid contractbeheer,{' '}
+      <a href="mailto:contractbeheer.kvp@gmail.com">contractbeheer.kvp@gmail.com</a>.
+    </p>
 
-    <h2>Voorgestelde opbouw</h2>
-    <ol class="opbouw">
-      {onderdelen.map((o) => <li>{o}</li>)}
-    </ol>
+    <h2>2. Welke gegevens wij verzamelen</h2>
+    <p>
+      Wij verzamelen uitsluitend gegevens die u zelf invult via het aanvraagformulier voor
+      verhuur op onze website (/verhuur/aanvragen/):
+    </p>
+    <ul>
+      <li>Naam</li>
+      <li>E-mailadres</li>
+      <li>Telefoonnummer</li>
+      <li>Gewenste datum van het evenement</li>
+      <li>Soort bijeenkomst</li>
+      <li>Aantal personen</li>
+      <li>Vrije toelichting</li>
+    </ul>
+    <p>
+      Wij plaatsen geen cookies en volgen geen bezoekgedrag aan de hand van
+      persoonsgegevens (zie artikel 6).
+    </p>
+
+    <h2>3. Waarvoor wij uw gegevens gebruiken</h2>
+    <p>
+      Wij gebruiken uw gegevens uitsluitend om uw verhuuraanvraag te beoordelen en af te
+      handelen. Wij gebruiken uw gegevens niet voor marketing, verkopen uw gegevens niet
+      door aan derden en gebruiken uw gegevens niet voor profilering.
+    </p>
+
+    <h2>4. Wie uw gegevens ontvangt</h2>
+    <p>
+      Uw aanvraag komt binnen bij het ontvangstadres dat het bestuur heeft ingesteld
+      (contractbeheer). U ontvangt zelf automatisch een bevestiging van uw aanvraag.
+    </p>
+
+    <h2>5. Welke derde partijen betrokken zijn bij de verwerking</h2>
+    <p>
+      Voor het functioneren van de website en het verwerken van aanvragen maken wij gebruik
+      van de volgende systemen/partijen:
+    </p>
+    <ul>
+      <li>Resend — voor het verzenden van e-mails.</li>
+      <li>Sanity — voor opslag van boekingsgegevens in het CMS.</li>
+      <li>Vercel — voor de hosting van de website.</li>
+    </ul>
+    <p>
+      Deze partijen kunnen gegevens buiten de Europese Unie verwerken. Wij zorgen ervoor
+      dat deze verwerking plaatsvindt onder passende waarborgen.
+    </p>
+
+    <h2>6. Cookies en tracking</h2>
+    <p>
+      Wij gebruiken Vercel Analytics om website-bezoek te meten. Deze dienst werkt zonder
+      cookies en verzamelt geen gegevens die tot een individuele bezoeker herleidbaar zijn.
+      Daarom is voor deze meting geen toestemming via een cookiebanner vereist.
+    </p>
+    <p>
+      Mocht dit in de toekomst wijzigen — bijvoorbeeld door de inzet van een dienst die wel
+      persoonsgegevens verzamelt — dan passen wij deze verklaring daarop aan en informeren
+      wij u daarover.
+    </p>
+
+    <h2>7. Hoe lang wij uw gegevens bewaren</h2>
+    <p>
+      Wij bewaren de gegevens uit uw aanvraag tot 2 jaar na de datum van het evenement
+      waarvoor u de aanvraag heeft gedaan. Dit hangt samen met onze regel dat dezelfde
+      exposant niet binnen 18 maanden opnieuw kan exposeren. Wij kiezen voor dit
+      aanknopingspunt omdat aanvragen altijd ver voor de evenementdatum moeten worden
+      ingediend. De reden om gegevens te bewaren (afhandeling, eventuele vragen achteraf,
+      nieuwe aanvraag) vervalt pas 18 maanden na het evenement. Na deze termijn verwijderen
+      wij uw gegevens, tenzij een wettelijke verplichting langere bewaring vereist.
+    </p>
+
+    <h2>8. Uw rechten</h2>
+    <p>
+      U heeft het recht op inzage in uw gegevens, correctie van onjuiste gegevens en
+      verwijdering van uw gegevens. U kunt hiervoor een verzoek indienen via{' '}
+      <a href="mailto:contractbeheer.kvp@gmail.com">contractbeheer.kvp@gmail.com</a>.
+    </p>
+    <p>
+      Het verzoek wordt behandeld door ons bestuurslid contractbeheer en binnen 14 dagen
+      afgehandeld.
+    </p>
+
+    <h2>9. Beveiliging</h2>
+    <p>
+      Wij nemen passende technische en organisatorische maatregelen om uw gegevens te
+      beschermen tegen verlies of onrechtmatig gebruik.
+    </p>
+
+    <h2>10. Contact</h2>
+    <p>
+      Er is geen algemeen e-mailadres. U kunt contact met ons opnemen via het
+      aanvraagformulier of telefonisch: <a href="tel:+31652668449">06 52 66 84 49</a>.
+    </p>
+
+    <h2>11. Wijzigingen in deze verklaring</h2>
+    <p>
+      Wij kunnen deze privacyverklaring aanpassen, bijvoorbeeld bij wijzigingen in onze
+      werkwijze of bij de toevoeging van nieuwe functionaliteiten. De meest actuele versie
+      is altijd te vinden op onze website.
+    </p>
+    <p class="datum"><em>Laatst bijgewerkt: 4 augustus 2026.</em></p>
   </div>
 </Base>
 
 <style>
-  .let-op { background: var(--cream-deep); border: 1px dashed var(--sand); border-radius: var(--radius-lg); padding: var(--s-8); margin-bottom: var(--s-12); }
-  .let-op h2 { margin-top: 0; font-size: var(--t-xl); }
-  .opbouw { padding-left: var(--s-6); max-width: var(--measure); }
-  .opbouw li + li { margin-top: var(--s-3); }
+  .prose h2 {
+    font-size: var(--t-xl);
+    margin-top: var(--s-12);
+  }
+  .prose h2:first-of-type {
+    margin-top: 0;
+  }
+  .prose ul {
+    max-width: var(--measure);
+    padding-left: var(--s-6);
+  }
+  .prose li + li {
+    margin-top: var(--s-2);
+  }
+  .datum {
+    color: var(--ink-mute);
+    font-size: var(--t-sm);
+  }
 </style>
