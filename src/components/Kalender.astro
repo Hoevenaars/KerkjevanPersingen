@@ -126,7 +126,7 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
   <nav class="jaren" aria-label="Spring naar een jaar">
     {
       jaren.map((j) => (
-        <a
+        
           href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}#kalender`}
           aria-current={j === jaar ? 'true' : undefined}
         >
@@ -199,6 +199,16 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
   </p>
 </div>
 
+<script>
+  // Betrouwbaardere sprong naar de kalender na maand/jaar-navigatie. Een pure
+  // #hash-link werkt niet altijd goed samen met de sticky header en
+  // scroll-behavior:smooth uit global.css, dus we forceren het na het laden.
+  if (window.location.hash === '#kalender') {
+    const doel = document.getElementById('kalender-titel');
+    doel?.scrollIntoView({ behavior: 'auto', block: 'start' });
+  }
+</script>
+
 <style>
   .kalender {
     max-width: 620px;
@@ -217,6 +227,7 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
     font-size: var(--t-xl);
     text-align: center;
     flex: 1;
+    scroll-margin-top: 100px;
   }
 
   .stap {
