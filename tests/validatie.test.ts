@@ -2,18 +2,15 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { valideer, leesFormulier, teVaak, LEGE_AANVRAAG, type Aanvraag } from '../src/lib/validatie.ts';
 
-/*
-  20_TESTING.md §3: prioriteit ligt bij business-kritieke logica en foutafhandeling.
-  De validatie van het aanvraagformulier is de enige echte logica in dit project en
-  tegelijk het onderdeel waar een fout stil geld kost — een afgekeurde aanvraag die
-  had moeten slagen merkt niemand op.
-
-  Draaien: npm test
-*/
-
 function overmorgen(): string {
   const d = new Date();
   d.setDate(d.getDate() + 2);
+  return d.toISOString().split('T')[0];
+}
+
+function overDrieDagen(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 3);
   return d.toISOString().split('T')[0];
 }
 
@@ -25,6 +22,7 @@ function eergisteren(): string {
 
 const geldig: Aanvraag = {
   datum: overmorgen(),
+  datumTot: '',
   soort: 'bruiloft',
   personen: '80',
   naam: 'Kim Jansen',
@@ -63,6 +61,31 @@ describe('valideer — datum', () => {
 
   test('ver in de toekomst mag — het bestuur plant tot in 2028', () => {
     assert.equal(valideer({ ...geldig, datum: '2028-06-17' }).datum, undefined);
+  });
+});
+
+describe('valideer — datumTot (periode)', () => {
+  test('leeg blijven mag — eendaagse aanvraag', () => {
+    assert.equal(valideer({ ...geldig, datumTot: '' }).datumTot, undefined);
+  });
+
+  test('een geldige periode (tot na datum) wordt geaccepteerd', () => {
+    assert.equal(
+      valideer({ ...geldig, datum: overmorgen(), datumTot: overDrieDagen() }).datumTot,
+      undefined
+    );
+  });
+
+  test('dezelfde dag als datum wordt geaccepteerd (eendaags, expliciet ingevuld)', () => {
+    assert.equal(valideer({ ...geldig, datumTot: geldig.datum }).datumTot, undefined);
+  });
+
+  test('een datumTot vóór de startdatum wordt afgekeurd', () => {
+    assert.ok(valideer({ ...geldig, datum: overDrieDagen(), datumTot: overmorgen() }).datumTot);
+  });
+
+  test('onzin in datumTot wordt afgekeurd', () => {
+    assert.ok(valideer({ ...geldig, datumTot: 'ergens volgende maand' }).datumTot);
   });
 });
 
@@ -149,6 +172,14 @@ describe('leesFormulier', () => {
   test('ontbrekende velden worden lege tekst, geen undefined', () => {
     const gelezen = leesFormulier(new FormData());
     assert.deepEqual(gelezen, LEGE_AANVRAAG);
+  });
+
+  test('datumTot wordt correct uitgelezen', () => {
+    const data = new FormData();
+    data.set('datum', '2027-06-14');
+    data.set('datumTot', '2027-06-15');
+    const gelezen = leesFormulier(data);
+    assert.equal(gelezen.datumTot, '2027-06-15');
   });
 });
 
