@@ -188,6 +188,12 @@ export async function getOntvangstAdres(): Promise<string> {
   }
 }
 
+/**
+ * Toont een datum/tijd altijd in Nederlandse tijd, ongeacht in welke tijdzone
+ * de server draait. Zonder expliciete timeZone gebruikt toLocaleTimeString de
+ * tijdzone van de server (Vercel = UTC), niet automatisch Amsterdamse tijd —
+ * dat gaf tot 2 uur verschil bij activiteiten met een tijdstip.
+ */
 export function formatDatum(iso: string, metTijd = true): string {
   const d = new Date(iso);
   const datum = d.toLocaleDateString('nl-NL', {
@@ -195,8 +201,13 @@ export function formatDatum(iso: string, metTijd = true): string {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    timeZone: 'Europe/Amsterdam',
   });
   if (!metTijd) return datum;
-  const tijd = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+  const tijd = d.toLocaleTimeString('nl-NL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Amsterdam',
+  });
   return `${datum}, ${tijd} uur`;
 }
