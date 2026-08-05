@@ -20,7 +20,7 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
         <p class="eyebrow">
           <MasonMark variant="ruit" size={14} /> Persingen, Ooijpolder
         </p>
-        <h1>Acht eeuwen geleden gebouwd.<br />Sindsdien nooit meer weggegaan.</h1>
+        <h1>Acht eeuwen geleden gebouwd.<br />Nu klaar voor jouw moment.</h1>
         <p class="lead">
           Sinds 1350 staat dit kerkje in de Ooijpolder. Het water nam het dorp eromheen mee.
           Een aannemer kocht het in 1899 om het af te breken. Het staat er nog, en het is nu
@@ -46,30 +46,9 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
     </div>
   </section>
 
-  <!-- Verhuur: grootste blok, want dit is het doel van de site. Exposities voorop:
-       dat is de corebusiness volgens het bestuur. Vergaderingen bewust weggehaald. -->
-  <section class="section band">
-    <div class="wrap verhuur">
-      <div>
-        <p class="eyebrow"><MasonMark variant="boog" size={14} /> Verhuur</p>
-        <h2>Geen zaal, een gebouw</h2>
-        <p>
-          Expositie, bruiloft, concert of viering. Dit kerkje hoeft niet aangekleed te
-          worden. Vraag je datum aan en we denken met je mee.
-        </p>
-        <Button href="/verhuur/" variant="secondary">Bekijk de mogelijkheden</Button>
-      </div>
-      <ul class="soorten">
-        <li class="soorten-accent">Exposities</li>
-        <li>Bruiloften</li>
-        <li>Concerten</li>
-        <li>Vieringen</li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- Vandaag, volgende en daarna uit het CMS. Geen van beide betekent geen leeg
-       blok: een lege agenda is juist het moment om een aanvraag uit te lokken. -->
+  <!-- Vandaag, volgende en daarna uit het CMS. Staat nu VOOR het Verhuur-blok
+       (op verzoek omgedraaid) — de agenda is voor bezoekers het eerste waar ze
+       naar zoeken, dus die krijgt nu voorrang boven de algemene verhuurpitch. -->
   <section class="section">
     <div class="wrap">
       {
@@ -138,6 +117,28 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
           )
         )
       }
+    </div>
+  </section>
+
+  <!-- Verhuur: nu na de agenda. Exposities voorop: dat is de corebusiness
+       volgens het bestuur. Vergaderingen bewust weggehaald. -->
+  <section class="section band">
+    <div class="wrap verhuur">
+      <div>
+        <p class="eyebrow"><MasonMark variant="boog" size={14} /> Verhuur</p>
+        <h2>Geen zaal, een gebouw</h2>
+        <p>
+          Expositie, bruiloft, concert of viering. Dit kerkje hoeft niet aangekleed te
+          worden. Vraag je datum aan en we denken met je mee.
+        </p>
+        <Button href="/verhuur/" variant="secondary">Bekijk de mogelijkheden</Button>
+      </div>
+      <ul class="soorten">
+        <li class="soorten-accent">Exposities</li>
+        <li>Bruiloften</li>
+        <li>Concerten</li>
+        <li>Vieringen</li>
+      </ul>
     </div>
   </section>
 
