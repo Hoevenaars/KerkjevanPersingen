@@ -27,6 +27,10 @@ const vooraf = Astro.url.searchParams.get('datum');
 if (vooraf && /^\d{4}-\d{2}-\d{2}$/.test(vooraf)) {
   waarden.datum = vooraf;
 }
+const voorafTot = Astro.url.searchParams.get('datumTot');
+if (voorafTot && /^\d{4}-\d{2}-\d{2}$/.test(voorafTot)) {
+  waarden.datumTot = voorafTot;
+}
 const soortVooraf = Astro.url.searchParams.get('soort');
 if (soortVooraf && GELDIGE_SOORTEN.includes(soortVooraf as never)) {
   waarden.soort = soortVooraf;
