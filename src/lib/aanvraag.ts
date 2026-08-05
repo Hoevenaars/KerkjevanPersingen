@@ -33,7 +33,6 @@ function langeDatum(iso: string): string {
   });
 }
 
-/** Toont "14 juni 2027" of, bij een periode, "14 juni 2027 t/m 15 juni 2027". */
 function datumBereik(a: Aanvraag): string {
   if (!a.datumTot || a.datumTot === a.datum) return langeDatum(a.datum);
   return `${langeDatum(a.datum)} t/m ${langeDatum(a.datumTot)}`;
@@ -41,16 +40,29 @@ function datumBereik(a: Aanvraag): string {
 
 function bestuurMail(a: Aanvraag): string {
   const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
+  const isExpositie = a.soort === 'expositie';
+
+  const expositieRegels = isExpositie
+    ? `
+        ${a.website ? `<tr><td style="padding:4px 16px 4px 0"><strong>Website</strong></td><td>${escape(a.website)}</td></tr>` : ''}
+        ${a.eerderGeexposeerd ? `<tr><td style="padding:4px 16px 4px 0"><strong>Eerder geëxposeerd</strong></td><td>${a.eerderGeexposeerd === 'ja' ? 'Ja' : 'Nee'}</td></tr>` : ''}
+        ${a.medeExposanten ? `<tr><td style="padding:4px 16px 4px 0"><strong>Mede-exposanten</strong></td><td>${escape(a.medeExposanten)}</td></tr>` : ''}
+        <tr><td style="padding:4px 16px 4px 0"><strong>Akkoord voorwaarden</strong></td><td>${a.akkoordVoorwaarden === 'ja' ? 'Ja' : 'Nee'}</td></tr>
+      `
+    : '';
+
   return `
     <div style="font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6">
       <h2 style="font-family:Georgia,serif;margin:0 0 16px">Nieuwe verhuuraanvraag</h2>
       <table style="border-collapse:collapse">
         <tr><td style="padding:4px 16px 4px 0"><strong>Datum</strong></td><td>${escape(datumBereik(a))}</td></tr>
         <tr><td style="padding:4px 16px 4px 0"><strong>Soort</strong></td><td>${escape(soort)}</td></tr>
-        <tr><td style="padding:4px 16px 4px 0"><strong>Personen</strong></td><td>${escape(a.personen)}</td></tr>
+        ${a.personen ? `<tr><td style="padding:4px 16px 4px 0"><strong>Personen</strong></td><td>${escape(a.personen)}</td></tr>` : ''}
         <tr><td style="padding:4px 16px 4px 0"><strong>Naam</strong></td><td>${escape(a.naam)}</td></tr>
         <tr><td style="padding:4px 16px 4px 0"><strong>E-mail</strong></td><td>${escape(a.email)}</td></tr>
+        <tr><td style="padding:4px 16px 4px 0"><strong>Adres</strong></td><td>${escape(a.adres)}</td></tr>
         <tr><td style="padding:4px 16px 4px 0"><strong>Telefoon</strong></td><td>${escape(a.telefoon) || '—'}</td></tr>
+        ${expositieRegels}
       </table>
       ${a.toelichting ? `<p style="margin-top:16px"><strong>Toelichting</strong><br>${escape(a.toelichting).replace(/\n/g, '<br>')}</p>` : ''}
       <p style="margin-top:24px;color:#6b6b63;font-size:14px">Beantwoorden gaat rechtstreeks naar de aanvrager.</p>
@@ -121,8 +133,6 @@ export async function verstuurAanvraag(a: Aanvraag): Promise<Uitkomst> {
     return storing;
   }
 
-  // Bevestiging aan de aanvrager. Mislukt dit, dan is de aanvraag zelf al binnen —
-  // dat mag geen foutmelding opleveren (graceful degradation, 02_CODING_STANDARDS §6).
   try {
     await resend.emails.send({
       from: VAN,
