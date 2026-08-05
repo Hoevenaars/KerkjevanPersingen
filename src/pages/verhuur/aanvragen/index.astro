@@ -7,6 +7,7 @@ import {
   SOORTEN,
   leesFormulier,
   valideer,
+  weekendWaarschuwing,
   verstuurAanvraag,
   teVaak,
   type Aanvraag,
@@ -18,6 +19,7 @@ export const prerender = false;
 
 let waarden: Aanvraag = { ...LEGE_AANVRAAG };
 let fouten: Fouten = {};
+let waarschuwing: string | null = null;
 
 const GELDIGE_SOORTEN = SOORTEN.map((s) => s.waarde);
 
@@ -54,11 +56,31 @@ function alleDagen(vanIso: string, totIso: string): number[] {
   return dagen;
 }
 
+/** Is een specifieke dag (YYYY-MM-DD) al bezet met een bruiloft? Voor de
+ *  weekend-uitzonderingsregel bij exposities. */
+function isDagBruiloft(dagIso: string): boolean {
+  const dag = Date.UTC(
+    Number(dagIso.slice(0, 4)),
+    Number(dagIso.slice(5, 7)) - 1,
+    Number(dagIso.slice(8, 10))
+  );
+  return bezet.some((a) => {
+    if (a.soort !== 'bruiloft') return false;
+    const start = new Date(a.start);
+    const startDag = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+    const eind = a.eind ? new Date(a.eind) : start;
+    const eindDag = Date.UTC(eind.getUTCFullYear(), eind.getUTCMonth(), eind.getUTCDate());
+    return startDag <= dag && dag <= eindDag;
+  });
+}
+
 if (Astro.request.method === 'POST') {
   try {
     const data = await Astro.request.formData();
 
-    if (String(data.get('website') ?? '').length > 0) {
+    if (String(data.get('website_hp') ?? '').length > 0) {
+      // Honeypot-veld heet hier bewust anders dan het echte "website"-veld
+      // van exposanten, om verwarring/naamsbotsing te voorkomen.
       return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
     }
 
@@ -89,7 +111,15 @@ if (Astro.request.method === 'POST') {
         }
       }
 
+      // Weekendregel voor exposities: een WAARSCHUWING, geen blokkade. Bij de
+      // eerste verzending tonen we de waarschuwing en vragen om bevestiging;
+      // pas als negeerWaarschuwing=ja is meegestuurd (de "Toch versturen"-knop)
+      // gaat de aanvraag daadwerkelijk door.
       if (Object.keys(fouten).length === 0) {
+        waarschuwing = weekendWaarschuwing(waarden, isDagBruiloft);
+      }
+
+      if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {
         const uitkomst = await verstuurAanvraag(waarden);
         if (uitkomst.ok) {
           return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
@@ -137,6 +167,19 @@ const vandaag = new Date().toISOString().split('T')[0];
               </ul>
             </>
           )}
+        </div>
+      )
+    }
+
+    {
+      !heeftFouten && waarschuwing && (
+        <div class="waarschuwing" role="alert" tabindex="-1" id="waarschuwingsmelding">
+          <h2>Weet je dit zeker?</h2>
+          <p>{waarschuwing}</p>
+          <p class="klein">
+            Je kunt de aanvraag toch versturen — het bestuur beoordeelt hem sowieso
+            handmatig — of eerst je datum aanpassen.
+          </p>
         </div>
       )
     }
@@ -194,8 +237,11 @@ const vandaag = new Date().toISOString().split('T')[0];
         {fouten.soort && <p class="fout" id="fout-soort">{fouten.soort}</p>}
       </div>
 
-      <div class="veld">
-        <label for="personen">Hoeveel mensen verwacht je?</label>
+      <div class="veld" id="personen-veld">
+        <label for="personen">
+          Hoeveel mensen verwacht je?
+          <span class="optioneel" data-alleen-niet-expositie>(bij een expositie mag je dit leeg laten)</span>
+        </label>
         <input
           type="number"
           id="personen"
@@ -204,7 +250,6 @@ const vandaag = new Date().toISOString().split('T')[0];
           max="500"
           inputmode="numeric"
           value={waarden.personen}
-          required
           aria-invalid={fouten.personen ? 'true' : undefined}
           aria-describedby={`hint-personen${fouten.personen ? ' fout-personen' : ''}`}
         />
@@ -246,6 +291,21 @@ const vandaag = new Date().toISOString().split('T')[0];
         </div>
 
         <div class="veld">
+          <label for="adres">Adres <span class="optioneel">(straat, huisnummer, postcode en woonplaats)</span></label>
+          <input
+            type="text"
+            id="adres"
+            name="adres"
+            autocomplete="street-address"
+            value={waarden.adres}
+            required
+            aria-invalid={fouten.adres ? 'true' : undefined}
+            aria-describedby={fouten.adres ? 'fout-adres' : undefined}
+          />
+          {fouten.adres && <p class="fout" id="fout-adres">{fouten.adres}</p>}
+        </div>
+
+        <div class="veld">
           <label for="telefoon">
             Telefoonnummer <span class="optioneel">(mag je leeg laten)</span>
           </label>
@@ -262,6 +322,59 @@ const vandaag = new Date().toISOString().split('T')[0];
         </div>
       </fieldset>
 
+      <fieldset id="expositie-velden">
+        <legend>Voor exposities</legend>
+
+        <div class="veld">
+          <label for="website">Website of portfolio <span class="optioneel">(mag je leeg laten)</span></label>
+          <input
+            type="text"
+            id="website"
+            name="website"
+            value={waarden.website}
+            aria-invalid={fouten.website ? 'true' : undefined}
+            aria-describedby={fouten.website ? 'fout-website' : undefined}
+          />
+          {fouten.website && <p class="fout" id="fout-website">{fouten.website}</p>}
+        </div>
+
+        <div class="veld">
+          <label for="eerderGeexposeerd">Heb je hier eerder geëxposeerd?</label>
+          <select id="eerderGeexposeerd" name="eerderGeexposeerd">
+            <option value="">Maak een keuze</option>
+            <option value="ja" selected={waarden.eerderGeexposeerd === 'ja'}>Ja</option>
+            <option value="nee" selected={waarden.eerderGeexposeerd === 'nee'}>Nee</option>
+          </select>
+        </div>
+
+        <div class="veld">
+          <label for="medeExposanten">
+            Mede-exposanten <span class="optioneel">(namen, als je niet alleen exposeert)</span>
+          </label>
+          <textarea id="medeExposanten" name="medeExposanten" rows="2">{waarden.medeExposanten}</textarea>
+          {fouten.medeExposanten && <p class="fout">{fouten.medeExposanten}</p>}
+        </div>
+
+        <div class="veld veld--checkbox">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              id="akkoordVoorwaarden"
+              name="akkoordVoorwaarden"
+              value="ja"
+              checked={waarden.akkoordVoorwaarden === 'ja'}
+              aria-invalid={fouten.akkoordVoorwaarden ? 'true' : undefined}
+              aria-describedby={fouten.akkoordVoorwaarden ? 'fout-akkoordVoorwaarden' : undefined}
+            />
+            <span>
+              Ik ga akkoord met de{' '}
+              <a href="/verhuur/voorwaarden/" target="_blank" rel="noopener">verhuurvoorwaarden en het huishoudelijk reglement</a>
+            </span>
+          </label>
+          {fouten.akkoordVoorwaarden && <p class="fout" id="fout-akkoordVoorwaarden">{fouten.akkoordVoorwaarden}</p>}
+        </div>
+      </fieldset>
+
       <div class="veld">
         <label for="toelichting">
           Waar denk je aan? <span class="optioneel">(mag je leeg laten)</span>
@@ -274,13 +387,21 @@ const vandaag = new Date().toISOString().split('T')[0];
         </p>
       </div>
 
+      {
+        waarschuwing && !heeftFouten && (
+          <input type="hidden" name="negeerWaarschuwing" value="ja" />
+        )
+      }
+
       <div class="honeypot" aria-hidden="true">
-        <label for="website">Website</label>
-        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+        <label for="website_hp">Website</label>
+        <input type="text" id="website_hp" name="website_hp" tabindex="-1" autocomplete="off" />
       </div>
 
-      <div>
-        <button type="submit" class="verstuur">Verstuur aanvraag</button>
+      <div class="verzendknoppen">
+        <button type="submit" class="verstuur">
+          {waarschuwing && !heeftFouten ? 'Toch versturen' : 'Verstuur aanvraag'}
+        </button>
       </div>
     </form>
 
@@ -296,7 +417,33 @@ const vandaag = new Date().toISOString().split('T')[0];
 </Base>
 
 <script>
+  // Progressief: het formulier werkt volledig zonder dit script (alle velden
+  // blijven gewoon zichtbaar en de server-validatie regelt wat verplicht is).
+  // Dit script doet alleen cosmetische verbetering: het expositie-blok en de
+  // personen-hint tonen/verbergen op basis van de gekozen 'soort'.
+  const soortSelect = document.getElementById('soort') as HTMLSelectElement | null;
+  const expositieVelden = document.getElementById('expositie-velden');
+  const personenVeld = document.getElementById('personen-veld');
+  const personenInput = document.getElementById('personen') as HTMLInputElement | null;
+
+  function bijwerken() {
+    const isExpositie = soortSelect?.value === 'expositie';
+    if (expositieVelden) {
+      expositieVelden.style.display = isExpositie ? '' : 'none';
+    }
+    if (personenVeld) {
+      personenVeld.classList.toggle('personen-optioneel', isExpositie);
+    }
+    if (personenInput) {
+      personenInput.required = !isExpositie;
+    }
+  }
+
+  soortSelect?.addEventListener('change', bijwerken);
+  bijwerken();
+
   document.getElementById('foutmelding')?.focus();
+  document.getElementById('waarschuwingsmelding')?.focus();
 </script>
 
 <style>
@@ -322,17 +469,29 @@ const vandaag = new Date().toISOString().split('T')[0];
     margin-bottom: var(--s-8);
   }
 
-  .samenvatting:focus-visible {
+  .waarschuwing {
+    max-width: 560px;
+    background: var(--cream-deep);
+    border: 1.5px solid var(--olive);
+    border-radius: var(--radius-lg);
+    padding: var(--s-6);
+    margin-bottom: var(--s-8);
+  }
+
+  .samenvatting:focus-visible,
+  .waarschuwing:focus-visible {
     outline: 3px solid var(--error);
     outline-offset: 3px;
   }
 
-  .samenvatting h2 {
+  .samenvatting h2,
+  .waarschuwing h2 {
     font-size: var(--t-xl);
     margin: 0 0 var(--s-3);
   }
 
-  .samenvatting p {
+  .samenvatting p,
+  .waarschuwing p {
     margin: 0 0 var(--s-2);
   }
 
@@ -343,6 +502,11 @@ const vandaag = new Date().toISOString().split('T')[0];
 
   .samenvatting a {
     color: var(--error);
+  }
+
+  .klein {
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
   }
 
   fieldset {
@@ -418,12 +582,35 @@ const vandaag = new Date().toISOString().split('T')[0];
     margin: 0;
   }
 
+  .veld--checkbox {
+    display: block;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-3);
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  .checkbox-label input[type='checkbox'] {
+    width: auto;
+    margin-top: 3px;
+    flex: none;
+  }
+
   .honeypot {
     position: absolute;
     left: -9999px;
     width: 1px;
     height: 1px;
     overflow: hidden;
+  }
+
+  .verzendknoppen {
+    display: flex;
+    gap: var(--s-4);
   }
 
   .verstuur {
