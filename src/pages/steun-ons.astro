@@ -3,11 +3,24 @@ import Base from '../layouts/Base.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Button from '../components/Button.astro';
 
-// IBAN aangeleverd door het bestuur (4 augustus 2026). Geen betaalprovider
-// gekoppeld — dat blijft een upsell voor later (zie decision log). Voor nu:
-// duidelijke overschrijvingsinstructie, geen geautomatiseerde iDEAL-koppeling.
+// IBAN aangeleverd door het bestuur (4 augustus 2026).
 const IBAN = 'NL21 RABO 0105101699';
 const TENAAMSTELLING = 'Stichting Het Kerkje van Persingen';
+
+/*
+  Mollie-betaallink: voorbereid, nog niet zichtbaar.
+
+  Zodra het bestuur een Mollie-account heeft opgezet en een betaallink heeft
+  aangemaakt, hoeft alleen de omgevingsvariabele MOLLIE_PAYMENT_LINK in Vercel
+  ingevuld te worden — de knop verschijnt dan vanzelf, zonder dat er nog iets
+  gebouwd hoeft te worden.
+
+  Bewust GEEN eigen Mollie API-integratie gebouwd (dynamisch bedrag, checkout-
+  sessie aanmaken, etc.) — dat is meer complexiteit dan nodig zolang er geen
+  vast bedrag per donatie hoeft te zijn. Mollie's eigen "Payment Link"-functie
+  (aan te maken in hun dashboard, geen code voor nodig) volstaat hiervoor.
+*/
+const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAYMENT_LINK ?? '';
 ---
 
 <Base
@@ -41,6 +54,16 @@ const TENAAMSTELLING = 'Stichting Het Kerkje van Persingen';
         pagina <a href="/organisatie/">Organisatie</a>.
       </p>
 
+      {
+        mollieLink && (
+          <div class="snel-doneren">
+            <h3>Snel doneren</h3>
+            <p>Direct een bedrag overmaken via iDEAL.</p>
+            <Button href={mollieLink} variant="primary">Doneer via iDEAL</Button>
+          </div>
+        )
+      }
+
       <div class="doneer">
         <h3>Doneren via bankoverschrijving</h3>
         <dl class="rekening">
@@ -72,6 +95,14 @@ const TENAAMSTELLING = 'Stichting Het Kerkje van Persingen';
 
 <style>
   .layout { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: var(--s-16); align-items: start; }
+  .snel-doneren {
+    background: var(--cream-deep);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--s-8);
+    margin-top: var(--s-8);
+  }
+  .snel-doneren h3 { margin-top: 0; }
   .doneer {
     background: var(--cream-deep);
     border: var(--border);
