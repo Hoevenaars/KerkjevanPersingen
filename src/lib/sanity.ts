@@ -19,8 +19,6 @@ const client: SanityClient | null = sanityConfigured
 
 const builder = client ? imageUrlBuilder(client) : null;
 
-/** Beeldverwerking gebeurt bij Sanity, niet bij het bestuur.
- *  Een staande telefoonfoto van 6 MB komt er als bijgesneden WebP uit. */
 export function imageUrl(source: unknown, width = 1200, height?: number): string | null {
   if (!builder || !source) return null;
   let url = builder.image(source as never).width(width).format('webp').quality(78);
@@ -42,6 +40,7 @@ export interface Activiteit {
   omschrijving?: string;
   foto?: unknown;
   fotoAlt?: string;
+  toonVanafMaanden?: string;
 }
 
 const ACTIVITEIT_VELDEN = `
@@ -55,14 +54,10 @@ const ACTIVITEIT_VELDEN = `
   zichtbaarheid,
   omschrijving,
   foto,
-  fotoAlt
+  fotoAlt,
+  toonVanafMaanden
 `;
 
-/**
- * 02_CODING_STANDARDS.md §6: nooit silent fail, maar een storing bij Sanity mag de
- * hele pagina niet neerhalen. Bij een fout krijg je een lege agenda plus een log —
- * het leeg-scenario op de landingspagina vangt dat visueel netjes op.
- */
 async function veiligeQuery<T>(query: string, params: Record<string, unknown> = {}): Promise<T[]> {
   if (!client) return [];
   try {
@@ -73,18 +68,6 @@ async function veiligeQuery<T>(query: string, params: Record<string, unknown> = 
   }
 }
 
-/**
- * Start van vandaag (00:00 UTC), niet het exacte huidige moment.
- *
- * Reden: met `start >= now()` verdween een activiteit uit beeld zodra de klok voorbij
- * de starttijd was, ook al liep hij die dag nog gewoon door. Deze cutoff houdt een
- * activiteit de hele dag zichtbaar, ongeacht hoe laat hij begon.
- *
- * Bekende beperking: dit rekent in UTC, terwijl het bestuur in Nederlandse tijd denkt
- * (UTC+1 of +2). Rond middernacht kan een activiteit daardoor een uur te vroeg of te
- * laat wisselen van status. Voor een agenda die per dag plant is dat verwaarloosbaar;
- * zou het ooit knellen, dan is een tijdzone-bibliotheek de volgende stap.
- */
 function cutoffVandaag(): string {
   const d = new Date();
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
@@ -95,7 +78,6 @@ function startVanDag(iso: string): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
-/** Loopt deze activiteit vandaag, ongeacht wanneer hij begon of eindigt? */
 function loopVandaag(a: Activiteit, vandaag: number): boolean {
   const start = startVanDag(a.start);
   const eind = a.eind ? startVanDag(a.eind) : start;
@@ -103,12 +85,28 @@ function loopVandaag(a: Activiteit, vandaag: number): boolean {
 }
 
 /**
- * Publieke agenda: alles wat nog relevant is — lopend of toekomstig.
- * Meerdaagse activiteiten (bijv. een expositie van vijf dagen) blijven zichtbaar
- * zolang de einddatum niet gepasseerd is, ook als de startdatum al voorbij is.
+ * Is deze activiteit al "aan de beurt" om getoond te worden, gezien
+ * toonVanafMaanden? Zonder die instelling: altijd ja. Rekent in hele maanden
+ * vanaf vandaag — geen kalenderprecisie tot op de dag nodig voor dit doel.
  */
-export function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
-  return veiligeQuery<Activiteit>(
+function magAlGetoondWorden(a: Activiteit): boolean {
+  if (!a.toonVanafMaanden) return true;
+  const maanden = Number(a.toonVanafMaanden);
+  if (!maanden) return true;
+
+  const start = new Date(a.start);
+  const drempel = new Date(start);
+  drempel.setUTCMonth(drempel.getUTCMonth() - maanden);
+
+  return new Date() >= drempel;
+}
+
+/**
+ * Publieke agenda: alles wat nog relevant is — lopend of toekomstig — én al
+ * "aan de beurt" is volgens toonVanafMaanden.
+ */
+export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
+  const resultaat = await veiligeQuery<Activiteit>(
     `*[_type == "activiteit" && zichtbaarheid == "publiek"
        && (
          (defined(eind) && eind >= $cutoff) ||
@@ -117,10 +115,13 @@ export function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
      ] | order(start asc) [0...$limit] { ${ACTIVITEIT_VELDEN} }`,
     { cutoff: cutoffVandaag(), limit }
   );
+  return resultaat.filter(magAlGetoondWorden);
 }
 
 /** Beschikbaarheidskalender: alles wat de datum blokkeert, zonder details prijs te geven.
- *  Bewust zonder datumfilter — het bestuur plant tot in 2028. */
+ *  Bewust zonder datumfilter — het bestuur plant tot in 2028. Ook zonder
+ *  toonVanafMaanden-filter: de kalender toont "bezet", geen inhoud, dus die regel
+ *  is hier niet relevant. */
 export function getBezetteData(): Promise<Activiteit[]> {
   return veiligeQuery<Activiteit>(
     `*[_type == "activiteit" && zichtbaarheid != "verborgen"]
@@ -134,14 +135,8 @@ export interface AgendaOverzicht {
   daarna: Activiteit | null;
 }
 
-/**
- * Verdeelt de publieke agenda in drie blokken voor de landingspagina: wat vandaag
- * loopt, wat daarna als eerste komt, en wat daarop weer volgt. Een activiteit die
- * vandaag loopt telt niet mee als "volgende" — dat voorkomt dat dezelfde activiteit
- * dubbel in beeld komt.
- */
 export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
-  const lijst = await getPubliekeAgenda(20);
+  const lijst = await getPubliekeAgenda(20); // filtert al op magAlGetoondWorden
   const vandaag = startVanDag(new Date().toISOString());
 
   const lopend = lijst.find((a) => loopVandaag(a, vandaag)) ?? null;
@@ -160,14 +155,72 @@ export async function getActiviteitBySlug(slug: string): Promise<Activiteit | nu
      { ${ACTIVITEIT_VELDEN} }`,
     { slug }
   );
-  return rij[0] ?? null;
+  const gevonden = rij[0] ?? null;
+  // Ook een direct-URL-bezoek respecteert toonVanafMaanden — anders zou een
+  // vroegtijdig ingevoerde activiteit alsnog vindbaar zijn via een geraden link.
+  return gevonden && magAlGetoondWorden(gevonden) ? gevonden : null;
+}
+
+export interface VrijWeekend {
+  zaterdag: string; // YYYY-MM-DD
+  zondag: string;
+  zaterdagVrij: boolean;
+  zondagVrij: boolean;
 }
 
 /**
- * Ontvangstadres voor aanvragen, bewerkbaar door iedereen met CMS-toegang.
- * Valt terug op CONTACT_FALLBACK_EMAIL als het veld leeg of ongeldig is, zodat een
- * typefout in het CMS nooit stilzwijgend alle aanvragen laat verdwijnen.
+ * De eerstvolgende N weekenden waarin minstens één van de twee dagen (zaterdag
+ * of zondag) nog vrij is. Telt dus ook halfbezette weekenden mee — als er
+ * onverwacht een dag vrijkomt, staat dat weekend meteen weer in de lijst.
  */
+export async function getEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWeekend[]> {
+  const bezet = await getBezetteData();
+
+  const bezetteDagen = new Set<string>();
+  for (const item of bezet) {
+    if (item.zichtbaarheid === 'verborgen') continue;
+    const van = new Date(item.start);
+    const tot = item.eind ? new Date(item.eind) : van;
+    const loper = new Date(Date.UTC(van.getUTCFullYear(), van.getUTCMonth(), van.getUTCDate()));
+    const eindDag = new Date(Date.UTC(tot.getUTCFullYear(), tot.getUTCMonth(), tot.getUTCDate()));
+    let veiligheid = 0;
+    while (loper <= eindDag && veiligheid < 400) {
+      bezetteDagen.add(loper.toISOString().slice(0, 10));
+      loper.setUTCDate(loper.getUTCDate() + 1);
+      veiligheid++;
+    }
+  }
+
+  const resultaat: VrijWeekend[] = [];
+  const nu = new Date();
+  let dag = new Date(Date.UTC(nu.getUTCFullYear(), nu.getUTCMonth(), nu.getUTCDate()));
+
+  // Naar de eerstvolgende zaterdag toe lopen (getUTCDay: 0=zo .. 6=za).
+  while (dag.getUTCDay() !== 6) {
+    dag.setUTCDate(dag.getUTCDate() + 1);
+  }
+
+  let veiligheid = 0;
+  while (resultaat.length < aantal && veiligheid < 260) {
+    const zaterdag = dag.toISOString().slice(0, 10);
+    const zondagDatum = new Date(dag);
+    zondagDatum.setUTCDate(zondagDatum.getUTCDate() + 1);
+    const zondag = zondagDatum.toISOString().slice(0, 10);
+
+    const zaterdagVrij = !bezetteDagen.has(zaterdag);
+    const zondagVrij = !bezetteDagen.has(zondag);
+
+    if (zaterdagVrij || zondagVrij) {
+      resultaat.push({ zaterdag, zondag, zaterdagVrij, zondagVrij });
+    }
+
+    dag.setUTCDate(dag.getUTCDate() + 7);
+    veiligheid++;
+  }
+
+  return resultaat;
+}
+
 export async function getOntvangstAdres(): Promise<string> {
   const fallback =
     process.env.CONTACT_FALLBACK_EMAIL ?? import.meta.env.CONTACT_FALLBACK_EMAIL ?? '';
@@ -188,12 +241,6 @@ export async function getOntvangstAdres(): Promise<string> {
   }
 }
 
-/**
- * Toont een datum/tijd altijd in Nederlandse tijd, ongeacht in welke tijdzone
- * de server draait. Zonder expliciete timeZone gebruikt toLocaleTimeString de
- * tijdzone van de server (Vercel = UTC), niet automatisch Amsterdamse tijd —
- * dat gaf tot 2 uur verschil bij activiteiten met een tijdstip.
- */
 export function formatDatum(iso: string, metTijd = true): string {
   const d = new Date(iso);
   const datum = d.toLocaleDateString('nl-NL', {
@@ -210,4 +257,15 @@ export function formatDatum(iso: string, metTijd = true): string {
     timeZone: 'Europe/Amsterdam',
   });
   return `${datum}, ${tijd} uur`;
+}
+
+/** Korte datumnotatie voor de vrije-weekenden-lijst, bijv. "14-15 juni". */
+export function formatWeekend(w: VrijWeekend): string {
+  const za = new Date(w.zaterdag + 'T00:00:00Z');
+  const zo = new Date(w.zondag + 'T00:00:00Z');
+  const maandZa = za.toLocaleDateString('nl-NL', { month: 'long', timeZone: 'Europe/Amsterdam' });
+  const maandZo = zo.toLocaleDateString('nl-NL', { month: 'long', timeZone: 'Europe/Amsterdam' });
+  const dagZa = za.getUTCDate();
+  const dagZo = zo.getUTCDate();
+  return maandZa === maandZo ? `${dagZa}-${dagZo} ${maandZa}` : `${dagZa} ${maandZa} - ${dagZo} ${maandZo}`;
 }
