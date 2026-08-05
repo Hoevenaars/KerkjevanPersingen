@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Button from '../../components/Button.astro';
 import Kalender from '../../components/Kalender.astro';
+import VrijeWeekenden from '../../components/VrijeWeekenden.astro';
 import { getBezetteData } from '../../lib/sanity';
 
 export const prerender = false;
@@ -80,7 +81,10 @@ const soorten = [
         Grijs is bezet. Klik op een vrije dag om die datum meteen aan te vragen.
         Reserveringen worden pas definitief na bevestiging door het bestuur.
       </p>
-      <Kalender bezet={bezet} maand={maand} basisPad="/verhuur/" />
+      <div class="kalender-met-lijst">
+        <Kalender bezet={bezet} maand={maand} basisPad="/verhuur/" />
+        <VrijeWeekenden />
+      </div>
     </section>
   </div>
 </Base>
@@ -99,5 +103,10 @@ const soorten = [
   .soort-accent h3 { color: var(--brick); }
   .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
   .tarieven h2 { margin-top: 0; }
-  @media (max-width: 720px) { .soorten { grid-template-columns: 1fr; } .tarieven { padding: var(--s-8); } }
-</style>
+  .kalender-met-lijst {
+    display: grid;
+    grid-template-columns: auto 260px;
+    gap: var(--s-8);
+    align-items: start;
+  }
+  @media
