@@ -15,17 +15,23 @@ const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagd)
   ? gevraagd
   : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
 
+// Exposities voorop: corebusiness volgens het bestuur, krijgt daarom een volle
+// rij en visueel gewicht i.p.v. gelijk gewicht met de rest. Vergaderingen eruit.
+//
+// Prijzen: Expositie en Bruiloft hebben een vaste prijs (bevestigd door het
+// bestuur, augustus 2026). De overige typen blijven op aanvraag, want daar is
+// geen vast tarief voor afgesproken.
 const soorten = [
-  { waarde: 'expositie', titel: 'Exposities', tekst: 'Onze corebusiness. Sinds 1978 is het kerkje vooral expositieruimte — witte wanden, sober interieur, negen gotische ramen die het licht binnenlaten.', accent: true },
-  { waarde: 'bruiloft', titel: 'Bruiloften', tekst: 'Trouwen in een rijksmonument uit 1350, met licht door negen gotische ramen.' },
-  { waarde: 'concert', titel: 'Concerten', tekst: 'Akoestiek van een gebouw dat er acht eeuwen voor stond. Met het Lindsenorgel uit 1861.' },
-  { waarde: 'viering', titel: 'Vieringen', tekst: 'Voor momenten die niet in een zaal passen.' },
+  { waarde: 'expositie', titel: 'Exposities', tekst: 'Onze corebusiness. Sinds 1978 is het kerkje vooral expositieruimte — witte wanden, sober interieur, negen gotische ramen die het licht binnenlaten.', accent: true, prijs: '€ 550 per weekend' },
+  { waarde: 'bruiloft', titel: 'Bruiloften', tekst: 'Trouwen in een rijksmonument uit 1350, met licht door negen gotische ramen.', prijs: '€ 600' },
+  { waarde: 'concert', titel: 'Concerten', tekst: 'Akoestiek van een gebouw dat er acht eeuwen voor stond. Met het Lindsenorgel uit 1861.', prijs: 'Op aanvraag' },
+  { waarde: 'viering', titel: 'Vieringen', tekst: 'Voor momenten die niet in een zaal passen.', prijs: 'Op aanvraag' },
 ];
 ---
 
 <Base
   title="Verhuur"
-  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst. Altijd maatwerk, vraag vrijblijvend aan."
+  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst. Exposities vanaf €550 per weekend, bruiloften €600."
 >
   <PageHeader
     eyebrow="Verhuur"
@@ -48,6 +54,7 @@ const soorten = [
             <a href={`/verhuur/aanvragen/?soort=${s.waarde}`} class="soort-link">
               <h3>{s.titel}</h3>
               <p>{s.tekst}</p>
+              <p class="prijs">{s.prijs}</p>
             </a>
           </li>
         ))}
@@ -58,9 +65,10 @@ const soorten = [
       <div>
         <h2>Tarieven</h2>
         <p>
-          Wat het kost, hangt af van de datum, het soort gebruik en het aantal mensen.
-          We maken liever een voorstel dat klopt dan een prijslijst die dat niet doet.
-          Vraag vrijblijvend aan, dan nemen we contact met je op.
+          Exposities en bruiloften hebben een vaste prijs, hierboven per mogelijkheid vermeld.
+          Voor overige activiteiten hangt het af van de datum, het soort gebruik en het aantal
+          mensen — we maken dan een voorstel op maat. Vraag vrijblijvend aan, dan nemen we
+          contact met je op.
         </p>
         <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
       </div>
@@ -86,6 +94,7 @@ const soorten = [
   .soort-link:hover h3 { color: var(--brick); }
   .soorten h3 { margin-bottom: var(--s-2); }
   .soorten p { margin: 0; color: var(--ink-soft); }
+  .prijs { margin-top: var(--s-3) !important; font-weight: 600; color: var(--pine) !important; font-size: var(--t-sm); }
   .soort-accent { grid-column: 1 / -1; }
   .soort-accent h3 { color: var(--brick); }
   .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
