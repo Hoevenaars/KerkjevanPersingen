@@ -29,7 +29,14 @@ function langeDatum(iso: string): string {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    timeZone: 'Europe/Amsterdam',
   });
+}
+
+/** Toont "14 juni 2027" of, bij een periode, "14 juni 2027 t/m 15 juni 2027". */
+function datumBereik(a: Aanvraag): string {
+  if (!a.datumTot || a.datumTot === a.datum) return langeDatum(a.datum);
+  return `${langeDatum(a.datum)} t/m ${langeDatum(a.datumTot)}`;
 }
 
 function bestuurMail(a: Aanvraag): string {
@@ -38,7 +45,7 @@ function bestuurMail(a: Aanvraag): string {
     <div style="font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6">
       <h2 style="font-family:Georgia,serif;margin:0 0 16px">Nieuwe verhuuraanvraag</h2>
       <table style="border-collapse:collapse">
-        <tr><td style="padding:4px 16px 4px 0"><strong>Datum</strong></td><td>${escape(langeDatum(a.datum))}</td></tr>
+        <tr><td style="padding:4px 16px 4px 0"><strong>Datum</strong></td><td>${escape(datumBereik(a))}</td></tr>
         <tr><td style="padding:4px 16px 4px 0"><strong>Soort</strong></td><td>${escape(soort)}</td></tr>
         <tr><td style="padding:4px 16px 4px 0"><strong>Personen</strong></td><td>${escape(a.personen)}</td></tr>
         <tr><td style="padding:4px 16px 4px 0"><strong>Naam</strong></td><td>${escape(a.naam)}</td></tr>
@@ -55,7 +62,7 @@ function bevestigingMail(a: Aanvraag): string {
     <div style="font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6">
       <h2 style="font-family:Georgia,serif;margin:0 0 16px">We hebben je aanvraag ontvangen</h2>
       <p>Beste ${escape(a.naam)},</p>
-      <p>Je aanvraag voor ${escape(langeDatum(a.datum))} staat bij ons. Iemand van het bestuur
+      <p>Je aanvraag voor ${escape(datumBereik(a))} staat bij ons. Iemand van het bestuur
       kijkt ernaar en neemt contact met je op over wat er mogelijk is en wat het kost.</p>
       <p>Elke bijeenkomst is anders, dus we maken een voorstel op maat in plaats van een
       standaardtarief te sturen.</p>
@@ -101,7 +108,7 @@ export async function verstuurAanvraag(a: Aanvraag): Promise<Uitkomst> {
       to: [naar],
       bcc: bcc ? [bcc] : undefined,
       replyTo: a.email,
-      subject: `Verhuuraanvraag ${soort} — ${new Date(a.datum).toLocaleDateString('nl-NL')}`,
+      subject: `Verhuuraanvraag ${soort} — ${datumBereik(a)}`,
       html: bestuurMail(a),
     });
 
