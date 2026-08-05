@@ -9,8 +9,6 @@ interface Props {
 
 const { bezet, maand, basisPad } = Astro.props;
 
-// Blijft een eventueel al gekozen 'soort' behouden als iemand vanaf de kalender
-// een andere datum kiest — anders verdwijnt die keuze bij elke kalenderklik.
 const huidigeSoort = Astro.url.searchParams.get('soort');
 const soortParam = huidigeSoort ? `&soort=${encodeURIComponent(huidigeSoort)}` : '';
 
@@ -94,19 +92,29 @@ const volgende = maandIndex === 11 ? maandSleutel(jaar + 1, 0) : maandSleutel(ja
 const huidigJaar = nu.getFullYear();
 const jaren = [huidigJaar, huidigJaar + 1, huidigJaar + 2, huidigJaar + 3];
 
+// Voor de "spring naar maand"-keuzelijst: alle 48 maanden van nu tot 4 jaar
+// vooruit, als opties met een leesbaar label.
+const springOpties: { waarde: string; label: string }[] = [];
+for (let jr = huidigJaar; jr <= huidigJaar + 3; jr++) {
+  const vanaf = jr === huidigJaar ? nu.getMonth() : 0;
+  for (let m = vanaf; m < 12; m++) {
+    springOpties.push({ waarde: maandSleutel(jr, m), label: `${MAANDEN[m]} ${jr}` });
+  }
+}
+
 const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length;
 ---
 
 <div class="kalender">
   <div class="balk">
-    <a class="stap" href={`${basisPad}?maand=${vorige}#kalender`} rel="prev">
+    <a class="stap" href={`${basisPad}?maand=${vorige}${soortParam}#kalender`} rel="prev">
       <span aria-hidden="true">←</span>
       <span class="visually-hidden">Vorige maand</span>
     </a>
 
     <h3 id="kalender-titel">{MAANDEN[maandIndex]} {jaar}</h3>
 
-    <a class="stap" href={`${basisPad}?maand=${volgende}#kalender`} rel="next">
+    <a class="stap" href={`${basisPad}?maand=${volgende}${soortParam}#kalender`} rel="next">
       <span aria-hidden="true">→</span>
       <span class="visually-hidden">Volgende maand</span>
     </a>
@@ -115,8 +123,8 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
   <nav class="jaren" aria-label="Spring naar een jaar">
     {
       jaren.map((j) => (
-        <a
-          href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}#kalender`}
+        
+          href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}${soortParam}#kalender`}
           aria-current={j === jaar ? 'true' : undefined}
         >
           {j}
@@ -124,6 +132,19 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
       ))
     }
   </nav>
+
+  <form class="spring-naar" method="GET" action={`${basisPad}#kalender`}>
+    <label for="spring-maand" class="visually-hidden">Spring naar een specifieke maand</label>
+    <select id="spring-maand" name="maand">
+      {
+        springOpties.map((o) => (
+          <option value={o.waarde} selected={o.waarde === maand}>{o.label}</option>
+        ))
+      }
+    </select>
+    {huidigeSoort && <input type="hidden" name="soort" value={huidigeSoort} />}
+    <button type="submit">Ga naar maand</button>
+  </form>
 
   <table>
     <caption class="visually-hidden">
@@ -239,7 +260,7 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
   .jaren {
     display: flex;
     gap: var(--s-2);
-    margin-bottom: var(--s-6);
+    margin-bottom: var(--s-4);
     flex-wrap: wrap;
   }
 
@@ -261,6 +282,40 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
   .jaren a[aria-current='true'] {
     background: var(--pine);
     border-color: var(--pine);
+    color: var(--cream);
+  }
+
+  .spring-naar {
+    display: flex;
+    gap: var(--s-2);
+    margin-bottom: var(--s-6);
+    flex-wrap: wrap;
+  }
+
+  .spring-naar select {
+    font-family: var(--font-body);
+    font-size: var(--t-sm);
+    padding: var(--s-2) var(--s-3);
+    border: 1px solid var(--sand);
+    border-radius: var(--radius);
+    background: var(--white);
+    color: var(--ink);
+  }
+
+  .spring-naar button {
+    font-family: var(--font-body);
+    font-size: var(--t-sm);
+    font-weight: 500;
+    padding: var(--s-2) var(--s-4);
+    border: 1px solid var(--olive);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--pine);
+    cursor: pointer;
+  }
+
+  .spring-naar button:hover {
+    background: var(--olive);
     color: var(--cream);
   }
 
@@ -382,6 +437,12 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
     }
     .bezet .status {
       font-size: 0.62rem;
+    }
+    .spring-naar {
+      flex-direction: column;
+    }
+    .spring-naar select {
+      width: 100%;
     }
   }
 </style>
