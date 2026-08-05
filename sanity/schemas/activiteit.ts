@@ -15,6 +15,11 @@ import { defineType, defineField } from 'sanity';
  * "Vergadering" is bewust geen optie meer — het bestuur wil dit type verhuur niet
  * aanbieden. Bestaande data met die waarde (indien aanwezig) blijft geldig, maar
  * kan niet meer opnieuw gekozen worden.
+ *
+ * "toonVanafMaanden": zonder waarde is een publieke activiteit direct zichtbaar
+ * zodra hij op "publiek" staat. Met een waarde verschijnt hij pas op de site vanaf
+ * dat aantal maanden vóór de startdatum — handig als het bestuur een expositie ver
+ * van tevoren al wil vastleggen zonder dat bezoekers hem meteen zien.
  */
 export const activiteit = defineType({
   name: 'activiteit',
@@ -87,6 +92,24 @@ export const activiteit = defineType({
           }
           return true;
         }),
+    }),
+    defineField({
+      name: 'toonVanafMaanden',
+      title: 'Pas tonen op de website vanaf',
+      description:
+        'Optioneel. Laat leeg om direct te tonen zodra dit op "publiek" staat. Kies een aantal maanden om pas dichter bij de datum zelf zichtbaar te worden.',
+      type: 'string',
+      hidden: ({ document }) => document?.zichtbaarheid !== 'publiek',
+      options: {
+        list: [
+          { title: 'Altijd direct tonen', value: '' },
+          { title: '3 maanden van tevoren', value: '3' },
+          { title: '6 maanden van tevoren', value: '6' },
+          { title: '9 maanden van tevoren', value: '9' },
+          { title: '12 maanden van tevoren', value: '12' },
+        ],
+        layout: 'dropdown',
+      },
     }),
     defineField({
       name: 'slug',
