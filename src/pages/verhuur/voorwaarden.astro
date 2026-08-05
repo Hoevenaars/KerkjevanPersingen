@@ -1,0 +1,52 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+
+/*
+  BLOKKEREND VOOR VOLLEDIGE FUNCTIE: bevat nog geen echte tekst.
+  Nelleke levert de verhuurvoorwaarden en het huishoudelijk reglement aan.
+  Zodra die er zijn: dit placeholder-blok vervangen door de daadwerkelijke tekst.
+  De pagina staat bewust al wel live (Nelleke's verzoek), zodat de link vanuit
+  het aanvraagformulier niet naar een 404 leidt.
+*/
+---
+
+<Base
+  title="Verhuurvoorwaarden"
+  description="Voorwaarden voor verhuur en het huishoudelijk reglement van het Kerkje van Persingen."
+>
+  <PageHeader
+    eyebrow="Verhuur"
+    title="Verhuurvoorwaarden en huishoudelijk reglement"
+    mark="boog"
+  />
+
+  <div class="wrap-narrow">
+    <div class="openstaand">
+      <h2>Hier komen de verhuurvoorwaarden te staan</h2>
+      <p>
+        Deze pagina bevat nog geen definitieve tekst. Het bestuur levert de
+        verhuurvoorwaarden en het huishoudelijk reglement aan, waarna deze pagina
+        wordt bijgewerkt.
+      </p>
+      <p>
+        Vragen over de voorwaarden? Neem contact op via het{' '}
+        <a href="/contact/">contactformulier</a> of bel{' '}
+        <a href="tel:+31652668449">06 52 66 84 49</a>.
+      </p>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .openstaand {
+    background: var(--cream-deep);
+    border: 1px dashed var(--sand);
+    border-radius: var(--radius-lg);
+    padding: var(--s-8);
+  }
+  .openstaand h2 {
+    margin-top: 0;
+    font-size: var(--t-xl);
+  }
+</style>
