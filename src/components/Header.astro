@@ -1,8 +1,10 @@
 ---
 const path = Astro.url.pathname;
 
-// Vijf items plus één knop. Organisatie staat bewust alleen in de footer:
-// niemand kiest een trouwlocatie via "Organisatie".
+// Vijf items plus één knop. Organisatie staat niet los in het hoofdmenu, maar
+// wel als derde link in het "Het kerkje"-submenu — een compromis tussen
+// "niemand kiest een trouwlocatie via Organisatie" en toch vindbaar zijn
+// zonder helemaal naar de footer te moeten scrollen.
 const nav = [
   { href: '/het-kerkje/', label: 'Het kerkje' },
   { href: '/verhuur/', label: 'Verhuur' },
@@ -36,6 +38,7 @@ const isActive = (href: string) => path === href || path.startsWith(href);
           <ul class="submenu">
             <li><a href="/het-kerkje/geschiedenis/">Geschiedenis</a></li>
             <li><a href="/het-kerkje/omgeving/">Omgeving</a></li>
+            <li><a href="/organisatie/">Organisatie</a></li>
           </ul>
         </li>
         {
@@ -142,25 +145,38 @@ const isActive = (href: string) => path === href || path.startsWith(href);
     position: relative;
   }
 
+  /*
+    Bewust GEEN display:none/block-toggle. Een element met display:none is niet
+    focusbaar via het toetsenbord, dus zou dit submenu voor toetsenbordgebruikers
+    permanent onbereikbaar zijn. In plaats daarvan blijft het element altijd
+    aanwezig (dus focusbaar), en wisselt alleen zichtbaarheid en klikbaarheid.
+
+    Geen margin tussen link en submenu — dat gaf eerder een "dood gebied" waar de
+    muis de hover-status kon verliezen vóór het submenu bereikt werd. De ruimte
+    zit nu als padding BINNEN het submenu, zodat de cursor nooit over niets beweegt.
+  */
   .submenu {
     position: absolute;
     top: 100%;
     left: 0;
+    margin: 0;
+    padding: var(--s-3) var(--s-2) var(--s-2);
+    min-width: 180px;
     background: var(--cream);
     border: var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     list-style: none;
-    margin: var(--s-2) 0 0;
-    padding: var(--s-2);
-    min-width: 180px;
-    display: none;
     z-index: 30;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s var(--ease);
   }
 
   .heeft-submenu:hover .submenu,
   .heeft-submenu:focus-within .submenu {
-    display: block;
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .submenu li {
@@ -239,14 +255,16 @@ const isActive = (href: string) => path === href || path.startsWith(href);
       font-size: var(--t-base);
     }
 
+    /* Op mobiel altijd zichtbaar onder "Het kerkje" — geen hover op een telefoon,
+       en een extra tik toevoegen is meer moeite dan het waard voor drie links. */
     .submenu {
       position: static;
-      display: block;
+      opacity: 1;
+      pointer-events: auto;
       box-shadow: none;
       border: none;
       background: transparent;
-      padding-left: var(--s-4);
-      margin: 0;
+      padding: 0 0 0 var(--s-4);
     }
 
     .reserve {
