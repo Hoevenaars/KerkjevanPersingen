@@ -1,0 +1,72 @@
+---
+import { getEerstvolgendeVrijeWeekenden, formatWeekend } from '../lib/sanity';
+
+const weekenden = await getEerstvolgendeVrijeWeekenden(3);
+---
+
+{
+  weekenden.length > 0 && (
+    <div class="vrije-weekenden">
+      <h3>Eerstvolgende vrije weekenden</h3>
+      <ul>
+        {weekenden.map((w) => (
+          <li>
+            <a href={`/verhuur/aanvragen/?datum=${w.zaterdag}&datumTot=${w.zondag}`}>
+              <span class="periode">{formatWeekend(w)}</span>
+              {!(w.zaterdagVrij && w.zondagVrij) && (
+                <span class="deels">
+                  {w.zaterdagVrij ? 'alleen zaterdag vrij' : 'alleen zondag vrij'}
+                </span>
+              )}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+<style>
+  .vrije-weekenden {
+    background: var(--cream-deep);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--s-6);
+  }
+  .vrije-weekenden h3 {
+    margin-top: 0;
+    font-size: var(--t-lg);
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s-2);
+  }
+  a {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--s-3);
+    padding: var(--s-3);
+    border-radius: var(--radius);
+    text-decoration: none;
+    background: var(--white);
+    border: 1px solid var(--sand);
+  }
+  a:hover {
+    border-color: var(--olive);
+    background: var(--cream);
+  }
+  .periode {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .deels {
+    font-size: var(--t-xs);
+    color: var(--olive-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+</style>
