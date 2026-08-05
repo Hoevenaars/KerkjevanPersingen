@@ -1,6 +1,7 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import PageHeader from '../../../components/PageHeader.astro';
+import Kalender from '../../../components/Kalender.astro';
 import {
   LEGE_AANVRAAG,
   SOORTEN,
@@ -15,32 +16,48 @@ import { getBezetteData } from '../../../lib/sanity';
 
 export const prerender = false;
 
-/*
-  Verwerking gebeurt hier, in de pagina zelf, met een gewone POST.
-
-  Reden: het formulier moet werken zonder JavaScript. Draaide de verzending alleen op
-  fetch, dan deed de knop niets zodra een script faalt of geblokkeerd wordt — zonder
-  melding, bij precies de pagina waar de boekingen binnenkomen. JavaScript is nu nergens
-  meer voor nodig.
-
-  Bij succes een redirect naar de bedankpagina, zodat vernieuwen niet opnieuw verstuurt
-  (post/redirect/get).
-*/
-
 let waarden: Aanvraag = { ...LEGE_AANVRAAG };
 let fouten: Fouten = {};
 
-// Datum vooraf invullen vanuit de kalender: /verhuur/aanvragen/?datum=2027-05-14
+const GELDIGE_SOORTEN = SOORTEN.map((s) => s.waarde);
+
 const vooraf = Astro.url.searchParams.get('datum');
 if (vooraf && /^\d{4}-\d{2}-\d{2}$/.test(vooraf)) {
   waarden.datum = vooraf;
+}
+const soortVooraf = Astro.url.searchParams.get('soort');
+if (soortVooraf && GELDIGE_SOORTEN.includes(soortVooraf as never)) {
+  waarden.soort = soortVooraf;
+}
+
+const bezet = await getBezetteData();
+
+const nu = new Date();
+const gevraagdeMaand = Astro.url.searchParams.get('maand') ?? '';
+const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagdeMaand)
+  ? gevraagdeMaand
+  : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
+
+function alleDagen(vanIso: string, totIso: string): number[] {
+  const dagen: number[] = [];
+  const van = new Date(vanIso);
+  const tot = new Date(totIso);
+  const loper = Date.UTC(van.getUTCFullYear(), van.getUTCMonth(), van.getUTCDate());
+  const eind = Date.UTC(tot.getUTCFullYear(), tot.getUTCMonth(), tot.getUTCDate());
+  let dag = loper;
+  let veiligheid = 0;
+  while (dag <= eind && veiligheid < 60) {
+    dagen.push(dag);
+    dag += 24 * 60 * 60 * 1000;
+    veiligheid++;
+  }
+  return dagen;
 }
 
 if (Astro.request.method === 'POST') {
   try {
     const data = await Astro.request.formData();
 
-    // Honeypot: verborgen voor mensen, ingevuld door bots. Stilzwijgend accepteren.
     if (String(data.get('website') ?? '').length > 0) {
       return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
     }
@@ -54,24 +71,21 @@ if (Astro.request.method === 'POST') {
     } else {
       fouten = valideer(waarden);
 
-      // Extra check: is deze datum al bezet? Het native datumveld kan dat niet
-      // afdwingen zonder JavaScript, dus we controleren het hier, vóór verzending.
-      if (!fouten.datum && waarden.datum) {
-        const bezet = await getBezetteData();
-        const gekozen = Date.UTC(
-          Number(waarden.datum.slice(0, 4)),
-          Number(waarden.datum.slice(5, 7)) - 1,
-          Number(waarden.datum.slice(8, 10))
-        );
+      if (!fouten.datum && !fouten.datumTot && waarden.datum) {
+        const gevraagdeDagen = alleDagen(waarden.datum, waarden.datumTot || waarden.datum);
+
         const isBezet = bezet.some((a) => {
           const start = new Date(a.start);
           const startDag = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
           const eind = a.eind ? new Date(a.eind) : start;
           const eindDag = Date.UTC(eind.getUTCFullYear(), eind.getUTCMonth(), eind.getUTCDate());
-          return startDag <= gekozen && gekozen <= eindDag;
+          return gevraagdeDagen.some((d) => startDag <= d && d <= eindDag);
         });
+
         if (isBezet) {
-          fouten.datum = 'Deze datum is helaas al bezet. Kies een andere datum, of bel 06 52 66 84 49.';
+          const veld = waarden.datumTot ? 'datumTot' : 'datum';
+          fouten[veld] =
+            'Eén of meer dagen in deze periode zijn al bezet. Kies andere data, of bel 06 52 66 84 49.';
         }
       }
 
@@ -141,6 +155,22 @@ const vandaag = new Date().toISOString().split('T')[0];
           aria-describedby={fouten.datum ? 'fout-datum' : undefined}
         />
         {fouten.datum && <p class="fout" id="fout-datum">{fouten.datum}</p>}
+      </div>
+
+      <div class="veld">
+        <label for="datumTot">
+          Tot en met <span class="optioneel">(alleen invullen bij een meerdaagse periode, bijv. een heel weekend)</span>
+        </label>
+        <input
+          type="date"
+          id="datumTot"
+          name="datumTot"
+          min={waarden.datum || vandaag}
+          value={waarden.datumTot}
+          aria-invalid={fouten.datumTot ? 'true' : undefined}
+          aria-describedby={fouten.datumTot ? 'fout-datumTot' : undefined}
+        />
+        {fouten.datumTot && <p class="fout" id="fout-datumTot">{fouten.datumTot}</p>}
       </div>
 
       <div class="veld">
@@ -253,12 +283,19 @@ const vandaag = new Date().toISOString().split('T')[0];
         <button type="submit" class="verstuur">Verstuur aanvraag</button>
       </div>
     </form>
+
+    <section class="kalender-sectie" id="kalender">
+      <h2>Beschikbaarheid</h2>
+      <p>
+        Grijs is bezet. Klik op een vrije dag om die datum in het formulier hierboven
+        in te vullen.
+      </p>
+      <Kalender bezet={bezet} maand={maand} basisPad="/verhuur/aanvragen/" />
+    </section>
   </div>
 </Base>
 
 <script>
-  // Enige rol van JavaScript: na een POST met fouten de melding onder de aandacht
-  // brengen. Het formulier werkt volledig zonder dit script.
   document.getElementById('foutmelding')?.focus();
 </script>
 
@@ -267,6 +304,13 @@ const vandaag = new Date().toISOString().split('T')[0];
     display: grid;
     gap: var(--s-6);
     max-width: 560px;
+  }
+
+  .kalender-sectie {
+    margin-top: var(--s-16);
+    padding-top: var(--s-12);
+    border-top: var(--border);
+    max-width: 620px;
   }
 
   .samenvatting {
