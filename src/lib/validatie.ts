@@ -7,6 +7,9 @@
  *
  * "Vergadering" is bewust verwijderd — het bestuur wil dit type verhuur niet aanbieden.
  * Expositie staat voorop: dat is de corebusiness.
+ *
+ * "datumTot" is optioneel: veel verhuur is een heel weekend (zaterdag én zondag),
+ * niet één dag. Leeg laten betekent een eendaagse aanvraag.
  */
 
 export const SOORTEN = [
@@ -21,6 +24,7 @@ const GELDIGE_SOORTEN = SOORTEN.map((s) => s.waarde) as readonly string[];
 
 export interface Aanvraag {
   datum: string;
+  datumTot: string;
   soort: string;
   personen: string;
   naam: string;
@@ -33,6 +37,7 @@ export type Fouten = Partial<Record<keyof Aanvraag | 'algemeen', string>>;
 
 export const LEGE_AANVRAAG: Aanvraag = {
   datum: '',
+  datumTot: '',
   soort: '',
   personen: '',
   naam: '',
@@ -45,6 +50,7 @@ export function leesFormulier(data: FormData): Aanvraag {
   const lees = (k: keyof Aanvraag) => String(data.get(k) ?? '').trim();
   return {
     datum: lees('datum'),
+    datumTot: lees('datumTot'),
     soort: lees('soort'),
     personen: lees('personen'),
     naam: lees('naam'),
@@ -61,6 +67,14 @@ export function valideer(a: Aanvraag): Fouten {
   else if (Number.isNaN(Date.parse(a.datum))) fouten.datum = 'Deze datum begrijpen we niet.';
   else if (new Date(a.datum) < new Date(new Date().toDateString()))
     fouten.datum = 'Kies een datum in de toekomst.';
+
+  if (a.datumTot) {
+    if (Number.isNaN(Date.parse(a.datumTot))) {
+      fouten.datumTot = 'Deze einddatum begrijpen we niet.';
+    } else if (!fouten.datum && a.datumTot < a.datum) {
+      fouten.datumTot = 'De einddatum ligt vóór de startdatum.';
+    }
+  }
 
   if (!a.soort) fouten.soort = 'Kies wat voor bijeenkomst het wordt.';
   else if (!GELDIGE_SOORTEN.includes(a.soort)) fouten.soort = 'Kies een optie uit de lijst.';
