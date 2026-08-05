@@ -1,25 +1,18 @@
 ---
 import type { Activiteit } from '../lib/sanity';
 
-/*
-  Beschikbaarheidskalender.
-
-  Server-gerenderd, navigeren gebeurt met gewone links (?maand=2027-05). Daarmee werkt
-  hij zonder JavaScript, is hij deelbaar per maand en indexeerbaar.
-
-  Het bestuur plant tot in 2028, dus naast maandnavigatie zit er een jaarrij in —
-  twaalf keer doorklikken om bij volgend jaar te komen is geen kalender maar een straf.
-
-  Bezet wordt niet alleen met kleur aangegeven maar ook met tekst (15_ACCESSIBILITY.md §1).
-*/
-
 interface Props {
   bezet: Activiteit[];
-  maand: string; // 'YYYY-MM'
+  maand: string;
   basisPad: string;
 }
 
 const { bezet, maand, basisPad } = Astro.props;
+
+// Blijft een eventueel al gekozen 'soort' behouden als iemand vanaf de kalender
+// een andere datum kiest — anders verdwijnt die keuze bij elke kalenderklik.
+const huidigeSoort = Astro.url.searchParams.get('soort');
+const soortParam = huidigeSoort ? `&soort=${encodeURIComponent(huidigeSoort)}` : '';
 
 const MAANDEN = [
   'januari', 'februari', 'maart', 'april', 'mei', 'juni',
@@ -39,15 +32,12 @@ const [jaarStr, maandStr] = maand.split('-');
 const jaar = Number(jaarStr);
 const maandIndex = Number(maandStr) - 1;
 
-/** Lokale datumsleutel, bewust niet via toISOString: die rekent om naar UTC en
- *  schuift in de zomertijd een dag op. */
 function sleutel(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const dag = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${m}-${dag}`;
 }
 
-// Bezette dagen uitrollen, inclusief meerdaagse boekingen zoals exposities.
 const bezetteDagen = new Set<string>();
 for (const item of bezet) {
   const van = new Date(item.start);
@@ -64,7 +54,6 @@ for (const item of bezet) {
 
 const eersteVanDeMaand = new Date(jaar, maandIndex, 1);
 const dagenInMaand = new Date(jaar, maandIndex + 1, 0).getDate();
-// getDay(): 0 = zondag. Wij beginnen de week op maandag.
 const startOffset = (eersteVanDeMaand.getDay() + 6) % 7;
 
 interface Cel {
@@ -126,8 +115,8 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
   <nav class="jaren" aria-label="Spring naar een jaar">
     {
       jaren.map((j) => (
-        
-<a href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}#kalender`}
+        <a
+          href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}#kalender`}
           aria-current={j === jaar ? 'true' : undefined}
         >
           {j}
@@ -170,7 +159,7 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
                 </td>
               ) : (
                 <td class="dag vrij" aria-current={cel.vandaag ? 'date' : undefined}>
-                  <a href={`/verhuur/aanvragen/?datum=${cel.datum}`}>
+                  <a href={`/verhuur/aanvragen/?datum=${cel.datum}${soortParam}`}>
                     <span class="cijfer">{cel.dag}</span>
                     <span class="visually-hidden">
                       {cel.dag} {MAANDEN[maandIndex]} {jaar} is vrij, deze datum aanvragen
@@ -200,9 +189,6 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
 </div>
 
 <script>
-  // Betrouwbaardere sprong naar de kalender na maand/jaar-navigatie. Een pure
-  // #hash-link werkt niet altijd goed samen met de sticky header en
-  // scroll-behavior:smooth uit global.css, dus we forceren het na het laden.
   if (window.location.hash === '#kalender') {
     const doel = document.getElementById('kalender-titel');
     doel?.scrollIntoView({ behavior: 'auto', block: 'start' });
