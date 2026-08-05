@@ -10,6 +10,13 @@
  *
  * "datumTot" is optioneel: veel verhuur is een heel weekend (zaterdag én zondag),
  * niet één dag. Leeg laten betekent een eendaagse aanvraag.
+ *
+ * De expositie-specifieke velden (website, eerderGeexposeerd, medeExposanten,
+ * akkoordVoorwaarden) staan altijd in het formulier (nodig zonder JavaScript),
+ * maar worden alleen inhoudelijk afgedwongen wanneer soort === 'expositie'.
+ * "Aantal personen" werkt precies andersom: verplicht voor alle typen BEHALVE
+ * expositie (Nelleke, contractbeheer: bezoekersaantal van een expositie is
+ * vooraf niet in te schatten).
  */
 
 export const SOORTEN = [
@@ -29,8 +36,19 @@ export interface Aanvraag {
   personen: string;
   naam: string;
   email: string;
+  adres: string;
   telefoon: string;
   toelichting: string;
+  // Alleen relevant bij expositie:
+  website: string;
+  eerderGeexposeerd: string; // 'ja' | 'nee' | ''
+  medeExposanten: string;
+  akkoordVoorwaarden: string; // 'ja' | ''
+  // Interne vlag: gezet nadat iemand de weekend-waarschuwing heeft gezien en
+  // toch bewust op "Toch versturen" heeft geklikt (zie D11-achtige aanpak in
+  // de aanvraagpagina zelf — dit is geen echte validatiefout, meer een
+  // bevestigingsstap).
+  negeerWaarschuwing: string; // 'ja' | ''
 }
 
 export type Fouten = Partial<Record<keyof Aanvraag | 'algemeen', string>>;
@@ -42,8 +60,14 @@ export const LEGE_AANVRAAG: Aanvraag = {
   personen: '',
   naam: '',
   email: '',
+  adres: '',
   telefoon: '',
   toelichting: '',
+  website: '',
+  eerderGeexposeerd: '',
+  medeExposanten: '',
+  akkoordVoorwaarden: '',
+  negeerWaarschuwing: '',
 };
 
 export function leesFormulier(data: FormData): Aanvraag {
@@ -55,13 +79,20 @@ export function leesFormulier(data: FormData): Aanvraag {
     personen: lees('personen'),
     naam: lees('naam'),
     email: lees('email'),
+    adres: lees('adres'),
     telefoon: lees('telefoon'),
     toelichting: lees('toelichting'),
+    website: lees('website'),
+    eerderGeexposeerd: lees('eerderGeexposeerd'),
+    medeExposanten: lees('medeExposanten'),
+    akkoordVoorwaarden: lees('akkoordVoorwaarden'),
+    negeerWaarschuwing: lees('negeerWaarschuwing'),
   };
 }
 
 export function valideer(a: Aanvraag): Fouten {
   const fouten: Fouten = {};
+  const isExpositie = a.soort === 'expositie';
 
   if (!a.datum) fouten.datum = 'Kies een datum.';
   else if (Number.isNaN(Date.parse(a.datum))) fouten.datum = 'Deze datum begrijpen we niet.';
@@ -79,10 +110,18 @@ export function valideer(a: Aanvraag): Fouten {
   if (!a.soort) fouten.soort = 'Kies wat voor bijeenkomst het wordt.';
   else if (!GELDIGE_SOORTEN.includes(a.soort)) fouten.soort = 'Kies een optie uit de lijst.';
 
-  const aantal = Number(a.personen);
-  if (!a.personen) fouten.personen = 'Vul een aantal personen in.';
-  else if (!Number.isInteger(aantal) || aantal < 1 || aantal > 500)
-    fouten.personen = 'Vul een heel aantal tussen 1 en 500 in.';
+  // Aantal personen: verplicht, BEHALVE bij een expositie.
+  if (!isExpositie) {
+    const aantal = Number(a.personen);
+    if (!a.personen) fouten.personen = 'Vul een aantal personen in.';
+    else if (!Number.isInteger(aantal) || aantal < 1 || aantal > 500)
+      fouten.personen = 'Vul een heel aantal tussen 1 en 500 in.';
+  } else if (a.personen) {
+    // Optioneel ingevuld bij expositie mag, maar moet dan wel geldig zijn.
+    const aantal = Number(a.personen);
+    if (!Number.isInteger(aantal) || aantal < 1 || aantal > 500)
+      fouten.personen = 'Vul een heel aantal tussen 1 en 500 in, of laat leeg.';
+  }
 
   if (!a.naam) fouten.naam = 'Vul je naam in.';
   else if (a.naam.length > 120) fouten.naam = 'Deze naam is te lang.';
@@ -91,12 +130,75 @@ export function valideer(a: Aanvraag): Fouten {
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email))
     fouten.email = 'Dit e-mailadres klopt niet. Controleer op een typefout.';
 
+  if (!a.adres) fouten.adres = 'Vul je adres in, inclusief postcode en woonplaats.';
+  else if (a.adres.length > 300) fouten.adres = 'Dit adres is te lang.';
+
   if (a.telefoon && a.telefoon.replace(/\D/g, '').length < 8)
     fouten.telefoon = 'Dit telefoonnummer lijkt niet compleet.';
 
   if (a.toelichting.length > 3000) fouten.toelichting = 'Houd de toelichting korter.';
 
+  if (a.website && a.website.length > 300) fouten.website = 'Deze link is te lang.';
+  if (a.medeExposanten.length > 500) fouten.medeExposanten = 'Houd dit korter.';
+
+  // Consent alleen verplicht bij expositie — bruiloften/concerten hebben geen
+  // "huishoudelijk reglement voor exposanten" nodig.
+  if (isExpositie && a.akkoordVoorwaarden !== 'ja') {
+    fouten.akkoordVoorwaarden = 'Bevestig dat je akkoord gaat met de verhuurvoorwaarden.';
+  }
+
   return fouten;
+}
+
+/**
+ * Weekendregel voor exposities (bestuursbesluit, augustus 2026):
+ * een expositie is in principe een heel weekend (zaterdag + zondag). Uitzondering:
+ * als de andere dag van hetzelfde weekend al een bruiloft heeft, mag de resterende
+ * dag als losse expositiedag. Dit is bewust een WAARSCHUWING, geen blokkade — het
+ * bestuur beoordeelt sowieso elke aanvraag handmatig, dus een uitzonderlijk geval
+ * hoeft niet technisch onmogelijk gemaakt te worden.
+ *
+ * Geldt alleen voor 'expositie'. Bruiloften, concerten en vieringen hebben geen
+ * weekend-verplichting.
+ */
+export function weekendWaarschuwing(
+  a: Pick<Aanvraag, 'soort' | 'datum' | 'datumTot'>,
+  isAndereDagBruiloft: (dagIso: string) => boolean
+): string | null {
+  if (a.soort !== 'expositie' || !a.datum) return null;
+
+  const start = new Date(a.datum + 'T00:00:00Z');
+  const dagVdWeek = start.getUTCDay(); // 0 = zondag, 6 = zaterdag
+
+  const eenDag = !a.datumTot || a.datumTot === a.datum;
+
+  if (eenDag) {
+    // Eén dag opgegeven: alleen geldig zonder waarschuwing als de ANDERE dag
+    // van hetzelfde weekend al een bruiloft heeft — anders hoort het een heel
+    // weekend te zijn.
+    if (dagVdWeek !== 6 && dagVdWeek !== 0) {
+      return 'Exposities zijn normaal gesproken een heel weekend. Overleg dit gerust telefonisch als een doordeweekse dag toch nodig is.';
+    }
+    const andereDag = new Date(start);
+    andereDag.setUTCDate(andereDag.getUTCDate() + (dagVdWeek === 6 ? 1 : -1));
+    const andereDagIso = andereDag.toISOString().slice(0, 10);
+
+    if (!isAndereDagBruiloft(andereDagIso)) {
+      return 'Exposities zijn normaal gesproken een heel weekend (zaterdag én zondag). Eén losse dag is alleen gebruikelijk als de andere dag al een bruiloft heeft.';
+    }
+    return null; // geldige uitzondering
+  }
+
+  // Periode opgegeven: check of het exact zaterdag+zondag van hetzelfde weekend is.
+  const eind = new Date(a.datumTot + 'T00:00:00Z');
+  const eindDagVdWeek = eind.getUTCDay();
+  const éénDagVerschil = (eind.getTime() - start.getTime()) === 24 * 60 * 60 * 1000;
+
+  const isVolledigWeekend = dagVdWeek === 6 && eindDagVdWeek === 0 && éénDagVerschil;
+  if (!isVolledigWeekend) {
+    return 'Exposities zijn normaal gesproken een heel weekend (zaterdag én zondag).';
+  }
+  return null;
 }
 
 /**
