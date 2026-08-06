@@ -16,43 +16,48 @@ const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagd)
   ? gevraagd
   : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
 
+// Vier soorten (was vijf) — "Diverse bijeenkomsten" vervangt Vieringen + Anders.
+// Prijzen staan nu in de Tarieven-sectie, niet meer los onder elke kaart.
 const soorten = [
   {
     waarde: 'expositie',
     titel: 'Exposities',
     tekst: 'Een expositie verdient een ruimte die inspireert. Al sinds 1978 biedt ons sfeervolle kerkje kunstenaars een bijzondere plek om hun werk te presenteren. Het zachte daglicht, de witte wanden en de rust van het monumentale interieur creëren een tijdloze ambiance waarin bezoekers én kunst optimaal tot hun recht komen.',
     accent: true,
-    prijs: '€ 550 per weekend',
   },
   {
     waarde: 'bruiloft',
     titel: 'Bruiloften',
     tekst: 'Trouwen in een monument vol historie. Geef elkaar het jawoord in een sfeervol kerkje uit 1350, waar het daglicht door negen gotische ramen een onvergetelijk decor creëert.',
-    prijs: '€ 600',
   },
   {
     waarde: 'concert',
     titel: 'Concerten',
     tekst: 'Een podium met een uitzonderlijke akoestiek. De eeuwenoude kerk, met het historische Lindsenorgel uit 1861, biedt een intieme concertlocatie waar muziek optimaal tot haar recht komt.',
-    prijs: 'Op aanvraag',
   },
   {
-    waarde: 'viering',
-    titel: 'Vieringen',
+    waarde: 'diverse',
+    titel: 'Diverse bijeenkomsten',
     tekst: 'Een bijzondere plek voor bijzondere momenten. Van herdenkingen en jubilea tot persoonlijke ceremonies: een monumentale locatie die ruimte biedt aan momenten die ertoe doen.',
-    prijs: 'Op aanvraag',
   },
+];
+
+const tarieven = [
+  { titel: 'Expositie', prijs: '€ 550 per weekend', voorwaarde: 'Zie voorwaarden voor de weekendregel' },
+  { titel: 'Bruiloft', prijs: '€ 600', voorwaarde: 'Tot 120 personen, daarboven altijd op maat' },
+  { titel: 'Concert', prijs: '€ 300', voorwaarde: 'Tot 80 personen, geen entreeheffing bij de deur' },
+  { titel: 'Diverse bijeenkomsten', prijs: 'Op aanvraag', voorwaarde: '—' },
 ];
 ---
 
 <Base
   title="Verhuur"
-  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst. Exposities vanaf €550 per weekend, bruiloften €600."
+  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst. Exposities vanaf €550 per weekend, bruiloften €600, concerten €300."
 >
   <PageHeader
     eyebrow="Verhuur"
     title="Een gebouw dat al af is"
-    intro="De meeste zalen moet je aankleden voordat er iets van te maken valt. Hier hoeft dat niet. Acht eeuwen geschiedenis, een sober wit interieur en licht dat door negen gotische ramen valt."
+    intro="De meeste zalen moet je aankleden voordat er iets van te maken valt. Hier hoeft dat niet. Je voelt hier acht eeuwen geschiedenis, een sober wit interieur en zonlicht dat door negen gotische ramen valt."
     mark="boog"
   />
 
@@ -70,7 +75,6 @@ const soorten = [
             <a href={`/verhuur/aanvragen/?soort=${s.waarde}`} class="soort-link">
               <h3>{s.titel}</h3>
               <p>{s.tekst}</p>
-              <p class="prijs">{s.prijs}</p>
             </a>
           </li>
         ))}
@@ -80,11 +84,29 @@ const soorten = [
     <section class="tarieven">
       <div>
         <h2>Tarieven</h2>
-        <p>
-          Exposities en bruiloften hebben een vaste prijs, hierboven per mogelijkheid vermeld.
-          Voor overige activiteiten hangt het af van de datum, het soort gebruik en het aantal
-          mensen — we maken dan een voorstel op maat. Vraag vrijblijvend aan, dan nemen we
-          contact met je op.
+        <table class="tarieven-tabel">
+          <thead>
+            <tr>
+              <th scope="col">Type</th>
+              <th scope="col">Prijs</th>
+              <th scope="col">Let op</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tarieven.map((t) => (
+              <tr>
+                <td>{t.titel}</td>
+                <td class="prijs-cel">{t.prijs}</td>
+                <td class="klein-cel">{t.voorwaarde}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="toelichting">
+          Voor diverse bijeenkomsten hangt het af van de datum, het soort gebruik en het
+          aantal mensen — we maken dan een voorstel op maat. Bekijk ook de{' '}
+          <a href="/verhuur/voorwaarden/">verhuurvoorwaarden</a> voor de precieze regels per
+          type. Vraag vrijblijvend aan, dan nemen we contact met je op.
         </p>
         <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
       </div>
@@ -137,11 +159,6 @@ const soorten = [
     font-size: var(--t-sm);
     line-height: 1.45;
   }
-  .prijs {
-    margin-top: var(--s-3) !important;
-    font-weight: 600;
-    color: var(--pine) !important;
-  }
   .soort-accent {
     grid-column: 1 / -1;
   }
@@ -154,7 +171,44 @@ const soorten = [
   }
 
   .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
-  .tarieven h2 { margin-top: 0; }
+  .tarieven h2 { margin-top: 0; margin-bottom: var(--s-6); }
+
+  .tarieven-tabel {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--s-6);
+    background: var(--white);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .tarieven-tabel th {
+    text-align: left;
+    font-size: var(--t-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    padding: var(--s-3) var(--s-4);
+    border-bottom: var(--border);
+  }
+  .tarieven-tabel td {
+    padding: var(--s-3) var(--s-4);
+    border-bottom: 1px solid var(--sand);
+  }
+  .tarieven-tabel tr:last-child td {
+    border-bottom: none;
+  }
+  .prijs-cel {
+    font-weight: 600;
+    color: var(--pine);
+    white-space: nowrap;
+  }
+  .klein-cel {
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+  }
+  .toelichting {
+    margin-bottom: var(--s-6);
+  }
 
   .kalender-met-lijst {
     display: grid;
@@ -166,6 +220,7 @@ const soorten = [
   @media (max-width: 720px) {
     .soorten { grid-template-columns: 1fr; }
     .tarieven { padding: var(--s-8); }
+    .tarieven-tabel { font-size: var(--t-sm); }
   }
   @media (max-width: 860px) {
     .kalender-met-lijst { grid-template-columns: 1fr; }
