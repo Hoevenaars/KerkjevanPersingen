@@ -259,13 +259,20 @@ export function formatDatum(iso: string, metTijd = true): string {
   return `${datum}, ${tijd} uur`;
 }
 
-/** Korte datumnotatie voor de vrije-weekenden-lijst, bijv. "14-15 juni". */
+/** Bijv. "14-15 juni 2027", of "31 december 2027 - 1 januari 2028" als het
+ *  weekend over een maand- of jaargrens heen loopt. */
 export function formatWeekend(w: VrijWeekend): string {
   const za = new Date(w.zaterdag + 'T00:00:00Z');
   const zo = new Date(w.zondag + 'T00:00:00Z');
   const maandZa = za.toLocaleDateString('nl-NL', { month: 'long', timeZone: 'Europe/Amsterdam' });
   const maandZo = zo.toLocaleDateString('nl-NL', { month: 'long', timeZone: 'Europe/Amsterdam' });
+  const jaarZa = za.getUTCFullYear();
+  const jaarZo = zo.getUTCFullYear();
   const dagZa = za.getUTCDate();
   const dagZo = zo.getUTCDate();
-  return maandZa === maandZo ? `${dagZa}-${dagZo} ${maandZa}` : `${dagZa} ${maandZa} - ${dagZo} ${maandZo}`;
+
+  if (maandZa === maandZo && jaarZa === jaarZo) {
+    return `${dagZa}-${dagZo} ${maandZa} ${jaarZa}`;
+  }
+  return `${dagZa} ${maandZa} ${jaarZa} - ${dagZo} ${maandZo} ${jaarZo}`;
 }
