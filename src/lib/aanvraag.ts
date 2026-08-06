@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { getOntvangstAdres } from './sanity';
+import { getOntvangstAdres, getExtraOntvangstAdres } from './sanity';
 import { SOORTEN, type Aanvraag, type Fouten } from './validatie';
 
 /**
@@ -53,7 +53,7 @@ function bestuurMail(a: Aanvraag): string {
 
   return `
     <div style="font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6">
-      <h2 style="font-family:Georgia,serif;margin:0 0 16px">Nieuwe verhuuraanvraag</h2>
+      <h2 style="font-family:Georgia,serif;margin:0 0 16px">Huuraanvraag</h2>
       <table style="border-collapse:collapse">
         <tr><td style="padding:4px 16px 4px 0"><strong>Datum</strong></td><td>${escape(datumBereik(a))}</td></tr>
         <tr><td style="padding:4px 16px 4px 0"><strong>Soort</strong></td><td>${escape(soort)}</td></tr>
@@ -64,21 +64,24 @@ function bestuurMail(a: Aanvraag): string {
         <tr><td style="padding:4px 16px 4px 0"><strong>Telefoon</strong></td><td>${escape(a.telefoon) || '—'}</td></tr>
         ${expositieRegels}
       </table>
-      ${a.toelichting ? `<p style="margin-top:16px"><strong>Toelichting</strong><br>${escape(a.toelichting).replace(/\n/g, '<br>')}</p>` : ''}
+      ${a.toelichting ? `<p style="margin-top:16px"><strong>Opmerkingen</strong><br>${escape(a.toelichting).replace(/\n/g, '<br>')}</p>` : ''}
       <p style="margin-top:24px;color:#6b6b63;font-size:14px">Beantwoorden gaat rechtstreeks naar de aanvrager.</p>
     </div>`;
 }
 
+/**
+ * Vereenvoudigd op verzoek — kort en zakelijk, geen uitgebreide toelichting
+ * meer over maatwerk/voorstel. ACTIVITEIT en DATUM worden ingevuld vanuit de
+ * aanvraag zelf.
+ */
 function bevestigingMail(a: Aanvraag): string {
+  const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
   return `
     <div style="font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6">
-      <h2 style="font-family:Georgia,serif;margin:0 0 16px">We hebben je aanvraag ontvangen</h2>
       <p>Beste ${escape(a.naam)},</p>
-      <p>Je aanvraag voor ${escape(datumBereik(a))} staat bij ons. Iemand van het bestuur
-      kijkt ernaar en neemt contact met je op over wat er mogelijk is en wat het kost.</p>
-      <p>Elke bijeenkomst is anders, dus we maken een voorstel op maat in plaats van een
-      standaardtarief te sturen.</p>
-      <p style="margin-top:24px">Met vriendelijke groet,<br>Stichting Het Kerkje van Persingen</p>
+      <p>We hebben uw aanvraag ontvangen voor de ${escape(soort.toLowerCase())} op ${escape(datumBereik(a))}.</p>
+      <p>We nemen uw aanvraag in behandeling.</p>
+      <p style="margin-top:24px">Met vriendelijke groet,<br>Het Kerkje van Persingen</p>
     </div>`;
 }
 
@@ -112,15 +115,16 @@ export async function verstuurAanvraag(a: Aanvraag): Promise<Uitkomst> {
 
   const resend = new Resend(apiKey);
   const bcc = process.env.CONTACT_BCC_EMAIL ?? import.meta.env.CONTACT_BCC_EMAIL;
+  const extra = await getExtraOntvangstAdres();
   const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
 
   try {
     const { error } = await resend.emails.send({
       from: VAN,
-      to: [naar],
+      to: extra ? [naar, extra] : [naar],
       bcc: bcc ? [bcc] : undefined,
       replyTo: a.email,
-      subject: `Verhuuraanvraag ${soort} — ${datumBereik(a)}`,
+      subject: `Huuraanvraag ${soort} — ${datumBereik(a)}`,
       html: bestuurMail(a),
     });
 
