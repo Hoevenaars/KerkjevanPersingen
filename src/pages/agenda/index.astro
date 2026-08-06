@@ -5,6 +5,18 @@ import Button from '../../components/Button.astro';
 import { getPubliekeAgenda, imageUrl, formatDatum } from '../../lib/sanity';
 
 const activiteiten = await getPubliekeAgenda(50);
+
+/**
+ * Maximaal 2 zinnen, met een "…" als er meer volgt. Belangrijk zodra er
+ * straks 50 activiteiten op deze pagina staan: zonder afkapping wordt de
+ * lijst een oneindige scroll van volledige tekstblokken. Kapt op zinsgrens
+ * af (na een punt, uitroepteken of vraagteken), niet halverwege een woord.
+ */
+function kortOpZinnen(tekst: string, maxZinnen = 2): string {
+  const zinnen = tekst.match(/[^.!?]+[.!?]+/g) ?? [tekst];
+  if (zinnen.length <= maxZinnen) return tekst;
+  return zinnen.slice(0, maxZinnen).join('').trim() + '…';
+}
 ---
 
 <Base title="Agenda" description="Exposities, concerten en bijeenkomsten in het kerkje van Persingen.">
@@ -24,7 +36,7 @@ const activiteiten = await getPubliekeAgenda(50);
                 <div class="kaart-tekst">
                   <p class="datum">{formatDatum(a.start)}</p>
                   <h2>{a.publiekeTitel}</h2>
-                  {a.omschrijving && <p>{a.omschrijving}</p>}
+                  {a.omschrijving && <p>{kortOpZinnen(a.omschrijving)}</p>}
                   {a.slug && <a class="meer" href={`/agenda/${a.slug}/`}>Meer over deze activiteit →</a>}
                 </div>
               </li>
