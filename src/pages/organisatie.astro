@@ -6,25 +6,20 @@ import PageHeader from '../components/PageHeader.astro';
   ANBI-publicatieplicht.
 
   Doelstelling en bestuurssamenstelling aangeleverd door het bestuur (4 augustus 2026).
-  Bestuur wordt gepubliceerd als naam + functie — geen privéadressen of telefoonnummers,
-  want dat is niet vereist voor de ANBI-publicatieplicht en zijn persoonsgegevens die
-  niet zomaar online hoeven (03_SECURITY_PRIVACY.md).
+  Bestuur wordt gepubliceerd als naam + functie — geen privéadressen of telefoonnummers.
 
-  Nog steeds ontbrekend en BLOKKEREND VOOR LIVEGANG: beleidsplan, beloningsbeleid,
-  activiteitenverslag, financiële verantwoording.
+  Het "nog aan te leveren"-blok (beleidsplan, beloningsbeleid, activiteitenverslag,
+  financiële verantwoording) is op verzoek van Hans verwijderd vóór livegang, ook al
+  waren die vier stukken op het moment van bouwen nog niet in mijn bezit. Dat betekent
+  dat de publicatieplicht mogelijk nog niet volledig is nagekomen — dat risico ligt
+  expliciet bij het bestuur, niet bij de techniek. Zodra de stukken er zijn, horen ze
+  gewoon toegevoegd te worden als eigen secties, niet als "nog te doen"-melding.
 */
 const bestuur = [
   { naam: 'Hans Maas', functie: 'Voorzitter' },
   { naam: 'Paul Verhoeven', functie: 'Penningmeester' },
   { naam: 'Nelleke van der Pol', functie: 'Contractbeheer' },
   { naam: 'Geert Kroes', functie: 'Algemene zaken' },
-];
-
-const ontbreekt = [
-  'Beleidsplan op hoofdlijnen',
-  'Beloningsbeleid',
-  'Verslag van de uitgeoefende activiteiten',
-  'Financiële verantwoording (balans, staat van baten en lasten)',
 ];
 ---
 
@@ -72,18 +67,6 @@ const ontbreekt = [
         }
       </dl>
     </section>
-
-    <!-- TODO — BLOKKEREND VOOR LIVEGANG. Financieel deel via penningmeester. -->
-    <section class="openstaand">
-      <h2>Nog aan te leveren</h2>
-      <p>
-        De volgende verplichte ANBI-publicatiegegevens ontbreken nog. Zolang ze ontbreken,
-        voldoet de stichting niet aan de publicatieplicht.
-      </p>
-      <ul>
-        {ontbreekt.map((item) => <li>{item}</li>)}
-      </ul>
-    </section>
   </div>
 </Base>
 
@@ -94,8 +77,4 @@ const ontbreekt = [
   .gegevens dd { margin: 0; font-weight: 500; text-align: right; }
   .blok { margin-bottom: var(--s-16); }
   .blok h2 { font-size: var(--t-xl); }
-  .openstaand { background: var(--cream-deep); border: 1px dashed var(--sand); border-radius: var(--radius-lg); padding: var(--s-8); }
-  .openstaand h2 { margin-top: 0; font-size: var(--t-xl); }
-  .openstaand ul { padding-left: var(--s-6); color: var(--ink-soft); }
-  .openstaand li + li { margin-top: var(--s-2); }
 </style>
