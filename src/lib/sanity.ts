@@ -19,6 +19,8 @@ const client: SanityClient | null = sanityConfigured
 
 const builder = client ? imageUrlBuilder(client) : null;
 
+/** Beeldverwerking gebeurt bij Sanity, niet bij het bestuur.
+ *  Een staande telefoonfoto van 6 MB komt er als bijgesneden WebP uit. */
 export function imageUrl(source: unknown, width = 1200, height?: number): string | null {
   if (!builder || !source) return null;
   let url = builder.image(source as never).width(width).format('webp').quality(78);
@@ -58,6 +60,11 @@ const ACTIVITEIT_VELDEN = `
   toonVanafMaanden
 `;
 
+/**
+ * 02_CODING_STANDARDS.md §6: nooit silent fail, maar een storing bij Sanity mag de
+ * hele pagina niet neerhalen. Bij een fout krijg je een lege agenda plus een log —
+ * het leeg-scenario op de landingspagina vangt dat visueel netjes op.
+ */
 async function veiligeQuery<T>(query: string, params: Record<string, unknown> = {}): Promise<T[]> {
   if (!client) return [];
   try {
@@ -68,6 +75,13 @@ async function veiligeQuery<T>(query: string, params: Record<string, unknown> = 
   }
 }
 
+/**
+ * Start van vandaag (00:00 UTC), niet het exacte huidige moment.
+ *
+ * Reden: met `start >= now()` verdween een activiteit uit beeld zodra de klok voorbij
+ * de starttijd was, ook al liep hij die dag nog gewoon door. Deze cutoff houdt een
+ * activiteit de hele dag zichtbaar, ongeacht hoe laat hij begon.
+ */
 function cutoffVandaag(): string {
   const d = new Date();
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
@@ -78,6 +92,7 @@ function startVanDag(iso: string): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
+/** Loopt deze activiteit vandaag, ongeacht wanneer hij begon of eindigt? */
 function loopVandaag(a: Activiteit, vandaag: number): boolean {
   const start = startVanDag(a.start);
   const eind = a.eind ? startVanDag(a.eind) : start;
@@ -135,6 +150,12 @@ export interface AgendaOverzicht {
   daarna: Activiteit | null;
 }
 
+/**
+ * Verdeelt de publieke agenda in drie blokken voor de landingspagina: wat vandaag
+ * loopt, wat daarna als eerste komt, en wat daarop weer volgt. Een activiteit die
+ * vandaag loopt telt niet mee als "volgende" — dat voorkomt dat dezelfde activiteit
+ * dubbel in beeld komt.
+ */
 export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
   const lijst = await getPubliekeAgenda(20); // filtert al op magAlGetoondWorden
   const vandaag = startVanDag(new Date().toISOString());
@@ -221,6 +242,11 @@ export async function getEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWe
   return resultaat;
 }
 
+/**
+ * Ontvangstadres voor aanvragen, bewerkbaar door iedereen met CMS-toegang.
+ * Valt terug op CONTACT_FALLBACK_EMAIL als het veld leeg of ongeldig is, zodat een
+ * typefout in het CMS nooit stilzwijgend alle aanvragen laat verdwijnen.
+ */
 export async function getOntvangstAdres(): Promise<string> {
   const fallback =
     process.env.CONTACT_FALLBACK_EMAIL ?? import.meta.env.CONTACT_FALLBACK_EMAIL ?? '';
@@ -241,6 +267,32 @@ export async function getOntvangstAdres(): Promise<string> {
   }
 }
 
+/**
+ * Een tweede, vast ontvangstadres (naast het primaire ontvangstAdres), bedoeld
+ * voor iemand die standaard een kopie van elke aanvraag wil zien zonder dat dit
+ * de BCC-noodoplossing is. Leeg als het veld niet is ingesteld.
+ */
+export async function getExtraOntvangstAdres(): Promise<string> {
+  if (!client) return '';
+  try {
+    const instellingen = await client.fetch<{ extraOntvangstAdres?: string } | null>(
+      `*[_type == "instellingen"][0]{ extraOntvangstAdres }`
+    );
+    const adres = instellingen?.extraOntvangstAdres?.trim();
+    if (adres && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adres)) return adres;
+    return '';
+  } catch (error) {
+    console.error('[sanity] ophalen extraOntvangstAdres mislukt', error);
+    return '';
+  }
+}
+
+/**
+ * Toont een datum/tijd altijd in Nederlandse tijd, ongeacht in welke tijdzone
+ * de server draait. Zonder expliciete timeZone gebruikt toLocaleTimeString de
+ * tijdzone van de server (Vercel = UTC), niet automatisch Amsterdamse tijd —
+ * dat gaf tot 2 uur verschil bij activiteiten met een tijdstip.
+ */
 export function formatDatum(iso: string, metTijd = true): string {
   const d = new Date(iso);
   const datum = d.toLocaleDateString('nl-NL', {
@@ -257,6 +309,50 @@ export function formatDatum(iso: string, metTijd = true): string {
     timeZone: 'Europe/Amsterdam',
   });
   return `${datum}, ${tijd} uur`;
+}
+
+/**
+ * Toont één datum, of een volledige periode als de activiteit een eind-datum
+ * heeft (bijv. "zaterdag 12 en zondag 13 september 2026"). Zonder eind-datum
+ * gedraagt dit zich identiek aan formatDatum(iso, false).
+ *
+ * Reden: bij een meerdaagse activiteit (bijv. een weekend-expositie) toonde de
+ * homepage alleen de startdatum, terwijl bezoekers vaak willen weten dat het
+ * ook op de tweede dag te bezoeken is.
+ */
+export function formatDatumBereik(activiteit: Pick<Activiteit, 'start' | 'eind'>): string {
+  if (!activiteit.eind) return formatDatum(activiteit.start, false);
+
+  const start = new Date(activiteit.start);
+  const eind = new Date(activiteit.eind);
+  const zelfdeMaand =
+    start.getUTCMonth() === eind.getUTCMonth() && start.getUTCFullYear() === eind.getUTCFullYear();
+
+  const dagStart = start.toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    timeZone: 'Europe/Amsterdam',
+  });
+  const volledigEind = eind.toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Europe/Amsterdam',
+  });
+
+  if (zelfdeMaand) {
+    return `${dagStart} en ${volledigEind}`;
+  }
+
+  const volledigStart = start.toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Europe/Amsterdam',
+  });
+  return `${volledigStart} t/m ${volledigEind}`;
 }
 
 /** Bijv. "14-15 juni 2027", of "31 december 2027 - 1 januari 2028" als het
