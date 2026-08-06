@@ -17,10 +17,31 @@ const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagd)
   : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
 
 const soorten = [
-  { waarde: 'expositie', titel: 'Exposities', tekst: 'Onze corebusiness. Sinds 1978 is het kerkje vooral expositieruimte — witte wanden, sober interieur, negen gotische ramen die het licht binnenlaten.', accent: true, prijs: '€ 550 per weekend' },
-  { waarde: 'bruiloft', titel: 'Bruiloften', tekst: 'Trouwen in een rijksmonument uit 1350, met licht door negen gotische ramen.', prijs: '€ 600' },
-  { waarde: 'concert', titel: 'Concerten', tekst: 'Akoestiek van een gebouw dat er acht eeuwen voor stond, met het Lindsenorgel uit 1861.', prijs: 'Op aanvraag' },
-  { waarde: 'viering', titel: 'Vieringen', tekst: 'Voor momenten die niet in een zaal passen.', prijs: 'Op aanvraag' },
+  {
+    waarde: 'expositie',
+    titel: 'Exposities',
+    tekst: 'Een expositie verdient een ruimte die inspireert. Al sinds 1978 biedt ons sfeervolle kerkje kunstenaars een bijzondere plek om hun werk te presenteren. Het zachte daglicht, de witte wanden en de rust van het monumentale interieur creëren een tijdloze ambiance waarin bezoekers én kunst optimaal tot hun recht komen.',
+    accent: true,
+    prijs: '€ 550 per weekend',
+  },
+  {
+    waarde: 'bruiloft',
+    titel: 'Bruiloften',
+    tekst: 'Trouwen in een monument vol historie. Geef elkaar het jawoord in een sfeervol kerkje uit 1350, waar het daglicht door negen gotische ramen een onvergetelijk decor creëert.',
+    prijs: '€ 600',
+  },
+  {
+    waarde: 'concert',
+    titel: 'Concerten',
+    tekst: 'Een podium met een uitzonderlijke akoestiek. De eeuwenoude kerk, met het historische Lindsenorgel uit 1861, biedt een intieme concertlocatie waar muziek optimaal tot haar recht komt.',
+    prijs: 'Op aanvraag',
+  },
+  {
+    waarde: 'viering',
+    titel: 'Vieringen',
+    tekst: 'Een bijzondere plek voor bijzondere momenten. Van herdenkingen en jubilea tot persoonlijke ceremonies: een monumentale locatie die ruimte biedt aan momenten die ertoe doen.',
+    prijs: 'Op aanvraag',
+  },
 ];
 ---
 
