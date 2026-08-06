@@ -16,8 +16,6 @@ const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagd)
   ? gevraagd
   : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
 
-// Vier soorten (was vijf) — "Diverse bijeenkomsten" vervangt Vieringen + Anders.
-// Prijzen staan nu in de Tarieven-sectie, niet meer los onder elke kaart.
 const soorten = [
   {
     waarde: 'expositie',
@@ -42,17 +40,28 @@ const soorten = [
   },
 ];
 
+/*
+  Tarieven aangeleverd door Nelleke (contractbeheer), augustus 2026 — vervangen de
+  eerder van Hans overgenomen bedragen, die niet overeenkwamen met de officiële
+  voorwaarden. Twee tijdvakken: "nu" geldt voor huidige boekingen, "vanaf 2029" is
+  een reeds vastgelegde toekomstige verhoging.
+
+  Concert-tarief (€300) staat nog LOS van Nelleke's drie categorieën — dat type komt
+  niet voor in de officiële voorwaarden/huisregels, en moet nog apart bevestigd
+  worden door het bestuur. Zie 24_DECISION_LOG-achtige notitie: niet zomaar verwijderd,
+  wel gemarkeerd als onbevestigd.
+*/
 const tarieven = [
-  { titel: 'Expositie', prijs: '€ 550 per weekend', voorwaarde: 'Zie voorwaarden voor de weekendregel' },
-  { titel: 'Bruiloft', prijs: '€ 600', voorwaarde: 'Tot 120 personen, daarboven altijd op maat' },
-  { titel: 'Concert', prijs: '€ 300', voorwaarde: 'Tot 80 personen, geen entreeheffing bij de deur' },
-  { titel: 'Diverse bijeenkomsten', prijs: 'Op aanvraag', voorwaarde: '—' },
+  { titel: 'Expositie', nu: '€ 490', vanaf2029: '€ 525', voorwaarde: 'Weekend, niet twee aaneengesloten weekends' },
+  { titel: 'Bruiloft', nu: '€ 550', vanaf2029: '€ 590', voorwaarde: 'Ter beoordeling van het bestuur' },
+  { titel: 'Concert', nu: '€ 300', vanaf2029: '—', voorwaarde: 'Nog te bevestigen door het bestuur', onbevestigd: true },
+  { titel: 'Diverse bijeenkomsten', nu: 'vanaf € 250', vanaf2029: 'vanaf € 275', voorwaarde: 'Ter beoordeling van het bestuur' },
 ];
 ---
 
 <Base
   title="Verhuur"
-  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst. Exposities vanaf €550 per weekend, bruiloften €600, concerten €300."
+  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst."
 >
   <PageHeader
     eyebrow="Verhuur"
@@ -88,25 +97,25 @@ const tarieven = [
           <thead>
             <tr>
               <th scope="col">Type</th>
-              <th scope="col">Prijs</th>
+              <th scope="col">Nu</th>
+              <th scope="col">Vanaf 2029</th>
               <th scope="col">Let op</th>
             </tr>
           </thead>
           <tbody>
             {tarieven.map((t) => (
               <tr>
-                <td>{t.titel}</td>
-                <td class="prijs-cel">{t.prijs}</td>
+                <td>{t.titel}{t.onbevestigd && <span class="ster" title="Nog te bevestigen door het bestuur">*</span>}</td>
+                <td class="prijs-cel">{t.nu}</td>
+                <td class="prijs-cel">{t.vanaf2029}</td>
                 <td class="klein-cel">{t.voorwaarde}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <p class="toelichting">
-          Voor diverse bijeenkomsten hangt het af van de datum, het soort gebruik en het
-          aantal mensen — we maken dan een voorstel op maat. Bekijk ook de{' '}
-          <a href="/verhuur/voorwaarden/">verhuurvoorwaarden</a> voor de precieze regels per
-          type. Vraag vrijblijvend aan, dan nemen we contact met je op.
+          Bekijk ook de <a href="/verhuur/voorwaarden/">verhuurvoorwaarden</a> voor de
+          precieze regels per type. Vraag vrijblijvend aan, dan nemen we contact met je op.
         </p>
         <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
       </div>
@@ -149,26 +158,11 @@ const tarieven = [
   }
   .soort-link:hover { background: var(--cream-deep); }
   .soort-link:hover h3 { color: var(--brick); }
-  .soorten h3 {
-    margin-bottom: var(--s-2);
-    font-size: var(--t-base);
-  }
-  .soorten p {
-    margin: 0;
-    color: var(--ink-soft);
-    font-size: var(--t-sm);
-    line-height: 1.45;
-  }
-  .soort-accent {
-    grid-column: 1 / -1;
-  }
-  .soort-accent h3 {
-    color: var(--brick);
-    font-size: var(--t-lg);
-  }
-  .soort-accent p {
-    font-size: var(--t-base);
-  }
+  .soorten h3 { margin-bottom: var(--s-2); font-size: var(--t-base); }
+  .soorten p { margin: 0; color: var(--ink-soft); font-size: var(--t-sm); line-height: 1.45; }
+  .soort-accent { grid-column: 1 / -1; }
+  .soort-accent h3 { color: var(--brick); font-size: var(--t-lg); }
+  .soort-accent p { font-size: var(--t-base); }
 
   .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
   .tarieven h2 { margin-top: 0; margin-bottom: var(--s-6); }
@@ -194,21 +188,11 @@ const tarieven = [
     padding: var(--s-3) var(--s-4);
     border-bottom: 1px solid var(--sand);
   }
-  .tarieven-tabel tr:last-child td {
-    border-bottom: none;
-  }
-  .prijs-cel {
-    font-weight: 600;
-    color: var(--pine);
-    white-space: nowrap;
-  }
-  .klein-cel {
-    font-size: var(--t-sm);
-    color: var(--ink-mute);
-  }
-  .toelichting {
-    margin-bottom: var(--s-6);
-  }
+  .tarieven-tabel tr:last-child td { border-bottom: none; }
+  .prijs-cel { font-weight: 600; color: var(--pine); white-space: nowrap; }
+  .klein-cel { font-size: var(--t-sm); color: var(--ink-mute); }
+  .ster { color: var(--brick); margin-left: 2px; }
+  .toelichting { margin-bottom: var(--s-6); font-size: var(--t-sm); color: var(--ink-mute); }
 
   .kalender-met-lijst {
     display: grid;
