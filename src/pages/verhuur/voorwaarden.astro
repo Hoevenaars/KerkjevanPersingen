@@ -3,10 +3,9 @@ import Base from '../../layouts/Base.astro';
 import PageHeader from '../../components/PageHeader.astro';
 
 /*
-  Concrete regels aangeleverd door Hans (livegang-voorbereiding, augustus 2026).
-  Het volledige, formele huishoudelijk reglement van Nelleke volgt nog — deze
-  pagina bevat de regels die al wel vaststaan, met een duidelijke melding dat
-  er meer volgt.
+  Gebaseerd op de officiële documenten: "Voorwaarden voor verhuur, Kerkje van
+  Persingen, per 05-01-2026" en "Huisregels Persingen 2023". Aangeleverd door
+  Nelleke (contractbeheer), augustus 2026.
 */
 ---
 
@@ -21,6 +20,14 @@ import PageHeader from '../../components/PageHeader.astro';
   />
 
   <div class="wrap-narrow prose">
+    <h2>Algemeen, voor elke activiteit</h2>
+    <ul>
+      <li>Geen entreeheffing, bij geen enkele activiteit.</li>
+      <li>Geen horeca: eten of drinken verkopen is niet toegestaan. Uit gastvrijheid iets aanbieden mag wel.</li>
+      <li>Schade tijdens de huurperiode is voor rekening van de huurder.</li>
+      <li>Parkeren alleen op het terrein aan de overkant van de straat.</li>
+    </ul>
+
     <h2>Exposities</h2>
     <ul>
       <li>Een expositie is in principe een heel weekend (zaterdag én zondag).</li>
@@ -28,29 +35,28 @@ import PageHeader from '../../components/PageHeader.astro';
         Is de andere dag van dat weekend al gereserveerd voor een bruiloft, dan is een
         losse dag mogelijk.
       </li>
-      <li>Dezelfde exposant kan niet binnen 18 maanden opnieuw exposeren.</li>
-      <li>Maximaal 3 mede-exposanten per aanvraag.</li>
-      <li>Prijs: € 550 per weekend.</li>
+      <li>Niet toegestaan: twee aaneengesloten weekends exposeren.</li>
+      <li>Dezelfde exposant kan niet binnen 18 maanden opnieuw exposeren. Dit geldt ook voor mede-exposanten.</li>
+      <li>Bij een groepsexpositie: maximaal 5 deelnemers, elk gebonden aan de 18-maandenregel.</li>
+      <li>Kunstwerken alleen ophangen aan de beschikbare systemen, max. 10 kg per systeemhouder.</li>
     </ul>
 
-    <h2>Bruiloften en muzikale voorstellingen</h2>
+    <h2>Bruiloften</h2>
     <ul>
-      <li>Mogelijk op elke dag van de week, ook doordeweeks (dinsdag t/m vrijdag).</li>
-      <li>Maandag is doorgaans gesloten; het bestuur kan hiervan afwijken.</li>
-      <li>Bruiloft: tot 120 personen € 600. Meer personen: altijd op maat.</li>
-      <li>Muzikale voorstelling: € 300, tot 80 personen, geen entreeheffing bij de deur.</li>
+      <li>Ter beoordeling van het bestuur, ook op doordeweekse dagen mogelijk.</li>
+      <li>Staat er op vrijdag al een huwelijk, uitvaart of andere gebeurtenis gepland, dan kan het inrichten voor een weekendexpositie pas vanaf circa 16.30 uur.</li>
     </ul>
 
     <h2>Diverse bijeenkomsten</h2>
     <p>
-      Lezingen, herdenkingen, vieringen en vergelijkbare bijeenkomsten. Een uitvaart is
-      alleen mogelijk voor mensen die verbonden zijn met de kerk.
+      Herdenkingen, lezingen, vieringen en vergelijkbare bijeenkomsten, ter beoordeling
+      van het bestuur.
     </p>
 
-    <p class="meer-volgt">
-      Dit is een samenvatting van de belangrijkste regels. Het volledige, formele
-      huishoudelijk reglement volgt nog van het bestuur — deze pagina wordt dan
-      aangevuld.
+    <h2>Tarieven</h2>
+    <p>
+      Zie de <a href="/verhuur/">Verhuur-pagina</a> voor de actuele tarieven, inclusief
+      de reeds vastgelegde verhoging die vanaf 2029 ingaat.
     </p>
 
     <p>
@@ -62,18 +68,6 @@ import PageHeader from '../../components/PageHeader.astro';
 </Base>
 
 <style>
-  .prose ul {
-    padding-left: var(--s-6);
-  }
-  .prose li + li {
-    margin-top: var(--s-2);
-  }
-  .meer-volgt {
-    background: var(--cream-deep);
-    border: 1px dashed var(--sand);
-    border-radius: var(--radius);
-    padding: var(--s-4) var(--s-6);
-    color: var(--ink-soft);
-    font-size: var(--t-sm);
-  }
+  .prose ul { padding-left: var(--s-6); }
+  .prose li + li { margin-top: var(--s-2); }
 </style>
