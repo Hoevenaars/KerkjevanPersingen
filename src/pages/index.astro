@@ -46,10 +46,10 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
     </div>
   </section>
 
-  <!-- Vandaag, volgende en daarna uit het CMS. Staat nu VOOR het Verhuur-blok
-       (op verzoek omgedraaid) — de agenda is voor bezoekers het eerste waar ze
-       naar zoeken, dus die krijgt nu voorrang boven de algemene verhuurpitch. -->
-  <section class="section">
+  <!-- Vandaag, volgende en daarna uit het CMS. Staat vóór het Verhuur-blok.
+       Krijgt nu de "band"-achtergrond (was eerst bij Verhuur), zodat het
+       afwisselingsritme band/vlak/band door de pagina heen klopt. -->
+  <section class="section band">
     <div class="wrap">
       {
         vandaag && (
@@ -120,9 +120,8 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
     </div>
   </section>
 
-  <!-- Verhuur: nu na de agenda. Exposities voorop: dat is de corebusiness
-       volgens het bestuur. Vergaderingen bewust weggehaald. -->
-  <section class="section band">
+  <!-- Verhuur: krijgt nu de vlakke achtergrond (was eerst "band"). -->
+  <section class="section">
     <div class="wrap verhuur">
       <div>
         <p class="eyebrow"><MasonMark variant="boog" size={14} /> Verhuur</p>
