@@ -13,8 +13,10 @@ import { SOORTEN, type Aanvraag, type Fouten } from './validatie';
 const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
 const TELEFOON = '06 52 66 84 49';
 
-// Huisstijlkleuren, letterlijk gekopieerd uit tokens.css. E-mailclients laden geen
-// externe CSS en negeren CSS-variabelen, dus deze moeten hier als platte waarden staan.
+// E-mail kan geen relatieve paden tonen — het logo moet een volledige,
+// publieke URL zijn. Zelfde bestand als het zegel op de site (Footer.astro).
+const LOGO_URL = 'https://kerkjepersingen.nl/logo-klein.png';
+
 const PINE = '#4A5235';
 const BRICK = '#9C4A2F';
 const CREAM = '#FAF8F3';
@@ -47,14 +49,16 @@ function datumBereik(a: Aanvraag): string {
   return `${langeDatum(a.datum)} t/m ${langeDatum(a.datumTot)}`;
 }
 
-/** Gedeelde omlijsting: donkergroene band boven, cream achtergrond, voettekst
- *  met adres en telefoon — dezelfde opbouw als de site zelf. */
-function mailOmlijsting(titel: string, inhoud: string): string {
+/** Gedeelde omlijsting. `metLogo` toont het zegel gecentreerd boven de inhoud —
+ *  alleen voor de bevestigingsmail aan de aanvrager, niet voor de zakelijke
+ *  bestuursmail. */
+function mailOmlijsting(titel: string, inhoud: string, metLogo = false): string {
   return `
     <div style="background:${CREAM};padding:32px 16px;font-family:Georgia,'Times New Roman',serif;">
       <table role="presentation" width="100%" style="max-width:520px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:8px;overflow:hidden;">
         <tr>
-          <td style="background:${PINE};padding:28px 32px;">
+          <td style="background:${PINE};padding:28px 32px;text-align:${metLogo ? 'center' : 'left'};">
+            ${metLogo ? `<img src="${LOGO_URL}" width="64" height="65" alt="" style="display:block;margin:0 auto 14px;border-radius:50%;" />` : ''}
             <div style="color:${CREAM};font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-family:Arial,sans-serif;">
               Kerkje van Persingen
             </div>
@@ -123,11 +127,11 @@ function bevestigingMail(a: Aanvraag): string {
     <p>We nemen uw aanvraag in behandeling.</p>
     <p style="margin-top:28px;">
       Met vriendelijke groet,<br>
-      <span style="color:${BRICK};font-weight:bold;">Het bestuur</span>
+      <span style="color:${BRICK};font-weight:bold;">Bestuur "Het Kerkje van Persingen"</span>
     </p>
   `;
 
-  return mailOmlijsting('Aanvraag ontvangen', inhoud);
+  return mailOmlijsting('Aanvraag ontvangen', inhoud, true);
 }
 
 export interface Uitkomst {
