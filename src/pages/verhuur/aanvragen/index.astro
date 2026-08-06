@@ -352,8 +352,8 @@ const vandaag = new Date().toISOString().split('T')[0];
         </div>
 
         <div class="veld">
-          <label for="medeExposanten">
-            Mede-exposanten <span class="optioneel">(namen, maximaal 3, als je niet alleen exposeert)</span>
+         <label for="medeExposanten">
+            Mede-exposanten <span class="optioneel">(namen, maximaal 5, als je niet alleen exposeert)</span>
           </label>
           <textarea id="medeExposanten" name="medeExposanten" rows="2">{waarden.medeExposanten}</textarea>
           {fouten.medeExposanten && <p class="fout">{fouten.medeExposanten}</p>}
