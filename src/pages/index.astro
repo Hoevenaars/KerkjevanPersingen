@@ -2,14 +2,12 @@
 import Base from '../layouts/Base.astro';
 import Button from '../components/Button.astro';
 import MasonMark from '../components/MasonMark.astro';
-import { getAgendaOverzicht, imageUrl, formatDatum } from '../lib/sanity';
+import { getAgendaOverzicht, imageUrl, formatDatum, formatDatumBereik } from '../lib/sanity';
 
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
 const vandaagFoto = vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : '/foto/geen-foto.jpg';
 const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto/geen-foto.jpg';
 
-// Omschrijving inkorten met "…" i.p.v. hem gewoon te laten afknappen aan de
-// rand van de kolom. De knop "Bekijk activiteit" is het "lees verder"-moment.
 const MAX_OMSCHRIJVING = 160;
 function kort(tekst?: string): string {
   if (!tekst) return '';
@@ -55,10 +53,9 @@ function kort(tekst?: string): string {
     </div>
   </section>
 
-  <!-- Vandaag, volgende en daarna uit het CMS. Elk blok krijgt twee knoppen:
-       direct naar die ene activiteit, of naar de volledige agenda. Zo hoeft
-       niemand eerst door te klikken naar de agenda om terug te komen bij
-       precies deze activiteit. -->
+  <!-- Vandaag, volgende en daarna uit het CMS. De datum toont nu een volledige
+       periode (bijv. "zaterdag 12 en zondag 13 september") bij meerdaagse
+       activiteiten, niet alleen de startdatum. -->
   <section class="section band">
     <div class="wrap">
       {
@@ -69,7 +66,7 @@ function kort(tekst?: string): string {
                 <MasonMark variant="kruis" size={14} /> Vandaag in het kerkje
               </p>
               <h2>{vandaag.publiekeTitel}</h2>
-              <p class="datum">{formatDatum(vandaag.start)}</p>
+              <p class="datum">{formatDatumBereik(vandaag)}</p>
               {vandaag.omschrijving && <p>{kort(vandaag.omschrijving)}</p>}
               <div class="knoppen">
                 {vandaag.slug && (
@@ -93,11 +90,11 @@ function kort(tekst?: string): string {
                 <MasonMark variant="kruis" size={14} /> Binnenkort in het kerkje
               </p>
               <h2>{volgende.publiekeTitel}</h2>
-              <p class="datum">{formatDatum(volgende.start)}</p>
+              <p class="datum">{formatDatumBereik(volgende)}</p>
               {volgende.omschrijving && <p>{kort(volgende.omschrijving)}</p>}
               {daarna && (
                 <p class="daarna">
-                  Daarna: <strong>{daarna.publiekeTitel}</strong>, {formatDatum(daarna.start, false)}
+                  Daarna: <strong>{daarna.publiekeTitel}</strong>, {formatDatumBereik(daarna)}
                 </p>
               )}
               <div class="knoppen">
@@ -137,8 +134,8 @@ function kort(tekst?: string): string {
         <p class="eyebrow"><MasonMark variant="boog" size={14} /> Verhuur</p>
         <h2>Geen zaal, een gebouw</h2>
         <p>
-          Expositie, bruiloft, concert of viering. Dit kerkje hoeft niet aangekleed te
-          worden. Vraag je datum aan en we denken met je mee.
+          Expositie, bruiloft, concert of een andere bijeenkomst. Dit kerkje hoeft niet
+          aangekleed te worden. Vraag je datum aan en we denken met je mee.
         </p>
         <Button href="/verhuur/" variant="secondary">Bekijk de mogelijkheden</Button>
       </div>
@@ -146,7 +143,7 @@ function kort(tekst?: string): string {
         <li class="soorten-accent">Exposities</li>
         <li>Bruiloften</li>
         <li>Concerten</li>
-        <li>Vieringen</li>
+        <li>Diverse bijeenkomsten</li>
       </ul>
     </div>
   </section>
@@ -167,8 +164,8 @@ function kort(tekst?: string): string {
         <p class="eyebrow"><MasonMark variant="gezicht" size={14} /> Het kerkje</p>
         <h2>Eén kerkje, twee boerderijen</h2>
         <p>
-          Dat is wat er van Persingen over is, het kleinste dorp van Nederland. In de muren
-          van de kerk zitten tekens die nooit iemand heeft kunnen verklaren.
+          Dat is wat er van Persingen over is, het kleinste kerkdorp van Nederland. In de
+          muren van de kerk zitten tekens die nooit iemand heeft kunnen verklaren.
         </p>
         <Button href="/het-kerkje/geschiedenis/" variant="secondary">Lees de geschiedenis</Button>
       </div>
