@@ -124,7 +124,7 @@ const aantalBezetDezeMaand = cellen.filter((c) => c.bezet && !c.verleden).length
     {
       jaren.map((j) => (
         
-          href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}${soortParam}#kalender`}
+ <a href={`${basisPad}?maand=${maandSleutel(j, j === huidigJaar ? nu.getMonth() : 0)}${soortParam}#kalender`}
           aria-current={j === jaar ? 'true' : undefined}
         >
           {j}
