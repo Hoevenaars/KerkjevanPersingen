@@ -10,6 +10,12 @@ import PageHeader from '../components/PageHeader.astro';
   contractbeheer.kvp@gmail.com — vóór livegang nog even testen of dit adres
   daadwerkelijk bij Nelleke aankomt.
 
+  Bijgewerkt (later, zelfde augustus): het aanvraagformulier verzamelt sinds de
+  uitbreiding met expositie-specifieke velden meer gegevens dan bij de eerste
+  versie van deze tekst. Sectie 2 is aangevuld met: adres, website/portfolio,
+  eerder geëxposeerd, mede-exposanten en het akkoord met de verhuurvoorwaarden
+  (de laatste vier alleen gevraagd bij een expositie-aanvraag).
+
   Niet langer noindex: dit is nu een echte, publiceerbare pagina.
 */
 ---
@@ -40,16 +46,26 @@ import PageHeader from '../components/PageHeader.astro';
     <h2>2. Welke gegevens wij verzamelen</h2>
     <p>
       Wij verzamelen uitsluitend gegevens die u zelf invult via het aanvraagformulier voor
-      verhuur op onze website (/verhuur/aanvragen/):
+      verhuur op onze website (/verhuur/aanvragen/). Welke gegevens dat precies zijn, hangt
+      af van het soort bijeenkomst dat u aanvraagt.
     </p>
+    <p>Bij elke aanvraag:</p>
     <ul>
       <li>Naam</li>
       <li>E-mailadres</li>
-      <li>Telefoonnummer</li>
-      <li>Gewenste datum van het evenement</li>
+      <li>Adres (straat, huisnummer, postcode en woonplaats)</li>
+      <li>Telefoonnummer (optioneel)</li>
+      <li>Gewenste datum, of een periode bij een meerdaagse aanvraag</li>
       <li>Soort bijeenkomst</li>
-      <li>Aantal personen</li>
-      <li>Vrije toelichting</li>
+      <li>Aantal personen (niet gevraagd bij een expositie, zie hieronder)</li>
+      <li>Vrije toelichting (optioneel)</li>
+    </ul>
+    <p>Alleen bij een aanvraag voor een expositie, vragen wij daarnaast:</p>
+    <ul>
+      <li>Website of portfolio van de exposant (optioneel)</li>
+      <li>Of u eerder in het kerkje heeft geëxposeerd</li>
+      <li>Namen van eventuele mede-exposanten (optioneel)</li>
+      <li>Uw akkoord met de verhuurvoorwaarden en het huishoudelijk reglement</li>
     </ul>
     <p>
       Wij plaatsen geen cookies en volgen geen bezoekgedrag aan de hand van
@@ -136,7 +152,7 @@ import PageHeader from '../components/PageHeader.astro';
       werkwijze of bij de toevoeging van nieuwe functionaliteiten. De meest actuele versie
       is altijd te vinden op onze website.
     </p>
-    <p class="datum"><em>Laatst bijgewerkt: 4 augustus 2026.</em></p>
+    <p class="datum"><em>Laatst bijgewerkt: 6 augustus 2026.</em></p>
   </div>
 </Base>
 
