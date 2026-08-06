@@ -7,6 +7,15 @@ import { getAgendaOverzicht, imageUrl, formatDatum } from '../lib/sanity';
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
 const vandaagFoto = vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : '/foto/geen-foto.jpg';
 const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto/geen-foto.jpg';
+
+// Omschrijving inkorten met "…" i.p.v. hem gewoon te laten afknappen aan de
+// rand van de kolom. De knop "Bekijk activiteit" is het "lees verder"-moment.
+const MAX_OMSCHRIJVING = 160;
+function kort(tekst?: string): string {
+  if (!tekst) return '';
+  if (tekst.length <= MAX_OMSCHRIJVING) return tekst;
+  return tekst.slice(0, MAX_OMSCHRIJVING).trimEnd() + '…';
+}
 ---
 
 <Base
@@ -46,9 +55,10 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
     </div>
   </section>
 
-  <!-- Vandaag, volgende en daarna uit het CMS. Staat vóór het Verhuur-blok.
-       Krijgt nu de "band"-achtergrond (was eerst bij Verhuur), zodat het
-       afwisselingsritme band/vlak/band door de pagina heen klopt. -->
+  <!-- Vandaag, volgende en daarna uit het CMS. Elk blok krijgt twee knoppen:
+       direct naar die ene activiteit, of naar de volledige agenda. Zo hoeft
+       niemand eerst door te klikken naar de agenda om terug te komen bij
+       precies deze activiteit. -->
   <section class="section band">
     <div class="wrap">
       {
@@ -60,13 +70,13 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
               </p>
               <h2>{vandaag.publiekeTitel}</h2>
               <p class="datum">{formatDatum(vandaag.start)}</p>
-              {vandaag.omschrijving && <p>{vandaag.omschrijving}</p>}
-              <Button
-                href={vandaag.slug ? `/agenda/${vandaag.slug}/` : '/agenda/'}
-                variant="secondary"
-              >
-                Meer over vandaag
-              </Button>
+              {vandaag.omschrijving && <p>{kort(vandaag.omschrijving)}</p>}
+              <div class="knoppen">
+                {vandaag.slug && (
+                  <Button href={`/agenda/${vandaag.slug}/`} variant="secondary">Bekijk activiteit</Button>
+                )}
+                <Button href="/agenda/" variant="text">Bekijk de volledige agenda</Button>
+              </div>
             </div>
             <div class="frame frame--photo">
               <img src={vandaagFoto} alt={vandaag.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="900" height="675" loading="lazy" />
@@ -84,18 +94,18 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
               </p>
               <h2>{volgende.publiekeTitel}</h2>
               <p class="datum">{formatDatum(volgende.start)}</p>
-              {volgende.omschrijving && <p>{volgende.omschrijving}</p>}
+              {volgende.omschrijving && <p>{kort(volgende.omschrijving)}</p>}
               {daarna && (
                 <p class="daarna">
                   Daarna: <strong>{daarna.publiekeTitel}</strong>, {formatDatum(daarna.start, false)}
                 </p>
               )}
-              <Button
-                href={volgende.slug ? `/agenda/${volgende.slug}/` : '/agenda/'}
-                variant="secondary"
-              >
-                Naar de agenda
-              </Button>
+              <div class="knoppen">
+                {volgende.slug && (
+                  <Button href={`/agenda/${volgende.slug}/`} variant="secondary">Bekijk activiteit</Button>
+                )}
+                <Button href="/agenda/" variant="text">Bekijk de volledige agenda</Button>
+              </div>
             </div>
             <div class="frame frame--photo">
               <img src={volgendeFoto} alt={volgende.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="900" height="675" loading="lazy" />
@@ -120,7 +130,7 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
     </div>
   </section>
 
-  <!-- Verhuur: krijgt nu de vlakke achtergrond (was eerst "band"). -->
+  <!-- Verhuur: krijgt de vlakke achtergrond. -->
   <section class="section">
     <div class="wrap verhuur">
       <div>
@@ -262,6 +272,14 @@ const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto
   .daarna {
     font-size: var(--t-sm);
     color: var(--ink-mute);
+  }
+
+  .knoppen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-4);
+    margin-top: var(--s-4);
   }
 
   .leeg {
