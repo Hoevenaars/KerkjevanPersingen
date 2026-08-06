@@ -84,8 +84,6 @@ if (Astro.request.method === 'POST') {
     const data = await Astro.request.formData();
 
     if (String(data.get('website_hp') ?? '').length > 0) {
-      // Honeypot-veld heet hier bewust anders dan het echte "website"-veld
-      // van exposanten, om verwarring/naamsbotsing te voorkomen.
       return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
     }
 
@@ -116,10 +114,6 @@ if (Astro.request.method === 'POST') {
         }
       }
 
-      // Weekendregel voor exposities: een WAARSCHUWING, geen blokkade. Bij de
-      // eerste verzending tonen we de waarschuwing en vragen om bevestiging;
-      // pas als negeerWaarschuwing=ja is meegestuurd (de "Toch versturen"-knop)
-      // gaat de aanvraag daadwerkelijk door.
       if (Object.keys(fouten).length === 0) {
         waarschuwing = weekendWaarschuwing(waarden, isDagBruiloft);
       }
@@ -331,15 +325,20 @@ const vandaag = new Date().toISOString().split('T')[0];
         <legend>Voor exposities</legend>
 
         <div class="veld">
-          <label for="website">Website of portfolio <span class="optioneel">(mag je leeg laten)</span></label>
+          <label for="website">
+            Website of portfolio <span class="optioneel">(mag je leeg laten)</span>
+          </label>
           <input
             type="text"
             id="website"
             name="website"
             value={waarden.website}
             aria-invalid={fouten.website ? 'true' : undefined}
-            aria-describedby={fouten.website ? 'fout-website' : undefined}
+            aria-describedby={`hint-website${fouten.website ? ' fout-website' : ''}`}
           />
+          <p class="hint" id="hint-website">
+            Geen website? Voeg dan een foto van je werk toe bij de opmerkingen onderaan.
+          </p>
           {fouten.website && <p class="fout" id="fout-website">{fouten.website}</p>}
         </div>
 
@@ -354,7 +353,7 @@ const vandaag = new Date().toISOString().split('T')[0];
 
         <div class="veld">
           <label for="medeExposanten">
-            Mede-exposanten <span class="optioneel">(namen, als je niet alleen exposeert)</span>
+            Mede-exposanten <span class="optioneel">(namen, maximaal 3, als je niet alleen exposeert)</span>
           </label>
           <textarea id="medeExposanten" name="medeExposanten" rows="2">{waarden.medeExposanten}</textarea>
           {fouten.medeExposanten && <p class="fout">{fouten.medeExposanten}</p>}
@@ -382,13 +381,14 @@ const vandaag = new Date().toISOString().split('T')[0];
 
       <div class="veld">
         <label for="toelichting">
-          Waar denk je aan? <span class="optioneel">(mag je leeg laten)</span>
+          Opmerkingen <span class="optioneel">(mag je leeg laten)</span>
         </label>
         <textarea id="toelichting" name="toelichting" rows="5" aria-describedby="hint-toelichting"
           >{waarden.toelichting}</textarea
         >
         <p class="hint" id="hint-toelichting">
-          Bijvoorbeeld de tijden die je in gedachten hebt, of wat je in de ruimte wilt doen.
+          Bijvoorbeeld de tijden die je in gedachten hebt, wat je in de ruimte wilt doen, of
+          een link naar foto's van je werk.
         </p>
       </div>
 
@@ -425,10 +425,6 @@ const vandaag = new Date().toISOString().split('T')[0];
 </Base>
 
 <script>
-  // Progressief: het formulier werkt volledig zonder dit script (alle velden
-  // blijven gewoon zichtbaar en de server-validatie regelt wat verplicht is).
-  // Dit script doet alleen cosmetische verbetering: het expositie-blok en de
-  // personen-hint tonen/verbergen op basis van de gekozen 'soort'.
   const soortSelect = document.getElementById('soort') as HTMLSelectElement | null;
   const expositieVelden = document.getElementById('expositie-velden');
   const personenVeld = document.getElementById('personen-veld');
