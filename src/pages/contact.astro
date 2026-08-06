@@ -11,7 +11,7 @@ import Button from '../components/Button.astro';
   <PageHeader
     eyebrow="Contact"
     title="Vragen over verhuur of het kerkje?"
-   intro="Bel gerust, of gebruik het aanvraagformulier. Je hoort snel van ons."
+    intro="Bel gerust, of gebruik het aanvraagformulier. Je hoort snel van ons."
     mark="gezicht"
   />
 
@@ -32,11 +32,6 @@ import Button from '../components/Button.astro';
         </div>
       </dl>
 
-      <p class="uitleg">
-        Er staat bewust geen e-mailadres op deze site. Berichten via het formulier komen
-        rechtstreeks bij het bestuur binnen.
-      </p>
-
       <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
     </div>
 
@@ -51,6 +46,5 @@ import Button from '../components/Button.astro';
   .gegevens { margin: 0 0 var(--s-8); display: grid; gap: var(--s-6); }
   .gegevens dt { font-size: var(--t-sm); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: var(--s-1); }
   .gegevens dd { margin: 0; font-family: var(--font-display); font-size: var(--t-lg); }
-  .uitleg { color: var(--ink-soft); }
   @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 </style>
