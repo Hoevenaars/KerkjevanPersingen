@@ -3,23 +3,9 @@ import Base from '../layouts/Base.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Button from '../components/Button.astro';
 
-// IBAN aangeleverd door het bestuur (4 augustus 2026).
 const IBAN = 'NL21 RABO 0105101699';
 const TENAAMSTELLING = 'Stichting Het Kerkje van Persingen';
 
-/*
-  Mollie-betaallink: voorbereid, nog niet zichtbaar.
-
-  Zodra het bestuur een Mollie-account heeft opgezet en een betaallink heeft
-  aangemaakt, hoeft alleen de omgevingsvariabele MOLLIE_PAYMENT_LINK in Vercel
-  ingevuld te worden — de knop verschijnt dan vanzelf, zonder dat er nog iets
-  gebouwd hoeft te worden.
-
-  Bewust GEEN eigen Mollie API-integratie gebouwd (dynamisch bedrag, checkout-
-  sessie aanmaken, etc.) — dat is meer complexiteit dan nodig zolang er geen
-  vast bedrag per donatie hoeft te zijn. Mollie's eigen "Payment Link"-functie
-  (aan te maken in hun dashboard, geen code voor nodig) volstaat hiervoor.
-*/
 const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAYMENT_LINK ?? '';
 ---
 
@@ -38,20 +24,19 @@ const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAY
       <p>
         In 1899 was het bijna afgelopen. Wat het kerkje toen overeind hield, was geen
         overheid en geen instantie, maar mensen die vonden dat het niet mocht verdwijnen.
-        Sindsdien is dat niet veranderd.
+        Zij hebben er samen voor gezorgd dat het kerkje vandaag de dag floreert.
       </p>
 
       <h3>Wat je bijdrage doet</h3>
       <p>
-        Onderhoud, restauratie en het openhouden van de ruimte kosten geld. Als Vriend van
-        het Kerkje draag je daar rechtstreeks aan bij.
+        Onderhoud, restauratie en het openhouden van de ruimte kosten geld. Daar draag je
+        rechtstreeks aan bij.
       </p>
 
       <h3>ANBI</h3>
       <p>
         Stichting Het Kerkje van Persingen heeft een culturele ANBI-status. Je gift kan
-        daardoor fiscaal aftrekbaar zijn. De verplichte publicatiegegevens staan op de
-        pagina <a href="/organisatie/">Organisatie</a>.
+        daardoor fiscaal aftrekbaar zijn.
       </p>
 
       {
@@ -76,10 +61,6 @@ const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAY
             <dd>{TENAAMSTELLING}</dd>
           </div>
         </dl>
-        <p class="klein">
-          Vermeld bij voorkeur "Gift" of "Vriend van het Kerkje" als omschrijving, dat
-          scheelt ons administratief uitzoekwerk.
-        </p>
       </div>
 
       <div class="acties">
@@ -117,6 +98,5 @@ const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAY
   .rekening dd { margin: 0; font-weight: 600; }
   .iban { font-family: monospace; font-size: var(--t-lg); letter-spacing: 0.02em; }
   .acties { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-8); }
-  .klein { font-size: var(--t-sm); color: var(--ink-mute); margin-top: var(--s-4); }
   @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 </style>
