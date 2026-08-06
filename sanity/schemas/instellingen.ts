@@ -26,6 +26,19 @@ export const instellingen = defineType({
           .email()
           .error('Vul een geldig e-mailadres in, bijvoorbeeld naam@voorbeeld.nl'),
     }),
+    defineField({
+      name: 'extraOntvangstAdres',
+      title: 'Extra ontvangstadres (optioneel)',
+      description:
+        'Optioneel: een tweede vast e-mailadres dat elke aanvraag ook ontvangt, naast het adres hierboven. Laat leeg als niemand anders standaard mee moet lezen.',
+      type: 'string',
+      validation: (Rule) =>
+        Rule.custom((value) => {
+          if (!value) return true;
+          const geldig = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+          return geldig ? true : 'Vul een geldig e-mailadres in, of laat dit veld leeg.';
+        }),
+    }),
   ],
   preview: {
     prepare: () => ({ title: 'Instellingen', subtitle: 'E-mailadres voor aanvragen' }),
