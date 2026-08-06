@@ -3,11 +3,10 @@ import Base from '../../layouts/Base.astro';
 import PageHeader from '../../components/PageHeader.astro';
 
 /*
-  BLOKKEREND VOOR VOLLEDIGE FUNCTIE: bevat nog geen echte tekst.
-  Nelleke levert de verhuurvoorwaarden en het huishoudelijk reglement aan.
-  Zodra die er zijn: dit placeholder-blok vervangen door de daadwerkelijke tekst.
-  De pagina staat bewust al wel live (Nelleke's verzoek), zodat de link vanuit
-  het aanvraagformulier niet naar een 404 leidt.
+  Concrete regels aangeleverd door Hans (livegang-voorbereiding, augustus 2026).
+  Het volledige, formele huishoudelijk reglement van Nelleke volgt nog — deze
+  pagina bevat de regels die al wel vaststaan, met een duidelijke melding dat
+  er meer volgt.
 */
 ---
 
@@ -21,32 +20,60 @@ import PageHeader from '../../components/PageHeader.astro';
     mark="boog"
   />
 
-  <div class="wrap-narrow">
-    <div class="openstaand">
-      <h2>Hier komen de verhuurvoorwaarden te staan</h2>
-      <p>
-        Deze pagina bevat nog geen definitieve tekst. Het bestuur levert de
-        verhuurvoorwaarden en het huishoudelijk reglement aan, waarna deze pagina
-        wordt bijgewerkt.
-      </p>
-      <p>
-        Vragen over de voorwaarden? Neem contact op via het{' '}
-        <a href="/contact/">contactformulier</a> of bel{' '}
-        <a href="tel:+31652668449">06 52 66 84 49</a>.
-      </p>
-    </div>
+  <div class="wrap-narrow prose">
+    <h2>Exposities</h2>
+    <ul>
+      <li>Een expositie is in principe een heel weekend (zaterdag én zondag).</li>
+      <li>
+        Is de andere dag van dat weekend al gereserveerd voor een bruiloft, dan is een
+        losse dag mogelijk.
+      </li>
+      <li>Dezelfde exposant kan niet binnen 18 maanden opnieuw exposeren.</li>
+      <li>Maximaal 3 mede-exposanten per aanvraag.</li>
+      <li>Prijs: € 550 per weekend.</li>
+    </ul>
+
+    <h2>Bruiloften en muzikale voorstellingen</h2>
+    <ul>
+      <li>Mogelijk op elke dag van de week, ook doordeweeks (dinsdag t/m vrijdag).</li>
+      <li>Maandag is doorgaans gesloten; het bestuur kan hiervan afwijken.</li>
+      <li>Bruiloft: tot 120 personen € 600. Meer personen: altijd op maat.</li>
+      <li>Muzikale voorstelling: € 300, tot 80 personen, geen entreeheffing bij de deur.</li>
+    </ul>
+
+    <h2>Diverse bijeenkomsten</h2>
+    <p>
+      Lezingen, herdenkingen, vieringen en vergelijkbare bijeenkomsten. Een uitvaart is
+      alleen mogelijk voor mensen die verbonden zijn met de kerk.
+    </p>
+
+    <p class="meer-volgt">
+      Dit is een samenvatting van de belangrijkste regels. Het volledige, formele
+      huishoudelijk reglement volgt nog van het bestuur — deze pagina wordt dan
+      aangevuld.
+    </p>
+
+    <p>
+      Vragen over de voorwaarden? Neem contact op via het{' '}
+      <a href="/contact/">contactformulier</a> of bel{' '}
+      <a href="tel:+31652668449">06 52 66 84 49</a>.
+    </p>
   </div>
 </Base>
 
 <style>
-  .openstaand {
+  .prose ul {
+    padding-left: var(--s-6);
+  }
+  .prose li + li {
+    margin-top: var(--s-2);
+  }
+  .meer-volgt {
     background: var(--cream-deep);
     border: 1px dashed var(--sand);
-    border-radius: var(--radius-lg);
-    padding: var(--s-8);
-  }
-  .openstaand h2 {
-    margin-top: 0;
-    font-size: var(--t-xl);
+    border-radius: var(--radius);
+    padding: var(--s-4) var(--s-6);
+    color: var(--ink-soft);
+    font-size: var(--t-sm);
   }
 </style>
