@@ -16,16 +16,10 @@ const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagd)
   ? gevraagd
   : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
 
-// Exposities voorop: corebusiness volgens het bestuur, krijgt daarom een volle
-// rij en visueel gewicht i.p.v. gelijk gewicht met de rest. Vergaderingen eruit.
-//
-// Prijzen: Expositie en Bruiloft hebben een vaste prijs (bevestigd door het
-// bestuur, augustus 2026). De overige typen blijven op aanvraag, want daar is
-// geen vast tarief voor afgesproken.
 const soorten = [
   { waarde: 'expositie', titel: 'Exposities', tekst: 'Onze corebusiness. Sinds 1978 is het kerkje vooral expositieruimte — witte wanden, sober interieur, negen gotische ramen die het licht binnenlaten.', accent: true, prijs: '€ 550 per weekend' },
   { waarde: 'bruiloft', titel: 'Bruiloften', tekst: 'Trouwen in een rijksmonument uit 1350, met licht door negen gotische ramen.', prijs: '€ 600' },
-  { waarde: 'concert', titel: 'Concerten', tekst: 'Akoestiek van een gebouw dat er acht eeuwen voor stond. Met het Lindsenorgel uit 1861.', prijs: 'Op aanvraag' },
+  { waarde: 'concert', titel: 'Concerten', tekst: 'Akoestiek van een gebouw dat er acht eeuwen voor stond, met het Lindsenorgel uit 1861.', prijs: 'Op aanvraag' },
   { waarde: 'viering', titel: 'Vieringen', tekst: 'Voor momenten die niet in een zaal passen.', prijs: 'Op aanvraag' },
 ];
 ---
@@ -92,21 +86,67 @@ const soorten = [
 <style>
   .beeld { margin-bottom: var(--s-16); }
   .klein { font-size: var(--t-sm); color: var(--ink-mute); margin-top: calc(var(--s-2) * -1); margin-bottom: var(--s-6); }
-  .soorten { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-8); }
-  .soort-link { display: block; text-decoration: none; color: inherit; border-radius: var(--radius); transition: background-color 0.12s var(--ease); }
+
+  .soorten {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s-6);
+  }
+  .soort-link {
+    display: block;
+    height: 100%;
+    text-decoration: none;
+    color: inherit;
+    border-radius: var(--radius);
+    padding: var(--s-4);
+    transition: background-color 0.12s var(--ease);
+  }
   .soort-link:hover { background: var(--cream-deep); }
   .soort-link:hover h3 { color: var(--brick); }
-  .soorten h3 { margin-bottom: var(--s-2); }
-  .soorten p { margin: 0; color: var(--ink-soft); }
-  .prijs { margin-top: var(--s-3) !important; font-weight: 600; color: var(--pine) !important; font-size: var(--t-sm); }
-  .soort-accent { grid-column: 1 / -1; }
-  .soort-accent h3 { color: var(--brick); }
+  .soorten h3 {
+    margin-bottom: var(--s-2);
+    font-size: var(--t-base);
+  }
+  .soorten p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--t-sm);
+    line-height: 1.45;
+  }
+  .prijs {
+    margin-top: var(--s-3) !important;
+    font-weight: 600;
+    color: var(--pine) !important;
+  }
+  .soort-accent {
+    grid-column: 1 / -1;
+  }
+  .soort-accent h3 {
+    color: var(--brick);
+    font-size: var(--t-lg);
+  }
+  .soort-accent p {
+    font-size: var(--t-base);
+  }
+
   .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
   .tarieven h2 { margin-top: 0; }
+
   .kalender-met-lijst {
     display: grid;
     grid-template-columns: auto 260px;
     gap: var(--s-8);
     align-items: start;
   }
-  @media
+
+  @media (max-width: 720px) {
+    .soorten { grid-template-columns: 1fr; }
+    .tarieven { padding: var(--s-8); }
+  }
+  @media (max-width: 860px) {
+    .kalender-met-lijst { grid-template-columns: 1fr; }
+  }
+</style>
