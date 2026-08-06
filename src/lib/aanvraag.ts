@@ -13,6 +13,15 @@ import { SOORTEN, type Aanvraag, type Fouten } from './validatie';
 const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
 const TELEFOON = '06 52 66 84 49';
 
+// Huisstijlkleuren, letterlijk gekopieerd uit tokens.css. E-mailclients laden geen
+// externe CSS en negeren CSS-variabelen, dus deze moeten hier als platte waarden staan.
+const PINE = '#4A5235';
+const BRICK = '#9C4A2F';
+const CREAM = '#FAF8F3';
+const CREAM_DEEP = '#F1EBDD';
+const INK = '#1A1A1A';
+const INK_SOFT = '#4A4A44';
+
 export * from './validatie';
 
 function escape(s: string): string {
@@ -38,51 +47,87 @@ function datumBereik(a: Aanvraag): string {
   return `${langeDatum(a.datum)} t/m ${langeDatum(a.datumTot)}`;
 }
 
+/** Gedeelde omlijsting: donkergroene band boven, cream achtergrond, voettekst
+ *  met adres en telefoon — dezelfde opbouw als de site zelf. */
+function mailOmlijsting(titel: string, inhoud: string): string {
+  return `
+    <div style="background:${CREAM};padding:32px 16px;font-family:Georgia,'Times New Roman',serif;">
+      <table role="presentation" width="100%" style="max-width:520px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background:${PINE};padding:28px 32px;">
+            <div style="color:${CREAM};font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-family:Arial,sans-serif;">
+              Kerkje van Persingen
+            </div>
+            <div style="color:#ffffff;font-size:22px;font-weight:normal;margin-top:6px;">
+              ${titel}
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;font-family:Arial,sans-serif;color:${INK};font-size:15px;line-height:1.6;">
+            ${inhoud}
+          </td>
+        </tr>
+        <tr>
+          <td style="background:${CREAM_DEEP};padding:20px 32px;font-family:Arial,sans-serif;color:${INK_SOFT};font-size:13px;line-height:1.5;">
+            Stichting Het Kerkje van Persingen<br>
+            Persingensestraat 7, 6575 JA Persingen<br>
+            ${TELEFOON}
+          </td>
+        </tr>
+      </table>
+    </div>`;
+}
+
 function bestuurMail(a: Aanvraag): string {
   const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
   const isExpositie = a.soort === 'expositie';
 
+  const rij = (label: string, waarde: string) =>
+    `<tr><td style="padding:6px 16px 6px 0;color:${INK_SOFT};white-space:nowrap;"><strong>${label}</strong></td><td style="padding:6px 0;">${waarde}</td></tr>`;
+
   const expositieRegels = isExpositie
     ? `
-        ${a.website ? `<tr><td style="padding:4px 16px 4px 0"><strong>Website</strong></td><td>${escape(a.website)}</td></tr>` : ''}
-        ${a.eerderGeexposeerd ? `<tr><td style="padding:4px 16px 4px 0"><strong>Eerder geëxposeerd</strong></td><td>${a.eerderGeexposeerd === 'ja' ? 'Ja' : 'Nee'}</td></tr>` : ''}
-        ${a.medeExposanten ? `<tr><td style="padding:4px 16px 4px 0"><strong>Mede-exposanten</strong></td><td>${escape(a.medeExposanten)}</td></tr>` : ''}
-        <tr><td style="padding:4px 16px 4px 0"><strong>Akkoord voorwaarden</strong></td><td>${a.akkoordVoorwaarden === 'ja' ? 'Ja' : 'Nee'}</td></tr>
+        ${a.website ? rij('Website', escape(a.website)) : ''}
+        ${a.eerderGeexposeerd ? rij('Eerder geëxposeerd', a.eerderGeexposeerd === 'ja' ? 'Ja' : 'Nee') : ''}
+        ${a.medeExposanten ? rij('Mede-exposanten', escape(a.medeExposanten)) : ''}
+        ${rij('Akkoord voorwaarden', a.akkoordVoorwaarden === 'ja' ? 'Ja' : 'Nee')}
       `
     : '';
 
-  return `
-    <div style="font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6">
-      <h2 style="font-family:Georgia,serif;margin:0 0 16px">Huuraanvraag</h2>
-      <table style="border-collapse:collapse">
-        <tr><td style="padding:4px 16px 4px 0"><strong>Datum</strong></td><td>${escape(datumBereik(a))}</td></tr>
-        <tr><td style="padding:4px 16px 4px 0"><strong>Soort</strong></td><td>${escape(soort)}</td></tr>
-        ${a.personen ? `<tr><td style="padding:4px 16px 4px 0"><strong>Personen</strong></td><td>${escape(a.personen)}</td></tr>` : ''}
-        <tr><td style="padding:4px 16px 4px 0"><strong>Naam</strong></td><td>${escape(a.naam)}</td></tr>
-        <tr><td style="padding:4px 16px 4px 0"><strong>E-mail</strong></td><td>${escape(a.email)}</td></tr>
-        <tr><td style="padding:4px 16px 4px 0"><strong>Adres</strong></td><td>${escape(a.adres)}</td></tr>
-        <tr><td style="padding:4px 16px 4px 0"><strong>Telefoon</strong></td><td>${escape(a.telefoon) || '—'}</td></tr>
-        ${expositieRegels}
-      </table>
-      ${a.toelichting ? `<p style="margin-top:16px"><strong>Opmerkingen</strong><br>${escape(a.toelichting).replace(/\n/g, '<br>')}</p>` : ''}
-      <p style="margin-top:24px;color:#6b6b63;font-size:14px">Beantwoorden gaat rechtstreeks naar de aanvrager.</p>
-    </div>`;
+  const inhoud = `
+    <table role="presentation" style="border-collapse:collapse;width:100%;">
+      ${rij('Datum', escape(datumBereik(a)))}
+      ${rij('Soort', escape(soort))}
+      ${a.personen ? rij('Personen', escape(a.personen)) : ''}
+      ${rij('Naam', escape(a.naam))}
+      ${rij('E-mail', escape(a.email))}
+      ${rij('Adres', escape(a.adres))}
+      ${rij('Telefoon', escape(a.telefoon) || '—')}
+      ${expositieRegels}
+    </table>
+    ${a.toelichting ? `<p style="margin-top:20px;"><strong>Opmerkingen</strong><br>${escape(a.toelichting).replace(/\n/g, '<br>')}</p>` : ''}
+    <p style="margin-top:24px;color:${INK_SOFT};font-size:13px;">Beantwoorden gaat rechtstreeks naar de aanvrager.</p>
+  `;
+
+  return mailOmlijsting('Huuraanvraag', inhoud);
 }
 
-/**
- * Vereenvoudigd op verzoek — kort en zakelijk, geen uitgebreide toelichting
- * meer over maatwerk/voorstel. ACTIVITEIT en DATUM worden ingevuld vanuit de
- * aanvraag zelf.
- */
 function bevestigingMail(a: Aanvraag): string {
   const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
-  return `
-    <div style="font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6">
-      <p>Beste ${escape(a.naam)},</p>
-      <p>We hebben uw aanvraag ontvangen voor de ${escape(soort.toLowerCase())} op ${escape(datumBereik(a))}.</p>
-      <p>We nemen uw aanvraag in behandeling.</p>
-      <p style="margin-top:24px">Met vriendelijke groet,<br>Het Kerkje van Persingen</p>
-    </div>`;
+
+  const inhoud = `
+    <p>Beste ${escape(a.naam)},</p>
+    <p>We hebben uw aanvraag ontvangen voor de ${escape(soort.toLowerCase())} op
+    <strong>${escape(datumBereik(a))}</strong>.</p>
+    <p>We nemen uw aanvraag in behandeling.</p>
+    <p style="margin-top:28px;">
+      Met vriendelijke groet,<br>
+      <span style="color:${BRICK};font-weight:bold;">Het bestuur</span>
+    </p>
+  `;
+
+  return mailOmlijsting('Aanvraag ontvangen', inhoud);
 }
 
 export interface Uitkomst {
