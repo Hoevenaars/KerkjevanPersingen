@@ -99,15 +99,15 @@ function bestuurMail(a: Aanvraag): string {
       `
     : '';
 
-  const inhoud = `
+ const inhoud = `
     <table role="presentation" style="border-collapse:collapse;width:100%;">
-      ${rij('Datum', escape(datumBereik(a)))}
       ${rij('Soort', escape(soort))}
+      ${rij('Datum', escape(datumBereik(a)))}
       ${a.personen ? rij('Personen', escape(a.personen)) : ''}
       ${rij('Naam', escape(a.naam))}
-      ${rij('E-mail', escape(a.email))}
       ${rij('Adres', escape(a.adres))}
       ${rij('Telefoon', escape(a.telefoon) || '—')}
+      ${rij('E-mail', escape(a.email))}
       ${expositieRegels}
     </table>
     ${a.toelichting ? `<p style="margin-top:20px;"><strong>Opmerkingen</strong><br>${escape(a.toelichting).replace(/\n/g, '<br>')}</p>` : ''}
