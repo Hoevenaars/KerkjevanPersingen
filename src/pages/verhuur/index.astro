@@ -61,7 +61,7 @@ const tarieven = [
 
 <Base
   title="Verhuur"
-  description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst."
+ description="Het kerkje van Persingen huren voor een expositie, bruiloft, concert of bijeenkomst."
 >
   <PageHeader
     eyebrow="Verhuur"
@@ -93,22 +93,20 @@ const tarieven = [
     <section class="tarieven">
       <div>
         <h2>Tarieven</h2>
-        <table class="tarieven-tabel">
+     <table class="tarieven-tabel">
           <thead>
             <tr>
               <th scope="col">Type</th>
               <th scope="col">Nu</th>
               <th scope="col">Vanaf 2029</th>
-              <th scope="col">Let op</th>
             </tr>
           </thead>
           <tbody>
             {tarieven.map((t) => (
               <tr>
-                <td>{t.titel}{t.onbevestigd && <span class="ster" title="Nog te bevestigen door het bestuur">*</span>}</td>
+                <td>{t.titel}</td>
                 <td class="prijs-cel">{t.nu}</td>
                 <td class="prijs-cel">{t.vanaf2029}</td>
-                <td class="klein-cel">{t.voorwaarde}</td>
               </tr>
             ))}
           </tbody>
@@ -191,8 +189,6 @@ const tarieven = [
   .tarieven-tabel tr:last-child td { border-bottom: none; }
   .prijs-cel { font-weight: 600; color: var(--pine); white-space: nowrap; }
   .klein-cel { font-size: var(--t-sm); color: var(--ink-mute); }
-  .ster { color: var(--brick); margin-left: 2px; }
-  .toelichting { margin-bottom: var(--s-6); font-size: var(--t-sm); color: var(--ink-mute); }
 
   .kalender-met-lijst {
     display: grid;
