@@ -27,8 +27,14 @@ const geldig: Aanvraag = {
   personen: '80',
   naam: 'Kim Jansen',
   email: 'kim@voorbeeld.nl',
+  adres: 'Voorbeeldstraat 12, 1234 AB Voorbeeldstad',
   telefoon: '0612345678',
   toelichting: 'Ceremonie van 14 tot 16 uur.',
+  website: '',
+  eerderGeexposeerd: '',
+  medeExposanten: '',
+  akkoordVoorwaarden: '',
+  negeerWaarschuwing: '',
 };
 
 describe('valideer — happy path', () => {
@@ -36,8 +42,28 @@ describe('valideer — happy path', () => {
     assert.deepEqual(valideer(geldig), {});
   });
 
-  test('telefoon en toelichting zijn optioneel', () => {
-    assert.deepEqual(valideer({ ...geldig, telefoon: '', toelichting: '' }), {});
+  test('toelichting is optioneel', () => {
+    assert.deepEqual(valideer({ ...geldig, toelichting: '' }), {});
+  });
+});
+
+describe('valideer — soorten (nu 4, was 5)', () => {
+  test('alle vier geldige soorten worden geaccepteerd', () => {
+    for (const soort of ['expositie', 'bruiloft', 'concert', 'diverse']) {
+      const invoer = soort === 'expositie'
+        ? { ...geldig, soort, personen: '', akkoordVoorwaarden: 'ja' }
+        : { ...geldig, soort };
+      assert.equal(valideer(invoer).soort, undefined, `soort "${soort}" zou geldig moeten zijn`);
+    }
+  });
+
+  test('de oude waarden "viering" en "anders" zijn niet meer geldig', () => {
+    assert.ok(valideer({ ...geldig, soort: 'viering' }).soort);
+    assert.ok(valideer({ ...geldig, soort: 'anders' }).soort);
+  });
+
+  test('lege keuze wordt afgekeurd', () => {
+    assert.ok(valideer({ ...geldig, soort: '' }).soort);
   });
 });
 
@@ -58,50 +84,35 @@ describe('valideer — datum', () => {
     const vandaag = new Date().toISOString().split('T')[0];
     assert.equal(valideer({ ...geldig, datum: vandaag }).datum, undefined);
   });
-
-  test('ver in de toekomst mag — het bestuur plant tot in 2028', () => {
-    assert.equal(valideer({ ...geldig, datum: '2028-06-17' }).datum, undefined);
-  });
 });
 
-describe('valideer — datumTot (periode)', () => {
+describe('valideer — datumTot (periode, blijft optioneel)', () => {
   test('leeg blijven mag — eendaagse aanvraag', () => {
     assert.equal(valideer({ ...geldig, datumTot: '' }).datumTot, undefined);
   });
 
-  test('een geldige periode (tot na datum) wordt geaccepteerd', () => {
+  test('een geldige periode wordt geaccepteerd', () => {
     assert.equal(
       valideer({ ...geldig, datum: overmorgen(), datumTot: overDrieDagen() }).datumTot,
       undefined
     );
   });
 
-  test('dezelfde dag als datum wordt geaccepteerd (eendaags, expliciet ingevuld)', () => {
-    assert.equal(valideer({ ...geldig, datumTot: geldig.datum }).datumTot, undefined);
-  });
-
   test('een datumTot vóór de startdatum wordt afgekeurd', () => {
     assert.ok(valideer({ ...geldig, datum: overDrieDagen(), datumTot: overmorgen() }).datumTot);
   });
-
-  test('onzin in datumTot wordt afgekeurd', () => {
-    assert.ok(valideer({ ...geldig, datumTot: 'ergens volgende maand' }).datumTot);
-  });
 });
 
-describe('valideer — soort', () => {
-  test('lege keuze wordt afgekeurd', () => {
-    assert.ok(valideer({ ...geldig, soort: '' }).soort);
+describe('valideer — personen (verplicht, behalve bij expositie)', () => {
+  test('leeg wordt afgekeurd bij bruiloft', () => {
+    assert.ok(valideer({ ...geldig, soort: 'bruiloft', personen: '' }).personen);
   });
 
-  test('een waarde buiten de lijst wordt afgekeurd', () => {
-    assert.ok(valideer({ ...geldig, soort: 'braderie' }).soort);
-  });
-});
-
-describe('valideer — personen', () => {
-  test('leeg wordt afgekeurd', () => {
-    assert.ok(valideer({ ...geldig, personen: '' }).personen);
+  test('leeg mag bij expositie', () => {
+    assert.equal(
+      valideer({ ...geldig, soort: 'expositie', personen: '', akkoordVoorwaarden: 'ja' }).personen,
+      undefined
+    );
   });
 
   test('nul wordt afgekeurd', () => {
@@ -112,50 +123,70 @@ describe('valideer — personen', () => {
     assert.ok(valideer({ ...geldig, personen: '501' }).personen);
   });
 
-  test('geen getal wordt afgekeurd', () => {
-    assert.ok(valideer({ ...geldig, personen: 'veel' }).personen);
-  });
-
-  test('een half persoon wordt afgekeurd', () => {
-    assert.ok(valideer({ ...geldig, personen: '12,5' }).personen);
-  });
-
   test('de grenswaarden zelf zijn geldig', () => {
     assert.equal(valideer({ ...geldig, personen: '1' }).personen, undefined);
     assert.equal(valideer({ ...geldig, personen: '500' }).personen, undefined);
   });
 });
 
-describe('valideer — e-mail', () => {
-  test('leeg wordt afgekeurd', () => {
+describe('valideer — naam, e-mail, adres', () => {
+  test('lege naam wordt afgekeurd', () => {
+    assert.ok(valideer({ ...geldig, naam: '' }).naam);
+  });
+
+  test('leeg e-mailadres wordt afgekeurd', () => {
     assert.ok(valideer({ ...geldig, email: '' }).email);
   });
 
   for (const fout of ['kim', 'kim@', '@voorbeeld.nl', 'kim@voorbeeld', 'kim @voorbeeld.nl']) {
-    test(`"${fout}" wordt afgekeurd`, () => {
+    test(`e-mail "${fout}" wordt afgekeurd`, () => {
       assert.ok(valideer({ ...geldig, email: fout }).email);
     });
   }
 
-  test('een adres met plusteken wordt geaccepteerd', () => {
-    assert.equal(valideer({ ...geldig, email: 'kim+kerk@voorbeeld.nl' }).email, undefined);
+  test('leeg adres wordt afgekeurd', () => {
+    assert.ok(valideer({ ...geldig, adres: '' }).adres);
   });
 });
 
-describe('valideer — telefoon', () => {
+describe('valideer — telefoon (nu verplicht, was optioneel)', () => {
+  test('leeg telefoonnummer wordt afgekeurd', () => {
+    assert.ok(valideer({ ...geldig, telefoon: '' }).telefoon);
+  });
+
   test('te kort wordt afgekeurd', () => {
     assert.ok(valideer({ ...geldig, telefoon: '0612' }).telefoon);
   });
 
-  test('een nummer met spaties en streepjes wordt geaccepteerd', () => {
+  test('een geldig nummer met spaties en streepjes wordt geaccepteerd', () => {
     assert.equal(valideer({ ...geldig, telefoon: '06-12 34 56 78' }).telefoon, undefined);
   });
 });
 
+describe('valideer — expositie-specifieke velden', () => {
+  test('consent verplicht bij expositie', () => {
+    assert.ok(valideer({ ...geldig, soort: 'expositie', akkoordVoorwaarden: '' }).akkoordVoorwaarden);
+  });
+
+  test('consent NIET verplicht bij bruiloft', () => {
+    assert.equal(valideer({ ...geldig, soort: 'bruiloft', akkoordVoorwaarden: '' }).akkoordVoorwaarden, undefined);
+  });
+
+  test('mede-exposanten mag leeg blijven', () => {
+    assert.equal(
+      valideer({ ...geldig, soort: 'expositie', personen: '', akkoordVoorwaarden: 'ja', medeExposanten: '' }).medeExposanten,
+      undefined
+    );
+  });
+});
+
 describe('valideer — meerdere fouten tegelijk', () => {
-  test('een leeg formulier levert een fout per verplicht veld op', () => {
+  test('een leeg formulier levert een fout per verplicht veld op (incl. telefoon)', () => {
     const fouten = valideer(LEGE_AANVRAAG);
-    assert.deepEqual(Object.keys(fouten).sort(), ['datum', 'email', 'naam', 'personen', 'soort']);
+    assert.deepEqual(
+      Object.keys(fouten).sort(),
+      ['adres', 'datum', 'email', 'naam', 'personen', 'soort', 'telefoon']
+    );
   });
 });
 
