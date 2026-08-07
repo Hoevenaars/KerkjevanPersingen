@@ -14,6 +14,12 @@ import PageHeader from '../components/PageHeader.astro';
   dat de publicatieplicht mogelijk nog niet volledig is nagekomen — dat risico ligt
   expliciet bij het bestuur, niet bij de techniek. Zodra de stukken er zijn, horen ze
   gewoon toegevoegd te worden als eigen secties, niet als "nog te doen"-melding.
+
+  14_SEO_AI_SEARCH.md §2 — structured data hieronder beschrijft de STICHTING als
+  organisatie (schema.org/NGO, vanwege de ANBI-status), los van het HistoricalLandmark/
+  EventVenue-blok in Base.astro dat het GEBOUW beschrijft. Twee aparte entiteiten,
+  bewust niet samengevoegd — Google moet het gebouw en de organisatie die het beheert
+  los van elkaar kunnen herkennen.
 */
 const bestuur = [
   { naam: 'Hans Maas', functie: 'Voorzitter' },
@@ -21,12 +27,40 @@ const bestuur = [
   { naam: 'Nelleke van der Pol', functie: 'Contractbeheer' },
   { naam: 'Geert Kroes', functie: 'Algemene zaken' },
 ];
+
+const jsonLdOrganisatie = {
+  '@context': 'https://schema.org',
+  '@type': 'NGO',
+  name: 'Stichting Het Kerkje van Persingen',
+  legalName: 'Stichting "het Kerkje van Persingen"',
+  description:
+    'Stichting die de instandhouding en het bewaren van het Kerkje van Persingen tot doel heeft, en het monument beheert en exploiteert zodat het voor het publiek toegankelijk blijft.',
+  url: 'https://kerkjepersingen.nl/organisatie/',
+  taxID: '802560374',
+  identifier: {
+    '@type': 'PropertyValue',
+    propertyID: 'KVK',
+    value: '41058732',
+  },
+  foundingDate: '2000-08-26',
+  telephone: '+31652668449',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Persingensestraat 7',
+    postalCode: '6575 JA',
+    addressLocality: 'Persingen',
+    addressCountry: 'NL',
+  },
+  nonprofitStatus: 'NonprofitANBI',
+};
 ---
 
 <Base
   title="Organisatie"
   description="Stichting Het Kerkje van Persingen: doelstelling, bestuur, RSIN, KvK-nummer en ANBI-gegevens."
 >
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLdOrganisatie)} is:inline />
+
   <PageHeader eyebrow="Stichting" title="Organisatie" mark="kruis" />
 
   <div class="wrap-narrow">
