@@ -61,8 +61,6 @@ function alleDagen(vanIso: string, totIso: string): number[] {
   return dagen;
 }
 
-/** Is een specifieke dag (YYYY-MM-DD) al bezet met een bruiloft? Voor de
- *  weekend-uitzonderingsregel bij exposities. */
 function isDagBruiloft(dagIso: string): boolean {
   const dag = Date.UTC(
     Number(dagIso.slice(0, 4)),
@@ -185,6 +183,27 @@ const vandaag = new Date().toISOString().split('T')[0];
 
     <form method="POST" action="/verhuur/aanvragen/">
       <div class="veld">
+        <label for="soort">Wat voor bijeenkomst wordt het?</label>
+        <select
+          id="soort"
+          name="soort"
+          required
+          aria-invalid={fouten.soort ? 'true' : undefined}
+          aria-describedby={fouten.soort ? 'fout-soort' : undefined}
+        >
+          <option value="">Maak een keuze</option>
+          {
+            SOORTEN.map((s) => (
+              <option value={s.waarde} selected={waarden.soort === s.waarde}>
+                {s.label}
+              </option>
+            ))
+          }
+        </select>
+        {fouten.soort && <p class="fout" id="fout-soort">{fouten.soort}</p>}
+      </div>
+
+      <div class="veld">
         <label for="datum">Gewenste datum</label>
         <input
           type="date"
@@ -215,32 +234,8 @@ const vandaag = new Date().toISOString().split('T')[0];
         {fouten.datumTot && <p class="fout" id="fout-datumTot">{fouten.datumTot}</p>}
       </div>
 
-      <div class="veld">
-        <label for="soort">Wat voor bijeenkomst wordt het?</label>
-        <select
-          id="soort"
-          name="soort"
-          required
-          aria-invalid={fouten.soort ? 'true' : undefined}
-          aria-describedby={fouten.soort ? 'fout-soort' : undefined}
-        >
-          <option value="">Maak een keuze</option>
-          {
-            SOORTEN.map((s) => (
-              <option value={s.waarde} selected={waarden.soort === s.waarde}>
-                {s.label}
-              </option>
-            ))
-          }
-        </select>
-        {fouten.soort && <p class="fout" id="fout-soort">{fouten.soort}</p>}
-      </div>
-
       <div class="veld" id="personen-veld">
-        <label for="personen">
-          Hoeveel mensen verwacht je?
-          <span class="optioneel" data-alleen-niet-expositie>(bij een expositie mag je dit leeg laten)</span>
-        </label>
+        <label for="personen">Hoeveel mensen verwacht je?</label>
         <input
           type="number"
           id="personen"
@@ -275,21 +270,6 @@ const vandaag = new Date().toISOString().split('T')[0];
         </div>
 
         <div class="veld">
-          <label for="email">E-mailadres</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            autocomplete="email"
-            value={waarden.email}
-            required
-            aria-invalid={fouten.email ? 'true' : undefined}
-            aria-describedby={fouten.email ? 'fout-email' : undefined}
-          />
-          {fouten.email && <p class="fout" id="fout-email">{fouten.email}</p>}
-        </div>
-
-        <div class="veld">
           <label for="adres">Adres <span class="optioneel">(straat, huisnummer, postcode en woonplaats)</span></label>
           <input
             type="text"
@@ -305,19 +285,33 @@ const vandaag = new Date().toISOString().split('T')[0];
         </div>
 
         <div class="veld">
-          <label for="telefoon">
-            Telefoonnummer <span class="optioneel">(mag je leeg laten)</span>
-          </label>
+          <label for="telefoon">Telefoonnummer</label>
           <input
             type="tel"
             id="telefoon"
             name="telefoon"
             autocomplete="tel"
             value={waarden.telefoon}
+            required
             aria-invalid={fouten.telefoon ? 'true' : undefined}
             aria-describedby={fouten.telefoon ? 'fout-telefoon' : undefined}
           />
           {fouten.telefoon && <p class="fout" id="fout-telefoon">{fouten.telefoon}</p>}
+        </div>
+
+        <div class="veld">
+          <label for="email">E-mailadres</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            autocomplete="email"
+            value={waarden.email}
+            required
+            aria-invalid={fouten.email ? 'true' : undefined}
+            aria-describedby={fouten.email ? 'fout-email' : undefined}
+          />
+          {fouten.email && <p class="fout" id="fout-email">{fouten.email}</p>}
         </div>
       </fieldset>
 
@@ -352,7 +346,7 @@ const vandaag = new Date().toISOString().split('T')[0];
         </div>
 
         <div class="veld">
-         <label for="medeExposanten">
+          <label for="medeExposanten">
             Mede-exposanten <span class="optioneel">(namen, maximaal 5, als je niet alleen exposeert)</span>
           </label>
           <textarea id="medeExposanten" name="medeExposanten" rows="2">{waarden.medeExposanten}</textarea>
@@ -436,7 +430,7 @@ const vandaag = new Date().toISOString().split('T')[0];
       expositieVelden.style.display = isExpositie ? '' : 'none';
     }
     if (personenVeld) {
-      personenVeld.classList.toggle('personen-optioneel', isExpositie);
+      personenVeld.style.display = isExpositie ? 'none' : '';
     }
     if (personenInput) {
       personenInput.required = !isExpositie;
