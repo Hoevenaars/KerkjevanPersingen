@@ -130,7 +130,8 @@ export function valideer(a: Aanvraag): Fouten {
   if (!a.adres) fouten.adres = 'Vul je adres in, inclusief postcode en woonplaats.';
   else if (a.adres.length > 300) fouten.adres = 'Dit adres is te lang.';
 
-  if (a.telefoon && a.telefoon.replace(/\D/g, '').length < 8)
+if (!a.telefoon) fouten.telefoon = 'Vul je telefoonnummer in.';
+  else if (a.telefoon.replace(/\D/g, '').length < 8)
     fouten.telefoon = 'Dit telefoonnummer lijkt niet compleet.';
 
   if (a.toelichting.length > 3000) fouten.toelichting = 'Houd de toelichting korter.';
