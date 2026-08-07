@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import Button from '../../components/Button.astro';
 import MasonMark from '../../components/MasonMark.astro';
-import { getActiviteitBySlug, imageUrl, formatDatum } from '../../lib/sanity';
+import { getActiviteitBySlug, imageUrl, formatDatumBereik } from '../../lib/sanity';
 
 const { slug } = Astro.params;
 const activiteit = slug ? await getActiviteitBySlug(slug) : null;
@@ -15,13 +15,21 @@ const foto = activiteit.foto ? imageUrl(activiteit.foto, 1200, 800) : '/foto/gee
 const beschrijving =
   activiteit.omschrijving?.slice(0, 155) ??
   `${activiteit.publiekeTitel} in het kerkje van Persingen.`;
+
+// Exposities zijn op zaterdag én zondag te bezoeken van 11.00 tot 17.00 uur — dat
+// stond alleen op de agenda-overzichtspagina vermeld, niet hier op de detailpagina
+// van de activiteit zelf. Precies de plek waar iemand die bezoektijd het hardst nodig heeft.
+const isExpositie = activiteit.soort === 'expositie';
 ---
 
 <Base title={activiteit.publiekeTitel ?? 'Activiteit'} description={beschrijving}>
   <article class="wrap-narrow artikel">
     <p class="eyebrow"><MasonMark variant="kruis" size={14} /> Agenda</p>
     <h1>{activiteit.publiekeTitel}</h1>
-    <p class="datum">{formatDatum(activiteit.start)}</p>
+    <p class="datum">{formatDatumBereik(activiteit)}</p>
+    {isExpositie && (
+      <p class="bezoektijden">Te bezoeken op zaterdag en zondag, van 11.00 tot 17.00 uur.</p>
+    )}
 
     <div class="frame frame--wide beeld">
       <img src={foto} alt={activiteit.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="1200" height="675" />
@@ -43,6 +51,11 @@ const beschrijving =
   .datum {
     font-weight: 600;
     color: var(--olive-dark);
+    margin-bottom: var(--s-2);
+  }
+  .bezoektijden {
+    color: var(--ink-soft);
+    font-size: var(--t-sm);
     margin-bottom: var(--s-8);
   }
   .beeld {
