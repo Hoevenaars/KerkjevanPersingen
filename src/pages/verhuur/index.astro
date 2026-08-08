@@ -93,26 +93,24 @@ const tarieven = [
     <section class="tarieven">
       <div>
         <h2>Tarieven</h2>
-        <div class="tabel-scroll">
-          <table class="tarieven-tabel">
-            <thead>
+        <table class="tarieven-tabel">
+          <thead>
+            <tr>
+              <th scope="col">Type</th>
+              <th scope="col">Nu</th>
+              <th scope="col">Vanaf 2029</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tarieven.map((t) => (
               <tr>
-                <th scope="col">Type</th>
-                <th scope="col">Nu</th>
-                <th scope="col">Vanaf 2029</th>
+                <td>{t.titel}</td>
+                <td class="prijs-cel">{t.nu}</td>
+                <td class="prijs-cel">{t.vanaf2029}</td>
               </tr>
-            </thead>
-            <tbody>
-              {tarieven.map((t) => (
-                <tr>
-                  <td>{t.titel}</td>
-                  <td class="prijs-cel">{t.nu}</td>
-                  <td class="prijs-cel">{t.vanaf2029}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
         <p class="toelichting">
           Bekijk ook de <a href="/verhuur/voorwaarden/">verhuurvoorwaarden</a> voor de
           precieze regels per type.
@@ -169,19 +167,14 @@ const tarieven = [
   .tarieven { background: var(--cream-deep); border: var(--border); border-radius: var(--radius-lg); padding: var(--s-12); margin-block: var(--s-8); }
   .tarieven h2 { margin-top: 0; margin-bottom: var(--s-6); }
 
-  .tabel-scroll {
-    width: 100%;
-    overflow-x: auto;
-    border-radius: var(--radius);
-    margin-bottom: var(--s-6);
-  }
   .tarieven-tabel {
     width: 100%;
-    min-width: 480px;
     border-collapse: collapse;
+    margin-bottom: var(--s-6);
     background: var(--white);
     border-radius: var(--radius);
     overflow: hidden;
+    table-layout: fixed;
   }
   .tarieven-tabel th {
     text-align: left;
@@ -194,9 +187,10 @@ const tarieven = [
   .tarieven-tabel td {
     padding: var(--s-3) var(--s-4);
     border-bottom: 1px solid var(--sand);
+    word-break: break-word;
   }
   .tarieven-tabel tr:last-child td { border-bottom: none; }
-  .prijs-cel { font-weight: 600; color: var(--pine); white-space: nowrap; }
+  .prijs-cel { font-weight: 600; color: var(--pine); white-space: normal; word-break: break-word; }
   .klein-cel { font-size: var(--t-sm); color: var(--ink-mute); }
 
   .kalender-met-lijst {
@@ -208,8 +202,10 @@ const tarieven = [
 
   @media (max-width: 720px) {
     .soorten { grid-template-columns: 1fr; }
-    .tarieven { padding: var(--s-8); }
-    .tarieven-tabel { font-size: var(--t-sm); min-width: 420px; }
+    .tarieven { padding: var(--s-6) var(--s-4); }
+    .tarieven-tabel { font-size: 0.8rem; }
+    .tarieven-tabel th,
+    .tarieven-tabel td { padding: var(--s-2); }
   }
   @media (max-width: 860px) {
     .kalender-met-lijst { grid-template-columns: 1fr; }
