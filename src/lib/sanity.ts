@@ -134,6 +134,39 @@ export async function markeerNieuwsbriefVerstuurd(id: string): Promise<void> {
   await client.patch(id).set({ verstuurd: true }).commit();
 }
 
+/**
+ * Zorgt dat er altijd een nieuwsbrief-document bestaat voor de huidige week,
+ * ook als Nelleke niets heeft ingevuld. Zonder dit document is er geen plek om
+ * "verstuurd" op te slaan, en zou de cron (die binnen een venster meerdere keren
+ * draait) dezelfde mail per ongeluk twee keer kunnen versturen.
+ */
+export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string | null> {
+  if (!client) return null;
+
+  const bestaand = await getNieuwsbriefVoorWeek(datum);
+  if (bestaand) return bestaand._id;
+
+  const dag = datum.getDay();
+  const verschilTotMaandag = dag === 0 ? -6 : 1 - dag;
+  const maandag = new Date(datum);
+  maandag.setDate(datum.getDate() + verschilTotMaandag);
+  maandag.setHours(0, 0, 0, 0);
+  const isoMaandag = maandag.toISOString().split('T')[0];
+
+  try {
+    const nieuw = await client.create({
+      _type: 'nieuwsbrief',
+      week: isoMaandag,
+      geannuleerd: false,
+      verstuurd: false,
+    });
+    return nieuw._id;
+  } catch (error) {
+    console.error('[sanity] aanmaken nieuwsbrief-status mislukt', error);
+    return null;
+  }
+}
+
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
 export interface Activiteit {
