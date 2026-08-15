@@ -1,0 +1,83 @@
+---
+import Base from '../../layouts/Base.astro';
+import { sanityConfigured } from '../../lib/sanity';
+
+export const prerender = false;
+
+let succes = false;
+let fout = '';
+
+if (Astro.request.method === 'POST') {
+  try {
+    const form = await Astro.request.formData();
+    const naam = String(form.get('naam') ?? '').trim();
+    const email = String(form.get('email') ?? '').trim().toLowerCase();
+
+    if (!email || !email.includes('@')) {
+      fout = 'Vul een geldig e-mailadres in.';
+    } else {
+      const res = await fetch(new URL('/api/vrienden-aanmelden', Astro.url).toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ naam, email }),
+      });
+      if (res.ok) {
+        succes = true;
+      } else {
+        fout = 'Er ging iets mis. Probeer het later opnieuw.';
+      }
+    }
+  } catch {
+    fout = 'Er ging iets mis. Probeer het later opnieuw.';
+  }
+}
+---
+
+<Base
+  title="Vrienden van het kerkje"
+  description="Meld je aan voor het wekelijkse berichtje over het kerkje van Persingen."
+  noindex={true}
+>
+  <div class="wrap-narrow blok">
+    <h1>Blijf op de hoogte</h1>
+    <p>
+      Meld je aan voor een kort, wekelijks berichtje: wat er dat weekend te doen is in het
+      kerkje, en waar we mee bezig zijn dankzij de steun van vrienden zoals jij.
+    </p>
+
+    {succes ? (
+      <div class="succes">
+        <p>Bedankt! Je ontvangt vanaf komende week het wekelijkse berichtje.</p>
+      </div>
+    ) : (
+      <form method="POST" class="formulier">
+        {fout && <p class="fout">{fout}</p>}
+        <label>
+          Naam (optioneel)
+          <input type="text" name="naam" autocomplete="name" />
+        </label>
+        <label>
+          E-mailadres
+          <input type="email" name="email" required autocomplete="email" />
+        </label>
+        <button type="submit">Aanmelden</button>
+      </form>
+    )}
+  </div>
+</Base>
+
+<style>
+  .blok { padding-block: var(--s-16); }
+  .formulier { display: grid; gap: var(--s-4); margin-top: var(--s-8); max-width: 420px; }
+  label { display: grid; gap: var(--s-1); font-size: var(--t-sm); color: var(--ink-mute); }
+  input {
+    padding: var(--s-3); border: var(--border); border-radius: var(--radius);
+    font-size: var(--t-base); font-family: inherit;
+  }
+  button {
+    background: var(--brick); color: white; border: none; padding: var(--s-3) var(--s-6);
+    border-radius: var(--radius); font-family: var(--font-display); cursor: pointer;
+  }
+  .succes { background: var(--cream-deep); padding: var(--s-6); border-radius: var(--radius); }
+  .fout { color: var(--brick); font-size: var(--t-sm); }
+</style>
