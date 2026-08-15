@@ -3,8 +3,11 @@ import {
   getActieveVrienden,
   getNieuwsbriefVoorWeek,
   markeerNieuwsbriefVerstuurd,
-  getAgendaOverzicht, // bestaat al, gebruikt door de homepage
+  maakOfUpdateNieuwsbriefStatus,
+  getAgendaOverzicht,
+  formatDatumBereik,
   type NieuwsbriefContent,
+  type Activiteit,
 } from './sanity';
 
 const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
@@ -54,8 +57,11 @@ function renderDonatieUpdate(tekst?: string): string {
     </tr>`;
 }
 
-function renderWeekendBlok(agenda: { titel: string; datumTekst: string; omschrijving: string } | null): string {
-  if (!agenda) {
+/** Neemt het eerstvolgende relevante blok (vandaag lopend, anders de eerstvolgende
+ *  activiteit) uit de bestaande AgendaOverzicht-structuur — dezelfde data als de
+ *  homepage gebruikt, geen apart datamodel nodig. */
+function renderWeekendBlok(activiteit: Activiteit | null): string {
+  if (!activiteit) {
     return `
       <tr>
         <td style="padding:20px 32px 0;">
@@ -65,6 +71,11 @@ function renderWeekendBlok(agenda: { titel: string; datumTekst: string; omschrij
         </td>
       </tr>`;
   }
+
+  const titel = activiteit.publiekeTitel || activiteit.interneTitel;
+  const datumTekst = formatDatumBereik(activiteit);
+  const omschrijving = activiteit.omschrijving?.slice(0, 155) ?? '';
+
   return `
     <tr>
       <td style="padding:20px 32px 0;">
@@ -73,10 +84,10 @@ function renderWeekendBlok(agenda: { titel: string; datumTekst: string; omschrij
             Dit weekend
           </div>
           <div style="color:${INK}; font-size:20px; font-family:Georgia,serif; margin-bottom:6px;">
-            ${escape(agenda.titel)}
+            ${escape(titel)}
           </div>
           <p style="color:${INK_SOFT}; font-size:14px; line-height:1.6; margin:0 0 14px;">
-            ${escape(agenda.datumTekst)}. ${escape(agenda.omschrijving)}
+            ${escape(datumTekst)}. ${escape(omschrijving)}
           </p>
           <a href="https://kerkjepersingen.nl/agenda/"
              style="display:inline-block; background:${BRICK}; color:#ffffff; text-decoration:none;
@@ -88,7 +99,7 @@ function renderWeekendBlok(agenda: { titel: string; datumTekst: string; omschrij
     </tr>`;
 }
 
-function renderMail(content: NieuwsbriefContent | null, agenda: any, uitschrijfUrl: string): string {
+function renderMail(content: NieuwsbriefContent | null, activiteit: Activiteit | null, uitschrijfUrl: string): string {
   return `<!DOCTYPE html>
 <html lang="nl">
 <head><meta charset="UTF-8" /></head>
@@ -112,7 +123,7 @@ function renderMail(content: NieuwsbriefContent | null, agenda: any, uitschrijfU
           </p>
         </td>
       </tr>
-      ${renderWeekendBlok(agenda)}
+      ${renderWeekendBlok(activiteit)}
       ${renderKortNieuws(content?.kortNieuws)}
       ${renderDonatieUpdate(content?.donatieUpdate)}
       <tr>
@@ -145,8 +156,9 @@ export async function verstuurPreview(previewAdres: string): Promise<void> {
   const nu = new Date();
   const content = await getNieuwsbriefVoorWeek(nu);
   const agenda = await getAgendaOverzicht();
+  const activiteit = agenda.vandaag ?? agenda.volgende;
 
-  const html = renderMail(content, agenda, 'https://kerkjepersingen.nl/vrienden/afmelden?token=preview');
+  const html = renderMail(content, activiteit, 'https://kerkjepersingen.nl/vrienden/afmelden?token=preview');
 
   await resend.emails.send({
     from: VAN,
@@ -167,17 +179,26 @@ export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: numb
     return { verstuurd: 0, overgeslagen: 'al verstuurd deze week' };
   }
 
+  // Ook zonder ingevuld nieuwsbrief-document moet dedup werken: anders kan het
+  // cron-venster (elk half uur, ±20 min tolerantie) dezelfde mail twee keer sturen.
+  const nieuwsbriefId = await maakOfUpdateNieuwsbriefStatus(nu);
+  if (!nieuwsbriefId) {
+    return { verstuurd: 0, overgeslagen: 'kon verzendstatus niet vastleggen, verzending afgebroken' };
+  }
+
   const vrienden = await getActieveVrienden();
   if (vrienden.length === 0) {
+    await markeerNieuwsbriefVerstuurd(nieuwsbriefId);
     return { verstuurd: 0, overgeslagen: 'geen actieve vrienden' };
   }
 
   const agenda = await getAgendaOverzicht();
+  const activiteit = agenda.vandaag ?? agenda.volgende;
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   for (const vriend of vrienden) {
     const uitschrijfUrl = `https://kerkjepersingen.nl/vrienden/afmelden?token=${vriend.uitschrijfToken}`;
-    const html = renderMail(content, agenda, uitschrijfUrl);
+    const html = renderMail(content, activiteit, uitschrijfUrl);
     await resend.emails.send({
       from: VAN,
       to: vriend.email,
@@ -186,9 +207,7 @@ export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: numb
     });
   }
 
-  if (content?._id) {
-    await markeerNieuwsbriefVerstuurd(content._id);
-  }
+  await markeerNieuwsbriefVerstuurd(nieuwsbriefId);
 
   return { verstuurd: vrienden.length, overgeslagen: '' };
 }
