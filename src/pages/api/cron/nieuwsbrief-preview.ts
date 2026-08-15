@@ -3,7 +3,7 @@ import { verstuurPreview } from '../../../lib/nieuwsbrief';
 
 export const prerender = false;
 
-const PREVIEW_ADRES = 'JOUW_EIGEN_ADRES@voorbeeld.nl'; // <-- vul hier je eigen e-mailadres in
+const PREVIEW_ADRES = 'nhoevenaars@gmail.com'; // <-- vul hier je eigen e-mailadres in
 const DOEL_UUR = 16;
 const DOEL_MINUUT = 0;
 const TOLERANTIE_MINUTEN = 20; // vangt kleine cron-jitter op
