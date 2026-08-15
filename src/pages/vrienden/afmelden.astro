@@ -1,0 +1,33 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getVriendByToken, deactiveerVriend } from '../../lib/sanity';
+
+export const prerender = false;
+
+const token = Astro.url.searchParams.get('token') ?? '';
+let status: 'ongeldig' | 'afgemeld' | 'al-afgemeld' = 'ongeldig';
+
+if (token) {
+  const vriend = await getVriendByToken(token);
+  if (vriend) {
+    if (vriend.actief) {
+      await deactiveerVriend(vriend._id);
+      status = 'afgemeld';
+    } else {
+      status = 'al-afgemeld';
+    }
+  }
+}
+---
+
+<Base title="Afmelden" description="Afmelden voor de nieuwsbrief." noindex={true}>
+  <div class="wrap-narrow blok">
+    {status === 'afgemeld' && <p>Je bent afgemeld. Je ontvangt geen berichten meer van ons.</p>}
+    {status === 'al-afgemeld' && <p>Je was al afgemeld.</p>}
+    {status === 'ongeldig' && <p>Deze link is niet (meer) geldig.</p>}
+  </div>
+</Base>
+
+<style>
+  .blok { padding-block: var(--s-16); text-align: center; }
+</style>
