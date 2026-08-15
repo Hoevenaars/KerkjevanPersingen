@@ -28,6 +28,112 @@ export function imageUrl(source: unknown, width = 1200, height?: number): string
   return url.url();
 }
 
+// --- Vrienden van het kerkje ---
+
+export interface Vriend {
+  _id: string;
+  naam?: string;
+  email: string;
+  actief: boolean;
+  uitschrijfToken: string;
+}
+
+function genereerToken(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Maakt een nieuwe vriend aan, tenzij het e-mailadres al bestaat. Geen dubbele
+ * aanmeldingen: iemand die het formulier twee keer invult (bijv. dubbelklik)
+ * krijgt niet twee keer dezelfde mail per week.
+ */
+export async function maakVriendAan(input: { naam: string; email: string }): Promise<void> {
+  if (!client) return;
+  const bestaand = await client.fetch<{ _id: string } | null>(
+    `*[_type == "vriend" && email == $email][0]{ _id }`,
+    { email: input.email }
+  );
+  if (bestaand) return;
+
+  await client.create({
+    _type: 'vriend',
+    naam: input.naam || undefined,
+    email: input.email,
+    actief: true,
+    uitschrijfToken: genereerToken(),
+    aangemeldOp: new Date().toISOString(),
+  });
+}
+
+export async function getActieveVrienden(): Promise<Vriend[]> {
+  if (!client) return [];
+  try {
+    return await client.fetch<Vriend[]>(
+      `*[_type == "vriend" && actief == true]{ _id, naam, email, actief, uitschrijfToken }`
+    );
+  } catch (error) {
+    console.error('[sanity] ophalen actieve vrienden mislukt', error);
+    return [];
+  }
+}
+
+export async function getVriendByToken(token: string): Promise<Vriend | null> {
+  if (!client) return null;
+  try {
+    return await client.fetch<Vriend | null>(
+      `*[_type == "vriend" && uitschrijfToken == $token][0]{ _id, naam, email, actief, uitschrijfToken }`,
+      { token }
+    );
+  } catch (error) {
+    console.error('[sanity] ophalen vriend via token mislukt', error);
+    return null;
+  }
+}
+
+export async function deactiveerVriend(id: string): Promise<void> {
+  if (!client) return;
+  await client.patch(id).set({ actief: false }).commit();
+}
+
+// --- Wekelijkse nieuwsbrief ---
+
+export interface NieuwsbriefContent {
+  _id: string;
+  week: string;
+  kortNieuws?: string;
+  donatieUpdate?: string;
+  geannuleerd: boolean;
+  verstuurd: boolean;
+}
+
+/** Vindt het nieuwsbrief-document voor de week waarin `datum` valt (maandag t/m zondag). */
+export async function getNieuwsbriefVoorWeek(datum: Date): Promise<NieuwsbriefContent | null> {
+  if (!client) return null;
+  const dag = datum.getDay(); // 0 = zondag
+  const verschilTotMaandag = dag === 0 ? -6 : 1 - dag;
+  const maandag = new Date(datum);
+  maandag.setDate(datum.getDate() + verschilTotMaandag);
+  maandag.setHours(0, 0, 0, 0);
+  const isoMaandag = maandag.toISOString().split('T')[0];
+
+  try {
+    return await client.fetch<NieuwsbriefContent | null>(
+      `*[_type == "nieuwsbrief" && week == $isoMaandag][0]{
+        _id, week, kortNieuws, donatieUpdate, geannuleerd, verstuurd
+      }`,
+      { isoMaandag }
+    );
+  } catch (error) {
+    console.error('[sanity] ophalen nieuwsbrief-content mislukt', error);
+    return null;
+  }
+}
+
+export async function markeerNieuwsbriefVerstuurd(id: string): Promise<void> {
+  if (!client) return;
+  await client.patch(id).set({ verstuurd: true }).commit();
+}
+
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
 export interface Activiteit {
