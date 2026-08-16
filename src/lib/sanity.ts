@@ -32,6 +32,19 @@ export function imageUrl(source: unknown, width = 1200, height?: number): string
   return url.url();
 }
 
+/** JPEG i.p.v. WebP: Outlook en sommige webmail tonen WebP niet. */
+export function mailImageUrl(source: unknown, width = 1120, height = 560): string | null {
+  if (!builder || !source) return null;
+  return builder
+    .image(source as never)
+    .width(width)
+    .height(height)
+    .fit('crop')
+    .format('jpg')
+    .quality(78)
+    .url();
+}
+
 // --- Vrienden van het kerkje ---
 
 export interface Vriend {
