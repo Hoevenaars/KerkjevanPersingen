@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { sanityConfigured } from '../../lib/sanity';
+import { maakVriendAan } from '../../lib/sanity';
+import { teVaak } from '../../lib/validatie';
 
 export const prerender = false;
 
@@ -10,24 +11,29 @@ let fout = '';
 if (Astro.request.method === 'POST') {
   try {
     const form = await Astro.request.formData();
-    const naam = String(form.get('naam') ?? '').trim();
-    const email = String(form.get('email') ?? '').trim().toLowerCase();
 
-    if (!email || !email.includes('@')) {
-      fout = 'Vul een geldig e-mailadres in.';
+    // Honeypot: bots vullen dit, mensen zien het niet. Stil "succes" zodat
+    // een bot niet doorheeft dat de aanmelding is genegeerd.
+    if (String(form.get('website_hp') ?? '').length > 0) {
+      succes = true;
+    } else if (teVaak(Astro.clientAddress ?? 'onbekend')) {
+      fout = 'Er zijn net veel aanmeldingen. Probeer het over een kwartier opnieuw.';
     } else {
-      const res = await fetch(new URL('/api/vrienden-aanmelden', Astro.url).toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ naam, email }),
-      });
-      if (res.ok) {
-        succes = true;
+      const naam = String(form.get('naam') ?? '').trim().slice(0, 120);
+      const email = String(form.get('email') ?? '').trim().toLowerCase();
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        fout = 'Vul een geldig e-mailadres in.';
       } else {
-        fout = 'Er ging iets mis. Probeer het later opnieuw.';
+        // Direct naar Sanity, niet via een interne HTTP-call. Die extra hop
+        // faalde achter basic-auth / Vercel (401 of 404) terwijl het formulier
+        // zelf wel bereikbaar was.
+        await maakVriendAan({ naam, email });
+        succes = true;
       }
     }
-  } catch {
+  } catch (err) {
+    console.error('[vrienden] aanmelden mislukt', err);
     fout = 'Er ging iets mis. Probeer het later opnieuw.';
   }
 }
@@ -54,12 +60,16 @@ if (Astro.request.method === 'POST') {
         {fout && <p class="fout">{fout}</p>}
         <label>
           Naam (optioneel)
-          <input type="text" name="naam" autocomplete="name" />
+          <input type="text" name="naam" autocomplete="name" maxlength="120" />
         </label>
         <label>
           E-mailadres
           <input type="email" name="email" required autocomplete="email" />
         </label>
+        <div class="honeypot" aria-hidden="true">
+          <label for="website_hp">Website</label>
+          <input type="text" id="website_hp" name="website_hp" tabindex="-1" autocomplete="off" />
+        </div>
         <button type="submit">Aanmelden</button>
       </form>
     )}
@@ -68,7 +78,7 @@ if (Astro.request.method === 'POST') {
 
 <style>
   .blok { padding-block: var(--s-16); }
-  .formulier { display: grid; gap: var(--s-4); margin-top: var(--s-8); max-width: 420px; }
+  .formulier { display: grid; gap: var(--s-4); margin-top: var(--s-8); max-width: 420px; position: relative; }
   label { display: grid; gap: var(--s-1); font-size: var(--t-sm); color: var(--ink-mute); }
   input {
     padding: var(--s-3); border: var(--border); border-radius: var(--radius);
@@ -80,4 +90,11 @@ if (Astro.request.method === 'POST') {
   }
   .succes { background: var(--cream-deep); padding: var(--s-6); border-radius: var(--radius); }
   .fout { color: var(--brick); font-size: var(--t-sm); }
+  .honeypot {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
 </style>

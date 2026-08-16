@@ -46,6 +46,29 @@ export default defineConfig({
               ),
             S.divider(),
             S.listItem()
+              .title('Vrienden van het kerkje')
+              .child(
+                S.list()
+                  .title('Vrienden van het kerkje')
+                  .items([
+                    S.listItem()
+                      .title('Vriendenlijst')
+                      .child(
+                        S.documentTypeList('vriend')
+                          .title('Vriendenlijst')
+                          .defaultOrdering([{ field: 'aangemeldOp', direction: 'desc' }])
+                      ),
+                    S.listItem()
+                      .title('Wekelijkse nieuwsbrief')
+                      .child(
+                        S.documentTypeList('nieuwsbrief')
+                          .title('Wekelijkse nieuwsbrief')
+                          .defaultOrdering([{ field: 'week', direction: 'desc' }])
+                      ),
+                  ])
+              ),
+            S.divider(),
+            S.listItem()
               .title('Instellingen')
               .child(S.document().schemaType('instellingen').documentId('instellingen')),
           ]),

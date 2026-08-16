@@ -85,7 +85,9 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `CONTACT_BCC_EMAIL` | nee | Vangnet-kopie van elke aanvraag. |
 | `SANITY_PROJECT_ID` | ja | Zonder dit blijft de agenda leeg (site blijft werken). |
 | `SANITY_DATASET` | ja | `production` |
-| `SANITY_API_TOKEN` | ja | Alleen leesrechten volstaan. |
+| `SANITY_API_TOKEN` | ja | **Schrijfrechten (Editor)** — nodig om vrienden aan te maken en verzendstatus te zetten. Alleen lezen is niet genoeg. |
+| `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
+| `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
 
 ---
 
@@ -201,6 +203,21 @@ dan wordt de kalender op de site onbetrouwbaar.
 
 Het e-mailadres voor aanvragen staat onder **Instellingen** en is te wijzigen door iedereen
 met CMS-toegang, zonder deploy.
+
+### Vriendenmail
+
+Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) en de
+ontvangerslijst staan in Sanity onder **Vrienden van het kerkje**.
+
+- Aanmelden: `/vrienden/aanmelden/` — bewust niet in navigatie of footer, alleen via
+  een gedeelde link. Of dat zo blijft, is nog een bestuursbesluit.
+- Uitschrijven: persoonlijke link in elke mail (`/vrienden/afmelden/?token=…`).
+- Donderdag (16:00 Nederlandse wintertijd / 17:00 zomertijd): concept naar de webmaster.
+- Vrijdagochtend (10:30 wintertijd / 11:30 zomertijd): verzending naar actieve vrienden.
+  Die uurverschuiving rond de zomertijdovergang is een bewust geaccepteerd Hobby-plan-risico.
+
+Zonder ingevuld nieuwsbrief-document gaat de mail tóch, met alleen het agenda-blok. Zet
+"Deze week niet versturen" aan om een week over te slaan.
 
 ### Back-up
 

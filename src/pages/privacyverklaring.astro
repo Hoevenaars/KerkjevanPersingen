@@ -16,7 +16,9 @@ import PageHeader from '../components/PageHeader.astro';
   eerder geëxposeerd, mede-exposanten en het akkoord met de verhuurvoorwaarden
   (de laatste vier alleen gevraagd bij een expositie-aanvraag).
 
-  Niet langer noindex: dit is nu een echte, publiceerbare pagina.
+  Bijgewerkt (16 augustus 2026): de wekelijkse vriendenmail verzamelt naam (optioneel)
+  en e-mailadres via /vrienden/aanmelden/. Secties 2, 3, 4, 5 en 7 zijn daarop
+  aangevuld. Uitschrijven blijft mogelijk via de link in elke mail.
 */
 ---
 
@@ -45,9 +47,13 @@ import PageHeader from '../components/PageHeader.astro';
 
     <h2>2. Welke gegevens wij verzamelen</h2>
     <p>
-      Wij verzamelen uitsluitend gegevens die u zelf invult via het aanvraagformulier voor
-      verhuur op onze website (/verhuur/aanvragen/). Welke gegevens dat precies zijn, hangt
-      af van het soort bijeenkomst dat u aanvraagt.
+      Wij verzamelen gegevens die u zelf invult: via het aanvraagformulier voor verhuur
+      (/verhuur/aanvragen/) en, als u dat wilt, via het aanmeldformulier voor de wekelijkse
+      vriendenmail (/vrienden/aanmelden/).
+    </p>
+    <p>
+      Welke gegevens dat bij een verhuuraanvraag precies zijn, hangt af van het soort
+      bijeenkomst dat u aanvraagt.
     </p>
     <p>Bij elke aanvraag:</p>
     <ul>
@@ -67,6 +73,11 @@ import PageHeader from '../components/PageHeader.astro';
       <li>Namen van eventuele mede-exposanten (optioneel)</li>
       <li>Uw akkoord met de verhuurvoorwaarden en het huishoudelijk reglement</li>
     </ul>
+    <p>Bij aanmelding voor de wekelijkse vriendenmail:</p>
+    <ul>
+      <li>Naam (optioneel)</li>
+      <li>E-mailadres</li>
+    </ul>
     <p>
       Wij plaatsen geen cookies en volgen geen bezoekgedrag aan de hand van
       persoonsgegevens (zie artikel 6).
@@ -74,15 +85,21 @@ import PageHeader from '../components/PageHeader.astro';
 
     <h2>3. Waarvoor wij uw gegevens gebruiken</h2>
     <p>
-      Wij gebruiken uw gegevens uitsluitend om uw verhuuraanvraag te beoordelen en af te
-      handelen. Wij gebruiken uw gegevens niet voor marketing, verkopen uw gegevens niet
-      door aan derden en gebruiken uw gegevens niet voor profilering.
+      Gegevens uit een verhuuraanvraag gebruiken wij uitsluitend om die aanvraag te
+      beoordelen en af te handelen. Gegevens uit de vriendenmail-aanmelding gebruiken wij
+      uitsluitend om u ongeveer wekelijks een kort bericht te sturen over activiteiten in
+      het kerkje. U kunt zich altijd uitschrijven via de link onderaan elke mail.
+    </p>
+    <p>
+      Wij gebruiken uw gegevens niet voor andere marketing, verkopen uw gegevens niet door
+      aan derden en gebruiken uw gegevens niet voor profilering.
     </p>
 
     <h2>4. Wie uw gegevens ontvangt</h2>
     <p>
-      Uw aanvraag komt binnen bij het ontvangstadres dat het bestuur heeft ingesteld
+      Een verhuuraanvraag komt binnen bij het ontvangstadres dat het bestuur heeft ingesteld
       (contractbeheer). U ontvangt zelf automatisch een bevestiging van uw aanvraag.
+      De vriendenmail wordt verzonden naar het e-mailadres waarmee u zich heeft aangemeld.
     </p>
 
     <h2>5. Welke derde partijen betrokken zijn bij de verwerking</h2>
@@ -91,8 +108,8 @@ import PageHeader from '../components/PageHeader.astro';
       van de volgende systemen/partijen:
     </p>
     <ul>
-      <li>Resend — voor het verzenden van e-mails.</li>
-      <li>Sanity — voor opslag van boekingsgegevens in het CMS.</li>
+      <li>Resend — voor het verzenden van e-mails (aanvragen en de vriendenmail).</li>
+      <li>Sanity — voor opslag van boekingsgegevens en de vriendenlijst in het CMS.</li>
       <li>Vercel — voor de hosting van de website.</li>
     </ul>
     <p>
@@ -114,13 +131,18 @@ import PageHeader from '../components/PageHeader.astro';
 
     <h2>7. Hoe lang wij uw gegevens bewaren</h2>
     <p>
-      Wij bewaren de gegevens uit uw aanvraag tot 2 jaar na de datum van het evenement
-      waarvoor u de aanvraag heeft gedaan. Dit hangt samen met onze regel dat dezelfde
-      exposant niet binnen 18 maanden opnieuw kan exposeren. Wij kiezen voor dit
+      Wij bewaren de gegevens uit uw verhuuraanvraag tot 2 jaar na de datum van het
+      evenement waarvoor u de aanvraag heeft gedaan. Dit hangt samen met onze regel dat
+      dezelfde exposant niet binnen 18 maanden opnieuw kan exposeren. Wij kiezen voor dit
       aanknopingspunt omdat aanvragen altijd ver voor de evenementdatum moeten worden
       ingediend. De reden om gegevens te bewaren (afhandeling, eventuele vragen achteraf,
       nieuwe aanvraag) vervalt pas 18 maanden na het evenement. Na deze termijn verwijderen
       wij uw gegevens, tenzij een wettelijke verplichting langere bewaring vereist.
+    </p>
+    <p>
+      Gegevens voor de vriendenmail bewaren wij zolang u aangemeld blijft. Na uitschrijven
+      zetten wij het adres op inactief, zodat u geen mail meer ontvangt. Een inactief
+      adres kan het bestuur later verwijderen.
     </p>
 
     <h2>8. Uw rechten</h2>
@@ -152,7 +174,7 @@ import PageHeader from '../components/PageHeader.astro';
       werkwijze of bij de toevoeging van nieuwe functionaliteiten. De meest actuele versie
       is altijd te vinden op onze website.
     </p>
-    <p class="datum"><em>Laatst bijgewerkt: 6 augustus 2026.</em></p>
+    <p class="datum"><em>Laatst bijgewerkt: 16 augustus 2026.</em></p>
   </div>
 </Base>
 

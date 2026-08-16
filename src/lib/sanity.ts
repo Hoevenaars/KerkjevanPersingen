@@ -1,5 +1,8 @@
 import { createClient, type SanityClient } from '@sanity/client';
 import imageUrlBuilder from '@sanity/image-url';
+import { maandagVanWeekIso } from './week';
+
+export { maandagVanWeekIso };
 
 const projectId = process.env.SANITY_PROJECT_ID ?? import.meta.env.SANITY_PROJECT_ID;
 const dataset = process.env.SANITY_DATASET ?? import.meta.env.SANITY_DATASET ?? 'production';
@@ -46,14 +49,33 @@ function genereerToken(): string {
  * Maakt een nieuwe vriend aan, tenzij het e-mailadres al bestaat. Geen dubbele
  * aanmeldingen: iemand die het formulier twee keer invult (bijv. dubbelklik)
  * krijgt niet twee keer dezelfde mail per week.
+ *
+ * Wie zich eerder uitschreef en opnieuw aanmeldt, wordt weer geactiveerd (nieuw
+ * uitschrijftoken, zodat een oude afmeldlink niet alsnog deactiveren kan).
  */
 export async function maakVriendAan(input: { naam: string; email: string }): Promise<void> {
-  if (!client) return;
-  const bestaand = await client.fetch<{ _id: string } | null>(
-    `*[_type == "vriend" && email == $email][0]{ _id }`,
+  if (!client) {
+    throw new Error('Sanity is niet geconfigureerd; aanmelding kan niet worden opgeslagen.');
+  }
+
+  const bestaand = await client.fetch<{ _id: string; actief: boolean } | null>(
+    `*[_type == "vriend" && lower(email) == $email][0]{ _id, actief }`,
     { email: input.email }
   );
-  if (bestaand) return;
+
+  if (bestaand) {
+    if (!bestaand.actief) {
+      await client
+        .patch(bestaand._id)
+        .set({
+          actief: true,
+          naam: input.naam || undefined,
+          uitschrijfToken: genereerToken(),
+        })
+        .commit();
+    }
+    return;
+  }
 
   await client.create({
     _type: 'vriend',
@@ -77,12 +99,14 @@ export async function getActieveVrienden(): Promise<Vriend[]> {
   }
 }
 
-export async function getVriendByToken(token: string): Promise<Vriend | null> {
+export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend | null> {
   if (!client) return null;
   try {
+    // Groq-parameter mag niet `token` heten: @sanity/client typt dat veld als `never`
+    // omdat het botst met de client-optie `token` (de API-sleutel).
     return await client.fetch<Vriend | null>(
-      `*[_type == "vriend" && uitschrijfToken == $token][0]{ _id, naam, email, actief, uitschrijfToken }`,
-      { token }
+      `*[_type == "vriend" && uitschrijfToken == $uitschrijfToken][0]{ _id, naam, email, actief, uitschrijfToken }`,
+      { uitschrijfToken }
     );
   } catch (error) {
     console.error('[sanity] ophalen vriend via token mislukt', error);
@@ -109,12 +133,7 @@ export interface NieuwsbriefContent {
 /** Vindt het nieuwsbrief-document voor de week waarin `datum` valt (maandag t/m zondag). */
 export async function getNieuwsbriefVoorWeek(datum: Date): Promise<NieuwsbriefContent | null> {
   if (!client) return null;
-  const dag = datum.getDay(); // 0 = zondag
-  const verschilTotMaandag = dag === 0 ? -6 : 1 - dag;
-  const maandag = new Date(datum);
-  maandag.setDate(datum.getDate() + verschilTotMaandag);
-  maandag.setHours(0, 0, 0, 0);
-  const isoMaandag = maandag.toISOString().split('T')[0];
+  const isoMaandag = maandagVanWeekIso(datum);
 
   try {
     return await client.fetch<NieuwsbriefContent | null>(
@@ -137,8 +156,8 @@ export async function markeerNieuwsbriefVerstuurd(id: string): Promise<void> {
 /**
  * Zorgt dat er altijd een nieuwsbrief-document bestaat voor de huidige week,
  * ook als Nelleke niets heeft ingevuld. Zonder dit document is er geen plek om
- * "verstuurd" op te slaan, en zou de cron (die binnen een venster meerdere keren
- * draait) dezelfde mail per ongeluk twee keer kunnen versturen.
+ * "verstuurd" op te slaan, en zou een herhaalde cron-aanroep dezelfde mail
+ * per ongeluk twee keer kunnen versturen.
  */
 export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string | null> {
   if (!client) return null;
@@ -146,12 +165,7 @@ export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string
   const bestaand = await getNieuwsbriefVoorWeek(datum);
   if (bestaand) return bestaand._id;
 
-  const dag = datum.getDay();
-  const verschilTotMaandag = dag === 0 ? -6 : 1 - dag;
-  const maandag = new Date(datum);
-  maandag.setDate(datum.getDate() + verschilTotMaandag);
-  maandag.setHours(0, 0, 0, 0);
-  const isoMaandag = maandag.toISOString().split('T')[0];
+  const isoMaandag = maandagVanWeekIso(datum);
 
   try {
     const nieuw = await client.create({

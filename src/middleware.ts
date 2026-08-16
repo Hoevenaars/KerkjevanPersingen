@@ -38,6 +38,14 @@ function isLive(): boolean {
 }
 
 export const onRequest: MiddlewareHandler = async (context, next) => {
+  const pad = context.url.pathname;
+
+  // Cron heeft een eigen Bearer-secret; basic-auth zou die aanroep altijd 401 geven.
+  // Afmelden moet ook zonder sitewachtwoord werken — dat is een AVG-plicht.
+  if (pad.startsWith('/api/cron/') || pad.startsWith('/vrienden/afmelden')) {
+    return next();
+  }
+
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;
 
   if (!password || isLive()) {

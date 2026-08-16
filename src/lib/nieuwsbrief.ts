@@ -16,6 +16,25 @@ const BRICK = '#9C4A2F';
 const CREAM_DEEP = '#F1EBDD';
 const INK = '#1A1A1A';
 const INK_SOFT = '#4A4A44';
+const BATCH_GROOTTE = 100;
+
+function resendClient(): Resend {
+  const apiKey = process.env.RESEND_API_KEY ?? import.meta.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY ontbreekt — nieuwsbrief niet verstuurd');
+  }
+  return new Resend(apiKey);
+}
+
+/** True als het cron-endpoint de aanroep moet weigeren. */
+export function cronOnbevoegd(request: Request): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.error('[cron] CRON_SECRET ontbreekt — weigert alle aanroepen');
+    return true;
+  }
+  return request.headers.get('authorization') !== `Bearer ${secret}`;
+}
 
 function escape(s: string): string {
   return s
@@ -152,7 +171,7 @@ function renderMail(content: NieuwsbriefContent | null, activiteit: Activiteit |
 }
 
 export async function verstuurPreview(previewAdres: string): Promise<void> {
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = resendClient();
   const nu = new Date();
   const content = await getNieuwsbriefVoorWeek(nu);
   const agenda = await getAgendaOverzicht();
@@ -160,12 +179,15 @@ export async function verstuurPreview(previewAdres: string): Promise<void> {
 
   const html = renderMail(content, activiteit, 'https://kerkjepersingen.nl/vrienden/afmelden?token=preview');
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: VAN,
     to: previewAdres,
-    subject: `Concept nieuwsbrief — verstuurt vrijdag 10:30 tenzij aangepast`,
+    subject: 'Concept nieuwsbrief — verstuurt vrijdagochtend tenzij aangepast',
     html,
   });
+  if (error) {
+    throw new Error(`Preview versturen mislukt: ${error.message}`);
+  }
 }
 
 export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: number; overgeslagen: string }> {
@@ -179,8 +201,9 @@ export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: numb
     return { verstuurd: 0, overgeslagen: 'al verstuurd deze week' };
   }
 
-  // Ook zonder ingevuld nieuwsbrief-document moet dedup werken: anders kan het
-  // cron-venster (elk half uur, ±20 min tolerantie) dezelfde mail twee keer sturen.
+  // Ook zonder ingevuld nieuwsbrief-document moet dedup werken: anders zou een
+  // handmatige herhaal-aanroep (of een zeldzame dubbele cron) dezelfde mail
+  // twee keer kunnen sturen.
   const nieuwsbriefId = await maakOfUpdateNieuwsbriefStatus(nu);
   if (!nieuwsbriefId) {
     return { verstuurd: 0, overgeslagen: 'kon verzendstatus niet vastleggen, verzending afgebroken' };
@@ -194,17 +217,27 @@ export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: numb
 
   const agenda = await getAgendaOverzicht();
   const activiteit = agenda.vandaag ?? agenda.volgende;
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = resendClient();
 
-  for (const vriend of vrienden) {
-    const uitschrijfUrl = `https://kerkjepersingen.nl/vrienden/afmelden?token=${vriend.uitschrijfToken}`;
-    const html = renderMail(content, activiteit, uitschrijfUrl);
-    await resend.emails.send({
+  const berichten = vrienden.map((vriend) => {
+    const token = encodeURIComponent(vriend.uitschrijfToken);
+    const uitschrijfUrl = `https://kerkjepersingen.nl/vrienden/afmelden?token=${token}`;
+    return {
       from: VAN,
       to: vriend.email,
       subject: 'Deze week in Persingen',
-      html,
-    });
+      html: renderMail(content, activiteit, uitschrijfUrl),
+    };
+  });
+
+  // Eén batch-call i.p.v. een loop: op Vercel Hobby is de functietijd beperkt,
+  // en sequentieel versturen naar tientallen adressen loopt daarop vast.
+  for (let i = 0; i < berichten.length; i += BATCH_GROOTTE) {
+    const chunk = berichten.slice(i, i + BATCH_GROOTTE);
+    const { error } = await resend.batch.send(chunk);
+    if (error) {
+      throw new Error(`Nieuwsbrief versturen mislukt: ${error.message}`);
+    }
   }
 
   await markeerNieuwsbriefVerstuurd(nieuwsbriefId);
