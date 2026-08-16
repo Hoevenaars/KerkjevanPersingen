@@ -1,11 +1,10 @@
 import type { APIRoute } from 'astro';
-import { verstuurWekelijkseNieuwsbrief } from '../../../lib/nieuwsbrief';
+import { cronOnbevoegd, verstuurWekelijkseNieuwsbrief } from '../../../lib/nieuwsbrief';
 
 export const prerender = false;
 
 export const GET: APIRoute = async ({ request }) => {
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (cronOnbevoegd(request)) {
     return new Response('Unauthorized', { status: 401 });
   }
 

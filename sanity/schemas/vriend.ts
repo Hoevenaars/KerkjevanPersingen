@@ -1,41 +1,71 @@
-export default {
+import { defineField, defineType } from 'sanity';
+
+/**
+ * Ontvanger van de wekelijkse "Vrienden van het kerkje"-mail.
+ *
+ * Aanmelden gebeurt via /vrienden/aanmelden; uitschrijven via een persoonlijke
+ * tokenlink. Het bestuur kan iemand hier ook handmatig pauzeren (actief uit)
+ * zonder het document te verwijderen.
+ */
+export const vriend = defineType({
   name: 'vriend',
   title: 'Vriend van het kerkje',
   type: 'document',
   fields: [
-    {
+    defineField({
       name: 'naam',
       title: 'Naam',
       type: 'string',
-    },
-    {
+    }),
+    defineField({
       name: 'email',
       title: 'E-mailadres',
       type: 'string',
-      validation: (Rule: any) => Rule.required().email(),
-    },
-    {
+      validation: (Rule) => Rule.required().email(),
+    }),
+    defineField({
       name: 'actief',
       title: 'Actief (ontvangt mailing)',
       type: 'boolean',
       initialValue: true,
       description: 'Zet uit om iemand tijdelijk te pauzeren zonder te verwijderen.',
-    },
-    {
+    }),
+    defineField({
       name: 'uitschrijfToken',
       title: 'Uitschrijftoken',
       type: 'string',
       readOnly: true,
+      hidden: true,
+      initialValue: () => crypto.randomUUID(),
       description: 'Automatisch gegenereerd bij aanmelding, gebruikt in de afmeldlink.',
-    },
-    {
+    }),
+    defineField({
       name: 'aangemeldOp',
       title: 'Aangemeld op',
       type: 'datetime',
       readOnly: true,
+      initialValue: () => new Date().toISOString(),
+    }),
+  ],
+  orderings: [
+    {
+      title: 'Recent aangemeld',
+      name: 'aangemeldOpDesc',
+      by: [{ field: 'aangemeldOp', direction: 'desc' }],
+    },
+    {
+      title: 'E-mail A–Z',
+      name: 'emailAsc',
+      by: [{ field: 'email', direction: 'asc' }],
     },
   ],
   preview: {
-    select: { title: 'naam', subtitle: 'email' },
+    select: { title: 'naam', email: 'email', actief: 'actief' },
+    prepare({ title, email, actief }) {
+      return {
+        title: title || email || 'Naamloos',
+        subtitle: actief === false ? `${email ?? ''} (gepauzeerd)` : email,
+      };
+    },
   },
-}
+});

@@ -1,13 +1,15 @@
 import type { APIRoute } from 'astro';
-import { verstuurPreview } from '../../../lib/nieuwsbrief';
+import { cronOnbevoegd, verstuurPreview } from '../../../lib/nieuwsbrief';
 
 export const prerender = false;
 
-const PREVIEW_ADRES = 'nhoevenaars@gmail.com'; // <-- vul hier je eigen e-mailadres in
+const PREVIEW_ADRES =
+  process.env.NIEUWSBRIEF_PREVIEW_ADRES ??
+  import.meta.env.NIEUWSBRIEF_PREVIEW_ADRES ??
+  'nhoevenaars@gmail.com';
 
 export const GET: APIRoute = async ({ request }) => {
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (cronOnbevoegd(request)) {
     return new Response('Unauthorized', { status: 401 });
   }
 
