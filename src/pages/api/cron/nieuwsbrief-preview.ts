@@ -3,7 +3,7 @@ import { verstuurPreview } from '../../../lib/nieuwsbrief';
 
 export const prerender = false;
 
-const PREVIEW_ADRES = 'JOUW_EIGEN_ADRES@voorbeeld.nl'; // <-- vul hier je eigen e-mailadres in
+const PREVIEW_ADRES = 'nhoevenaars@gmail.com'; // <-- vul hier je eigen e-mailadres in
 
 export const GET: APIRoute = async ({ request }) => {
   const auth = request.headers.get('authorization');
