@@ -210,9 +210,10 @@ sjablonen voor de automatische mails. Aanvragen vanaf de site worden naast de ma
 als document bewaard onder **Agenda en boekingen → Aanvragen**. Ja/nee koppelt nog geen
 boeking; dat blijft handmatig tot het proces live gaat.
 
-Op elke activiteit staat het veld **E-mailadres huurder** (niet publiek). Daar gaan later
-de voorbereidingsmails en het review-verzoek heen. Bestaande boekingen hebben dat veld
-nog leeg; dat is één keer aan te vullen. Nieuwe website-aanvragen nemen het adres mee.
+Op elke activiteit staan de huurdergegevens uit het aanvraagformulier (naam, e-mail,
+telefoon, adres, toelichting, bij expositie ook portfolio). Dat is de bron voor later
+mails; het komt niet op de website. Nieuwe aanvragen maken automatisch zo'n boeking
+(status "aanvraag", zichtbaarheid "verborgen" tot het bestuur ja zegt).
 
 ### Vriendenmail
 

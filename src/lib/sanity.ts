@@ -1,6 +1,6 @@
 import { createClient, type SanityClient } from '@sanity/client';
 import imageUrlBuilder from '@sanity/image-url';
-import type { Aanvraag } from './validatie';
+import { SOORTEN, type Aanvraag } from './validatie';
 import { maandagVanWeekIso } from './week';
 
 export { maandagVanWeekIso };
@@ -133,12 +133,12 @@ export async function getHuurderEmail(activiteitId: string): Promise<string | nu
       huurder?: { email?: string };
       aanvraag?: { email?: string };
     } | null>(
-      `*[_type == "activiteit" && _id == $id][0]{
+      `*[_type == "activiteit" && _id == $activiteitId][0]{
         huurderEmail,
         huurder->{ email },
         aanvraag->{ email }
       }`,
-      { id: activiteitId }
+      { activiteitId }
     );
     const adres = rij?.huurderEmail?.trim() || rij?.huurder?.email?.trim() || rij?.aanvraag?.email?.trim();
     return adres || null;
@@ -211,9 +211,11 @@ export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string
 }
 
 /**
- * Bewaart een verhuuraanvraag in Sanity naast de bestaande e-mail. Fouten hier
- * mogen de bevestiging naar de aanvrager niet tegenhouden: de mail blijft de
- * bron tot het ja/nee-proces live is.
+ * Zet de aanvraag in het CMS als bron: een aanvraag-document (ja/nee-lijst)
+ * én een boeking (activiteit) met dezelfde gegevens. De boeking is de
+ * single source of truth voor mails. Zichtbaarheid blijft "verborgen" tot
+ * het bestuur ja zegt en de datum op "bezet" zet — de publieke kalender
+ * verandert dus niet vanzelf.
  */
 export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
   if (!client) {
@@ -221,17 +223,22 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
     return;
   }
 
+  const email = a.email.toLowerCase();
+  const soortLabel = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
+  const startDag = a.datum;
+  const eindDag = a.datumTot || a.datum;
+
   try {
-    await client.create({
+    const aanvraagDoc = await client.create({
       _type: 'aanvraag',
       binnengekomenOp: new Date().toISOString(),
       status: 'nieuw',
       naam: a.naam,
-      email: a.email.toLowerCase(),
+      email,
       telefoon: a.telefoon || undefined,
       adres: a.adres || undefined,
       soort: a.soort,
-      datum: a.datum || undefined,
+      datum: startDag || undefined,
       datumTot: a.datumTot || undefined,
       personen: a.personen || undefined,
       toelichting: a.toelichting || undefined,
@@ -239,6 +246,34 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
       eerderGeexposeerd: a.eerderGeexposeerd || undefined,
       medeExposanten: a.medeExposanten || undefined,
     });
+
+    if (!startDag) return;
+
+    const boeking = await client.create({
+      _type: 'activiteit',
+      interneTitel: `${soortLabel}: ${a.naam}`,
+      start: `${startDag}T09:00:00.000Z`,
+      eind: eindDag ? `${eindDag}T16:00:00.000Z` : undefined,
+      soort: a.soort,
+      zichtbaarheid: 'verborgen',
+      boekingStatus: 'aanvraag',
+      huurderNaam: a.naam,
+      huurderEmail: email,
+      huurderTelefoon: a.telefoon || undefined,
+      huurderAdres: a.adres || undefined,
+      aantalPersonen: a.personen || undefined,
+      toelichtingAanvrager: a.toelichting || undefined,
+      website: a.website || undefined,
+      eerderGeexposeerd: a.eerderGeexposeerd || undefined,
+      medeExposanten: a.medeExposanten || undefined,
+      akkoordVoorwaarden: a.akkoordVoorwaarden === 'ja',
+      aanvraag: { _type: 'reference', _ref: aanvraagDoc._id },
+      toestemmingBeeld: false,
+      aanbetalingBinnen: false,
+      contentStatus: 'ontbreekt',
+    });
+
+    await client.patch(aanvraagDoc._id).set({ boeking: { _type: 'reference', _ref: boeking._id } }).commit();
   } catch (error) {
     console.error('[sanity] aanvraag niet opgeslagen in CMS', error);
   }

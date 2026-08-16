@@ -27,8 +27,13 @@ export const activiteit = defineType({
   type: 'document',
   fieldsets: [
     {
+      name: 'huurderGegevens',
+      title: 'Huurder (niet op de website — bron voor mails)',
+      options: { collapsible: true, collapsed: false },
+    },
+    {
       name: 'boeking',
-      title: 'Huurder en boekingsstatus (voorbereiding)',
+      title: 'Boekingsstatus en koppelingen (voorbereiding)',
       options: { collapsible: true, collapsed: true },
     },
     {
@@ -51,14 +56,88 @@ export const activiteit = defineType({
       validation: (Rule) => Rule.required().min(2),
     }),
     defineField({
-      name: 'huurderEmail',
-      title: 'E-mailadres huurder',
-      description:
-        'Hierheen gaan later de voorbereidingsmails (tekst/foto, praktische info, herinnering) en het verzoek om een Google-review. Komt niet op de website. Bij een blokkade leeg laten.',
+      name: 'huurderNaam',
+      title: 'Naam',
       type: 'string',
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort === 'blokkade',
+    }),
+    defineField({
+      name: 'huurderEmail',
+      title: 'E-mailadres',
+      description:
+        'Hierheen gaan later de voorbereidingsmails en het review-verzoek. Bij een blokkade leeg laten.',
+      type: 'string',
+      fieldset: 'huurderGegevens',
       hidden: ({ document }) => document?.soort === 'blokkade',
       validation: (Rule) =>
         Rule.email().warning('Dit lijkt geen geldig e-mailadres. De automatische mails komen dan niet aan.'),
+    }),
+    defineField({
+      name: 'huurderTelefoon',
+      title: 'Telefoon',
+      type: 'string',
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort === 'blokkade',
+    }),
+    defineField({
+      name: 'huurderAdres',
+      title: 'Adres',
+      type: 'text',
+      rows: 2,
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort === 'blokkade',
+    }),
+    defineField({
+      name: 'aantalPersonen',
+      title: 'Aantal personen',
+      type: 'string',
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort === 'blokkade' || document?.soort === 'expositie',
+    }),
+    defineField({
+      name: 'toelichtingAanvrager',
+      title: 'Toelichting van de aanvrager',
+      type: 'text',
+      rows: 3,
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort === 'blokkade',
+    }),
+    defineField({
+      name: 'website',
+      title: 'Website of portfolio',
+      type: 'string',
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort !== 'expositie',
+    }),
+    defineField({
+      name: 'eerderGeexposeerd',
+      title: 'Eerder geëxposeerd',
+      type: 'string',
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort !== 'expositie',
+      options: {
+        list: [
+          { title: 'Ja', value: 'ja' },
+          { title: 'Nee', value: 'nee' },
+        ],
+        layout: 'radio',
+      },
+    }),
+    defineField({
+      name: 'medeExposanten',
+      title: 'Mede-exposanten',
+      type: 'text',
+      rows: 2,
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort !== 'expositie',
+    }),
+    defineField({
+      name: 'akkoordVoorwaarden',
+      title: 'Akkoord met verhuurvoorwaarden',
+      type: 'boolean',
+      fieldset: 'huurderGegevens',
+      hidden: ({ document }) => document?.soort !== 'expositie',
     }),
     defineField({
       name: 'start',
@@ -204,6 +283,7 @@ export const activiteit = defineType({
       fieldset: 'boeking',
       options: {
         list: [
+          { title: 'Aanvraag — nog beoordelen', value: 'aanvraag' },
           { title: 'Handmatig vastgelegd (huidige werkwijze)', value: 'vastgelegd' },
           { title: 'Optie — contract uit, wacht op aanbetaling', value: 'optie' },
           { title: 'Definitief — aanbetaling binnen', value: 'definitief' },
@@ -354,6 +434,7 @@ export const activiteit = defineType({
         verborgen: 'Verborgen',
       };
       const statusLabels: Record<string, string> = {
+        aanvraag: 'aanvraag',
         optie: 'optie',
         definitief: 'definitief',
         geannuleerd: 'geannuleerd',
