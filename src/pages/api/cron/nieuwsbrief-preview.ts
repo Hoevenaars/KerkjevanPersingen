@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { cronOnbevoegd, verstuurPreview } from '../../../lib/nieuwsbrief';
+import { cronOnbevoegd, datumVoorPreview, verstuurPreview } from '../../../lib/nieuwsbrief';
 
 export const prerender = false;
 
@@ -14,7 +14,8 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   try {
-    await verstuurPreview(PREVIEW_ADRES);
+    const week = new URL(request.url).searchParams.get('week');
+    await verstuurPreview(PREVIEW_ADRES, datumVoorPreview(week));
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   } catch (err) {
     console.error('Fout bij nieuwsbrief-preview:', err);

@@ -11,3 +11,16 @@ export function maandagVanWeekIso(datum: Date): string {
   utcMiddag.setUTCDate(utcMiddag.getUTCDate() + (weekdag === 0 ? -6 : 1 - weekdag));
   return utcMiddag.toISOString().slice(0, 10);
 }
+
+/**
+ * Datum waarop de nieuwsbrief-preview de inhoud zoekt.
+ * Zonder `week` is dat nu. Met `week=YYYY-MM-DD` kun je een andere week
+ * bekijken — nodig op zondag, als de cron anders de vorige maandag pakt.
+ */
+export function datumVoorPreview(weekParam: string | null, nu = new Date()): Date {
+  if (!weekParam) return nu;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekParam)) {
+    throw new Error('week moet YYYY-MM-DD zijn, bijvoorbeeld 2026-08-17');
+  }
+  return new Date(`${weekParam}T12:00:00Z`);
+}

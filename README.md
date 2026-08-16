@@ -238,6 +238,16 @@ Sanity onder **Vrienden van het kerkje**. De ontvangerslijst ziet alleen de webm
 - Vrijdagochtend (10:30 wintertijd / 11:30 zomertijd): verzending naar actieve vrienden.
   Die uurverschuiving rond de zomertijdovergang is een bewust geaccepteerd Hobby-plan-risico.
 
+Handmatig een concept naar de webmaster (niet naar de vriendenlijst):
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://kerkjepersingen.nl/api/cron/nieuwsbrief-preview?week=2026-08-17"
+```
+
+Zonder `?week=` zoekt de preview de maandag van *deze* kalenderweek. Op zondag is dat
+nog de vorige maandag — zet `week` op de maandag van het document dat je wilt zien.
+
 Zonder ingevuld nieuwsbrief-document gaat de mail tóch, met alleen het agenda-blok. Zet
 "Deze week niet versturen" aan om een week over te slaan.
 
