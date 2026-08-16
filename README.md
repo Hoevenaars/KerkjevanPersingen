@@ -215,10 +215,21 @@ telefoon, adres, toelichting, bij expositie ook portfolio). Dat is de bron voor 
 mails; het komt niet op de website. Nieuwe aanvragen maken automatisch zo'n boeking
 (status "aanvraag", zichtbaarheid "verborgen" tot het bestuur ja zegt).
 
+### CMS-rollen (privacy vriendenlijst)
+
+De vriendenlijst (namen en e-mailadressen) is **alleen zichtbaar voor de webmaster**.
+Nelleke en overig bestuur moeten in [Sanity manage](https://www.sanity.io/manage) de rol
+**Editor** hebben, niet Administrator. Als Editor zien zij de nieuwsbrieftekst wel, de
+ontvangerslijst niet.
+
+Studio-verbergen is geen echte API-blokkade. Een Editor kan in theorie nog via GROQ bij
+dezelfde documenten. Echte ACL vereist custom roles (Sanity Growth). Tot die tijd: geen
+Administrator-rol aan het bestuur geven.
+
 ### Vriendenmail
 
-Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) en de
-ontvangerslijst staan in Sanity onder **Vrienden van het kerkje**.
+Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) staat in
+Sanity onder **Vrienden van het kerkje**. De ontvangerslijst ziet alleen de webmaster.
 
 - Aanmelden: `/vrienden/aanmelden/` — bewust niet in navigatie of footer, alleen via
   een gedeelde link. Of dat zo blijft, is nog een bestuursbesluit.
