@@ -47,6 +47,10 @@ function metRegels(tekst: string): string {
   return escape(tekst).replace(/\n/g, '<br />');
 }
 
+function voettekstLink(href: string, label: string): string {
+  return `<a href="${escape(href)}" style="color:${CREAM};text-decoration:none;">${escape(label)}</a>`;
+}
+
 function preheader(content: NieuwsbriefInhoud | null, activiteit: NieuwsbriefActiviteitBlok | null): string {
   const nieuws = content?.kortNieuws?.trim();
   if (nieuws) return nieuws.length > 90 ? `${nieuws.slice(0, 87).trimEnd()}…` : nieuws;
@@ -180,7 +184,11 @@ export function bouwNieuwsbriefHtml(
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
   <title>Deze week in Persingen</title>
+  <style>
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:${CREAM};font-family:Georgia,'Times New Roman',serif;">
   <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${preview}</div>
@@ -221,7 +229,7 @@ export function bouwNieuwsbriefHtml(
                 Beste vriend van het kerkje,
               </p>
               <p style="color:${INK_SOFT};font-size:15px;line-height:1.6;margin:12px 0 0;">
-                Elke week een kort bericht: wat er dit weekend te doen is, en waar we mee bezig zijn dankzij de steun van mensen zoals jij.
+                Elke week een kort bericht over wat er speelt in en om het kerkje.
               </p>
             </td>
           </tr>
@@ -256,15 +264,23 @@ export function bouwNieuwsbriefHtml(
                       Stichting Het Kerkje van Persingen
                     </div>
                     <div style="color:${CREAM};font-size:14px;line-height:1.5;margin-top:4px;font-family:Arial,sans-serif;">
-                      Persingensestraat 7, 6575 JA Persingen<br />
-                      <a href="tel:+31652668449" style="color:${CREAM};text-decoration:none;">06 52 66 84 49</a>
+                      <a href="${SITE}/contact/" style="color:${CREAM};text-decoration:none;">Persingensestraat 7, 6575 JA Persingen</a><br />
+                      <a href="${SITE}/contact/" style="color:${CREAM};text-decoration:none;">06 52 66 84 49</a>
                     </div>
                   </td>
                 </tr>
               </table>
               <p style="color:${CREAM};font-size:12px;line-height:1.6;margin:14px 0 0;font-family:Arial,sans-serif;">
-                Je ontvangt deze mail omdat je je hebt aangemeld als vriend van het kerkje.<br />
-                <a href="${escape(uitschrijfUrl)}" style="color:${CREAM};text-decoration:underline;">Uitschrijven</a>
+                Wekelijkse mail voor vrienden van het kerkje.
+              </p>
+              <p style="color:${CREAM};font-size:12px;line-height:1.6;margin:8px 0 0;font-family:Arial,sans-serif;">
+                ${voettekstLink(`${SITE}/`, 'Website')}
+                &nbsp;·&nbsp;
+                ${voettekstLink(`${SITE}/agenda/`, 'Agenda')}
+                &nbsp;·&nbsp;
+                ${voettekstLink(`${SITE}/contact/`, 'Contact')}
+                &nbsp;·&nbsp;
+                ${voettekstLink(uitschrijfUrl, 'Uitschrijven')}
               </p>
             </td>
           </tr>
