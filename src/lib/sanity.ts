@@ -120,6 +120,34 @@ export async function deactiveerVriend(id: string): Promise<void> {
   await client.patch(id).set({ actief: false }).commit();
 }
 
+/**
+ * E-mail voor voorbereidings- en reviewmails, in deze volgorde:
+ * veld op de boeking, anders het adresboek, anders de oorspronkelijke aanvraag.
+ * Komt nooit in de publieke agenda-query.
+ */
+export async function getHuurderEmail(activiteitId: string): Promise<string | null> {
+  if (!client) return null;
+  try {
+    const rij = await client.fetch<{
+      huurderEmail?: string;
+      huurder?: { email?: string };
+      aanvraag?: { email?: string };
+    } | null>(
+      `*[_type == "activiteit" && _id == $id][0]{
+        huurderEmail,
+        huurder->{ email },
+        aanvraag->{ email }
+      }`,
+      { id: activiteitId }
+    );
+    const adres = rij?.huurderEmail?.trim() || rij?.huurder?.email?.trim() || rij?.aanvraag?.email?.trim();
+    return adres || null;
+  } catch (error) {
+    console.error('[sanity] ophalen huurder-email mislukt', error);
+    return null;
+  }
+}
+
 // --- Wekelijkse nieuwsbrief ---
 
 export interface NieuwsbriefContent {

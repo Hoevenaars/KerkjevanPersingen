@@ -51,6 +51,16 @@ export const activiteit = defineType({
       validation: (Rule) => Rule.required().min(2),
     }),
     defineField({
+      name: 'huurderEmail',
+      title: 'E-mailadres huurder',
+      description:
+        'Hierheen gaan later de voorbereidingsmails (tekst/foto, praktische info, herinnering) en het verzoek om een Google-review. Komt niet op de website. Bij een blokkade leeg laten.',
+      type: 'string',
+      hidden: ({ document }) => document?.soort === 'blokkade',
+      validation: (Rule) =>
+        Rule.email().warning('Dit lijkt geen geldig e-mailadres. De automatische mails komen dan niet aan.'),
+    }),
+    defineField({
       name: 'start',
       title: 'Datum en begintijd',
       type: 'datetime',
@@ -204,7 +214,9 @@ export const activiteit = defineType({
     }),
     defineField({
       name: 'huurder',
-      title: 'Huurder / exposant',
+      title: 'Huurder in het adresboek (optioneel)',
+      description:
+        'Niet nodig als het e-mailadres hierboven al is ingevuld. Handig als dezelfde exposant vaker terugkomt of op de reservelijst staat.',
       type: 'reference',
       to: [{ type: 'persoon' }],
       fieldset: 'boeking',
