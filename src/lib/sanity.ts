@@ -167,6 +167,8 @@ export interface NieuwsbriefContent {
   _id: string;
   week: string;
   kortNieuws?: string;
+  kortNieuwsFoto?: unknown;
+  kortNieuwsFotoAlt?: string;
   donatieUpdate?: string;
   geannuleerd: boolean;
   verstuurd: boolean;
@@ -180,7 +182,7 @@ export async function getNieuwsbriefVoorWeek(datum: Date): Promise<NieuwsbriefCo
   try {
     return await client.fetch<NieuwsbriefContent | null>(
       `*[_type == "nieuwsbrief" && week == $isoMaandag][0]{
-        _id, week, kortNieuws, donatieUpdate, geannuleerd, verstuurd
+        _id, week, kortNieuws, kortNieuwsFoto, kortNieuwsFotoAlt, donatieUpdate, geannuleerd, verstuurd
       }`,
       { isoMaandag }
     );

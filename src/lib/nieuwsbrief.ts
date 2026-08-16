@@ -81,7 +81,16 @@ function renderMail(
 ): string {
   const {activiteit, kop} = kiesActiviteit(agenda, nu);
   const blok = activiteit ? naarActiviteitBlok(activiteit, kop) : null;
-  return bouwNieuwsbriefHtml(content, blok, uitschrijfUrl);
+  return bouwNieuwsbriefHtml(
+    {
+      kortNieuws: content?.kortNieuws,
+      kortNieuwsFotoUrl: mailImageUrl(content?.kortNieuwsFoto, 1120, 560) ?? undefined,
+      kortNieuwsFotoAlt: content?.kortNieuwsFotoAlt,
+      donatieUpdate: content?.donatieUpdate,
+    },
+    blok,
+    uitschrijfUrl,
+  );
 }
 
 export async function verstuurPreview(previewAdres: string, datum = new Date()): Promise<void> {
