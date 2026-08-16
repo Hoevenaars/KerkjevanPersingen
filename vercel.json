@@ -22,13 +22,11 @@
   "crons": [
     {
       "path": "/api/cron/nieuwsbrief-preview",
-      "schedule": "0,30 14,15,16 * * 4"
+      "schedule": "0 15 * * 4"
     },
     {
       "path": "/api/cron/nieuwsbrief-verzenden",
-      "schedule": "0,30 9,10,11 * * 5"
+      "schedule": "30 9 * * 5"
     }
   ]
 }
-
- 
