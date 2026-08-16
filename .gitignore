@@ -1,0 +1,32 @@
+# build output
+dist/
+.output/
+
+# gegenereerde Astro-types en cache
+.astro/
+
+# afhankelijkheden
+node_modules/
+
+# Vercel-adapter output
+.vercel/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# omgevingsvariabelen (zie README: cp .env.example .env)
+.env
+.env.production
+.env.*.local
+
+# Sanity dataset-back-ups (npm run sanity:export)
+backups/
+
+# besturingssysteem
+.DS_Store
+Thumbs.db
