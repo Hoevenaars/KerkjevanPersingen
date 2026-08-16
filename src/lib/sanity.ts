@@ -4,6 +4,7 @@ import { SOORTEN, type Aanvraag } from './validatie';
 import { maandagVanWeekIso } from './week';
 
 export { maandagVanWeekIso };
+export { formatDatum, formatDatumBereik } from './datum';
 
 const projectId = process.env.SANITY_PROJECT_ID ?? import.meta.env.SANITY_PROJECT_ID;
 const dataset = process.env.SANITY_DATASET ?? import.meta.env.SANITY_DATASET ?? 'production';
@@ -551,74 +552,6 @@ export async function getExtraOntvangstAdres(): Promise<string> {
     console.error('[sanity] ophalen extraOntvangstAdres mislukt', error);
     return '';
   }
-}
-
-/**
- * Toont een datum/tijd altijd in Nederlandse tijd, ongeacht in welke tijdzone
- * de server draait. Zonder expliciete timeZone gebruikt toLocaleTimeString de
- * tijdzone van de server (Vercel = UTC), niet automatisch Amsterdamse tijd —
- * dat gaf tot 2 uur verschil bij activiteiten met een tijdstip.
- */
-export function formatDatum(iso: string, metTijd = true): string {
-  const d = new Date(iso);
-  const datum = d.toLocaleDateString('nl-NL', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Europe/Amsterdam',
-  });
-  if (!metTijd) return datum;
-  const tijd = d.toLocaleTimeString('nl-NL', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Amsterdam',
-  });
-  return `${datum}, ${tijd} uur`;
-}
-
-/**
- * Toont één datum, of een volledige periode als de activiteit een eind-datum
- * heeft (bijv. "zaterdag 12 en zondag 13 september 2026"). Zonder eind-datum
- * gedraagt dit zich identiek aan formatDatum(iso, false).
- *
- * Reden: bij een meerdaagse activiteit (bijv. een weekend-expositie) toonde de
- * homepage alleen de startdatum, terwijl bezoekers vaak willen weten dat het
- * ook op de tweede dag te bezoeken is.
- */
-export function formatDatumBereik(activiteit: Pick<Activiteit, 'start' | 'eind'>): string {
-  if (!activiteit.eind) return formatDatum(activiteit.start, false);
-
-  const start = new Date(activiteit.start);
-  const eind = new Date(activiteit.eind);
-  const zelfdeMaand =
-    start.getUTCMonth() === eind.getUTCMonth() && start.getUTCFullYear() === eind.getUTCFullYear();
-
-  const dagStart = start.toLocaleDateString('nl-NL', {
-    weekday: 'long',
-    day: 'numeric',
-    timeZone: 'Europe/Amsterdam',
-  });
-  const volledigEind = eind.toLocaleDateString('nl-NL', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Europe/Amsterdam',
-  });
-
-  if (zelfdeMaand) {
-    return `${dagStart} en ${volledigEind}`;
-  }
-
-  const volledigStart = start.toLocaleDateString('nl-NL', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Europe/Amsterdam',
-  });
-  return `${volledigStart} t/m ${volledigEind}`;
 }
 
 /** Bijv. "14-15 juni 2027", of "31 december 2027 - 1 januari 2028" als het
