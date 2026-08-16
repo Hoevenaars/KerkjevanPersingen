@@ -10,7 +10,8 @@
     "sanity": "sanity dev",
     "sanity:deploy": "sanity deploy",
     "sanity:export": "sanity dataset export production ./backups/production.tar.gz",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "nieuwsbrief:preview": "node --experimental-strip-types scripts/verstuur-nieuwsbrief-preview.ts"
   },
   "dependencies": {
     "@astrojs/vercel": "^8.0.0",

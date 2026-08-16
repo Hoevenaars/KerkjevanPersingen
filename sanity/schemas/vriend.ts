@@ -1,16 +1,20 @@
-import { defineField, defineType } from 'sanity';
+import {defineField, defineType} from 'sanity'
+import {isWebmaster} from '../lib/rollen'
 
 /**
  * Ontvanger van de wekelijkse "Vrienden van het kerkje"-mail.
  *
  * Aanmelden gebeurt via /vrienden/aanmelden; uitschrijven via een persoonlijke
- * tokenlink. Het bestuur kan iemand hier ook handmatig pauzeren (actief uit)
- * zonder het document te verwijderen.
+ * tokenlink. Alleen de webmaster ziet deze lijst in Studio (AVG). Het bestuur
+ * kan iemand hier ook handmatig pauzeren (actief uit) zonder te verwijderen.
  */
 export const vriend = defineType({
   name: 'vriend',
   title: 'Vriend van het kerkje',
   type: 'document',
+  hidden: ({currentUser}) => !isWebmaster(currentUser),
+  // Niet in globaal zoeken: anders ziet een Editor namen/e-mail via de zoekbalk.
+  __experimental_omnisearch_visibility: false,
   fields: [
     defineField({
       name: 'naam',

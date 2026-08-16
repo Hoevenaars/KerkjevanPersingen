@@ -9,6 +9,9 @@ import {
   type NieuwsbriefContent,
   type Activiteit,
 } from './sanity';
+import { datumVoorPreview } from './week';
+
+export { datumVoorPreview };
 
 const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
 const PINE = '#4A5235';
@@ -170,10 +173,9 @@ function renderMail(content: NieuwsbriefContent | null, activiteit: Activiteit |
 </html>`;
 }
 
-export async function verstuurPreview(previewAdres: string): Promise<void> {
+export async function verstuurPreview(previewAdres: string, datum = new Date()): Promise<void> {
   const resend = resendClient();
-  const nu = new Date();
-  const content = await getNieuwsbriefVoorWeek(nu);
+  const content = await getNieuwsbriefVoorWeek(datum);
   const agenda = await getAgendaOverzicht();
   const activiteit = agenda.vandaag ?? agenda.volgende;
 

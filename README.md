@@ -204,10 +204,32 @@ dan wordt de kalender op de site onbetrouwbaar.
 Het e-mailadres voor aanvragen staat onder **Instellingen** en is te wijzigen door iedereen
 met CMS-toegang, zonder deploy.
 
+Onder Instellingen zitten ook (ingeklapt, nog niet live): tarieven voor een later
+contract, het adres van de penningmeester, termijnen voor aanbetaling en content, en
+sjablonen voor de automatische mails. Aanvragen vanaf de site worden naast de mail ook
+als document bewaard onder **Agenda en boekingen → Aanvragen**. Ja/nee koppelt nog geen
+boeking; dat blijft handmatig tot het proces live gaat.
+
+Op elke activiteit staan de huurdergegevens uit het aanvraagformulier (naam, e-mail,
+telefoon, adres, toelichting, bij expositie ook portfolio). Dat is de bron voor later
+mails; het komt niet op de website. Nieuwe aanvragen maken automatisch zo'n boeking
+(status "aanvraag", zichtbaarheid "verborgen" tot het bestuur ja zegt).
+
+### CMS-rollen (privacy vriendenlijst)
+
+De vriendenlijst (namen en e-mailadressen) is **alleen zichtbaar voor de webmaster**.
+Nelleke en overig bestuur moeten in [Sanity manage](https://www.sanity.io/manage) de rol
+**Editor** hebben, niet Administrator. Als Editor zien zij de nieuwsbrieftekst wel, de
+ontvangerslijst niet.
+
+Studio-verbergen is geen echte API-blokkade. Een Editor kan in theorie nog via GROQ bij
+dezelfde documenten. Echte ACL vereist custom roles (Sanity Growth). Tot die tijd: geen
+Administrator-rol aan het bestuur geven.
+
 ### Vriendenmail
 
-Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) en de
-ontvangerslijst staan in Sanity onder **Vrienden van het kerkje**.
+Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) staat in
+Sanity onder **Vrienden van het kerkje**. De ontvangerslijst ziet alleen de webmaster.
 
 - Aanmelden: `/vrienden/aanmelden/` — bewust niet in navigatie of footer, alleen via
   een gedeelde link. Of dat zo blijft, is nog een bestuursbesluit.
@@ -215,6 +237,16 @@ ontvangerslijst staan in Sanity onder **Vrienden van het kerkje**.
 - Donderdag (16:00 Nederlandse wintertijd / 17:00 zomertijd): concept naar de webmaster.
 - Vrijdagochtend (10:30 wintertijd / 11:30 zomertijd): verzending naar actieve vrienden.
   Die uurverschuiving rond de zomertijdovergang is een bewust geaccepteerd Hobby-plan-risico.
+
+Handmatig een concept naar de webmaster (niet naar de vriendenlijst):
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://kerkjepersingen.nl/api/cron/nieuwsbrief-preview?week=2026-08-17"
+```
+
+Zonder `?week=` zoekt de preview de maandag van *deze* kalenderweek. Op zondag is dat
+nog de vorige maandag — zet `week` op de maandag van het document dat je wilt zien.
 
 Zonder ingevuld nieuwsbrief-document gaat de mail tóch, met alleen het agenda-blok. Zet
 "Deze week niet versturen" aan om een week over te slaan.

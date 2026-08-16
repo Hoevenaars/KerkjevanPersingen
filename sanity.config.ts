@@ -1,6 +1,8 @@
-import { defineConfig } from 'sanity';
-import { structureTool } from 'sanity/structure';
-import { schemaTypes } from './sanity/schemas';
+import {defineConfig} from 'sanity'
+import {structureTool} from 'sanity/structure'
+import {VriendToegang} from './sanity/components/VriendToegang'
+import {isWebmaster} from './sanity/lib/rollen'
+import {schemaTypes} from './sanity/schemas'
 
 /**
  * Sanity Studio, ingericht voor bestuursleden die niet handig zijn met computers.
@@ -8,6 +10,9 @@ import { schemaTypes } from './sanity/schemas';
  * "Aankomend" staat bovenaan en is de standaardweergave: alleen toekomstige
  * activiteiten, zodat je niet eerst langs de historische boekingen hoeft te
  * scrollen om bij vandaag te komen. "Alles" bevat het volledige archief.
+ *
+ * De vriendenlijst is alleen voor de webmaster (Administrator). Nelleke en
+ * overig bestuur moeten Editor zijn, anders zien zij namen en e-mailadressen.
  */
 export default defineConfig({
   name: 'kerkje-van-persingen',
@@ -16,8 +21,10 @@ export default defineConfig({
   dataset: process.env.SANITY_STUDIO_DATASET ?? 'production',
   plugins: [
     structureTool({
-      structure: (S) =>
-        S.list()
+      structure: (S, {currentUser}) => {
+        const magVriendenZien = isWebmaster(currentUser)
+
+        return S.list()
           .title('Beheer')
           .items([
             S.listItem()
@@ -32,7 +39,7 @@ export default defineConfig({
                         S.documentList()
                           .title('Aankomende activiteiten')
                           .filter('_type == "activiteit" && start >= now()')
-                          .defaultOrdering([{ field: 'start', direction: 'asc' }])
+                          .defaultOrdering([{field: 'start', direction: 'asc'}]),
                       ),
                     S.listItem()
                       .title('Alles (archief)')
@@ -40,9 +47,57 @@ export default defineConfig({
                         S.documentList()
                           .title('Alle activiteiten')
                           .filter('_type == "activiteit"')
-                          .defaultOrdering([{ field: 'start', direction: 'desc' }])
+                          .defaultOrdering([{field: 'start', direction: 'desc'}]),
                       ),
-                  ])
+                    S.listItem()
+                      .title('Aanvragen')
+                      .child(
+                        S.documentList()
+                          .title('Verhuuraanvragen')
+                          .filter('_type == "aanvraag"')
+                          .defaultOrdering([{field: 'binnengekomenOp', direction: 'desc'}]),
+                      ),
+                    S.listItem()
+                      .title('Nieuwe aanvragen')
+                      .child(
+                        S.documentList()
+                          .title('Nog te beoordelen')
+                          .filter('_type == "aanvraag" && status == "nieuw"')
+                          .defaultOrdering([{field: 'binnengekomenOp', direction: 'desc'}]),
+                      ),
+                  ]),
+              ),
+            S.divider(),
+            S.listItem()
+              .title('Mensen')
+              .child(
+                S.list()
+                  .title('Mensen')
+                  .items([
+                    S.listItem()
+                      .title('Iedereen')
+                      .child(
+                        S.documentTypeList('persoon')
+                          .title('Mensen')
+                          .defaultOrdering([{field: 'naam', direction: 'asc'}]),
+                      ),
+                    S.listItem()
+                      .title('Reservelijst exposities')
+                      .child(
+                        S.documentList()
+                          .title('Reservelijst')
+                          .filter('_type == "persoon" && opReservelijst == true')
+                          .defaultOrdering([{field: 'naam', direction: 'asc'}]),
+                      ),
+                    S.listItem()
+                      .title('Gastheren en gastvrouwen')
+                      .child(
+                        S.documentList()
+                          .title('Gastheren en gastvrouwen')
+                          .filter('_type == "persoon" && "gastheer" in rollen')
+                          .defaultOrdering([{field: 'naam', direction: 'asc'}]),
+                      ),
+                  ]),
               ),
             S.divider(),
             S.listItem()
@@ -51,28 +106,44 @@ export default defineConfig({
                 S.list()
                   .title('Vrienden van het kerkje')
                   .items([
-                    S.listItem()
-                      .title('Vriendenlijst')
-                      .child(
-                        S.documentTypeList('vriend')
-                          .title('Vriendenlijst')
-                          .defaultOrdering([{ field: 'aangemeldOp', direction: 'desc' }])
-                      ),
+                    ...(magVriendenZien
+                      ? [
+                          S.listItem()
+                            .title('Vriendenlijst')
+                            .child(
+                              S.documentTypeList('vriend')
+                                .title('Vriendenlijst')
+                                .defaultOrdering([{field: 'aangemeldOp', direction: 'desc'}]),
+                            ),
+                        ]
+                      : []),
                     S.listItem()
                       .title('Wekelijkse nieuwsbrief')
                       .child(
                         S.documentTypeList('nieuwsbrief')
                           .title('Wekelijkse nieuwsbrief')
-                          .defaultOrdering([{ field: 'week', direction: 'desc' }])
+                          .defaultOrdering([{field: 'week', direction: 'desc'}]),
                       ),
-                  ])
+                  ]),
               ),
             S.divider(),
             S.listItem()
               .title('Instellingen')
               .child(S.document().schemaType('instellingen').documentId('instellingen')),
-          ]),
+          ])
+      },
     }),
   ],
-  schema: { types: schemaTypes },
-});
+  schema: {
+    types: schemaTypes,
+    templates: (prev, {currentUser}) =>
+      isWebmaster(currentUser) ? prev : prev.filter((template) => template.schemaType !== 'vriend'),
+  },
+  document: {
+    components: {unstable_layout: VriendToegang},
+    newDocumentOptions: (prev, {currentUser}) =>
+      isWebmaster(currentUser) ? prev : prev.filter((item) => item.templateId !== 'vriend'),
+  },
+  tools: (prev, {currentUser}) =>
+    isWebmaster(currentUser) ? prev : prev.filter((tool) => tool.name !== 'vision'),
+})

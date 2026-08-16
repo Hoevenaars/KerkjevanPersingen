@@ -1,5 +1,6 @@
 import { createClient, type SanityClient } from '@sanity/client';
 import imageUrlBuilder from '@sanity/image-url';
+import { SOORTEN, type Aanvraag } from './validatie';
 import { maandagVanWeekIso } from './week';
 
 export { maandagVanWeekIso };
@@ -119,6 +120,34 @@ export async function deactiveerVriend(id: string): Promise<void> {
   await client.patch(id).set({ actief: false }).commit();
 }
 
+/**
+ * E-mail voor voorbereidings- en reviewmails, in deze volgorde:
+ * veld op de boeking, anders het adresboek, anders de oorspronkelijke aanvraag.
+ * Komt nooit in de publieke agenda-query.
+ */
+export async function getHuurderEmail(activiteitId: string): Promise<string | null> {
+  if (!client) return null;
+  try {
+    const rij = await client.fetch<{
+      huurderEmail?: string;
+      huurder?: { email?: string };
+      aanvraag?: { email?: string };
+    } | null>(
+      `*[_type == "activiteit" && _id == $activiteitId][0]{
+        huurderEmail,
+        huurder->{ email },
+        aanvraag->{ email }
+      }`,
+      { activiteitId }
+    );
+    const adres = rij?.huurderEmail?.trim() || rij?.huurder?.email?.trim() || rij?.aanvraag?.email?.trim();
+    return adres || null;
+  } catch (error) {
+    console.error('[sanity] ophalen huurder-email mislukt', error);
+    return null;
+  }
+}
+
 // --- Wekelijkse nieuwsbrief ---
 
 export interface NieuwsbriefContent {
@@ -178,6 +207,75 @@ export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string
   } catch (error) {
     console.error('[sanity] aanmaken nieuwsbrief-status mislukt', error);
     return null;
+  }
+}
+
+/**
+ * Zet de aanvraag in het CMS als bron: een aanvraag-document (ja/nee-lijst)
+ * én een boeking (activiteit) met dezelfde gegevens. De boeking is de
+ * single source of truth voor mails. Zichtbaarheid blijft "verborgen" tot
+ * het bestuur ja zegt en de datum op "bezet" zet — de publieke kalender
+ * verandert dus niet vanzelf.
+ */
+export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
+  if (!client) {
+    console.warn('[sanity] geen client, aanvraag niet opgeslagen in CMS');
+    return;
+  }
+
+  const email = a.email.toLowerCase();
+  const soortLabel = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
+  const startDag = a.datum;
+  const eindDag = a.datumTot || a.datum;
+
+  try {
+    const aanvraagDoc = await client.create({
+      _type: 'aanvraag',
+      binnengekomenOp: new Date().toISOString(),
+      status: 'nieuw',
+      naam: a.naam,
+      email,
+      telefoon: a.telefoon || undefined,
+      adres: a.adres || undefined,
+      soort: a.soort,
+      datum: startDag || undefined,
+      datumTot: a.datumTot || undefined,
+      personen: a.personen || undefined,
+      toelichting: a.toelichting || undefined,
+      website: a.website || undefined,
+      eerderGeexposeerd: a.eerderGeexposeerd || undefined,
+      medeExposanten: a.medeExposanten || undefined,
+    });
+
+    if (!startDag) return;
+
+    const boeking = await client.create({
+      _type: 'activiteit',
+      interneTitel: `${soortLabel}: ${a.naam}`,
+      start: `${startDag}T09:00:00.000Z`,
+      eind: eindDag ? `${eindDag}T16:00:00.000Z` : undefined,
+      soort: a.soort,
+      zichtbaarheid: 'verborgen',
+      boekingStatus: 'aanvraag',
+      huurderNaam: a.naam,
+      huurderEmail: email,
+      huurderTelefoon: a.telefoon || undefined,
+      huurderAdres: a.adres || undefined,
+      aantalPersonen: a.personen || undefined,
+      toelichtingAanvrager: a.toelichting || undefined,
+      website: a.website || undefined,
+      eerderGeexposeerd: a.eerderGeexposeerd || undefined,
+      medeExposanten: a.medeExposanten || undefined,
+      akkoordVoorwaarden: a.akkoordVoorwaarden === 'ja',
+      aanvraag: { _type: 'reference', _ref: aanvraagDoc._id },
+      toestemmingBeeld: false,
+      aanbetalingBinnen: false,
+      contentStatus: 'ontbreekt',
+    });
+
+    await client.patch(aanvraagDoc._id).set({ boeking: { _type: 'reference', _ref: boeking._id } }).commit();
+  } catch (error) {
+    console.error('[sanity] aanvraag niet opgeslagen in CMS', error);
   }
 }
 
