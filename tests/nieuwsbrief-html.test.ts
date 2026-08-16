@@ -80,4 +80,34 @@ describe('bouwNieuwsbriefHtml', () => {
   test('houdt de uitschrijflink', () => {
     assert.equal(html.includes('token=abc'), true);
   });
+
+  test('zet het zegel naast de kop, niet erboven', () => {
+    assert.equal(html.includes('width="48"'), true);
+    assert.equal(html.includes('valign="middle"'), true);
+    assert.equal(html.includes('margin:0 auto 14px'), false);
+  });
+
+  test('maakt de stichtingsnaam in de voettekst groter en crèmekleurig', () => {
+    assert.equal(html.includes('font-size:16px'), true);
+    assert.equal(html.includes('Stichting Het Kerkje van Persingen'), true);
+  });
+
+  test('toont een foto bij kort nieuws als die is meegegeven', () => {
+    const metFoto = bouwNieuwsbriefHtml(
+      {
+        kortNieuws: 'Het bord is vervangen.',
+        kortNieuwsFotoUrl: 'https://cdn.sanity.io/images/nieuws.jpg',
+        kortNieuwsFotoAlt: 'Nieuw informatiebord',
+      },
+      blok,
+      'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
+    );
+    assert.equal(metFoto.includes('https://cdn.sanity.io/images/nieuws.jpg'), true);
+    assert.equal(metFoto.includes('Nieuw informatiebord'), true);
+  });
+
+  test('laat kort nieuws weg als tekst én foto ontbreken', () => {
+    const zonder = bouwNieuwsbriefHtml(null, blok, 'https://kerkjepersingen.nl/vrienden/afmelden?token=abc');
+    assert.equal(zonder.includes('Kort nieuws'), false);
+  });
 });

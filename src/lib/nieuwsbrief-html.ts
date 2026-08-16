@@ -19,6 +19,8 @@ const INK_SOFT = '#4A4A44';
 
 export type NieuwsbriefInhoud = {
   kortNieuws?: string;
+  kortNieuwsFotoUrl?: string;
+  kortNieuwsFotoAlt?: string;
   donatieUpdate?: string;
 };
 
@@ -52,17 +54,44 @@ function preheader(content: NieuwsbriefInhoud | null, activiteit: NieuwsbriefAct
   return 'Wat er dit weekend te doen is in het kerkje van Persingen.';
 }
 
-function renderKortNieuws(tekst?: string): string {
-  if (!tekst?.trim()) return '';
+function renderKortNieuws(content: NieuwsbriefInhoud | null): string {
+  const tekst = content?.kortNieuws?.trim();
+  const foto = content?.kortNieuwsFotoUrl?.trim();
+  if (!tekst && !foto) return '';
+
+  const fotoRij = foto
+    ? `
+            <tr>
+              <td style="padding:0 0 ${tekst ? '14px' : '0'};line-height:0;font-size:0;">
+                <img src="${escape(foto)}"
+                     alt="${escape(content?.kortNieuwsFotoAlt || 'Kort nieuws')}"
+                     width="496"
+                     style="display:block;width:100%;max-width:496px;height:auto;border:0;" />
+              </td>
+            </tr>`
+    : '';
+
+  const tekstRij = tekst
+    ? `
+            <tr>
+              <td style="padding:0;font-family:Georgia,'Times New Roman',serif;">
+                <p style="color:${INK};font-size:15px;line-height:1.6;margin:0;">
+                  ${metRegels(tekst)}
+                </p>
+              </td>
+            </tr>`
+    : '';
+
   return `
       <tr>
-        <td style="padding:28px 32px 0;font-family:Georgia,'Times New Roman',serif;">
-          <div style="color:${BRICK};font-size:12px;letter-spacing:0.1em;text-transform:uppercase;font-weight:bold;margin-bottom:8px;font-family:Arial,sans-serif;">
+        <td style="padding:28px 32px 0;">
+          <div style="color:${BRICK};font-size:12px;letter-spacing:0.1em;text-transform:uppercase;font-weight:bold;margin-bottom:10px;font-family:Arial,sans-serif;">
             Kort nieuws
           </div>
-          <p style="color:${INK};font-size:15px;line-height:1.6;margin:0;">
-            ${metRegels(tekst)}
-          </p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            ${fotoRij}
+            ${tekstRij}
+          </table>
         </td>
       </tr>`;
 }
@@ -168,14 +197,22 @@ export function bouwNieuwsbriefHtml(
             </td>
           </tr>
           <tr>
-            <td style="background:${PINE};padding:28px 32px 24px;text-align:center;">
-              <img src="${LOGO_URL}" width="72" height="73" alt="Zegel van het Kerkje van Persingen, opgericht 1350" style="display:block;margin:0 auto 14px;border:0;" />
-              <div style="color:${SAND};font-size:12px;letter-spacing:0.14em;text-transform:uppercase;font-family:Arial,sans-serif;">
-                Vrienden van het kerkje
-              </div>
-              <div style="color:${CREAM};font-size:24px;line-height:1.3;margin-top:8px;font-family:Georgia,'Times New Roman',serif;">
-                Deze week in Persingen
-              </div>
+            <td style="background:${PINE};padding:16px 24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                <tr>
+                  <td width="52" valign="middle" style="width:52px;padding:0;">
+                    <img src="${LOGO_URL}" width="48" height="49" alt="Zegel van het Kerkje van Persingen, opgericht 1350" style="display:block;border:0;" />
+                  </td>
+                  <td valign="middle" style="padding:0 0 0 14px;font-family:Georgia,'Times New Roman',serif;">
+                    <div style="color:${SAND};font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-family:Arial,sans-serif;">
+                      Vrienden van het kerkje
+                    </div>
+                    <div style="color:${CREAM};font-size:20px;line-height:1.25;margin-top:3px;">
+                      Deze week in Persingen
+                    </div>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
@@ -189,7 +226,7 @@ export function bouwNieuwsbriefHtml(
             </td>
           </tr>
           ${renderWeekendBlok(activiteit)}
-          ${renderKortNieuws(content?.kortNieuws)}
+          ${renderKortNieuws(content)}
           ${renderDonatieUpdate(content?.donatieUpdate)}
           <tr>
             <td style="padding:28px 32px 28px;text-align:center;">
@@ -208,16 +245,26 @@ export function bouwNieuwsbriefHtml(
             </td>
           </tr>
           <tr>
-            <td style="background:${PINE};padding:24px 32px;text-align:center;font-family:Arial,sans-serif;">
-              <img src="${LOGO_URL}" width="28" height="28" alt="" style="display:block;margin:0 auto 12px;border:0;" />
-              <p style="color:${CREAM};font-size:13px;line-height:1.6;margin:0 0 10px;">
-                Stichting Het Kerkje van Persingen<br />
-                Persingensestraat 7, 6575 JA Persingen<br />
-                <a href="tel:+31652668449" style="color:${SAND};text-decoration:none;">06 52 66 84 49</a>
-              </p>
-              <p style="color:${SAND};font-size:12px;line-height:1.6;margin:0;">
+            <td style="background:${PINE};padding:18px 24px;font-family:Georgia,'Times New Roman',serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                <tr>
+                  <td width="44" valign="middle" style="width:44px;padding:0;">
+                    <img src="${LOGO_URL}" width="40" height="41" alt="" style="display:block;border:0;" />
+                  </td>
+                  <td valign="middle" style="padding:0 0 0 12px;">
+                    <div style="color:${CREAM};font-size:16px;line-height:1.35;font-weight:bold;">
+                      Stichting Het Kerkje van Persingen
+                    </div>
+                    <div style="color:${CREAM};font-size:14px;line-height:1.5;margin-top:4px;font-family:Arial,sans-serif;">
+                      Persingensestraat 7, 6575 JA Persingen<br />
+                      <a href="tel:+31652668449" style="color:${CREAM};text-decoration:none;">06 52 66 84 49</a>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <p style="color:${CREAM};font-size:12px;line-height:1.6;margin:14px 0 0;font-family:Arial,sans-serif;">
                 Je ontvangt deze mail omdat je je hebt aangemeld als vriend van het kerkje.<br />
-                <a href="${escape(uitschrijfUrl)}" style="color:${SAND};">Uitschrijven</a>
+                <a href="${escape(uitschrijfUrl)}" style="color:${CREAM};text-decoration:underline;">Uitschrijven</a>
               </p>
             </td>
           </tr>

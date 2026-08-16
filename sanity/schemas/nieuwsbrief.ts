@@ -43,6 +43,20 @@ export const nieuwsbrief = defineType({
       description: 'Leeg laten = geen "kort nieuws"-blok in de mail deze week.',
     }),
     defineField({
+      name: 'kortNieuwsFoto',
+      title: 'Foto bij kort nieuws (optioneel)',
+      type: 'image',
+      options: {hotspot: true},
+      description: 'Alleen in de mail, niet op de website. Leeg laten = alleen tekst.',
+    }),
+    defineField({
+      name: 'kortNieuwsFotoAlt',
+      title: 'Beschrijving van die foto',
+      type: 'string',
+      hidden: ({document}) => !document?.kortNieuwsFoto,
+      description: 'Kort wat er op de foto staat, voor wie de afbeelding niet ziet.',
+    }),
+    defineField({
       name: 'donatieUpdate',
       title: 'Donatie-update (optioneel)',
       type: 'text',
