@@ -1,5 +1,6 @@
 import { createClient, type SanityClient } from '@sanity/client';
 import imageUrlBuilder from '@sanity/image-url';
+import type { Aanvraag } from './validatie';
 import { maandagVanWeekIso } from './week';
 
 export { maandagVanWeekIso };
@@ -178,6 +179,40 @@ export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string
   } catch (error) {
     console.error('[sanity] aanmaken nieuwsbrief-status mislukt', error);
     return null;
+  }
+}
+
+/**
+ * Bewaart een verhuuraanvraag in Sanity naast de bestaande e-mail. Fouten hier
+ * mogen de bevestiging naar de aanvrager niet tegenhouden: de mail blijft de
+ * bron tot het ja/nee-proces live is.
+ */
+export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
+  if (!client) {
+    console.warn('[sanity] geen client, aanvraag niet opgeslagen in CMS');
+    return;
+  }
+
+  try {
+    await client.create({
+      _type: 'aanvraag',
+      binnengekomenOp: new Date().toISOString(),
+      status: 'nieuw',
+      naam: a.naam,
+      email: a.email.toLowerCase(),
+      telefoon: a.telefoon || undefined,
+      adres: a.adres || undefined,
+      soort: a.soort,
+      datum: a.datum || undefined,
+      datumTot: a.datumTot || undefined,
+      personen: a.personen || undefined,
+      toelichting: a.toelichting || undefined,
+      website: a.website || undefined,
+      eerderGeexposeerd: a.eerderGeexposeerd || undefined,
+      medeExposanten: a.medeExposanten || undefined,
+    });
+  } catch (error) {
+    console.error('[sanity] aanvraag niet opgeslagen in CMS', error);
   }
 }
 

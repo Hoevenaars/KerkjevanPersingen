@@ -204,6 +204,12 @@ dan wordt de kalender op de site onbetrouwbaar.
 Het e-mailadres voor aanvragen staat onder **Instellingen** en is te wijzigen door iedereen
 met CMS-toegang, zonder deploy.
 
+Onder Instellingen zitten ook (ingeklapt, nog niet live): tarieven voor een later
+contract, het adres van de penningmeester, termijnen voor aanbetaling en content, en
+sjablonen voor de automatische mails. Aanvragen vanaf de site worden naast de mail ook
+als document bewaard onder **Agenda en boekingen → Aanvragen**. Ja/nee koppelt nog geen
+boeking; dat blijft handmatig tot het proces live gaat.
+
 ### Vriendenmail
 
 Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) en de

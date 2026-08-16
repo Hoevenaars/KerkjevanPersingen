@@ -25,6 +25,23 @@ export const activiteit = defineType({
   name: 'activiteit',
   title: 'Activiteit of boeking',
   type: 'document',
+  fieldsets: [
+    {
+      name: 'boeking',
+      title: 'Huurder en boekingsstatus (voorbereiding)',
+      options: { collapsible: true, collapsed: true },
+    },
+    {
+      name: 'websiteContent',
+      title: 'Aangeleverde website-content (voorbereiding)',
+      options: { collapsible: true, collapsed: true },
+    },
+    {
+      name: 'automatisering',
+      title: 'Automatische mails — alleen status, niet handmatig vullen',
+      options: { collapsible: true, collapsed: true },
+    },
+  ],
   fields: [
     defineField({
       name: 'interneTitel',
@@ -56,6 +73,7 @@ export const activiteit = defineType({
           { title: 'Bruiloft', value: 'bruiloft' },
           { title: 'Concert', value: 'concert' },
           { title: 'Viering of dienst', value: 'viering' },
+          { title: 'Diverse bijeenkomsten', value: 'diverse' },
           { title: 'Blokkade (onderhoud, niet verhuurbaar)', value: 'blokkade' },
         ],
         layout: 'dropdown',
@@ -166,6 +184,141 @@ export const activiteit = defineType({
           return true;
         }),
     }),
+    defineField({
+      name: 'boekingStatus',
+      title: 'Boekingsstatus',
+      description:
+        'Los van wat er op de website staat. "Optie" = ja gezegd, wacht op aanbetaling. "Definitief" = Paul heeft ja gezegd. Bestaande boekingen blijven "Handmatig vastgelegd".',
+      type: 'string',
+      initialValue: 'vastgelegd',
+      fieldset: 'boeking',
+      options: {
+        list: [
+          { title: 'Handmatig vastgelegd (huidige werkwijze)', value: 'vastgelegd' },
+          { title: 'Optie — contract uit, wacht op aanbetaling', value: 'optie' },
+          { title: 'Definitief — aanbetaling binnen', value: 'definitief' },
+          { title: 'Geannuleerd — daarna zichtbaarheid op verborgen zetten', value: 'geannuleerd' },
+        ],
+        layout: 'radio',
+      },
+    }),
+    defineField({
+      name: 'huurder',
+      title: 'Huurder / exposant',
+      type: 'reference',
+      to: [{ type: 'persoon' }],
+      fieldset: 'boeking',
+    }),
+    defineField({
+      name: 'aanvraag',
+      title: 'Bijbehorende aanvraag',
+      type: 'reference',
+      to: [{ type: 'aanvraag' }],
+      fieldset: 'boeking',
+    }),
+    defineField({
+      name: 'tariefBedrag',
+      title: 'Afgesproken tarief (€)',
+      description: 'Momentopname bij het contract, zodat een latere tariefwijziging oude boekingen niet verandert.',
+      type: 'number',
+      fieldset: 'boeking',
+    }),
+    defineField({
+      name: 'aanbetalingBinnen',
+      title: 'Aanbetaling binnen',
+      type: 'boolean',
+      initialValue: false,
+      fieldset: 'boeking',
+    }),
+    defineField({
+      name: 'gastheer',
+      title: 'Gastheer of gastvrouw die dienst heeft',
+      type: 'reference',
+      to: [{ type: 'persoon' }],
+      fieldset: 'boeking',
+    }),
+    defineField({
+      name: 'contactpersoonBestuur',
+      title: 'Contactpersoon vanuit het bestuur',
+      type: 'reference',
+      to: [{ type: 'persoon' }],
+      fieldset: 'boeking',
+    }),
+    defineField({
+      name: 'contentStatus',
+      title: 'Status website-content',
+      description:
+        'Later: bij "goedgekeurd" verschijnt tekst/foto automatisch op de site. Nu nog geen effect op de website.',
+      type: 'string',
+      initialValue: 'ontbreekt',
+      fieldset: 'websiteContent',
+      options: {
+        list: [
+          { title: 'Nog niet binnen', value: 'ontbreekt' },
+          { title: 'Gevraagd bij de huurder', value: 'gevraagd' },
+          { title: 'Ontvangen — ter beoordeling', value: 'ontvangen' },
+          { title: 'Goedgekeurd', value: 'goedgekeurd' },
+          { title: 'Afgewezen — opnieuw aanleveren', value: 'afgewezen' },
+        ],
+      },
+    }),
+    defineField({
+      name: 'aangeleverdeTekst',
+      title: 'Aangeleverde tekst (concept)',
+      description: 'Nog niet wat bezoekers zien. Publieke tekst blijft het veld Omschrijving hierboven.',
+      type: 'text',
+      rows: 4,
+      fieldset: 'websiteContent',
+    }),
+    defineField({
+      name: 'aangeleverdeFoto',
+      title: 'Aangeleverde foto (concept)',
+      type: 'image',
+      options: { hotspot: true },
+      fieldset: 'websiteContent',
+    }),
+    defineField({
+      name: 'mailContentVerzoekOp',
+      title: 'Content-verzoek verstuurd op',
+      type: 'datetime',
+      readOnly: true,
+      fieldset: 'automatisering',
+    }),
+    defineField({
+      name: 'mailAanbetalingCheckOp',
+      title: 'Aanbetaling-check naar Paul verstuurd op',
+      type: 'datetime',
+      readOnly: true,
+      fieldset: 'automatisering',
+    }),
+    defineField({
+      name: 'mailPraktisch4wOp',
+      title: 'Praktische mail (4 weken) verstuurd op',
+      type: 'datetime',
+      readOnly: true,
+      fieldset: 'automatisering',
+    }),
+    defineField({
+      name: 'mailHerinnering1dOp',
+      title: 'Herinnering (1 dag) verstuurd op',
+      type: 'datetime',
+      readOnly: true,
+      fieldset: 'automatisering',
+    }),
+    defineField({
+      name: 'mailReviewOp',
+      title: 'Review-verzoek verstuurd op',
+      type: 'datetime',
+      readOnly: true,
+      fieldset: 'automatisering',
+    }),
+    defineField({
+      name: 'mailReservelijstOp',
+      title: 'Reservelijst aangeschreven op',
+      type: 'datetime',
+      readOnly: true,
+      fieldset: 'automatisering',
+    }),
   ],
   orderings: [
     {
@@ -175,17 +328,33 @@ export const activiteit = defineType({
     },
   ],
   preview: {
-    select: { title: 'interneTitel', start: 'start', zichtbaarheid: 'zichtbaarheid', media: 'foto' },
-    prepare({ title, start, zichtbaarheid, media }) {
+    select: {
+      title: 'interneTitel',
+      start: 'start',
+      zichtbaarheid: 'zichtbaarheid',
+      boekingStatus: 'boekingStatus',
+      media: 'foto',
+    },
+    prepare({ title, start, zichtbaarheid, boekingStatus, media }) {
       const labels: Record<string, string> = {
         publiek: 'Publiek',
         bezet: 'Alleen bezet',
         verborgen: 'Verborgen',
       };
+      const statusLabels: Record<string, string> = {
+        optie: 'optie',
+        definitief: 'definitief',
+        geannuleerd: 'geannuleerd',
+      };
       const datum = start
         ? new Date(start).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
         : 'geen datum';
-      return { title, subtitle: `${datum} — ${labels[zichtbaarheid] ?? zichtbaarheid}`, media };
+      const extra = statusLabels[boekingStatus] ? ` · ${statusLabels[boekingStatus]}` : '';
+      return {
+        title,
+        subtitle: `${datum} — ${labels[zichtbaarheid] ?? zichtbaarheid}${extra}`,
+        media,
+      };
     },
   },
 });

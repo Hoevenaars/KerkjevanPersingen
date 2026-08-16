@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { getOntvangstAdres, getExtraOntvangstAdres } from './sanity';
+import { getOntvangstAdres, getExtraOntvangstAdres, bewaarAanvraag } from './sanity';
 import { SOORTEN, type Aanvraag, type Fouten } from './validatie';
 
 /**
@@ -196,6 +196,8 @@ export async function verstuurAanvraag(a: Aanvraag): Promise<Uitkomst> {
   } catch (e) {
     console.error('[aanvraag] bevestigingsmail mislukt, aanvraag zelf is wel verstuurd', e);
   }
+
+  await bewaarAanvraag(a);
 
   return { ok: true };
 }

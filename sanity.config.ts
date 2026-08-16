@@ -42,6 +42,54 @@ export default defineConfig({
                           .filter('_type == "activiteit"')
                           .defaultOrdering([{ field: 'start', direction: 'desc' }])
                       ),
+                    S.listItem()
+                      .title('Aanvragen')
+                      .child(
+                        S.documentList()
+                          .title('Verhuuraanvragen')
+                          .filter('_type == "aanvraag"')
+                          .defaultOrdering([{ field: 'binnengekomenOp', direction: 'desc' }])
+                      ),
+                    S.listItem()
+                      .title('Nieuwe aanvragen')
+                      .child(
+                        S.documentList()
+                          .title('Nog te beoordelen')
+                          .filter('_type == "aanvraag" && status == "nieuw"')
+                          .defaultOrdering([{ field: 'binnengekomenOp', direction: 'desc' }])
+                      ),
+                  ])
+              ),
+            S.divider(),
+            S.listItem()
+              .title('Mensen')
+              .child(
+                S.list()
+                  .title('Mensen')
+                  .items([
+                    S.listItem()
+                      .title('Iedereen')
+                      .child(
+                        S.documentTypeList('persoon')
+                          .title('Mensen')
+                          .defaultOrdering([{ field: 'naam', direction: 'asc' }])
+                      ),
+                    S.listItem()
+                      .title('Reservelijst exposities')
+                      .child(
+                        S.documentList()
+                          .title('Reservelijst')
+                          .filter('_type == "persoon" && opReservelijst == true')
+                          .defaultOrdering([{ field: 'naam', direction: 'asc' }])
+                      ),
+                    S.listItem()
+                      .title('Gastheren en gastvrouwen')
+                      .child(
+                        S.documentList()
+                          .title('Gastheren en gastvrouwen')
+                          .filter('_type == "persoon" && "gastheer" in rollen')
+                          .defaultOrdering([{ field: 'naam', direction: 'asc' }])
+                      ),
                   ])
               ),
             S.divider(),
