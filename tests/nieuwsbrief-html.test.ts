@@ -6,6 +6,7 @@ import {
   LOGO_URL,
   SFEER_URL,
 } from '../src/lib/nieuwsbrief-html.ts';
+import { mailMeta } from '../src/lib/nieuwsbrief-frequentie.ts';
 import {activiteitRaaktWeekend, komendWeekend, kopAgendaBlok} from '../src/lib/week.ts';
 
 describe('komendWeekend', () => {
@@ -61,8 +62,9 @@ describe('bouwNieuwsbriefHtml', () => {
 
   const html = bouwNieuwsbriefHtml(
     {kortNieuws: 'Het bord is vervangen.', donatieUpdate: 'De gevel is gevoegd.'},
-    blok,
+    [blok],
     'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
+    mailMeta('wekelijks'),
   );
 
   test('toont zegel, sfeerfoto en footer-landschap', () => {
@@ -119,15 +121,35 @@ describe('bouwNieuwsbriefHtml', () => {
         kortNieuwsFotoUrl: 'https://cdn.sanity.io/images/nieuws.jpg',
         kortNieuwsFotoAlt: 'Nieuw informatiebord',
       },
-      blok,
+      [blok],
       'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
+      mailMeta('wekelijks'),
     );
     assert.equal(metFoto.includes('https://cdn.sanity.io/images/nieuws.jpg'), true);
     assert.equal(metFoto.includes('Nieuw informatiebord'), true);
   });
 
   test('laat kort nieuws weg als tekst én foto ontbreken', () => {
-    const zonder = bouwNieuwsbriefHtml(null, blok, 'https://kerkjepersingen.nl/vrienden/afmelden?token=abc');
+    const zonder = bouwNieuwsbriefHtml(null, [blok], 'https://kerkjepersingen.nl/vrienden/afmelden?token=abc', mailMeta('wekelijks'));
     assert.equal(zonder.includes('Kort nieuws'), false);
+  });
+
+  test('toont meerdere activiteiten bij een langere periode', () => {
+    const tweede = {
+      ...blok,
+      titel: 'Concert op de orgel',
+      kop: '',
+      isExpositie: false,
+      datumTekst: 'vrijdag 28 augustus 2026',
+    };
+    const lang = bouwNieuwsbriefHtml(
+      null,
+      [{...blok, kop: 'Agenda komende twee weken'}, tweede],
+      'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
+      mailMeta('tweewekelijks'),
+    );
+    assert.equal(lang.includes('Agenda komende twee weken'), true);
+    assert.equal(lang.includes('Concert op de orgel'), true);
+    assert.equal(lang.includes('Komende twee weken in Persingen'), true);
   });
 });
