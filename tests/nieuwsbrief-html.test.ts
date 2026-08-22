@@ -77,14 +77,14 @@ describe('bouwNieuwsbriefHtml', () => {
     assert.equal(html.includes('11.00 tot 17.00'), true);
   });
 
-  test('houdt de uitschrijflink naast website, agenda en contact', () => {
+  test('houdt de voorkeurenlink naast website, agenda en contact', () => {
     assert.equal(html.includes('token=abc'), true);
     assert.equal(html.includes('https://kerkjepersingen.nl/agenda/'), true);
     assert.equal(html.includes('https://kerkjepersingen.nl/contact/'), true);
     assert.equal(html.includes('>Website</a>'), true);
     assert.equal(html.includes('>Agenda</a>'), true);
     assert.equal(html.includes('>Contact</a>'), true);
-    assert.equal(html.includes('>Uitschrijven</a>'), true);
+    assert.equal(html.includes('>Voorkeuren</a>'), true);
   });
 
   test('legt in de intro geen nadruk op steun', () => {
@@ -97,7 +97,7 @@ describe('bouwNieuwsbriefHtml', () => {
     assert.equal(html.includes('format-detection'), true);
     assert.equal(html.includes('tel:'), false);
     assert.equal(html.includes('Persingensestraat 7, 6575 JA Persingen'), true);
-    assert.equal(html.includes('Wekelijkse mail voor vrienden van het kerkje.'), true);
+    assert.equal(html.includes('Mail voor vrienden van het kerkje.'), true);
     assert.equal(html.includes('Je ontvangt deze mail omdat'), false);
   });
 

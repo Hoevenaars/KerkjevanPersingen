@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 import {
-  getActieveVrienden,
+  getVriendenVoorVerzending,
   getNieuwsbriefVoorWeek,
   markeerNieuwsbriefVerstuurd,
   maakOfUpdateNieuwsbriefStatus,
@@ -134,10 +134,10 @@ export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: numb
     return { verstuurd: 0, overgeslagen: 'kon verzendstatus niet vastleggen, verzending afgebroken' };
   }
 
-  const vrienden = await getActieveVrienden();
+  const vrienden = await getVriendenVoorVerzending(nu);
   if (vrienden.length === 0) {
     await markeerNieuwsbriefVerstuurd(nieuwsbriefId);
-    return { verstuurd: 0, overgeslagen: 'geen actieve vrienden' };
+    return { verstuurd: 0, overgeslagen: 'geen ontvangers deze verzendronde' };
   }
 
   const agenda = await getAgendaOverzicht();

@@ -1,33 +1,185 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { getVriendByToken, deactiveerVriend } from '../../lib/sanity';
+import {
+  getVriendByToken,
+  deactiveerVriend,
+  updateVriendFrequentie,
+  type Vriend,
+  type VriendFrequentie,
+} from '../../lib/sanity';
+import { FREQUENTIE_LABELS, isGeldigeFrequentie } from '../../lib/nieuwsbrief-frequentie';
 
 export const prerender = false;
 
+type Status =
+  | 'ongeldig'
+  | 'voorkeuren'
+  | 'frequentie-bijgewerkt'
+  | 'afgemeld'
+  | 'al-afgemeld';
+
 const token = Astro.url.searchParams.get('token') ?? '';
-let status: 'ongeldig' | 'afgemeld' | 'al-afgemeld' = 'ongeldig';
+let status: Status = 'ongeldig';
+let vriend: Vriend | null = null;
+let gekozenFrequentie: VriendFrequentie | null = null;
+
+const frequentieOpties: VriendFrequentie[] = ['wekelijks', 'tweewekelijks', 'maandelijks'];
 
 if (token) {
-  const vriend = await getVriendByToken(token);
+  vriend = await getVriendByToken(token);
   if (vriend) {
-    if (vriend.actief) {
-      await deactiveerVriend(vriend._id);
-      status = 'afgemeld';
+    if (Astro.request.method === 'POST') {
+      const form = await Astro.request.formData();
+      const actie = String(form.get('actie') ?? '');
+
+      if (actie === 'uitschrijven') {
+        if (vriend.actief) {
+          await deactiveerVriend(vriend._id);
+          status = 'afgemeld';
+        } else {
+          status = 'al-afgemeld';
+        }
+      } else if (actie === 'frequentie' && vriend.actief) {
+        const keuze = String(form.get('frequentie') ?? '');
+        if (isGeldigeFrequentie(keuze)) {
+          await updateVriendFrequentie(vriend._id, keuze);
+          gekozenFrequentie = keuze;
+          status = 'frequentie-bijgewerkt';
+        } else {
+          status = 'voorkeuren';
+        }
+      } else {
+        status = vriend.actief ? 'voorkeuren' : 'al-afgemeld';
+      }
     } else {
-      status = 'al-afgemeld';
+      status = vriend.actief ? 'voorkeuren' : 'al-afgemeld';
     }
   }
 }
+
+const huidigeFrequentie: VriendFrequentie = vriend?.frequentie ?? 'wekelijks';
 ---
 
-<Base title="Afmelden" description="Afmelden voor de nieuwsbrief." noindex={true}>
+<Base title="Mailingvoorkeuren" description="Pas je ontvangstfrequentie aan of meld je af." noindex={true}>
   <div class="wrap-narrow blok">
-    {status === 'afgemeld' && <p>Je bent afgemeld. Je ontvangt geen berichten meer van ons.</p>}
-    {status === 'al-afgemeld' && <p>Je was al afgemeld.</p>}
-    {status === 'ongeldig' && <p>Deze link is niet (meer) geldig.</p>}
+    {status === 'voorkeuren' && vriend && (
+      <>
+        <h1>Mailingvoorkeuren</h1>
+        <p>
+          Te veel mail? Kies een lagere frequentie. Of schrijf je volledig uit als je geen berichten
+          meer wilt ontvangen.
+        </p>
+
+        <form method="POST" class="formulier">
+          <input type="hidden" name="actie" value="frequentie" />
+          <fieldset class="keuze-groep">
+            <legend>Hoe vaak wil je het berichtje ontvangen?</legend>
+            {frequentieOpties.map((optie) => (
+              <label class="keuze">
+                <input
+                  type="radio"
+                  name="frequentie"
+                  value={optie}
+                  checked={huidigeFrequentie === optie}
+                />
+                <span>{FREQUENTIE_LABELS[optie]}</span>
+              </label>
+            ))}
+          </fieldset>
+          <button type="submit" class="knop-primair">Voorkeur opslaan</button>
+        </form>
+
+        <form method="POST" class="formulier uitschrijven">
+          <input type="hidden" name="actie" value="uitschrijven" />
+          <p class="uitschrijven-tekst">Liever helemaal geen mail meer?</p>
+          <button type="submit" class="knop-secundair">Volledig uitschrijven</button>
+        </form>
+      </>
+    )}
+
+    {status === 'frequentie-bijgewerkt' && gekozenFrequentie && (
+      <>
+        <h1>Voorkeur opgeslagen</h1>
+        <p>
+          Je ontvangt het berichtje voortaan {FREQUENTIE_LABELS[gekozenFrequentie].toLowerCase()}.
+        </p>
+      </>
+    )}
+
+    {status === 'afgemeld' && (
+      <>
+        <h1>Uitgeschreven</h1>
+        <p>Je bent afgemeld. Je ontvangt geen berichten meer van ons.</p>
+      </>
+    )}
+
+    {status === 'al-afgemeld' && (
+      <>
+        <h1>Al afgemeld</h1>
+        <p>Je was al afgemeld. Wil je weer berichten ontvangen? Meld je opnieuw aan via onze website.</p>
+        <p><a href="/vrienden/aanmelden/">Opnieuw aanmelden</a></p>
+      </>
+    )}
+
+    {status === 'ongeldig' && (
+      <>
+        <h1>Link ongeldig</h1>
+        <p>Deze link is niet (meer) geldig.</p>
+      </>
+    )}
   </div>
 </Base>
 
 <style>
-  .blok { padding-block: var(--s-16); text-align: center; }
+  .blok { padding-block: var(--s-16); }
+  .formulier { display: grid; gap: var(--s-4); margin-top: var(--s-8); max-width: 420px; }
+  .keuze-groep {
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: var(--s-4);
+    margin: 0;
+  }
+  legend {
+    font-family: var(--font-display);
+    font-size: var(--t-base);
+    padding: 0 var(--s-2);
+  }
+  .keuze {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: var(--s-2) 0;
+    font-size: var(--t-base);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .keuze input { margin: 0; }
+  .knop-primair,
+  .knop-secundair {
+    border: none;
+    padding: var(--s-3) var(--s-6);
+    border-radius: var(--radius);
+    font-family: var(--font-display);
+    cursor: pointer;
+    width: fit-content;
+  }
+  .knop-primair {
+    background: var(--brick);
+    color: white;
+  }
+  .knop-secundair {
+    background: transparent;
+    color: var(--brick);
+    border: 1px solid var(--brick);
+  }
+  .uitschrijven {
+    margin-top: var(--s-10);
+    padding-top: var(--s-6);
+    border-top: var(--border);
+  }
+  .uitschrijven-tekst {
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+    margin: 0;
+  }
 </style>

@@ -271,7 +271,7 @@ export function bouwNieuwsbriefHtml(
                 </tr>
               </table>
               <p style="color:${CREAM};font-size:12px;line-height:1.6;margin:14px 0 0;font-family:Arial,sans-serif;">
-                Wekelijkse mail voor vrienden van het kerkje.
+                Mail voor vrienden van het kerkje.
               </p>
               <p style="color:${CREAM};font-size:12px;line-height:1.6;margin:8px 0 0;font-family:Arial,sans-serif;">
                 ${voettekstLink(`${SITE}/`, 'Website')}
@@ -280,7 +280,7 @@ export function bouwNieuwsbriefHtml(
                 &nbsp;·&nbsp;
                 ${voettekstLink(`${SITE}/contact/`, 'Contact')}
                 &nbsp;·&nbsp;
-                ${voettekstLink(uitschrijfUrl, 'Uitschrijven')}
+                ${voettekstLink(uitschrijfUrl, 'Voorkeuren')}
               </p>
             </td>
           </tr>
