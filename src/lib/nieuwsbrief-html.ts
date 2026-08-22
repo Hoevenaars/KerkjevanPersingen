@@ -9,6 +9,9 @@ export const LOGO_URL = `${SITE}/logo-klein.png`;
 export const SFEER_URL = `${SITE}/foto/verhuur-ruimte.jpg`;
 export const FOOTER_LANDSCHAP_URL = `${SITE}/foto/footer-landschap.jpg`;
 
+export type { NieuwsbriefMailMeta } from './nieuwsbrief-frequentie.ts';
+import type { NieuwsbriefMailMeta } from './nieuwsbrief-frequentie.ts';
+
 const PINE = '#4A5235';
 const BRICK = '#9C4A2F';
 const CREAM = '#FAF8F3';
@@ -51,11 +54,20 @@ function voettekstLink(href: string, label: string): string {
   return `<a href="${escape(href)}" style="color:${CREAM};text-decoration:none;">${escape(label)}</a>`;
 }
 
-function preheader(content: NieuwsbriefInhoud | null, activiteit: NieuwsbriefActiviteitBlok | null): string {
+function preheader(
+  content: NieuwsbriefInhoud | null,
+  activiteiten: NieuwsbriefActiviteitBlok[],
+): string {
   const nieuws = content?.kortNieuws?.trim();
   if (nieuws) return nieuws.length > 90 ? `${nieuws.slice(0, 87).trimEnd()}…` : nieuws;
-  if (activiteit) return `${activiteit.kop}: ${activiteit.titel}`;
-  return 'Wat er dit weekend te doen is in het kerkje van Persingen.';
+  const activiteit = activiteiten[0];
+  if (activiteit) {
+    if (activiteiten.length > 1) {
+      return `${activiteiten.length} activiteiten in het kerkje — ${activiteit.titel}`;
+    }
+    return `${activiteit.kop}: ${activiteit.titel}`;
+  }
+  return 'Wat er te doen is in het kerkje van Persingen.';
 }
 
 function renderKortNieuws(content: NieuwsbriefInhoud | null): string {
@@ -117,23 +129,18 @@ function renderDonatieUpdate(tekst?: string): string {
       </tr>`;
 }
 
-function renderWeekendBlok(activiteit: NieuwsbriefActiviteitBlok | null): string {
-  if (!activiteit) {
-    return `
-      <tr>
-        <td style="padding:20px 32px 0;font-family:Georgia,'Times New Roman',serif;">
-          <p style="color:${INK_SOFT};font-size:15px;line-height:1.6;margin:0;">
-            Er is deze week geen activiteit gepland. Bekijk de volledige agenda voor komende data.
-          </p>
-        </td>
-      </tr>`;
-  }
-
+function renderWeekendBlok(activiteit: NieuwsbriefActiviteitBlok): string {
   const bezoek = activiteit.isExpositie
     ? ' Te bezoeken op zaterdag en zondag, van 11.00 tot 17.00 uur.'
     : '';
   const toelichting = activiteit.omschrijving?.trim()
     ? `${activiteit.omschrijving.trim()}${activiteit.omschrijving.trim().endsWith('.') ? '' : '.'}`
+    : '';
+  const kopRij = activiteit.kop
+    ? `
+                <div style="color:${BRICK};font-size:12px;letter-spacing:0.1em;text-transform:uppercase;font-weight:bold;margin-bottom:8px;font-family:Arial,sans-serif;">
+                  ${escape(activiteit.kop)}
+                </div>`
     : '';
 
   return `
@@ -152,9 +159,7 @@ function renderWeekendBlok(activiteit: NieuwsbriefActiviteitBlok | null): string
             </tr>
             <tr>
               <td style="padding:20px 24px 24px;font-family:Georgia,'Times New Roman',serif;">
-                <div style="color:${BRICK};font-size:12px;letter-spacing:0.1em;text-transform:uppercase;font-weight:bold;margin-bottom:8px;font-family:Arial,sans-serif;">
-                  ${escape(activiteit.kop)}
-                </div>
+                ${kopRij}
                 <div style="color:${INK};font-size:20px;line-height:1.35;margin-bottom:8px;">
                   ${escape(activiteit.titel)}
                 </div>
@@ -172,12 +177,66 @@ function renderWeekendBlok(activiteit: NieuwsbriefActiviteitBlok | null): string
       </tr>`;
 }
 
+function renderCompactActiviteit(activiteit: NieuwsbriefActiviteitBlok): string {
+  const bezoek = activiteit.isExpositie ? ' · za/zo 11.00–17.00' : '';
+  return `
+      <tr>
+        <td style="padding:14px 0;border-top:1px solid ${SAND};font-family:Georgia,'Times New Roman',serif;">
+          <div style="color:${INK};font-size:16px;line-height:1.35;margin-bottom:4px;">
+            <a href="${escape(activiteit.agendaUrl)}" style="color:${INK};text-decoration:none;">
+              ${escape(activiteit.titel)}
+            </a>
+          </div>
+          <div style="color:${INK_SOFT};font-size:14px;line-height:1.5;">
+            ${escape(activiteit.datumTekst)}${bezoek}
+          </div>
+        </td>
+      </tr>`;
+}
+
+function renderAgendaBlokken(
+  activiteiten: NieuwsbriefActiviteitBlok[],
+  legeAgendaTekst: string,
+): string {
+  if (activiteiten.length === 0) {
+    return `
+      <tr>
+        <td style="padding:20px 32px 0;font-family:Georgia,'Times New Roman',serif;">
+          <p style="color:${INK_SOFT};font-size:15px;line-height:1.6;margin:0;">
+            ${escape(legeAgendaTekst)}
+          </p>
+        </td>
+      </tr>`;
+  }
+
+  if (activiteiten.length === 1) {
+    return renderWeekendBlok(activiteiten[0]);
+  }
+
+  const [eerste, ...rest] = activiteiten;
+  return `
+      ${renderWeekendBlok(eerste)}
+      <tr>
+        <td style="padding:8px 32px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            ${rest.map(renderCompactActiviteit).join('')}
+          </table>
+        </td>
+      </tr>`;
+}
+
 export function bouwNieuwsbriefHtml(
   content: NieuwsbriefInhoud | null,
-  activiteit: NieuwsbriefActiviteitBlok | null,
+  activiteiten: NieuwsbriefActiviteitBlok[],
   uitschrijfUrl: string,
+  meta: NieuwsbriefMailMeta,
 ): string {
-  const preview = escape(preheader(content, activiteit));
+  const preview = escape(preheader(content, activiteiten));
+  const activiteitenMetKop = meta.agendaKop && activiteiten.length > 0
+    ? activiteiten.map((blok, index) =>
+        index === 0 ? { ...blok, kop: meta.agendaKop! } : blok,
+      )
+    : activiteiten;
 
   return `<!DOCTYPE html>
 <html lang="nl">
@@ -185,7 +244,7 @@ export function bouwNieuwsbriefHtml(
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
-  <title>Deze week in Persingen</title>
+  <title>${escape(meta.onderwerp)}</title>
   <style>
     a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; }
   </style>
@@ -216,7 +275,7 @@ export function bouwNieuwsbriefHtml(
                       Vrienden van het kerkje
                     </div>
                     <div style="color:${CREAM};font-size:20px;line-height:1.25;margin-top:3px;">
-                      Deze week in Persingen
+                      ${escape(meta.kop)}
                     </div>
                   </td>
                 </tr>
@@ -229,11 +288,11 @@ export function bouwNieuwsbriefHtml(
                 Beste vriend van het kerkje,
               </p>
               <p style="color:${INK_SOFT};font-size:15px;line-height:1.6;margin:12px 0 0;">
-                Elke week een kort bericht over wat er speelt in en om het kerkje.
+                ${escape(meta.intro)}
               </p>
             </td>
           </tr>
-          ${renderWeekendBlok(activiteit)}
+          ${renderAgendaBlokken(activiteitenMetKop, meta.legeAgendaTekst)}
           ${renderKortNieuws(content)}
           ${renderDonatieUpdate(content?.donatieUpdate)}
           <tr>
@@ -271,7 +330,7 @@ export function bouwNieuwsbriefHtml(
                 </tr>
               </table>
               <p style="color:${CREAM};font-size:12px;line-height:1.6;margin:14px 0 0;font-family:Arial,sans-serif;">
-                Wekelijkse mail voor vrienden van het kerkje.
+                Mail voor vrienden van het kerkje.
               </p>
               <p style="color:${CREAM};font-size:12px;line-height:1.6;margin:8px 0 0;font-family:Arial,sans-serif;">
                 ${voettekstLink(`${SITE}/`, 'Website')}
@@ -280,7 +339,7 @@ export function bouwNieuwsbriefHtml(
                 &nbsp;·&nbsp;
                 ${voettekstLink(`${SITE}/contact/`, 'Contact')}
                 &nbsp;·&nbsp;
-                ${voettekstLink(uitschrijfUrl, 'Uitschrijven')}
+                ${voettekstLink(uitschrijfUrl, 'Voorkeuren')}
               </p>
             </td>
           </tr>

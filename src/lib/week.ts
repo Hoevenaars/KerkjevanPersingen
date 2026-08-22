@@ -56,6 +56,18 @@ export function activiteitRaaktWeekend(
   return start <= ymdAlsUtc(weekend.zondag) && eind >= ymdAlsUtc(weekend.zaterdag);
 }
 
+/** Overlap tussen activiteit en een datumbereik (beide YYYY-MM-DD, Amsterdam). */
+export function activiteitRaaktPeriode(
+  startIso: string,
+  eindIso: string | undefined,
+  periodeStart: string,
+  periodeEind: string,
+): boolean {
+  const start = ymdAlsUtc(ymdAmsterdam(new Date(startIso)));
+  const eind = ymdAlsUtc(ymdAmsterdam(new Date(eindIso ?? startIso)));
+  return start <= ymdAlsUtc(periodeEind) && eind >= ymdAlsUtc(periodeStart);
+}
+
 export function kopAgendaBlok(inDitWeekend: boolean): string {
   return inDitWeekend ? 'Dit weekend' : 'Binnenkort';
 }

@@ -1,24 +1,23 @@
 import { Resend } from 'resend';
 import {
-  getActieveVrienden,
+  getVriendenVoorVerzending,
   getNieuwsbriefVoorWeek,
   markeerNieuwsbriefVerstuurd,
   maakOfUpdateNieuwsbriefStatus,
   getAgendaOverzicht,
-  formatDatumBereik,
+  getPubliekeAgenda,
   mailImageUrl,
   type NieuwsbriefContent,
   type Activiteit,
   type AgendaOverzicht,
+  type VriendFrequentie,
 } from './sanity';
-import { activiteitRaaktWeekend, datumVoorPreview, komendWeekend, kopAgendaBlok } from './week';
-import {
-  bouwNieuwsbriefHtml,
-  SFEER_URL,
-  type NieuwsbriefActiviteitBlok,
-} from './nieuwsbrief-html';
+import { datumVoorPreview } from './week';
+import { mailMeta } from './nieuwsbrief-frequentie';
+import { kiesActiviteitenVoorMail } from './nieuwsbrief-agenda';
+import { bouwNieuwsbriefHtml } from './nieuwsbrief-html';
 
-export { datumVoorPreview, bouwNieuwsbriefHtml };
+export { datumVoorPreview, bouwNieuwsbriefHtml, kiesActiviteitenVoorMail };
 
 const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
 const BATCH_GROOTTE = 100;
@@ -41,46 +40,18 @@ export function cronOnbevoegd(request: Request): boolean {
   return request.headers.get('authorization') !== `Bearer ${secret}`;
 }
 
-function kiesActiviteit(
-  agenda: AgendaOverzicht,
-  nu = new Date(),
-): {activiteit: Activiteit | null; kop: string} {
-  const weekend = komendWeekend(nu);
-  const kandidaten = [agenda.vandaag, agenda.volgende, agenda.daarna].filter(
-    (item): item is Activiteit => Boolean(item),
-  );
-  const ditWeekend = kandidaten.find((item) =>
-    activiteitRaaktWeekend(item.start, item.eind, weekend),
-  );
-  if (ditWeekend) return {activiteit: ditWeekend, kop: kopAgendaBlok(true)};
-  const volgende = agenda.vandaag ?? agenda.volgende;
-  return {activiteit: volgende ?? null, kop: volgende ? kopAgendaBlok(false) : kopAgendaBlok(true)};
-}
-
-function naarActiviteitBlok(activiteit: Activiteit, kop: string): NieuwsbriefActiviteitBlok {
-  const cmsFoto = mailImageUrl(activiteit.foto, 1120, 560);
-  return {
-    titel: activiteit.publiekeTitel || activiteit.interneTitel,
-    datumTekst: formatDatumBereik(activiteit),
-    omschrijving: activiteit.omschrijving?.slice(0, 155),
-    fotoUrl: cmsFoto ?? SFEER_URL,
-    fotoAlt: activiteit.fotoAlt || 'Het kerkje van Persingen in de Ooijpolder',
-    agendaUrl: activiteit.slug
-      ? `https://kerkjepersingen.nl/agenda/${activiteit.slug}/`
-      : 'https://kerkjepersingen.nl/agenda/',
-    kop,
-    isExpositie: activiteit.soort === 'expositie',
-  };
-}
-
 function renderMail(
   content: NieuwsbriefContent | null,
+  alleActiviteiten: Activiteit[],
   agenda: AgendaOverzicht,
   uitschrijfUrl: string,
+  frequentie: VriendFrequentie | undefined,
   nu = new Date(),
 ): string {
-  const {activiteit, kop} = kiesActiviteit(agenda, nu);
-  const blok = activiteit ? naarActiviteitBlok(activiteit, kop) : null;
+  const keuze = frequentie ?? 'wekelijks';
+  const meta = mailMeta(keuze, nu);
+  const activiteiten = kiesActiviteitenVoorMail(alleActiviteiten, agenda, keuze, nu);
+
   return bouwNieuwsbriefHtml(
     {
       kortNieuws: content?.kortNieuws,
@@ -88,8 +59,9 @@ function renderMail(
       kortNieuwsFotoAlt: content?.kortNieuwsFotoAlt,
       donatieUpdate: content?.donatieUpdate,
     },
-    blok,
+    activiteiten,
     uitschrijfUrl,
+    meta,
   );
 }
 
@@ -97,10 +69,13 @@ export async function verstuurPreview(previewAdres: string, datum = new Date()):
   const resend = resendClient();
   const content = await getNieuwsbriefVoorWeek(datum);
   const agenda = await getAgendaOverzicht();
+  const alleActiviteiten = await getPubliekeAgenda(50);
   const html = renderMail(
     content,
+    alleActiviteiten,
     agenda,
     'https://kerkjepersingen.nl/vrienden/afmelden?token=preview',
+    'wekelijks',
     datum,
   );
 
@@ -126,36 +101,34 @@ export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: numb
     return { verstuurd: 0, overgeslagen: 'al verstuurd deze week' };
   }
 
-  // Ook zonder ingevuld nieuwsbrief-document moet dedup werken: anders zou een
-  // handmatige herhaal-aanroep (of een zeldzame dubbele cron) dezelfde mail
-  // twee keer kunnen sturen.
   const nieuwsbriefId = await maakOfUpdateNieuwsbriefStatus(nu);
   if (!nieuwsbriefId) {
     return { verstuurd: 0, overgeslagen: 'kon verzendstatus niet vastleggen, verzending afgebroken' };
   }
 
-  const vrienden = await getActieveVrienden();
+  const vrienden = await getVriendenVoorVerzending(nu);
   if (vrienden.length === 0) {
     await markeerNieuwsbriefVerstuurd(nieuwsbriefId);
-    return { verstuurd: 0, overgeslagen: 'geen actieve vrienden' };
+    return { verstuurd: 0, overgeslagen: 'geen ontvangers deze verzendronde' };
   }
 
   const agenda = await getAgendaOverzicht();
+  const alleActiviteiten = await getPubliekeAgenda(50);
   const resend = resendClient();
 
   const berichten = vrienden.map((vriend) => {
     const token = encodeURIComponent(vriend.uitschrijfToken);
     const uitschrijfUrl = `https://kerkjepersingen.nl/vrienden/afmelden?token=${token}`;
+    const frequentie = vriend.frequentie ?? 'wekelijks';
+    const meta = mailMeta(frequentie, nu);
     return {
       from: VAN,
       to: vriend.email,
-      subject: 'Deze week in Persingen',
-      html: renderMail(content, agenda, uitschrijfUrl, nu),
+      subject: meta.onderwerp,
+      html: renderMail(content, alleActiviteiten, agenda, uitschrijfUrl, frequentie, nu),
     };
   });
 
-  // Eén batch-call i.p.v. een loop: op Vercel Hobby is de functietijd beperkt,
-  // en sequentieel versturen naar tientallen adressen loopt daarop vast.
   for (let i = 0; i < berichten.length; i += BATCH_GROOTTE) {
     const chunk = berichten.slice(i, i + BATCH_GROOTTE);
     const { error } = await resend.batch.send(chunk);

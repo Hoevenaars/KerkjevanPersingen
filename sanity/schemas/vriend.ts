@@ -35,6 +35,21 @@ export const vriend = defineType({
       description: 'Zet uit om iemand tijdelijk te pauzeren zonder te verwijderen.',
     }),
     defineField({
+      name: 'frequentie',
+      title: 'Frequentie',
+      type: 'string',
+      initialValue: 'wekelijks',
+      options: {
+        list: [
+          { title: 'Elke week', value: 'wekelijks' },
+          { title: 'Elke twee weken', value: 'tweewekelijks' },
+          { title: 'Eens per maand', value: 'maandelijks' },
+        ],
+        layout: 'radio',
+      },
+      description: 'Hoe vaak iemand de nieuwsbrief ontvangt. Alleen actieve vrienden krijgen mail.',
+    }),
+    defineField({
       name: 'uitschrijfToken',
       title: 'Uitschrijftoken',
       type: 'string',
@@ -64,11 +79,17 @@ export const vriend = defineType({
     },
   ],
   preview: {
-    select: { title: 'naam', email: 'email', actief: 'actief' },
-    prepare({ title, email, actief }) {
+    select: { title: 'naam', email: 'email', actief: 'actief', frequentie: 'frequentie' },
+    prepare({ title, email, actief, frequentie }) {
+      const freq =
+        frequentie === 'tweewekelijks'
+          ? ' · 2-wekelijks'
+          : frequentie === 'maandelijks'
+            ? ' · maandelijks'
+            : '';
       return {
         title: title || email || 'Naamloos',
-        subtitle: actief === false ? `${email ?? ''} (gepauzeerd)` : email,
+        subtitle: actief === false ? `${email ?? ''} (gepauzeerd)${freq}` : `${email ?? ''}${freq}`,
       };
     },
   },

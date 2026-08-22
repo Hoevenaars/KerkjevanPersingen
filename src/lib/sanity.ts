@@ -2,9 +2,11 @@ import { createClient, type SanityClient } from '@sanity/client';
 import imageUrlBuilder from '@sanity/image-url';
 import { SOORTEN, type Aanvraag } from './validatie';
 import { maandagVanWeekIso } from './week';
+import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
 
 export { maandagVanWeekIso };
 export { formatDatum, formatDatumBereik } from './datum';
+export type { VriendFrequentie };
 
 const projectId = process.env.SANITY_PROJECT_ID ?? import.meta.env.SANITY_PROJECT_ID;
 const dataset = process.env.SANITY_DATASET ?? import.meta.env.SANITY_DATASET ?? 'production';
@@ -53,6 +55,7 @@ export interface Vriend {
   naam?: string;
   email: string;
   actief: boolean;
+  frequentie?: VriendFrequentie;
   uitschrijfToken: string;
 }
 
@@ -84,6 +87,7 @@ export async function maakVriendAan(input: { naam: string; email: string }): Pro
         .patch(bestaand._id)
         .set({
           actief: true,
+          frequentie: 'wekelijks',
           naam: input.naam || undefined,
           uitschrijfToken: genereerToken(),
         })
@@ -97,6 +101,7 @@ export async function maakVriendAan(input: { naam: string; email: string }): Pro
     naam: input.naam || undefined,
     email: input.email,
     actief: true,
+    frequentie: 'wekelijks',
     uitschrijfToken: genereerToken(),
     aangemeldOp: new Date().toISOString(),
   });
@@ -106,12 +111,18 @@ export async function getActieveVrienden(): Promise<Vriend[]> {
   if (!client) return [];
   try {
     return await client.fetch<Vriend[]>(
-      `*[_type == "vriend" && actief == true]{ _id, naam, email, actief, uitschrijfToken }`
+      `*[_type == "vriend" && actief == true]{ _id, naam, email, actief, frequentie, uitschrijfToken }`
     );
   } catch (error) {
     console.error('[sanity] ophalen actieve vrienden mislukt', error);
     return [];
   }
+}
+
+/** Actieve vrienden die volgens hun frequentie deze verzendronde mail moeten krijgen. */
+export async function getVriendenVoorVerzending(datum = new Date()): Promise<Vriend[]> {
+  const vrienden = await getActieveVrienden();
+  return vrienden.filter((vriend) => ontvangtDezeVerzending(vriend.frequentie, datum));
 }
 
 export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend | null> {
@@ -120,7 +131,7 @@ export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend 
     // Groq-parameter mag niet `token` heten: @sanity/client typt dat veld als `never`
     // omdat het botst met de client-optie `token` (de API-sleutel).
     return await client.fetch<Vriend | null>(
-      `*[_type == "vriend" && uitschrijfToken == $uitschrijfToken][0]{ _id, naam, email, actief, uitschrijfToken }`,
+      `*[_type == "vriend" && uitschrijfToken == $uitschrijfToken][0]{ _id, naam, email, actief, frequentie, uitschrijfToken }`,
       { uitschrijfToken }
     );
   } catch (error) {
@@ -132,6 +143,11 @@ export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend 
 export async function deactiveerVriend(id: string): Promise<void> {
   if (!client) return;
   await client.patch(id).set({ actief: false }).commit();
+}
+
+export async function updateVriendFrequentie(id: string, frequentie: VriendFrequentie): Promise<void> {
+  if (!client) return;
+  await client.patch(id).set({ frequentie, actief: true }).commit();
 }
 
 /**
