@@ -88,6 +88,9 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `SANITY_API_TOKEN` | ja | **Schrijfrechten (Editor)** — nodig om vrienden aan te maken en verzendstatus te zetten. Alleen lezen is niet genoeg. |
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
+| `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar (bouwplaats). Leeg = 404. Website wijzigt niet. |
+| `CONTENT_BRON` | nee | Alleen samen met `ALLOW_SUPABASE_CONTENT`. Standaard blijft Sanity leidend. |
+| `ALLOW_SUPABASE_CONTENT` | nee | Tweede slot. Zonder `true` leest de website nooit Supabase. |
 
 ---
 
@@ -259,6 +262,20 @@ npm run sanity:export
 
 Content staat bij Sanity, niet in deze repo. Draai deze export periodiek, zodat je bij een
 storing of prijswijziging niet zonder content zit.
+
+---
+
+## Beheerplatform (voorbereiding, niet live)
+
+Sanity blijft de enige bron voor de website. Er is een fundering klaargezet voor
+later `/beheer` + Supabase, zonder cutover:
+
+- Bedrijfsregels in `src/platform/` (getest, nog nergens aan de publieke site gekoppeld)
+- Databaseschema in `supabase/migrations/`
+- `/beheer` geeft **404** tot `BEHEER_ENABLED=true`
+- Website leest Sanity tot `CONTENT_BRON=supabase` **én** `ALLOW_SUPABASE_CONTENT=true`
+
+Documentatie: `docs/beheer/`. `/admin` blijft de doorverwijzing naar Sanity Studio.
 
 ---
 

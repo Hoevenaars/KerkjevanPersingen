@@ -1,0 +1,125 @@
+---
+export const prerender = false;
+
+import BeheerLayout from '../../layouts/Beheer.astro';
+import { MODULES, STANDAARD_VERHUURTYPEN } from '../../platform/types.ts';
+import { standaardBronnen } from '../../platform/bron.ts';
+
+/**
+ * /beheer is voorbereid maar standaard uit. Zonder BEHEER_ENABLED=true
+ * bestaat deze route niet voor bezoekers (404). De publieke site, Sanity
+ * Studio (/admin) en alle formulieren blijven ongewijzigd.
+ */
+const enabled =
+  (import.meta.env.BEHEER_ENABLED ?? process.env.BEHEER_ENABLED) === 'true';
+
+if (!enabled) {
+  return new Response(null, {
+    status: 404,
+    headers: { 'X-Robots-Tag': 'noindex, nofollow' },
+  });
+}
+
+const bronnen = standaardBronnen();
+const moduleLabels: Record<(typeof MODULES)[number], string> = {
+  dashboard: 'Vandaag',
+  aanvragen: 'Aanvragen',
+  boekingen: 'Boekingen',
+  kalender: 'Kalender',
+  agenda: 'Agenda',
+  relaties: 'Relaties',
+  finance: 'Finance',
+  vrienden: 'Vrienden',
+  nieuwsbrief: 'Nieuwsbrief',
+  templates: 'Templates',
+  gebruikers: 'Gebruikers',
+  instellingen: 'Instellingen',
+};
+---
+
+<BeheerLayout titel="Voorbereiding">
+  <p class="banner">
+    Sanity is nog de enige schrijvende bron. Dit scherm is een bouwplaats,
+    geen live beheeromgeving.
+  </p>
+
+  <h1>Beheerplatform</h1>
+  <p class="lede">
+    Fundering volgens Functioneel Ontwerp v1.0. Modules, rechten, kalenderregels
+    en het datamodel staan klaar. Geen publieke pagina is omgezet.
+  </p>
+
+  <h2>Hoofdmodules</h2>
+  <ul class="modules">
+    {
+      MODULES.map((sleutel) => (
+        <li>
+          <strong>{moduleLabels[sleutel]}</strong>
+          <span>klaar voor bouw</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <h2>Schrijvende bron (nu)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Datatype</th>
+        <th>Bron</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        Object.entries(bronnen).map(([type, bron]) => (
+          <tr>
+            <td>{type}</td>
+            <td>{bron}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <h2>Verhuurtypen</h2>
+  <ul>
+    {
+      STANDAARD_VERHUURTYPEN.map((type) => (
+        <li>
+          {type.naam} — {type.dagregel === 'expositie_weekend' ? 'zaterdag + zondag' : 'maandag t/m vrijdag'}
+        </li>
+      ))
+    }
+  </ul>
+</BeheerLayout>
+
+<style>
+  .banner {
+    background: var(--cream-deep);
+    border: var(--border);
+    padding: var(--s-4) var(--s-6);
+    border-radius: var(--radius);
+    color: var(--pine);
+    font-weight: 600;
+  }
+  .lede { color: var(--ink-soft); max-width: var(--measure); }
+  .modules {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--s-3);
+  }
+  .modules li {
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: var(--s-4);
+    background: var(--white);
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s-4);
+  }
+  .modules span { color: var(--ink-mute); font-size: var(--t-sm); }
+  table { border-collapse: collapse; margin-bottom: var(--s-8); }
+  th, td { text-align: left; padding: var(--s-2) var(--s-4) var(--s-2) 0; border-bottom: var(--border); }
+</style>

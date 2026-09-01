@@ -31,6 +31,7 @@ Allow: /
 Disallow: /api/
 Disallow: /vrienden/
 Disallow: /admin
+Disallow: /beheer
 
 # AI-crawlers expliciet toegestaan
 User-agent: GPTBot

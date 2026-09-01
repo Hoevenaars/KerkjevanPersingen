@@ -1,0 +1,43 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  titel: string;
+}
+
+const { titel } = Astro.props;
+---
+
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{titel} — Beheer Kerkje van Persingen</title>
+  </head>
+  <body class="beheer">
+    <header class="balk">
+      <p class="merk">Beheer · Kerkje van Persingen</p>
+      <p class="status">Niet live · Sanity blijft leidend</p>
+    </header>
+    <main class="wrap">
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  .beheer { background: var(--cream); min-height: 100vh; }
+  .balk {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s-4);
+    padding: var(--s-4) var(--s-6);
+    border-bottom: var(--border);
+    background: var(--white);
+  }
+  .merk { margin: 0; font-weight: 600; color: var(--pine); }
+  .status { margin: 0; color: var(--ink-mute); font-size: var(--t-sm); }
+  .wrap { padding: var(--s-8) var(--s-6); max-width: 960px; }
+</style>
