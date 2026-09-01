@@ -158,7 +158,9 @@ describe('dashboard en bronnen', () => {
     assert.equal(huidigeContentBron({}), 'sanity');
     assert.equal(huidigeContentBron({ CONTENT_BRON: 'supabase' }), 'sanity');
     assert.equal(huidigeContentBron({ ALLOW_SUPABASE_CONTENT: 'true', CONTENT_BRON: 'supabase' }), 'supabase');
+    assert.equal(huidigeContentBron({ ALLOW_SUPABASE_CONTENT: true, CONTENT_BRON: 'supabase' }), 'supabase');
     assert.equal(beheerIngeschakeld({}), false);
+    assert.equal(beheerIngeschakeld({ BEHEER_ENABLED: true }), true);
     assert.equal(standaardBronnen().boekingen, 'sanity');
   });
 

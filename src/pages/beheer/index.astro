@@ -3,15 +3,16 @@ export const prerender = false;
 
 import BeheerLayout from '../../layouts/Beheer.astro';
 import { MODULES, STANDAARD_VERHUURTYPEN } from '../../platform/types.ts';
-import { standaardBronnen } from '../../platform/bron.ts';
+import { beheerIngeschakeld, standaardBronnen } from '../../platform/bron.ts';
 
 /**
  * /beheer is voorbereid maar standaard uit. Zonder BEHEER_ENABLED=true
  * bestaat deze route niet voor bezoekers (404). De publieke site, Sanity
  * Studio (/admin) en alle formulieren blijven ongewijzigd.
  */
-const enabled =
-  (import.meta.env.BEHEER_ENABLED ?? process.env.BEHEER_ENABLED) === 'true';
+const enabled = beheerIngeschakeld({
+  BEHEER_ENABLED: process.env.BEHEER_ENABLED ?? import.meta.env.BEHEER_ENABLED,
+});
 
 if (!enabled) {
   return new Response(null, {

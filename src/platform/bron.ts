@@ -18,19 +18,26 @@ export function standaardBronnen(): BronnenTabel {
   return Object.fromEntries(DATATYPEN.map((type) => [type, STANDAARD_SCHRIJVENDE_BRON])) as BronnenTabel;
 }
 
+export function vlagAan(waarde: unknown): boolean {
+  return waarde === true || waarde === 'true';
+}
+
 /**
  * Publieke website leest Sanity, tenzij beide vlaggen bewust aan staan.
  * De website gebruikt deze functie nog niet: eerst parallel controleren.
+ *
+ * Astro kan `import.meta.env.X=true` naar boolean `true` omzetten; daarom
+ * accepteren we zowel de string als de boolean.
  */
-export function huidigeContentBron(env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): ContentBron {
-  const toegestaan = env.ALLOW_SUPABASE_CONTENT === 'true';
+export function huidigeContentBron(env: NodeJS.ProcessEnv | Record<string, unknown> = process.env): ContentBron {
+  const toegestaan = vlagAan(env.ALLOW_SUPABASE_CONTENT);
   const gekozen = env.CONTENT_BRON;
   if (toegestaan && gekozen === 'supabase') return 'supabase';
   return 'sanity';
 }
 
-export function beheerIngeschakeld(env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): boolean {
-  return env.BEHEER_ENABLED === 'true';
+export function beheerIngeschakeld(env: NodeJS.ProcessEnv | Record<string, unknown> = process.env): boolean {
+  return vlagAan(env.BEHEER_ENABLED);
 }
 
 export function magSchrijvenNaarBeheer(
