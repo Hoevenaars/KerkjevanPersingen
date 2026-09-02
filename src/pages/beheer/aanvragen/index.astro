@@ -1,0 +1,80 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_AANVRAGEN,
+  AANVRAAG_LABEL,
+  SOORT_LABEL,
+  formatNl,
+} from '../../../platform/demo-data';
+
+const filter = Astro.url.searchParams.get('status') ?? 'alle';
+const lijst =
+  filter === 'alle' ? DEMO_AANVRAGEN : DEMO_AANVRAGEN.filter((a) => a.status === filter);
+
+const tabs = [
+  { href: '/beheer/aanvragen/', status: 'alle', label: 'Alle' },
+  { href: '/beheer/aanvragen/?status=nieuw', status: 'nieuw', label: 'Nieuw' },
+  { href: '/beheer/aanvragen/?status=in_behandeling', status: 'in_behandeling', label: 'In behandeling' },
+  { href: '/beheer/aanvragen/?status=goedgekeurd', status: 'goedgekeurd', label: 'Goedgekeurd' },
+  { href: '/beheer/aanvragen/?status=afgewezen', status: 'afgewezen', label: 'Afgewezen' },
+];
+---
+
+<Beheer titel="Aanvragen">
+  <header class="bh-top">
+    <div>
+      <h1>Aanvragen</h1>
+      <p class="bh-hint">Externe verhuurverzoeken. Klik een naam om de behandeling te openen.</p>
+    </div>
+  </header>
+
+  <nav class="bh-tabs" aria-label="Filter aanvragen">
+    {
+      tabs.map((tab) => (
+        <a href={tab.href} aria-current={filter === tab.status ? 'page' : undefined}>
+          {tab.label}
+        </a>
+      ))
+    }
+  </nav>
+
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Naam</th>
+        <th>Soort</th>
+        <th>Datum</th>
+        <th>Binnengekomen</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        lijst.length === 0 ? (
+          <tr>
+            <td colspan="5" class="bh-leeg">Geen aanvragen in deze filter.</td>
+          </tr>
+        ) : (
+          lijst.map((a) => (
+            <tr>
+              <td>
+                <a href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
+              </td>
+              <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
+              <td>
+                {formatNl(a.start)}
+                {a.eind !== a.start ? ` – ${formatNl(a.eind)}` : ''}
+              </td>
+              <td>{formatNl(a.binnengekomen.slice(0, 10))}</td>
+              <td>
+                <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
+              </td>
+            </tr>
+          ))
+        )
+      }
+    </tbody>
+  </table>
+</Beheer>

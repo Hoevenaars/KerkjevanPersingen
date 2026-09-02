@@ -1,0 +1,185 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_BOEKINGEN,
+  DEMO_RELATIES,
+  DEMO_COMMUNICATIE,
+  DEMO_DOCUMENTEN,
+  BOEKING_LABEL,
+  SOORT_LABEL,
+  COMMUNICATIE_LABEL,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../platform/demo-data';
+
+const id = Astro.params.id ?? '';
+const boeking = DEMO_BOEKINGEN.find((b) => b.id === id);
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+if (!boeking) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
+const relatie = DEMO_RELATIES.find((r) => r.id === boeking.relatieId);
+const docs = DEMO_DOCUMENTEN.filter((d) => d.boekingId === boeking.id);
+const mails = DEMO_COMMUNICATIE.filter((c) => c.boekingId === boeking.id);
+const flash = Astro.url.searchParams.get('demo') === '1';
+const basis = `/beheer/boekingen/${boeking.id}/`;
+---
+
+<Beheer titel={boeking.interneTitel}>
+  <p class="bh-crumb"><a href="/beheer/boekingen/">Boekingen</a> / {boeking.nummer}</p>
+  <header class="bh-top">
+    <div>
+      <h1>{boeking.interneTitel}</h1>
+      <p class="bh-hint">
+        {boeking.nummer} · {SOORT_LABEL[boeking.soort] ?? boeking.soort} · {formatNl(boeking.start)}
+        · <span class={`bh-badge bh-badge--${boeking.status}`}>{BOEKING_LABEL[boeking.status]}</span>
+        {boeking.publiek ? '' : ' · privé (niet in publieke agenda)'}
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <nav class="bh-tabs" aria-label="Boekingonderdelen">
+    <a href={basis} aria-current={tab === 'gegevens' ? 'page' : undefined}>Gegevens</a>
+    <a href={`${basis}?tab=documenten`} aria-current={tab === 'documenten' ? 'page' : undefined}>Documenten</a>
+    <a href={`${basis}?tab=communicatie`} aria-current={tab === 'communicatie' ? 'page' : undefined}>Communicatie</a>
+  </nav>
+
+  {
+    tab === 'gegevens' && (
+      <div class="bh-split">
+        <section class="bh-kaart">
+          <h2>Boeking</h2>
+          <dl class="bh-dl">
+            <dt>Huurder</dt>
+            <dd>
+              {relatie ? <a href={`/beheer/relaties/${relatie.id}/`}>{boeking.huurder}</a> : boeking.huurder}
+            </dd>
+            <dt>E-mail</dt>
+            <dd>{boeking.email}</dd>
+            <dt>Periode</dt>
+            <dd>
+              {formatNl(boeking.start)}
+              {boeking.eind !== boeking.start ? ` – ${formatNl(boeking.eind)}` : ''}
+            </dd>
+            <dt>Tarief</dt>
+            <dd>{boeking.tarief}</dd>
+            <dt>Aanbetaling</dt>
+            <dd>
+              {boeking.aanbetaling} {boeking.aanbetalingBinnen ? '(binnen)' : '(nog niet)'}
+            </dd>
+            {boeking.optieEind && (
+              <>
+                <dt>Optie tot</dt>
+                <dd>{formatNl(boeking.optieEind)}</dd>
+              </>
+            )}
+            <dt>Notities</dt>
+            <dd>{boeking.notities}</dd>
+          </dl>
+        </section>
+        <section class="bh-kaart">
+          <h2>Acties (voorbeeld)</h2>
+          <p class="bh-muted">Geen contractgeneratie, geen echte mail, geen wijziging in Sanity.</p>
+          <form method="post" class="bh-acties">
+            <button class="bh-btn" type="submit" name="actie" value="definitief">
+              Zet definitief
+            </button>
+            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
+              Verleng optie
+            </button>
+            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
+              Annuleer
+            </button>
+          </form>
+        </section>
+      </div>
+    )
+  }
+
+  {
+    tab === 'documenten' && (
+      <section class="bh-kaart">
+        <h2>Documenten</h2>
+        <p class="bh-muted">Voorbeeldbestanden. Uploaden of downloaden wijzigt niets op de site.</p>
+        {docs.length === 0 ? (
+          <p class="bh-leeg">Nog geen documenten bij deze boeking.</p>
+        ) : (
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Bestand</th>
+                <th>Soort</th>
+                <th>Datum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {docs.map((d) => (
+                <tr>
+                  <td>{d.naam}</td>
+                  <td>{d.soort}</td>
+                  <td>{formatNl(d.datum)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <form method="post" class="bh-acties">
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="upload">
+            Document toevoegen
+          </button>
+        </form>
+      </section>
+    )
+  }
+
+  {
+    tab === 'communicatie' && (
+      <section class="bh-kaart">
+        <h2>Communicatie</h2>
+        <p class="bh-muted">Concepten en geplande mails — niet verstuurd. Reserve-lijstmail blijft handmatig.</p>
+        {mails.length === 0 ? (
+          <p class="bh-leeg">Geen communicatie voor deze boeking.</p>
+        ) : (
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Template</th>
+                <th>Ontvanger</th>
+                <th>Wanneer</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mails.map((c) => (
+                <tr>
+                  <td>{c.template}</td>
+                  <td>{c.ontvanger}</td>
+                  <td>{formatNl(c.wanneer)}</td>
+                  <td>
+                    <span class={`bh-badge bh-badge--${c.status}`}>{COMMUNICATIE_LABEL[c.status]}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <form method="post" class="bh-acties">
+          <button class="bh-btn" type="submit" name="actie" value="concept">
+            Maak mailconcept
+          </button>
+        </form>
+      </section>
+    )
+  }
+</Beheer>

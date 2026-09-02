@@ -1,0 +1,53 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { zoekDemo } from '../../../platform/demo-data';
+
+const q = Astro.url.searchParams.get('q') ?? '';
+const treffers = zoekDemo(q);
+---
+
+<Beheer titel="Zoeken">
+  <header class="bh-top">
+    <div>
+      <h1>Zoeken</h1>
+      <p class="bh-hint">
+        {q.trim()
+          ? `Resultaten voor “${q.trim()}” in de voorbeelddata.`
+          : 'Typ een naam of datum in de zoekbalk, bijvoorbeeld Jansen of 12 september.'}
+      </p>
+    </div>
+  </header>
+
+  {
+    q.trim() && treffers.length === 0 && (
+      <p class="bh-leeg">Geen treffers in de voorbeelddata.</p>
+    )
+  }
+
+  {
+    treffers.length > 0 && (
+      <table class="bh-tabel">
+        <thead>
+          <tr>
+            <th>Soort</th>
+            <th>Titel</th>
+            <th>Extra</th>
+          </tr>
+        </thead>
+        <tbody>
+          {treffers.map((t) => (
+            <tr>
+              <td>{t.soort}</td>
+              <td>
+                <a href={t.href}>{t.titel}</a>
+              </td>
+              <td>{t.extra}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+</Beheer>

@@ -1,0 +1,105 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_AGENDA,
+  DEMO_INTERN,
+  DEMO_BOEKINGEN,
+  AGENDA_LABEL,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../platform/demo-data';
+
+const id = Astro.params.id ?? '';
+const publiek = DEMO_AGENDA.find((p) => p.id === id);
+const intern = DEMO_INTERN.find((i) => i.id === id);
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+if (!publiek && !intern) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+const boeking = publiek?.boekingId ? DEMO_BOEKINGEN.find((b) => b.id === publiek.boekingId) : undefined;
+const titel = publiek?.titel ?? intern!.titel;
+---
+
+<Beheer titel={titel}>
+  <p class="bh-crumb"><a href="/beheer/agenda/">Agenda</a> / {titel}</p>
+  <header class="bh-top">
+    <div>
+      <h1>{titel}</h1>
+      <p class="bh-hint">
+        {publiek
+          ? `${formatNl(publiek.start)}${publiek.eind !== publiek.start ? ` – ${formatNl(publiek.eind)}` : ''}`
+          : `${formatNl(intern!.start)}${intern!.eind !== intern!.start ? ` – ${formatNl(intern!.eind)}` : ''}`}
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  {
+    publiek && (
+      <section class="bh-kaart">
+        <h2>Publieke activiteit</h2>
+        <dl class="bh-dl">
+          <dt>Slug</dt>
+          <dd>{publiek.slug}</dd>
+          <dt>Status</dt>
+          <dd>
+            <span class={`bh-badge bh-badge--${publiek.status}`}>{AGENDA_LABEL[publiek.status]}</span>
+          </dd>
+          <dt>Omschrijving</dt>
+          <dd>{publiek.omschrijving || 'Nog geen tekst.'}</dd>
+          {boeking && (
+            <>
+              <dt>Boeking</dt>
+              <dd>
+                <a href={`/beheer/boekingen/${boeking.id}/`}>
+                  {boeking.nummer} {boeking.interneTitel}
+                </a>
+              </dd>
+            </>
+          )}
+        </dl>
+        <p class="bh-muted">Publiceren zou later pas de website raken. Nu gebeurt er niets.</p>
+        <form method="post" class="bh-acties">
+          <button class="bh-btn" type="submit" name="actie" value="publiceren">
+            Zet online
+          </button>
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="content">
+            Vraag tekst/foto
+          </button>
+        </form>
+      </section>
+    )
+  }
+
+  {
+    intern && (
+      <section class="bh-kaart">
+        <h2>Interne activiteit</h2>
+        <dl class="bh-dl">
+          <dt>Periode</dt>
+          <dd>
+            {formatNl(intern.start)}
+            {intern.eind !== intern.start ? ` – ${formatNl(intern.eind)}` : ''}
+          </dd>
+          <dt>Blokkeert verhuur</dt>
+          <dd>{intern.blokkeert ? 'Ja — publieke kalender toont bezet' : 'Nee'}</dd>
+        </dl>
+        <form method="post" class="bh-acties">
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewerk">
+            Bewaar (voorbeeld)
+          </button>
+        </form>
+      </section>
+    )
+  }
+</Beheer>

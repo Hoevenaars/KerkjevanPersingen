@@ -1,0 +1,109 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_RELATIES,
+  DEMO_BOEKINGEN,
+  DEMO_AANVRAGEN,
+  BOEKING_LABEL,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../platform/demo-data';
+
+const id = Astro.params.id ?? '';
+const relatie = DEMO_RELATIES.find((r) => r.id === id);
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+if (!relatie) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const boekingen = DEMO_BOEKINGEN.filter((b) => b.relatieId === relatie.id);
+const aanvragen = DEMO_AANVRAGEN.filter((a) => a.email === relatie.email);
+const flash = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel={relatie.naam}>
+  <p class="bh-crumb"><a href="/beheer/relaties/">Relaties</a> / {relatie.naam}</p>
+  <header class="bh-top">
+    <div>
+      <h1>{relatie.naam}</h1>
+      <p class="bh-hint">{relatie.rollen.join(', ')}</p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <h2>Contact</h2>
+    <dl class="bh-dl">
+      <dt>E-mail</dt>
+      <dd>{relatie.email}</dd>
+      <dt>Telefoon</dt>
+      <dd>{relatie.telefoon}</dd>
+      <dt>Reservelijst exposities</dt>
+      <dd>{relatie.reservelijst ? 'Ja — mail bij vrijkomend weekend blijft handmatig' : 'Nee'}</dd>
+    </dl>
+    <form method="post" class="bh-acties">
+      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
+        Bewaar (voorbeeld)
+      </button>
+    </form>
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Boekingen</h2>
+    {
+      boekingen.length === 0 ? (
+        <p class="bh-leeg">Geen boekingen.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Nummer</th>
+              <th>Titel</th>
+              <th>Datum</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {boekingen.map((b) => (
+              <tr>
+                <td>
+                  <a href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
+                </td>
+                <td>{b.interneTitel}</td>
+                <td>{formatNl(b.start)}</td>
+                <td>
+                  <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </section>
+
+  {
+    aanvragen.length > 0 && (
+      <section class="bh-kaart">
+        <h2>Aanvragen</h2>
+        <ul>
+          {aanvragen.map((a) => (
+            <li>
+              <a href={`/beheer/aanvragen/${a.id}/`}>
+                {a.soort} op {formatNl(a.start)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+</Beheer>

@@ -1,11 +1,43 @@
 ---
 import '../styles/global.css';
+import '../styles/beheer.css';
+import { DEMO_BANNER } from '../platform/demo-data';
 
 interface Props {
   titel: string;
 }
 
 const { titel } = Astro.props;
+const pad = Astro.url.pathname;
+const zoekterm = Astro.url.searchParams.get('q') ?? '';
+
+const hoofd = [
+  { href: '/beheer/', label: 'Vandaag' },
+  { href: '/beheer/aanvragen/', label: 'Aanvragen' },
+  { href: '/beheer/boekingen/', label: 'Boekingen' },
+  { href: '/beheer/kalender/', label: 'Kalender' },
+  { href: '/beheer/agenda/', label: 'Agenda' },
+  { href: '/beheer/relaties/', label: 'Relaties' },
+  { href: '/beheer/finance/', label: 'Finance' },
+  { href: '/beheer/vrienden/', label: 'Vrienden' },
+  { href: '/beheer/nieuwsbrief/', label: 'Nieuwsbrief' },
+];
+
+const instellingen = [
+  { href: '/beheer/instellingen/', label: 'Algemeen' },
+  { href: '/beheer/instellingen/verhuur/', label: 'Verhuur' },
+  { href: '/beheer/instellingen/finance/', label: 'Finance' },
+  { href: '/beheer/instellingen/templates/', label: 'Templates' },
+  { href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
+];
+
+function actief(href: string): boolean {
+  if (href === '/beheer/') return pad === '/beheer' || pad === '/beheer/';
+  if (href === '/beheer/instellingen/') {
+    return pad === '/beheer/instellingen' || pad === '/beheer/instellingen/';
+  }
+  return pad === href || pad.startsWith(href);
+}
 ---
 
 <!doctype html>
@@ -15,29 +47,55 @@ const { titel } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <title>{titel} — Beheer Kerkje van Persingen</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Work+Sans:wght@400;500;600&display=swap"
+    />
   </head>
-  <body class="beheer">
-    <header class="balk">
-      <p class="merk">Beheer · Kerkje van Persingen</p>
-      <p class="status">Niet live · Sanity blijft leidend</p>
-    </header>
-    <main class="wrap">
-      <slot />
-    </main>
+  <body>
+    <div class="bh-app">
+      <nav class="bh-nav" aria-label="Beheer">
+        <a class="bh-merk" href="/beheer/">
+          Beheer
+          <span>Kerkje van Persingen</span>
+        </a>
+        <form class="bh-zoek" action="/beheer/zoeken/" method="get">
+          <label class="visually-hidden" for="bh-q">Zoeken</label>
+          <input id="bh-q" name="q" type="search" placeholder="Zoek Jansen, 12 september…" value={zoekterm} />
+          <button type="submit">Zoek</button>
+        </form>
+        <ul class="bh-menu">
+          {
+            hoofd.map((item) => (
+              <li>
+                <a href={item.href} aria-current={actief(item.href) ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="bh-groep">Instellingen</p>
+        <ul class="bh-sub">
+          {
+            instellingen.map((item) => (
+              <li>
+                <a href={item.href} aria-current={actief(item.href) ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="bh-user">Voorbeeldweergave als Nick (Super Admin)</p>
+      </nav>
+      <div class="bh-main">
+        <p class="bh-banner">{DEMO_BANNER}</p>
+        <slot />
+      </div>
+    </div>
   </body>
 </html>
-
-<style>
-  .beheer { background: var(--cream); min-height: 100vh; }
-  .balk {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--s-4);
-    padding: var(--s-4) var(--s-6);
-    border-bottom: var(--border);
-    background: var(--white);
-  }
-  .merk { margin: 0; font-weight: 600; color: var(--pine); }
-  .status { margin: 0; color: var(--ink-mute); font-size: var(--t-sm); }
-  .wrap { padding: var(--s-8) var(--s-6); max-width: 960px; }
-</style>

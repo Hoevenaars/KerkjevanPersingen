@@ -1,126 +1,149 @@
 ---
 export const prerender = false;
 
-import BeheerLayout from '../../layouts/Beheer.astro';
-import { MODULES, STANDAARD_VERHUURTYPEN } from '../../platform/types.ts';
-import { beheerIngeschakeld, standaardBronnen } from '../../platform/bron.ts';
+import Beheer from '../../layouts/Beheer.astro';
+import {
+  DEMO_AANVRAGEN,
+  DEMO_BOEKINGEN,
+  DEMO_AGENDA,
+  DEMO_INTERN,
+  AANVRAAG_LABEL,
+  BOEKING_LABEL,
+  AGENDA_LABEL,
+  SOORT_LABEL,
+  DASHBOARD_HREF,
+  demoDashboardBron,
+  formatNl,
+} from '../../platform/demo-data';
+import { dashboardVoor } from '../../platform/dashboard.ts';
 
-/**
- * /beheer is voorbereid maar standaard uit. Zonder BEHEER_ENABLED=true
- * bestaat deze route niet voor bezoekers (404). De publieke site, Sanity
- * Studio (/admin) en alle formulieren blijven ongewijzigd.
- */
-const enabled = beheerIngeschakeld({
-  BEHEER_ENABLED: process.env.BEHEER_ENABLED ?? import.meta.env.BEHEER_ENABLED,
-});
-
-if (!enabled) {
-  return new Response(null, {
-    status: 404,
-    headers: { 'X-Robots-Tag': 'noindex, nofollow' },
-  });
-}
-
-const bronnen = standaardBronnen();
-const moduleLabels: Record<(typeof MODULES)[number], string> = {
-  dashboard: 'Vandaag',
-  aanvragen: 'Aanvragen',
-  boekingen: 'Boekingen',
-  kalender: 'Kalender',
-  agenda: 'Agenda',
-  relaties: 'Relaties',
-  finance: 'Finance',
-  vrienden: 'Vrienden',
-  nieuwsbrief: 'Nieuwsbrief',
-  templates: 'Templates',
-  gebruikers: 'Gebruikers',
-  instellingen: 'Instellingen',
-};
+const rechten = { isSuperAdmin: true, perModule: {} };
+const kaarten = dashboardVoor(rechten, demoDashboardBron());
+const nieuwe = DEMO_AANVRAGEN.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling');
+const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');
 ---
 
-<BeheerLayout titel="Voorbereiding">
-  <p class="banner">
-    Sanity is nog de enige schrijvende bron. Dit scherm is een bouwplaats,
-    geen live beheeromgeving.
-  </p>
+<Beheer titel="Vandaag">
+  <header class="bh-top">
+    <div>
+      <h1>Vandaag</h1>
+      <p class="bh-hint">
+        Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.
+      </p>
+    </div>
+  </header>
 
-  <h1>Beheerplatform</h1>
-  <p class="lede">
-    Fundering volgens Functioneel Ontwerp v1.0. Modules, rechten, kalenderregels
-    en het datamodel staan klaar. Geen publieke pagina is omgezet.
-  </p>
-
-  <h2>Hoofdmodules</h2>
-  <ul class="modules">
+  <ul class="bh-kaarten">
     {
-      MODULES.map((sleutel) => (
+      kaarten.map((item) => (
         <li>
-          <strong>{moduleLabels[sleutel]}</strong>
-          <span>klaar voor bouw</span>
+          <a href={DASHBOARD_HREF[item.sleutel] ?? '/beheer/'}>
+            <strong>{item.aantal}</strong>
+            <span>{item.label}</span>
+          </a>
         </li>
       ))
     }
   </ul>
 
-  <h2>Schrijvende bron (nu)</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Datatype</th>
-        <th>Bron</th>
-      </tr>
-    </thead>
-    <tbody>
-      {
-        Object.entries(bronnen).map(([type, bron]) => (
-          <tr>
-            <td>{type}</td>
-            <td>{bron}</td>
-          </tr>
-        ))
-      }
-    </tbody>
-  </table>
+  <section class="bh-kaart">
+    <h2>Aanvragen die actie vragen</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Naam</th>
+          <th>Soort</th>
+          <th>Datum</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          nieuwe.map((a) => (
+            <tr>
+              <td>
+                <a href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
+              </td>
+              <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
+              <td>{formatNl(a.start)}</td>
+              <td>
+                <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
 
-  <h2>Verhuurtypen</h2>
-  <ul>
-    {
-      STANDAARD_VERHUURTYPEN.map((type) => (
-        <li>
-          {type.naam} — {type.dagregel === 'expositie_weekend' ? 'zaterdag + zondag' : 'maandag t/m vrijdag'}
-        </li>
-      ))
-    }
-  </ul>
-</BeheerLayout>
+  <section class="bh-kaart">
+    <h2>Opties</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Boeking</th>
+          <th>Huurder</th>
+          <th>Datum</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          opties.map((b) => (
+            <tr>
+              <td>
+                <a href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
+              </td>
+              <td>{b.huurder}</td>
+              <td>{formatNl(b.start)}</td>
+              <td>
+                <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
 
-<style>
-  .banner {
-    background: var(--cream-deep);
-    border: var(--border);
-    padding: var(--s-4) var(--s-6);
-    border-radius: var(--radius);
-    color: var(--pine);
-    font-weight: 600;
-  }
-  .lede { color: var(--ink-soft); max-width: var(--measure); }
-  .modules {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: var(--s-3);
-  }
-  .modules li {
-    border: var(--border);
-    border-radius: var(--radius);
-    padding: var(--s-4);
-    background: var(--white);
-    display: flex;
-    justify-content: space-between;
-    gap: var(--s-4);
-  }
-  .modules span { color: var(--ink-mute); font-size: var(--t-sm); }
-  table { border-collapse: collapse; margin-bottom: var(--s-8); }
-  th, td { text-align: left; padding: var(--s-2) var(--s-4) var(--s-2) 0; border-bottom: var(--border); }
-</style>
+  <section class="bh-kaart">
+    <h2>Agenda en intern</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Wat</th>
+          <th>Datum</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          DEMO_AGENDA.map((p) => (
+            <tr>
+              <td>
+                <a href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
+              </td>
+              <td>{formatNl(p.start)}</td>
+              <td>
+                <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
+              </td>
+            </tr>
+          ))
+        }
+        {
+          DEMO_INTERN.map((i) => (
+            <tr>
+              <td>
+                <a href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
+              </td>
+              <td>{formatNl(i.start)}</td>
+              <td>
+                <span class="bh-badge">{i.blokkeert ? 'Blokkeert verhuur' : 'Intern'}</span>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+</Beheer>

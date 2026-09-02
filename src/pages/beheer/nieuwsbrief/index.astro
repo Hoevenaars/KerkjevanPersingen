@@ -1,0 +1,44 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { DEMO_NIEUWSBRIEVEN, formatNl } from '../../../platform/demo-data';
+---
+
+<Beheer titel="Nieuwsbrief">
+  <header class="bh-top">
+    <div>
+      <h1>Nieuwsbrief</h1>
+      <p class="bh-hint">
+        Voorbeeldweken. Openen, bewerken en “verzenden” raakt de echte vriendenmail niet.
+      </p>
+    </div>
+  </header>
+
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Week</th>
+        <th>Kort nieuws</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        DEMO_NIEUWSBRIEVEN.map((n) => (
+          <tr>
+            <td>
+              <a href={`/beheer/nieuwsbrief/${n.id}/`}>{formatNl(n.week)}</a>
+            </td>
+            <td>{n.kortNieuws || '—'}</td>
+            <td>
+              <span class={`bh-badge ${n.verstuurd ? 'bh-badge--definitief' : n.overgeslagen ? 'bh-badge--verborgen' : 'bh-badge--optie'}`}>
+                {n.verstuurd ? 'Verstuurd' : n.overgeslagen ? 'Overgeslagen' : 'Concept'}
+              </span>
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Beheer>

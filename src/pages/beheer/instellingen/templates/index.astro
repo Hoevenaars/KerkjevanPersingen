@@ -1,0 +1,42 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { DEMO_TEMPLATES } from '../../../../platform/demo-data';
+---
+
+<Beheer titel="Templates">
+  <header class="bh-top">
+    <div>
+      <h1>Templates</h1>
+      <p class="bh-hint">Mailteksten per verhuurtype. Bewerken verstuurt niets.</p>
+    </div>
+  </header>
+
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Naam</th>
+        <th>Type</th>
+        <th>Trigger</th>
+        <th>Verzendwijze</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        DEMO_TEMPLATES.map((t) => (
+          <tr>
+            <td>
+              <a href={`/beheer/instellingen/templates/${t.id}/`}>{t.naam}</a>
+            </td>
+            <td>{t.verhuurtype}</td>
+            <td>
+              {t.trigger} {t.termijn !== '—' ? `· ${t.termijn}` : ''}
+            </td>
+            <td>{t.verzendwijze}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Beheer>

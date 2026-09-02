@@ -1,0 +1,117 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_AANVRAGEN,
+  DEMO_BOEKINGEN,
+  DEMO_INTERN,
+  formatMaandNl,
+  formatNl,
+  maandRaster,
+  verschuifMaand,
+} from '../../../platform/demo-data';
+import {
+  interneStatusVoorDag,
+  type BezettingsItem,
+} from '../../../platform/kalender.ts';
+
+const maandParam = Astro.url.searchParams.get('maand') ?? '2026-09';
+const maand = /^\d{4}-\d{2}$/.test(maandParam) ? maandParam : '2026-09';
+const vorige = verschuifMaand(maand, -1);
+const volgende = verschuifMaand(maand, 1);
+const cellen = maandRaster(maand);
+
+const items: BezettingsItem[] = [
+  ...DEMO_AANVRAGEN.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling').map((a) => ({
+    periode: { start: a.start, eind: a.eind },
+    status: 'aanvraag' as const,
+    blokkeertPubliek: false,
+  })),
+  ...DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen' || b.status === 'definitief').map(
+    (b) => ({
+      periode: { start: b.start, eind: b.eind },
+      status: b.status,
+      blokkeertPubliek: b.status === 'definitief',
+    }),
+  ),
+  ...DEMO_INTERN.map((i) => ({
+    periode: { start: i.start, eind: i.eind },
+    status: 'interne_blokkade' as const,
+    blokkeertPubliek: i.blokkeert,
+  })),
+];
+
+const STATUS_TEKST: Record<string, string> = {
+  vrij: '',
+  aanvraag: 'Aanvraag',
+  optie: 'Optie',
+  optie_verlopen: 'Optie verlopen',
+  definitief: 'Definitief',
+  interne_activiteit: 'Intern',
+  afgerond: 'Afgerond',
+};
+
+function hrefVoorDag(ymd: string): string | null {
+  const boeking = DEMO_BOEKINGEN.find((b) => b.start <= ymd && ymd <= b.eind);
+  if (boeking) return `/beheer/boekingen/${boeking.id}/`;
+  const aanvraag = DEMO_AANVRAGEN.find((a) => a.start <= ymd && ymd <= a.eind);
+  if (aanvraag) return `/beheer/aanvragen/${aanvraag.id}/`;
+  const intern = DEMO_INTERN.find((i) => i.start <= ymd && ymd <= i.eind);
+  if (intern) return `/beheer/agenda/${intern.id}/`;
+  return null;
+}
+---
+
+<Beheer titel="Kalender">
+  <header class="bh-top">
+    <div>
+      <h1>Kalender</h1>
+      <p class="bh-hint">
+        Interne statussen (aanvraag, optie, definitief, intern). Dit is niet de publieke agenda —
+        die toont alleen vrij of bezet.
+      </p>
+    </div>
+    <p class="bh-hint">
+      <a href={`/beheer/kalender/?maand=${vorige}`}>← {formatMaandNl(vorige)}</a>
+      &nbsp;·&nbsp;
+      <a href={`/beheer/kalender/?maand=${volgende}`}>{formatMaandNl(volgende)} →</a>
+    </p>
+  </header>
+
+  <h2>{formatMaandNl(maand)}</h2>
+  <p class="bh-legenda">
+    <span>Aanvraag</span>
+    <span>Optie</span>
+    <span>Optie verlopen</span>
+    <span>Definitief</span>
+    <span>Intern</span>
+  </p>
+
+  <div class="bh-kalender" role="grid" aria-label={`Kalender ${formatMaandNl(maand)}`}>
+    {['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'].map((dag) => (
+      <div class="kop">{dag}</div>
+    ))}
+    {
+      cellen.map((cel) => {
+        if (!cel.ymd) return <div class="dag leeg" />;
+        const status = interneStatusVoorDag(cel.ymd, items);
+        const label = STATUS_TEKST[status];
+        const href = label ? hrefVoorDag(cel.ymd) : null;
+        return (
+          <div class="dag">
+            <span class="cijfer">{cel.dag}</span>
+            {label && href ? (
+              <a class={`stip ${status}`} href={href}>
+                {label}
+              </a>
+            ) : label ? (
+              <span class={`stip ${status}`}>{label}</span>
+            ) : null}
+            <span class="visually-hidden">{formatNl(cel.ymd)} {label || 'vrij'}</span>
+          </div>
+        );
+      })
+    }
+  </div>
+</Beheer>

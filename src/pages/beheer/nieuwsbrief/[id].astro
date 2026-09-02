@@ -1,0 +1,92 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_NIEUWSBRIEVEN,
+  DEMO_AGENDA,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../platform/demo-data';
+import { bouwNieuwsbriefHtml, SFEER_URL } from '../../../lib/nieuwsbrief-html';
+
+const id = Astro.params.id ?? '';
+const brief = DEMO_NIEUWSBRIEVEN.find((n) => n.id === id);
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+if (!brief) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+const html = bouwNieuwsbriefHtml(
+  {
+    kortNieuws: brief.kortNieuws || undefined,
+    donatieUpdate: brief.donatieUpdate || undefined,
+  },
+  DEMO_AGENDA.filter((p) => p.omschrijving).map((p) => ({
+    titel: p.titel,
+    datumTekst: formatNl(p.start),
+    omschrijving: p.omschrijving,
+    fotoUrl: SFEER_URL,
+    fotoAlt: p.titel,
+    agendaUrl: 'https://kerkjepersingen.nl/agenda/',
+    kop: 'Komende activiteiten',
+    isExpositie: true,
+  })),
+  'https://kerkjepersingen.nl/vrienden/afmelden',
+  {
+    kop: 'Nieuwsbrief',
+    intro: 'Voorbeeldpreview — deze mail gaat nergens heen.',
+    onderwerp: `Voorbeeld · week ${formatNl(brief.week)}`,
+    agendaKop: 'Komende activiteiten',
+    legeAgendaTekst: 'Deze week geen activiteiten in de voorbeelddata.',
+  },
+);
+---
+
+<Beheer titel={`Nieuwsbrief ${formatNl(brief.week)}`}>
+  <p class="bh-crumb"><a href="/beheer/nieuwsbrief/">Nieuwsbrief</a> / {formatNl(brief.week)}</p>
+  <header class="bh-top">
+    <div>
+      <h1>Week van {formatNl(brief.week)}</h1>
+      <p class="bh-hint">Bewerken en verzenden is een voorbeeld. Resend en Sanity worden niet aangeroepen.</p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <div class="bh-split">
+    <section class="bh-kaart">
+      <h2>Inhoud</h2>
+      <form method="post" class="bh-form">
+        <label for="kort">Kort nieuws</label>
+        <textarea id="kort" name="kortNieuws">{brief.kortNieuws}</textarea>
+        <label for="donatie">Donatie-update</label>
+        <textarea id="donatie" name="donatieUpdate">{brief.donatieUpdate}</textarea>
+        <div class="bh-acties">
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
+            Bewaar concept
+          </button>
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="test">
+            Test naar mezelf
+          </button>
+          <button class="bh-btn" type="submit" name="actie" value="verzend">
+            Verzend (voorbeeld)
+          </button>
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="overslaan">
+            Deze keer niet
+          </button>
+        </div>
+      </form>
+    </section>
+    <section class="bh-kaart">
+      <h2>Preview</h2>
+      <iframe class="bh-preview-frame" title="Voorbeeld nieuwsbrief" srcdoc={html}></iframe>
+    </section>
+  </div>
+</Beheer>

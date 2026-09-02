@@ -1,0 +1,75 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_BOEKINGEN,
+  BOEKING_LABEL,
+  SOORT_LABEL,
+  formatNl,
+} from '../../../platform/demo-data';
+
+const filter = Astro.url.searchParams.get('status') ?? 'alle';
+const lijst =
+  filter === 'alle' ? DEMO_BOEKINGEN : DEMO_BOEKINGEN.filter((b) => b.status === filter);
+
+const tabs = [
+  { href: '/beheer/boekingen/', status: 'alle', label: 'Alle' },
+  { href: '/beheer/boekingen/?status=optie', status: 'optie', label: 'Optie' },
+  { href: '/beheer/boekingen/?status=optie_verlopen', status: 'optie_verlopen', label: 'Optie verlopen' },
+  { href: '/beheer/boekingen/?status=definitief', status: 'definitief', label: 'Definitief' },
+];
+---
+
+<Beheer titel="Boekingen">
+  <header class="bh-top">
+    <div>
+      <h1>Boekingen</h1>
+      <p class="bh-hint">Interne boekingen — nooit zichtbaar op de website. Klik een nummer voor details.</p>
+    </div>
+  </header>
+
+  <nav class="bh-tabs" aria-label="Filter boekingen">
+    {
+      tabs.map((tab) => (
+        <a href={tab.href} aria-current={filter === tab.status ? 'page' : undefined}>
+          {tab.label}
+        </a>
+      ))
+    }
+  </nav>
+
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Nummer</th>
+        <th>Titel</th>
+        <th>Huurder</th>
+        <th>Datum</th>
+        <th>Tarief</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        lijst.map((b) => (
+          <tr>
+            <td>
+              <a href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
+            </td>
+            <td>{b.interneTitel}</td>
+            <td>{b.huurder}</td>
+            <td>
+              {formatNl(b.start)}
+              {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
+            </td>
+            <td>{b.tarief}</td>
+            <td>
+              <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Beheer>
