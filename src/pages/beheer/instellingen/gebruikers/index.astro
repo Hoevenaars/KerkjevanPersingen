@@ -1,0 +1,81 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { DEMO_GEBRUIKERS, DEMO_FLASH, demoNaActie } from '../../../../platform/demo-data';
+import { MODULES, type ModuleSleutel } from '../../../../platform/types.ts';
+import { rechtVoor } from '../../../../platform/rechten.ts';
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+
+const labels: Record<ModuleSleutel, string> = {
+  dashboard: 'Vandaag',
+  aanvragen: 'Aanvragen',
+  boekingen: 'Boekingen',
+  kalender: 'Kalender',
+  agenda: 'Agenda',
+  relaties: 'Relaties',
+  finance: 'Finance',
+  vrienden: 'Vrienden',
+  nieuwsbrief: 'Nieuwsbrief',
+  templates: 'Templates',
+  gebruikers: 'Gebruikers',
+  instellingen: 'Instellingen',
+};
+---
+
+<Beheer titel="Gebruikers">
+  <header class="bh-top">
+    <div>
+      <h1>Gebruikers</h1>
+      <p class="bh-hint">
+        Nick is Super Admin. Nelleke en Paul hebben modulaire rechten. Dit is geen echte login.
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <table class="bh-rechten">
+      <thead>
+        <tr>
+          <th>Module</th>
+          {
+            DEMO_GEBRUIKERS.map((g) => (
+              <th>
+                {g.naam}
+                {g.superAdmin ? ' · Super Admin' : ''}
+              </th>
+            ))
+          }
+        </tr>
+      </thead>
+      <tbody>
+        {
+          MODULES.map((module) => (
+            <tr>
+              <th>{labels[module]}</th>
+              {DEMO_GEBRUIKERS.map((g) => {
+                const niveau = rechtVoor(
+                  { isSuperAdmin: g.superAdmin, perModule: g.rechten },
+                  module,
+                );
+                return <td>{niveau}</td>;
+              })}
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    <form method="post" class="bh-acties">
+      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
+        Bewaar rechten (voorbeeld)
+      </button>
+    </form>
+  </section>
+</Beheer>

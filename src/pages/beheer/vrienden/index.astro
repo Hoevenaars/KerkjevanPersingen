@@ -1,0 +1,88 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_VRIENDEN,
+  DEMO_FLASH,
+  demoNaActie,
+} from '../../../platform/demo-data';
+import { magVriendenExporteren } from '../../../platform/rechten.ts';
+
+const superAdmin = { isSuperAdmin: true, perModule: {} };
+const magExport = magVriendenExporteren(superAdmin);
+
+if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  if (data.get('actie') === 'export' && magExport) {
+    const regels = ['naam;email;frequentie;actief'];
+    for (const v of DEMO_VRIENDEN) {
+      regels.push(`${v.naam};${v.email};${v.frequentie};${v.actief ? 'ja' : 'nee'}`);
+    }
+    return new Response(regels.join('\n') + '\n', {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="vrienden-voorbeeld.csv"',
+        'X-Robots-Tag': 'noindex, nofollow',
+      },
+    });
+  }
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel="Vrienden">
+  <header class="bh-top">
+    <div>
+      <h1>Vrienden</h1>
+      <p class="bh-hint">
+        Voorbeeldlijst — niet de echte vrienden van de website. Export is voor Super Admin en
+        downloadt alleen deze nepdata.
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Naam</th>
+        <th>E-mail</th>
+        <th>Frequentie</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        DEMO_VRIENDEN.map((v) => (
+          <tr>
+            <td>{v.naam}</td>
+            <td>{v.email}</td>
+            <td>{v.frequentie}</td>
+            <td>
+              <span class={`bh-badge ${v.actief ? 'bh-badge--actief' : 'bh-badge--verborgen'}`}>
+                {v.actief ? 'Actief' : 'Inactief'}
+              </span>
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <form method="post" class="bh-acties">
+    {
+      magExport && (
+        <button class="bh-btn" type="submit" name="actie" value="export">
+          Exporteer voorbeeld-CSV
+        </button>
+      )
+    }
+    <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="nieuw">
+      Voeg vriend toe (voorbeeld)
+    </button>
+  </form>
+</Beheer>

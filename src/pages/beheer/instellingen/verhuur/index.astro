@@ -1,0 +1,57 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { DEMO_INSTELLINGEN, DEMO_FLASH, demoNaActie } from '../../../../platform/demo-data';
+import { STANDAARD_VERHUURTYPEN } from '../../../../platform/types.ts';
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel="Verhuurinstellingen">
+  <header class="bh-top">
+    <div>
+      <h1>Verhuur</h1>
+      <p class="bh-hint">Typen, optietermijn en dagregels. Niet gekoppeld aan het aanvraagformulier.</p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <h2>Verhuurtypen</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Dagregel</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          STANDAARD_VERHUURTYPEN.map((t) => (
+            <tr>
+              <td>{t.naam}</td>
+              <td>{t.dagregel === 'expositie_weekend' ? 'Zaterdag + zondag' : 'Maandag t/m vrijdag'}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Optie</h2>
+    <form method="post" class="bh-form">
+      <label for="optie">Optietermijn (dagen)</label>
+      <input id="optie" name="optietermijn" type="number" value={DEMO_INSTELLINGEN.optietermijn} />
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
+      </div>
+    </form>
+  </section>
+</Beheer>

@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'astro';
+import { isBeheerEnabled, beheerUitResponse } from './platform/beheer-gate';
 
 /**
  * Afscherming tot livegang.
@@ -44,6 +45,10 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   // Afmelden moet ook zonder sitewachtwoord werken — dat is een AVG-plicht.
   if (pad.startsWith('/api/cron/') || pad.startsWith('/vrienden/afmelden')) {
     return next();
+  }
+
+  if (pad.startsWith('/beheer') && !isBeheerEnabled()) {
+    return beheerUitResponse();
   }
 
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;

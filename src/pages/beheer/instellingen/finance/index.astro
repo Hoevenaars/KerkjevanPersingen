@@ -1,0 +1,35 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { DEMO_INSTELLINGEN, DEMO_FLASH, demoNaActie } from '../../../../platform/demo-data';
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel="Finance-instellingen">
+  <header class="bh-top">
+    <div>
+      <h1>Finance-instellingen</h1>
+      <p class="bh-hint">Standaard aanbetaling en termijn. Geen koppeling met een bank of boekhouding.</p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <form method="post" class="bh-form">
+      <label for="aanbetaling">Aanbetaling (€)</label>
+      <input id="aanbetaling" name="aanbetaling" type="number" value={DEMO_INSTELLINGEN.aanbetaling} />
+      <label for="termijn">Betaaltermijn (dagen)</label>
+      <input id="termijn" name="betaaltermijn" type="number" value={DEMO_INSTELLINGEN.betaaltermijn} />
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
+      </div>
+    </form>
+  </section>
+</Beheer>

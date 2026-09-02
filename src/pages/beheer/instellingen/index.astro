@@ -1,0 +1,65 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { DEMO_INSTELLINGEN, DEMO_FLASH, demoNaActie } from '../../../platform/demo-data';
+import { standaardBronnen } from '../../../platform/bron.ts';
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+const bronnen = standaardBronnen();
+---
+
+<Beheer titel="Instellingen">
+  <header class="bh-top">
+    <div>
+      <h1>Algemeen</h1>
+      <p class="bh-hint">
+        Sanity blijft de schrijvende bron. Deze velden zijn voorbeeldinstellingen en worden niet bewaard.
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <h2>Openingstijden (voorbeeld)</h2>
+    <form method="post" class="bh-form">
+      <label for="van">Open vanaf</label>
+      <input id="van" name="openingVan" value={DEMO_INSTELLINGEN.openingVan} />
+      <label for="tot">Open tot</label>
+      <input id="tot" name="openingTot" value={DEMO_INSTELLINGEN.openingTot} />
+      <label for="beheerder">Contractbeheerder</label>
+      <input id="beheerder" name="contractbeheerder" value={DEMO_INSTELLINGEN.contractbeheerder} />
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Schrijvende bron (nu)</h2>
+    <p class="bh-muted">Alles staat op Sanity tot een bewuste cutover. Dit scherm wijzigt dat niet.</p>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Datatype</th>
+          <th>Bron</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          Object.entries(bronnen).map(([type, bron]) => (
+            <tr>
+              <td>{type}</td>
+              <td>{bron}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+</Beheer>

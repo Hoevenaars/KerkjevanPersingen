@@ -1,0 +1,107 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_BOEKINGEN,
+  BOEKING_LABEL,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../platform/demo-data';
+import { INITIELE_TARIEVEN } from '../../../platform/finance.ts';
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+const openstaand = DEMO_BOEKINGEN.filter((b) => !b.aanbetalingBinnen && b.status !== 'afgewezen');
+const tarieven = INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= '2026-09-01');
+---
+
+<Beheer titel="Finance">
+  <header class="bh-top">
+    <div>
+      <h1>Finance</h1>
+      <p class="bh-hint">
+        Aanbetalingen en tarieven. Geen bankkoppeling, geen automatische herinnering, geen facturatie.
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <h2>Aanbetalingen</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Boeking</th>
+          <th>Huurder</th>
+          <th>Tarief</th>
+          <th>Aanbetaling</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          DEMO_BOEKINGEN.map((b) => (
+            <tr>
+              <td>
+                <a href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
+              </td>
+              <td>{b.huurder}</td>
+              <td>{b.tarief}</td>
+              <td>
+                {b.aanbetaling} {b.aanbetalingBinnen ? '· binnen' : '· open'}
+              </td>
+              <td>
+                <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {
+      openstaand.length > 0 && (
+        <form method="post" class="bh-acties">
+          <button class="bh-btn" type="submit" name="actie" value="check">
+            Markeer aanbetaling binnen (voorbeeld)
+          </button>
+        </form>
+      )
+    }
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Tarieven (huidige regels)</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Prijs</th>
+          <th>Geldig vanaf</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          tarieven.map((t) => (
+            <tr>
+              <td>{t.verhuurtype}</td>
+              <td>
+                {t.prijstype === 'op_aanvraag'
+                  ? 'Op aanvraag'
+                  : t.prijstype === 'vanaf'
+                    ? `Vanaf € ${t.bedrag}`
+                    : `€ ${t.bedrag}`}
+              </td>
+              <td>{formatNl(t.geldigVanaf)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+</Beheer>

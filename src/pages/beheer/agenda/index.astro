@@ -1,0 +1,82 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_AGENDA,
+  DEMO_INTERN,
+  AGENDA_LABEL,
+  formatNl,
+} from '../../../platform/demo-data';
+---
+
+<Beheer titel="Agenda">
+  <header class="bh-top">
+    <div>
+      <h1>Agenda</h1>
+      <p class="bh-hint">
+        Publieke activiteiten (alleen intern beheer) en interne blokkades. De website toont dit niet.
+      </p>
+    </div>
+  </header>
+
+  <section class="bh-kaart">
+    <h2>Publieke activiteiten</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Titel</th>
+          <th>Datum</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          DEMO_AGENDA.map((p) => (
+            <tr>
+              <td>
+                <a href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
+              </td>
+              <td>
+                {formatNl(p.start)}
+                {p.eind !== p.start ? ` – ${formatNl(p.eind)}` : ''}
+              </td>
+              <td>
+                <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Interne activiteiten</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Titel</th>
+          <th>Datum</th>
+          <th>Blokkade</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          DEMO_INTERN.map((i) => (
+            <tr>
+              <td>
+                <a href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
+              </td>
+              <td>
+                {formatNl(i.start)}
+                {i.eind !== i.start ? ` – ${formatNl(i.eind)}` : ''}
+              </td>
+              <td>{i.blokkeert ? 'Blokkeert verhuurkalender' : 'Geen blokkade'}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+</Beheer>

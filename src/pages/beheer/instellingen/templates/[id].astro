@@ -1,0 +1,49 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../../layouts/Beheer.astro';
+import { DEMO_TEMPLATES, DEMO_FLASH, demoNaActie } from '../../../../../platform/demo-data';
+
+const id = Astro.params.id ?? '';
+const template = DEMO_TEMPLATES.find((t) => t.id === id);
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+if (!template) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel={template.naam}>
+  <p class="bh-crumb">
+    <a href="/beheer/instellingen/templates/">Templates</a> / {template.naam}
+  </p>
+  <header class="bh-top">
+    <div>
+      <h1>{template.naam}</h1>
+      <p class="bh-hint">
+        {template.verhuurtype} · {template.trigger} · {template.verzendwijze} · {template.ontvanger}
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <form method="post" class="bh-form">
+      <label for="onderwerp">Onderwerp</label>
+      <input id="onderwerp" name="onderwerp" value={template.onderwerp} />
+      <label for="inhoud">Inhoud</label>
+      <textarea id="inhoud" name="inhoud">{template.inhoud}</textarea>
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit" name="actie" value="bewaar">
+          Bewaar (voorbeeld)
+        </button>
+      </div>
+    </form>
+  </section>
+</Beheer>

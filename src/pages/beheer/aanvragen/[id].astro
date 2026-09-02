@@ -1,0 +1,97 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_AANVRAGEN,
+  DEMO_RELATIES,
+  AANVRAAG_LABEL,
+  SOORT_LABEL,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../platform/demo-data';
+
+const id = Astro.params.id ?? '';
+const aanvraag = DEMO_AANVRAGEN.find((a) => a.id === id);
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+if (!aanvraag) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const relatie = DEMO_RELATIES.find((r) => r.email === aanvraag.email);
+const flash = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel={aanvraag.naam}>
+  <p class="bh-crumb"><a href="/beheer/aanvragen/">Aanvragen</a> / {aanvraag.naam}</p>
+  <header class="bh-top">
+    <div>
+      <h1>{aanvraag.naam}</h1>
+      <p class="bh-hint">
+        {SOORT_LABEL[aanvraag.soort] ?? aanvraag.soort} · {formatNl(aanvraag.start)}
+        {aanvraag.eind !== aanvraag.start ? ` – ${formatNl(aanvraag.eind)}` : ''} ·
+        <span class={`bh-badge bh-badge--${aanvraag.status}`}>{AANVRAAG_LABEL[aanvraag.status]}</span>
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <div class="bh-split">
+    <section class="bh-kaart">
+      <h2>Gegevens</h2>
+      <dl class="bh-dl">
+        <dt>E-mail</dt>
+        <dd>{aanvraag.email}</dd>
+        <dt>Telefoon</dt>
+        <dd>{aanvraag.telefoon}</dd>
+        <dt>Adres</dt>
+        <dd>{aanvraag.adres}</dd>
+        <dt>Personen</dt>
+        <dd>{aanvraag.personen || '—'}</dd>
+        <dt>Website</dt>
+        <dd>{aanvraag.website ?? '—'}</dd>
+        <dt>Toelichting</dt>
+        <dd>{aanvraag.toelichting}</dd>
+        {
+          relatie && (
+            <>
+              <dt>Relatie</dt>
+              <dd>
+                <a href={`/beheer/relaties/${relatie.id}/`}>{relatie.naam}</a>
+              </dd>
+            </>
+          )
+        }
+        {
+          aanvraag.boekingId && (
+            <>
+              <dt>Boeking</dt>
+              <dd>
+                <a href={`/beheer/boekingen/${aanvraag.boekingId}/`}>{aanvraag.boekingId}</a>
+              </dd>
+            </>
+          )
+        }
+      </dl>
+    </section>
+
+    <section class="bh-kaart">
+      <h2>Behandeling (voorbeeld)</h2>
+      <p class="bh-muted">
+        Deze knoppen slaan niets op en sturen geen mail. De live agenda en mailbox blijven onaangeroerd.
+      </p>
+      <form method="post" class="bh-acties">
+        <button class="bh-btn" type="submit" name="actie" value="optie">Zet in optie</button>
+        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="akkoord">Goedkeuren</button>
+        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="weiger">Afwijzen</button>
+        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mail">Mailconcept</button>
+      </form>
+    </section>
+  </div>
+</Beheer>
