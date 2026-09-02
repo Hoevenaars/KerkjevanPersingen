@@ -14,6 +14,7 @@ export const MODULES = [
   'boekingen',
   'kalender',
   'agenda',
+  'planning',
   'relaties',
   'finance',
   'vrienden',

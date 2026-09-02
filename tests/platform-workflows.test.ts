@@ -148,10 +148,43 @@ describe('dashboard en bronnen', () => {
       communicatieKlaar: 0,
       nieuwsbriefVoorbereiden: 0,
       activiteiten7Dagen: 0,
+      gastherenToewijzen: 3,
       mailFout: 0,
     });
     assert.equal(items.some((item) => item.sleutel === 'nieuwe_aanvragen'), false);
     assert.equal(items.some((item) => item.sleutel === 'aanbetalingen_controleren'), true);
+    assert.equal(items.some((item) => item.sleutel === 'gastheren_toewijzen'), false);
+  });
+
+  test('Hans ziet de planning-tegel, Paul niet', () => {
+    const bron = {
+      nieuweAanvragen: 2,
+      optiesBijnaVerlopen: 0,
+      optiesVerlopen: 0,
+      aanbetalingenControleren: 0,
+      activiteitMistContent: 0,
+      communicatieKlaar: 0,
+      nieuwsbriefVoorbereiden: 0,
+      activiteiten7Dagen: 0,
+      gastherenToewijzen: 3,
+      mailFout: 0,
+    };
+    const hans: GebruikerRechten = {
+      isSuperAdmin: false,
+      perModule: { dashboard: 'lezen', planning: 'schrijven' },
+    };
+    const paul: GebruikerRechten = {
+      isSuperAdmin: false,
+      perModule: { dashboard: 'lezen', finance: 'schrijven', planning: 'verborgen' },
+    };
+    assert.equal(
+      dashboardVoor(hans, bron).some((item) => item.sleutel === 'gastheren_toewijzen'),
+      true,
+    );
+    assert.equal(
+      dashboardVoor(paul, bron).some((item) => item.sleutel === 'gastheren_toewijzen'),
+      false,
+    );
   });
 
   test('website blijft Sanity tot beide vlaggen aan staan', () => {

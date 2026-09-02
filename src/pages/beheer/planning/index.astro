@@ -1,0 +1,80 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import {
+  DEMO_BOEKINGEN,
+  DEMO_GASTHEREN,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../platform/demo-data';
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+const exposities = DEMO_BOEKINGEN.filter((b) => b.soort === 'expositie');
+const actief = DEMO_GASTHEREN.filter((g) => g.actief);
+---
+
+<Beheer titel="Planning">
+  <header class="bh-top">
+    <div>
+      <h1>Planning</h1>
+      <p class="bh-hint">
+        Hans wijst hier een gastheer of gastvrouw toe. Twee weken van tevoren gaan conceptmails
+        naar exposant én gastheer — nu nog voorbeeld, niets wordt verstuurd.
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Expositie</th>
+        <th>Datum</th>
+        <th>Exposant</th>
+        <th>Gastheer</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        exposities.map((b) => (
+          <tr>
+            <td>
+              <a href={`/beheer/boekingen/${b.id}/`}>{b.interneTitel}</a>
+            </td>
+            <td>
+              {formatNl(b.start)}
+              {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
+            </td>
+            <td>{b.huurder}</td>
+            <td>
+              <form method="post" class="bh-form bh-form-rij">
+                <input type="hidden" name="boekingId" value={b.id} />
+                <label class="visually-hidden" for={`g-${b.id}`}>
+                  Gastheer voor {b.interneTitel}
+                </label>
+                <select id={`g-${b.id}`} name="gastheerId">
+                  <option value="">Nog niet ingepland</option>
+                  {actief.map((g) => (
+                    <option value={g.id} selected={g.id === b.gastheerId}>
+                      {g.naam}
+                    </option>
+                  ))}
+                </select>
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
+                  Bewaar
+                </button>
+              </form>
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Beheer>

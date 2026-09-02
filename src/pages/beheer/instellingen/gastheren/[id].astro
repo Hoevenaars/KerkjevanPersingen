@@ -1,0 +1,85 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../../layouts/Beheer.astro';
+import {
+  DEMO_GASTHEREN,
+  DEMO_BOEKINGEN,
+  DEMO_FLASH,
+  demoNaActie,
+  formatNl,
+} from '../../../../../platform/demo-data';
+
+const id = Astro.params.id ?? '';
+const gastheer = DEMO_GASTHEREN.find((g) => g.id === id);
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+if (!gastheer) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+const diensten = DEMO_BOEKINGEN.filter((b) => b.gastheerId === gastheer.id);
+---
+
+<Beheer titel={gastheer.naam}>
+  <p class="bh-crumb">
+    <a href="/beheer/instellingen/gastheren/">Gastheren</a> / {gastheer.naam}
+  </p>
+  <header class="bh-top">
+    <div>
+      <h1>{gastheer.naam}</h1>
+      <p class="bh-hint">{gastheer.actief ? 'Actief' : 'Inactief'}</p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <section class="bh-kaart">
+    <h2>Gegevens</h2>
+    <form method="post" class="bh-form">
+      <label for="naam">Naam</label>
+      <input id="naam" name="naam" value={gastheer.naam} />
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" value={gastheer.email} />
+      <label for="telefoon">Telefoon</label>
+      <input id="telefoon" name="telefoon" value={gastheer.telefoon} />
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit" name="actie" value="bewaar">
+          Bewaar (voorbeeld)
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Ingeplande diensten</h2>
+    {
+      diensten.length === 0 ? (
+        <p class="bh-leeg">Nog geen diensten. Hans plant dit onder Planning.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Expositie</th>
+              <th>Datum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {diensten.map((b) => (
+              <tr>
+                <td>
+                  <a href={`/beheer/boekingen/${b.id}/`}>{b.interneTitel}</a>
+                </td>
+                <td>{formatNl(b.start)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </section>
+</Beheer>

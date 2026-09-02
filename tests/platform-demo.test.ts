@@ -43,6 +43,16 @@ describe('demo-data voor klikbaar /beheer', () => {
     const kaarten = dashboardVoor({ isSuperAdmin: true, perModule: {} }, demoDashboardBron());
     assert.ok(kaarten.some((k) => k.sleutel === 'nieuwe_aanvragen' && k.aantal === 1));
     assert.ok(kaarten.some((k) => k.sleutel === 'opties_verlopen' && k.aantal === 1));
+    assert.ok(kaarten.some((k) => k.sleutel === 'gastheren_toewijzen' && k.aantal === 1));
     assert.ok(kaarten.every((k) => k.aantal > 0));
+  });
+
+  test('zoek “Vos” vindt de gastheer', () => {
+    const treffers = zoekDemo('Vos');
+    assert.ok(treffers.some((t) => t.soort === 'Gastheer' && t.href.includes('g-1')));
+  });
+
+  test('demoDashboardBron telt exposities zonder gastheer', () => {
+    assert.equal(demoDashboardBron().gastherenToewijzen, 1);
   });
 });
