@@ -1,14 +1,14 @@
 ---
 export const prerender = false;
 
-import Beheer from '../../../../../layouts/Beheer.astro';
+import Beheer from '../../../../layouts/Beheer.astro';
 import {
   DEMO_GASTHEREN,
   DEMO_BOEKINGEN,
   DEMO_FLASH,
   demoNaActie,
   formatNl,
-} from '../../../../../platform/demo-data';
+} from '../../../../platform/demo-data';
 
 const id = Astro.params.id ?? '';
 const gastheer = DEMO_GASTHEREN.find((g) => g.id === id);
