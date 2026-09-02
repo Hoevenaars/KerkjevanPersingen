@@ -7,12 +7,14 @@ import {
   DEMO_RELATIES,
   DEMO_COMMUNICATIE,
   DEMO_DOCUMENTEN,
+  DEMO_GASTHEREN,
   BOEKING_LABEL,
   SOORT_LABEL,
   COMMUNICATIE_LABEL,
   DEMO_FLASH,
   demoNaActie,
   formatNl,
+  gastheerVan,
 } from '../../../platform/demo-data';
 
 const id = Astro.params.id ?? '';
@@ -30,6 +32,8 @@ const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
 const relatie = DEMO_RELATIES.find((r) => r.id === boeking.relatieId);
 const docs = DEMO_DOCUMENTEN.filter((d) => d.boekingId === boeking.id);
 const mails = DEMO_COMMUNICATIE.filter((c) => c.boekingId === boeking.id);
+const gastheer = gastheerVan(boeking.gastheerId);
+const actieveGastheren = DEMO_GASTHEREN.filter((g) => g.actief);
 const flash = Astro.url.searchParams.get('demo') === '1';
 const basis = `/beheer/boekingen/${boeking.id}/`;
 ---
@@ -86,7 +90,40 @@ const basis = `/beheer/boekingen/${boeking.id}/`;
             )}
             <dt>Notities</dt>
             <dd>{boeking.notities}</dd>
+            {boeking.soort === 'expositie' && (
+              <>
+                <dt>Gastheer</dt>
+                <dd>
+                  {gastheer ? `${gastheer.naam} · ${gastheer.telefoon}` : 'Nog niet ingepland'}
+                </dd>
+              </>
+            )}
           </dl>
+          {boeking.soort === 'expositie' && (
+            <form method="post" class="bh-form">
+              <label for="gastheer">Gastheer of gastvrouw</label>
+              <select id="gastheer" name="gastheerId">
+                <option value="">Nog niet ingepland</option>
+                {actieveGastheren.map((g) => (
+                  <option value={g.id} selected={g.id === boeking.gastheerId}>
+                    {g.naam}
+                  </option>
+                ))}
+              </select>
+              <p class="bh-muted">
+                Twee weken van tevoren krijgt deze persoon een mail met de gegevens van de exposant.
+                Hans plant hetzelfde onder <a href="/beheer/planning/">Planning</a>.
+              </p>
+              <div class="bh-acties">
+                <button class="bh-btn" type="submit" name="actie" value="gastheer">
+                  Koppel gastheer
+                </button>
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mail">
+                  Concept 2-wekenmail
+                </button>
+              </div>
+            </form>
+          )}
         </section>
         <section class="bh-kaart">
           <h2>Acties (voorbeeld)</h2>

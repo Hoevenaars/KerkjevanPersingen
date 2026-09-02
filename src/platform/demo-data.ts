@@ -41,6 +41,7 @@ export interface DemoBoeking {
   notities: string;
   aanvraagId?: string;
   relatieId: string;
+  gastheerId?: string;
 }
 
 export interface DemoActiviteit {
@@ -60,6 +61,14 @@ export interface DemoIntern {
   start: string;
   eind: string;
   blokkeert: boolean;
+}
+
+export interface DemoGastheer {
+  id: string;
+  naam: string;
+  email: string;
+  telefoon: string;
+  actief: boolean;
 }
 
 export interface DemoRelatie {
@@ -127,6 +136,7 @@ export const DEMO_GEBRUIKERS: DemoGebruiker[] = [
       boekingen: 'schrijven',
       kalender: 'schrijven',
       agenda: 'schrijven',
+      planning: 'lezen',
       finance: 'lezen',
       nieuwsbrief: 'schrijven',
       vrienden: 'schrijven',
@@ -147,10 +157,32 @@ export const DEMO_GEBRUIKERS: DemoGebruiker[] = [
       boekingen: 'lezen',
       kalender: 'lezen',
       agenda: 'verborgen',
+      planning: 'verborgen',
       finance: 'schrijven',
       nieuwsbrief: 'verborgen',
       vrienden: 'verborgen',
       relaties: 'verborgen',
+      templates: 'verborgen',
+      gebruikers: 'verborgen',
+      instellingen: 'lezen',
+    },
+  },
+  {
+    id: 'hans',
+    naam: 'Hans',
+    email: 'hans@voorbeeld.nl',
+    superAdmin: false,
+    rechten: {
+      dashboard: 'lezen',
+      aanvragen: 'verborgen',
+      boekingen: 'lezen',
+      kalender: 'lezen',
+      agenda: 'lezen',
+      planning: 'schrijven',
+      finance: 'verborgen',
+      nieuwsbrief: 'verborgen',
+      vrienden: 'verborgen',
+      relaties: 'lezen',
       templates: 'verborgen',
       gebruikers: 'verborgen',
       instellingen: 'lezen',
@@ -190,6 +222,30 @@ export const DEMO_RELATIES: DemoRelatie[] = [
     telefoon: '06 11 22 33 44',
     rollen: ['Exposant'],
     reservelijst: true,
+  },
+];
+
+export const DEMO_GASTHEREN: DemoGastheer[] = [
+  {
+    id: 'g-1',
+    naam: 'Henk Vos',
+    email: 'henk@voorbeeld.nl',
+    telefoon: '06 98 76 54 32',
+    actief: true,
+  },
+  {
+    id: 'g-2',
+    naam: 'Ineke de Wit',
+    email: 'ineke@voorbeeld.nl',
+    telefoon: '06 44 55 66 77',
+    actief: true,
+  },
+  {
+    id: 'g-3',
+    naam: 'Jan Mulder',
+    email: 'jan@voorbeeld.nl',
+    telefoon: '06 33 22 11 00',
+    actief: false,
   },
 ];
 
@@ -311,6 +367,7 @@ export const DEMO_BOEKINGEN: DemoBoeking[] = [
     publiek: true,
     notities: 'Foto ontbreekt nog. Titel en datum zijn wel klaar.',
     relatieId: 'r-820',
+    gastheerId: 'g-1',
   },
 ];
 
@@ -391,6 +448,30 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     onderwerp: 'Praktische informatie — Kerkje van Persingen',
     inhoud:
       'Beste {naam},\n\nOver vier weken is het zover: {soort} op {datum} in het kerkje van Persingen.\n\nAdres: Persingensestraat 7, 6575 JA Persingen.\nParkeren: alleen op het terrein aan de overkant.',
+  },
+  {
+    id: 'praktisch_2w_exposant',
+    naam: 'Voorbereiding exposant',
+    verhuurtype: 'Expositie',
+    trigger: 'Voor activiteit',
+    termijn: '2 weken',
+    verzendwijze: 'concept',
+    ontvanger: 'Huurder/exposant',
+    onderwerp: 'Over twee weken in het kerkje — praktische info',
+    inhoud:
+      'Beste {naam},\n\nOver twee weken is het zover: {soort} op {datum} in het kerkje van Persingen.\n\nUw gastheer of gastvrouw die dienst heeft: {gastheer} ({telefoonGastheer}).\nAdres: Persingensestraat 7, 6575 JA Persingen.\nParkeren: alleen op het terrein aan de overkant.\nOpeningstijden expositie: zaterdag en zondag, 11.00–17.00 uur.',
+  },
+  {
+    id: 'praktisch_2w_gastheer',
+    naam: 'Voorbereiding gastheer',
+    verhuurtype: 'Expositie',
+    trigger: 'Voor activiteit',
+    termijn: '2 weken',
+    verzendwijze: 'concept',
+    ontvanger: 'Gastheer',
+    onderwerp: 'Dienst over twee weken — info exposant',
+    inhoud:
+      'Hallo {gastheer},\n\nOver twee weken heb je dienst bij {soort} op {datum}.\n\nExposant: {naam}\nE-mail: {email}\nTelefoon: {telefoon}\n\nZelfde praktische info als de exposant (parkeren overkant, 11.00–17.00, geen entree, geen horeca verkopen).\nKun je er niet bij zijn? Laat het {contactpersoon} zo snel mogelijk weten.',
   },
   {
     id: 'content_verzoek',
@@ -491,6 +572,22 @@ export const DEMO_COMMUNICATIE = [
     wanneer: '2026-09-01',
     ontvanger: 'Sanne Bakker',
   },
+  {
+    id: 'c-5',
+    boekingId: 'b-040',
+    template: 'Voorbereiding exposant (2 weken)',
+    status: 'gepland',
+    wanneer: '2026-09-05',
+    ontvanger: 'Sanne Bakker',
+  },
+  {
+    id: 'c-6',
+    boekingId: 'b-040',
+    template: 'Voorbereiding gastheer (2 weken)',
+    status: 'gepland',
+    wanneer: '2026-09-05',
+    ontvanger: 'Henk Vos',
+  },
 ] as const;
 
 export const DEMO_DOCUMENTEN = [
@@ -575,6 +672,7 @@ export function demoDashboardBron() {
     communicatieKlaar: DEMO_COMMUNICATIE.filter((c) => c.status === 'concept').length,
     nieuwsbriefVoorbereiden: DEMO_NIEUWSBRIEVEN.filter((n) => !n.verstuurd && !n.overgeslagen).length,
     activiteiten7Dagen: DEMO_BOEKINGEN.filter((b) => b.start >= '2026-09-02' && b.start <= '2026-09-09').length,
+    gastherenToewijzen: DEMO_BOEKINGEN.filter((b) => b.soort === 'expositie' && !b.gastheerId).length,
     mailFout: 0,
   };
 }
@@ -588,6 +686,7 @@ export const DASHBOARD_HREF: Record<string, string> = {
   communicatie_klaar: '/beheer/boekingen/',
   nieuwsbrief_voorbereiden: '/beheer/nieuwsbrief/',
   activiteiten_7_dagen: '/beheer/kalender/?maand=2026-09',
+  gastheren_toewijzen: '/beheer/planning/',
   mail_fout: '/beheer/instellingen/templates/',
 };
 
@@ -599,6 +698,16 @@ export function zoekDemo(q: string): { soort: string; titel: string; href: strin
   for (const r of DEMO_RELATIES) {
     if (`${r.naam} ${r.email}`.toLowerCase().includes(naald)) {
       treffers.push({ soort: 'Relatie', titel: r.naam, href: `/beheer/relaties/${r.id}/`, extra: r.email });
+    }
+  }
+  for (const g of DEMO_GASTHEREN) {
+    if (`${g.naam} ${g.email}`.toLowerCase().includes(naald)) {
+      treffers.push({
+        soort: 'Gastheer',
+        titel: g.naam,
+        href: `/beheer/instellingen/gastheren/${g.id}/`,
+        extra: g.telefoon,
+      });
     }
   }
   for (const a of DEMO_AANVRAGEN) {
@@ -677,6 +786,11 @@ export const COMMUNICATIE_LABEL: Record<string, string> = {
 
 export const DEMO_FLASH =
   'Voorbeeldactie uitgevoerd — niets is opgeslagen, gemaild of naar de website/agenda gestuurd.';
+
+export function gastheerVan(id: string | undefined) {
+  if (!id) return undefined;
+  return DEMO_GASTHEREN.find((g) => g.id === id);
+}
 
 export function demoNaActie(url: URL, extra: Record<string, string> = {}): string {
   const next = new URL(url);

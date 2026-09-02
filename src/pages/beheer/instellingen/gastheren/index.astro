@@ -1,0 +1,72 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { DEMO_GASTHEREN, DEMO_FLASH, demoNaActie } from '../../../../platform/demo-data';
+
+if (Astro.request.method === 'POST') {
+  return Astro.redirect(demoNaActie(Astro.url));
+}
+
+const flash = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel="Gastheren">
+  <header class="bh-top">
+    <div>
+      <h1>Gastheren</h1>
+      <p class="bh-hint">
+        Administratie van gastheren en gastvrouwen. Hans gebruikt deze lijst in Planning.
+        Twee weken voor een expositie krijgt de ingeplande gastheer de gegevens van de exposant.
+      </p>
+    </div>
+  </header>
+
+  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Naam</th>
+        <th>E-mail</th>
+        <th>Telefoon</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        DEMO_GASTHEREN.map((g) => (
+          <tr>
+            <td>
+              <a href={`/beheer/instellingen/gastheren/${g.id}/`}>{g.naam}</a>
+            </td>
+            <td>{g.email}</td>
+            <td>{g.telefoon}</td>
+            <td>
+              <span class={`bh-badge ${g.actief ? 'bh-badge--actief' : 'bh-badge--verborgen'}`}>
+                {g.actief ? 'Actief' : 'Inactief'}
+              </span>
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <section class="bh-kaart">
+    <h2>Nieuwe gastheer</h2>
+    <form method="post" class="bh-form">
+      <label for="naam">Naam</label>
+      <input id="naam" name="naam" />
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" />
+      <label for="telefoon">Telefoon</label>
+      <input id="telefoon" name="telefoon" />
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit" name="actie" value="nieuw">
+          Voeg toe (voorbeeld)
+        </button>
+      </div>
+    </form>
+  </section>
+</Beheer>

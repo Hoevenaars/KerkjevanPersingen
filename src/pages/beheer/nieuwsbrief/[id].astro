@@ -15,7 +15,14 @@ const id = Astro.params.id ?? '';
 const brief = DEMO_NIEUWSBRIEVEN.find((n) => n.id === id);
 
 if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+  const form = await Astro.request.formData();
+  const extra: Record<string, string> = {};
+  extra.kort = String(form.get('kortNieuws') ?? '');
+  extra.donatie = String(form.get('donatieUpdate') ?? '');
+  extra.extraTitel = String(form.get('extraTitel') ?? '');
+  extra.extraTekst = String(form.get('extraTekst') ?? '');
+  extra.donatieAan = form.get('donatieAan') ? '1' : '0';
+  return Astro.redirect(demoNaActie(Astro.url, extra));
 }
 
 if (!brief) {
@@ -23,10 +30,25 @@ if (!brief) {
 }
 
 const flash = Astro.url.searchParams.get('demo') === '1';
+const kortNieuws = Astro.url.searchParams.has('kort')
+  ? (Astro.url.searchParams.get('kort') ?? '')
+  : brief.kortNieuws;
+const donatieTekst = Astro.url.searchParams.has('donatie')
+  ? (Astro.url.searchParams.get('donatie') ?? '')
+  : brief.donatieUpdate;
+const extraTitel = Astro.url.searchParams.get('extraTitel') ?? '';
+const extraTekst = Astro.url.searchParams.get('extraTekst') ?? '';
+const donatieAan = Astro.url.searchParams.get('donatieAan') === '1';
+const extraBlokken =
+  extraTitel.trim() || extraTekst.trim()
+    ? [{ titel: extraTitel, tekst: extraTekst }]
+    : undefined;
+
 const html = bouwNieuwsbriefHtml(
   {
-    kortNieuws: brief.kortNieuws || undefined,
-    donatieUpdate: brief.donatieUpdate || undefined,
+    kortNieuws: kortNieuws || undefined,
+    donatieUpdate: donatieAan ? donatieTekst || undefined : undefined,
+    extraBlokken,
   },
   DEMO_AGENDA.filter((p) => p.omschrijving).map((p) => ({
     titel: p.titel,
@@ -65,9 +87,21 @@ const html = bouwNieuwsbriefHtml(
       <h2>Inhoud</h2>
       <form method="post" class="bh-form">
         <label for="kort">Kort nieuws</label>
-        <textarea id="kort" name="kortNieuws">{brief.kortNieuws}</textarea>
+        <textarea id="kort" name="kortNieuws">{kortNieuws}</textarea>
+
+        <label class="bh-check" for="donatieAan">
+          <input id="donatieAan" name="donatieAan" type="checkbox" value="1" checked={donatieAan} />
+          <span>Donatie-update in deze mail (niet standaard)</span>
+        </label>
         <label for="donatie">Donatie-update</label>
-        <textarea id="donatie" name="donatieUpdate">{brief.donatieUpdate}</textarea>
+        <textarea id="donatie" name="donatieUpdate" class="kort">{donatieTekst}</textarea>
+        <p class="bh-muted">Alleen in de preview en de mail als het vinkje aan staat.</p>
+
+        <label for="extraTitel">Extra blok (optioneel)</label>
+        <input id="extraTitel" name="extraTitel" value={extraTitel} placeholder="Kop, bijvoorbeeld Vrijwilligers" />
+        <label for="extraTekst">Tekst extra blok</label>
+        <textarea id="extraTekst" name="extraTekst" class="kort">{extraTekst}</textarea>
+
         <div class="bh-acties">
           <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
             Bewaar concept

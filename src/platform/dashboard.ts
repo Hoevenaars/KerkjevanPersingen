@@ -1,5 +1,5 @@
 /**
- * Dashboard "Vandaag" (FO §9, §69).
+ * Dashboard (FO §9, §69).
  * Alleen aandachtspunten waarvoor de gebruiker rechten heeft.
  */
 
@@ -15,6 +15,7 @@ export type DashboardSleutel =
   | 'communicatie_klaar'
   | 'nieuwsbrief_voorbereiden'
   | 'activiteiten_7_dagen'
+  | 'gastheren_toewijzen'
   | 'mail_fout';
 
 export interface DashboardBron {
@@ -26,6 +27,7 @@ export interface DashboardBron {
   communicatieKlaar: number;
   nieuwsbriefVoorbereiden: number;
   activiteiten7Dagen: number;
+  gastherenToewijzen: number;
   mailFout: number;
 }
 
@@ -45,11 +47,12 @@ const DEFINITIE: {
   { sleutel: 'nieuwe_aanvragen', label: 'Nieuwe aanvragen', module: 'aanvragen', veld: 'nieuweAanvragen' },
   { sleutel: 'opties_bijna_verlopen', label: 'Opties bijna verlopen', module: 'boekingen', veld: 'optiesBijnaVerlopen' },
   { sleutel: 'opties_verlopen', label: 'Opties verlopen', module: 'boekingen', veld: 'optiesVerlopen' },
-  { sleutel: 'aanbetalingen_controleren', label: 'Aanbetalingen te controleren', module: 'finance', veld: 'aanbetalingenControleren' },
-  { sleutel: 'activiteit_mist_content', label: 'Publieke activiteit mist content', module: 'agenda', veld: 'activiteitMistContent' },
-  { sleutel: 'communicatie_klaar', label: 'Communicatie klaar voor verzending', module: 'templates', veld: 'communicatieKlaar' },
+  { sleutel: 'aanbetalingen_controleren', label: 'Aanbetaling check', module: 'finance', veld: 'aanbetalingenControleren' },
+  { sleutel: 'activiteit_mist_content', label: 'Mist content', module: 'agenda', veld: 'activiteitMistContent' },
+  { sleutel: 'communicatie_klaar', label: 'Mail klaar', module: 'templates', veld: 'communicatieKlaar' },
   { sleutel: 'nieuwsbrief_voorbereiden', label: 'Nieuwsbrief voorbereiden', module: 'nieuwsbrief', veld: 'nieuwsbriefVoorbereiden' },
-  { sleutel: 'activiteiten_7_dagen', label: 'Activiteiten komende 7 dagen', module: 'kalender', veld: 'activiteiten7Dagen' },
+  { sleutel: 'activiteiten_7_dagen', label: 'Komende 7 dagen', module: 'kalender', veld: 'activiteiten7Dagen' },
+  { sleutel: 'gastheren_toewijzen', label: 'Gastheer toewijzen', module: 'planning', veld: 'gastherenToewijzen' },
   { sleutel: 'mail_fout', label: 'Technische verzending mislukt', module: 'templates', veld: 'mailFout' },
 ];
 

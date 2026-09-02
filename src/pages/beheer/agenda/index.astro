@@ -4,10 +4,18 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import {
   DEMO_AGENDA,
+  DEMO_BOEKINGEN,
   DEMO_INTERN,
   AGENDA_LABEL,
   formatNl,
+  gastheerVan,
 } from '../../../platform/demo-data';
+
+function gastheerLabel(boekingId?: string): string {
+  if (!boekingId) return '—';
+  const boeking = DEMO_BOEKINGEN.find((b) => b.id === boekingId);
+  return gastheerVan(boeking?.gastheerId)?.naam ?? 'Nog niet ingepland';
+}
 ---
 
 <Beheer titel="Agenda">
@@ -27,6 +35,7 @@ import {
         <tr>
           <th>Titel</th>
           <th>Datum</th>
+          <th>Gastheer</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -41,6 +50,7 @@ import {
                 {formatNl(p.start)}
                 {p.eind !== p.start ? ` – ${formatNl(p.eind)}` : ''}
               </td>
+              <td>{gastheerLabel(p.boekingId)}</td>
               <td>
                 <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
               </td>

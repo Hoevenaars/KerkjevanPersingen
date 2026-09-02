@@ -134,6 +134,29 @@ describe('bouwNieuwsbriefHtml', () => {
     assert.equal(zonder.includes('Kort nieuws'), false);
   });
 
+  test('laat donatie-update weg als die leeg is', () => {
+    const zonder = bouwNieuwsbriefHtml(
+      { kortNieuws: 'Het bord is vervangen.' },
+      [blok],
+      'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
+      mailMeta('wekelijks'),
+    );
+    assert.equal(zonder.includes('Dankzij jullie steun'), false);
+  });
+
+  test('toont een extra blok als die is meegegeven', () => {
+    const extra = bouwNieuwsbriefHtml(
+      {
+        extraBlokken: [{ titel: 'Vrijwilligers gezocht', tekst: 'We zoeken extra gastheren.' }],
+      },
+      [blok],
+      'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
+      mailMeta('wekelijks'),
+    );
+    assert.equal(extra.includes('Vrijwilligers gezocht'), true);
+    assert.equal(extra.includes('extra gastheren'), true);
+  });
+
   test('toont meerdere activiteiten bij een langere periode', () => {
     const tweede = {
       ...blok,

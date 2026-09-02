@@ -25,6 +25,7 @@ export type NieuwsbriefInhoud = {
   kortNieuwsFotoUrl?: string;
   kortNieuwsFotoAlt?: string;
   donatieUpdate?: string;
+  extraBlokken?: { titel: string; tekst: string }[];
 };
 
 export type NieuwsbriefActiviteitBlok = {
@@ -110,6 +111,26 @@ function renderKortNieuws(content: NieuwsbriefInhoud | null): string {
           </table>
         </td>
       </tr>`;
+}
+
+function renderExtraBlokken(blokken?: { titel: string; tekst: string }[]): string {
+  if (!blokken?.length) return '';
+  return blokken
+    .filter((blok) => blok.titel.trim() || blok.tekst.trim())
+    .map(
+      (blok) => `
+      <tr>
+        <td style="padding:20px 32px 0;font-family:Georgia,'Times New Roman',serif;">
+          <div style="color:${BRICK};font-size:12px;letter-spacing:0.1em;text-transform:uppercase;font-weight:bold;margin-bottom:8px;font-family:Arial,sans-serif;">
+            ${escape(blok.titel.trim() || 'Extra')}
+          </div>
+          <p style="color:${INK};font-size:15px;line-height:1.6;margin:0;">
+            ${blok.tekst.trim() ? metRegels(blok.tekst) : ''}
+          </p>
+        </td>
+      </tr>`,
+    )
+    .join('');
 }
 
 function renderDonatieUpdate(tekst?: string): string {
@@ -295,6 +316,7 @@ export function bouwNieuwsbriefHtml(
           ${renderAgendaBlokken(activiteitenMetKop, meta.legeAgendaTekst)}
           ${renderKortNieuws(content)}
           ${renderDonatieUpdate(content?.donatieUpdate)}
+          ${renderExtraBlokken(content?.extraBlokken)}
           <tr>
             <td style="padding:28px 32px 28px;text-align:center;">
               <a href="${SITE}/steun-ons/"

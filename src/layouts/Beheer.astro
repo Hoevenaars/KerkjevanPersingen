@@ -12,11 +12,12 @@ const pad = Astro.url.pathname;
 const zoekterm = Astro.url.searchParams.get('q') ?? '';
 
 const hoofd = [
-  { href: '/beheer/', label: 'Vandaag' },
+  { href: '/beheer/', label: 'Dashboard' },
   { href: '/beheer/aanvragen/', label: 'Aanvragen' },
   { href: '/beheer/boekingen/', label: 'Boekingen' },
   { href: '/beheer/kalender/', label: 'Kalender' },
   { href: '/beheer/agenda/', label: 'Agenda' },
+  { href: '/beheer/planning/', label: 'Planning' },
   { href: '/beheer/relaties/', label: 'Relaties' },
   { href: '/beheer/finance/', label: 'Finance' },
   { href: '/beheer/vrienden/', label: 'Vrienden' },
@@ -27,6 +28,7 @@ const instellingen = [
   { href: '/beheer/instellingen/', label: 'Algemeen' },
   { href: '/beheer/instellingen/verhuur/', label: 'Verhuur' },
   { href: '/beheer/instellingen/finance/', label: 'Finance' },
+  { href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },
   { href: '/beheer/instellingen/templates/', label: 'Templates' },
   { href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
 ];

@@ -13,11 +13,12 @@ if (Astro.request.method === 'POST') {
 const flash = Astro.url.searchParams.get('demo') === '1';
 
 const labels: Record<ModuleSleutel, string> = {
-  dashboard: 'Vandaag',
+  dashboard: 'Dashboard',
   aanvragen: 'Aanvragen',
   boekingen: 'Boekingen',
   kalender: 'Kalender',
   agenda: 'Agenda',
+  planning: 'Planning',
   relaties: 'Relaties',
   finance: 'Finance',
   vrienden: 'Vrienden',
@@ -33,7 +34,7 @@ const labels: Record<ModuleSleutel, string> = {
     <div>
       <h1>Gebruikers</h1>
       <p class="bh-hint">
-        Nick is Super Admin. Nelleke en Paul hebben modulaire rechten. Dit is geen echte login.
+        Nick is Super Admin. Nelleke, Paul en Hans hebben modulaire rechten. Dit is geen echte login.
       </p>
     </div>
   </header>

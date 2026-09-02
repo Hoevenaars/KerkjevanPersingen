@@ -179,15 +179,24 @@
 
 .bh-kaarten {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--s-3);
   margin: 0 0 var(--s-8);
   padding: 0;
   list-style: none;
 }
 
+.bh-kaarten li {
+  display: flex;
+  min-height: 8.25rem;
+}
+
 .bh-kaarten a {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 100%;
   background: var(--white);
   border: var(--border);
   border-radius: var(--radius-lg);
@@ -211,6 +220,8 @@
 .bh-kaarten span {
   color: var(--ink-soft);
   font-size: var(--t-sm);
+  line-height: 1.35;
+  min-height: calc(1.35em * 2);
 }
 
 .bh-tabs {
@@ -456,6 +467,42 @@
   min-height: 12rem;
 }
 
+.bh-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  font-weight: 500;
+  margin: var(--s-4) 0 var(--s-2);
+}
+
+.bh-check input {
+  width: auto;
+  margin-top: 0.35rem;
+}
+
+.bh-form textarea.kort {
+  min-height: 6rem;
+}
+
+.bh-form-rij {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  margin: 0;
+}
+
+.bh-form-rij select {
+  width: auto;
+  flex: 1;
+  min-width: 10rem;
+  max-width: none;
+  margin: 0;
+}
+
+.bh-form-rij .bh-btn {
+  flex-shrink: 0;
+}
+
 .bh-kalender {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -529,6 +576,12 @@
   text-align: left;
 }
 
+@media (max-width: 1100px) {
+  .bh-kaarten {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 860px) {
   .bh-app {
     grid-template-columns: 1fr;
@@ -537,6 +590,9 @@
     grid-template-columns: 1fr;
   }
   .bh-dl {
+    grid-template-columns: 1fr;
+  }
+  .bh-kaarten {
     grid-template-columns: 1fr;
   }
 }
