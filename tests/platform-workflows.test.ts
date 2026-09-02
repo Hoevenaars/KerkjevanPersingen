@@ -14,6 +14,7 @@ import { aanmeldActie } from '../src/platform/vrienden.ts';
 import { naTestVerzending, isEchteVerzending, overslaan } from '../src/platform/nieuwsbrief.ts';
 import { dashboardVoor } from '../src/platform/dashboard.ts';
 import { huidigeContentBron, beheerIngeschakeld, beheerZichtbaar, standaardBronnen } from '../src/platform/bron.ts';
+import { beheerUitResponse } from '../src/platform/beheer-gate.ts';
 import { sanityAanvraagStatus } from '../src/platform/migratie.ts';
 import type { GebruikerRechten } from '../src/platform/types.ts';
 
@@ -200,6 +201,16 @@ describe('dashboard en bronnen', () => {
     assert.equal(beheerZichtbaar({ VERCEL_ENV: 'production' }), false);
     assert.equal(beheerZichtbaar({ DEV: true }), true);
     assert.equal(standaardBronnen().boekingen, 'sanity');
+  });
+
+  test('beheer-uit is een HTML-404, geen leeg bestand om te downloaden', async () => {
+    const res = beheerUitResponse();
+    assert.equal(res.status, 404);
+    assert.match(res.headers.get('content-type') ?? '', /text\/html/);
+    const html = await res.text();
+    assert.ok(html.length > 200);
+    assert.ok(html.includes('Deze pagina is er niet'));
+    assert.ok(html.includes('Naar de voorpagina'));
   });
 
   test('Sanity ja/nee wordt goedgekeurd/afgewezen', () => {
