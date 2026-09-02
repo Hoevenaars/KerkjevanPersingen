@@ -13,7 +13,7 @@ import {
 import { aanmeldActie } from '../src/platform/vrienden.ts';
 import { naTestVerzending, isEchteVerzending, overslaan } from '../src/platform/nieuwsbrief.ts';
 import { dashboardVoor } from '../src/platform/dashboard.ts';
-import { huidigeContentBron, beheerIngeschakeld, standaardBronnen } from '../src/platform/bron.ts';
+import { huidigeContentBron, beheerIngeschakeld, beheerZichtbaar, standaardBronnen } from '../src/platform/bron.ts';
 import { sanityAanvraagStatus } from '../src/platform/migratie.ts';
 import type { GebruikerRechten } from '../src/platform/types.ts';
 
@@ -161,6 +161,11 @@ describe('dashboard en bronnen', () => {
     assert.equal(huidigeContentBron({ ALLOW_SUPABASE_CONTENT: true, CONTENT_BRON: 'supabase' }), 'supabase');
     assert.equal(beheerIngeschakeld({}), false);
     assert.equal(beheerIngeschakeld({ BEHEER_ENABLED: true }), true);
+    assert.equal(beheerZichtbaar({}), false);
+    assert.equal(beheerZichtbaar({ BEHEER_ENABLED: 'true' }), true);
+    assert.equal(beheerZichtbaar({ VERCEL_ENV: 'preview' }), true);
+    assert.equal(beheerZichtbaar({ VERCEL_ENV: 'production' }), false);
+    assert.equal(beheerZichtbaar({ DEV: true }), true);
     assert.equal(standaardBronnen().boekingen, 'sanity');
   });
 

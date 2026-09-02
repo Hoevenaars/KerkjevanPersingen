@@ -36,7 +36,7 @@ de website Supabase mogen lezen. De website gebruikt deze functie nog nergens.
 | --- | --- | --- |
 | `CONTENT_BRON` | (leeg) | `supabase` alleen samen met de vlag hieronder |
 | `ALLOW_SUPABASE_CONTENT` | (leeg) | moet `true` zijn |
-| `BEHEER_ENABLED` | (leeg) | `/beheer` is 404 tot dit `true` is |
+| `BEHEER_ENABLED` | (leeg) | `/beheer` is 404 op Production tot dit `true` is. Vercel Preview toont `/beheer` altijd. |
 
 Per datatype houdt tabel `bronnen` bij wie mag schrijven. Seed: alles `sanity`.
 

@@ -88,7 +88,7 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `SANITY_API_TOKEN` | ja | **Schrijfrechten (Editor)** — nodig om vrienden aan te maken en verzendstatus te zetten. Alleen lezen is niet genoeg. |
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
-| `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar (bouwplaats). Leeg = 404. Website wijzigt niet. |
+| `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Preview-deploys tonen `/beheer` altijd (die env ontbreekt daar vaak). Website wijzigt niet. |
 | `CONTENT_BRON` | nee | Alleen samen met `ALLOW_SUPABASE_CONTENT`. Standaard blijft Sanity leidend. |
 | `ALLOW_SUPABASE_CONTENT` | nee | Tweede slot. Zonder `true` leest de website nooit Supabase. |
 

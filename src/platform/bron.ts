@@ -40,6 +40,19 @@ export function beheerIngeschakeld(env: NodeJS.ProcessEnv | Record<string, unkno
   return vlagAan(env.BEHEER_ENABLED);
 }
 
+/**
+ * Mag /beheer getoond worden?
+ *
+ * Production: alleen met BEHEER_ENABLED=true.
+ * Vercel Preview: altijd, omdat Preview vaak niet dezelfde env heeft als Production.
+ * Anders krijg je een lege 404 (geen site-404) en lijkt het of de bouwplaats weg is.
+ */
+export function beheerZichtbaar(env: NodeJS.ProcessEnv | Record<string, unknown> = process.env): boolean {
+  if (beheerIngeschakeld(env)) return true;
+  if (env.VERCEL_ENV === 'preview') return true;
+  return env.DEV === true || env.DEV === 'true';
+}
+
 export function magSchrijvenNaarBeheer(
   datatype: Datatype,
   bronnen: BronnenTabel = standaardBronnen(),
