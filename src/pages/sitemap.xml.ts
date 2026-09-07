@@ -16,6 +16,8 @@ const vast = [
   { pad: '/steun-ons/', prioriteit: '0.6' },
   { pad: '/contact/', prioriteit: '0.6' },
   { pad: '/organisatie/', prioriteit: '0.3' },
+  { pad: '/privacyverklaring/', prioriteit: '0.2' },
+  { pad: '/verhuur/voorwaarden/', prioriteit: '0.2' },
 ];
 
 export const GET: APIRoute = async () => {

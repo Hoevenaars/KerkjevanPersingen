@@ -33,7 +33,7 @@ Disallow: /vrienden/
 Disallow: /admin
 Disallow: /beheer
 
-# AI-crawlers expliciet toegestaan
+# AI-crawlers expliciet toegestaan (GEO / AI-search)
 User-agent: GPTBot
 Allow: /
 
@@ -42,6 +42,15 @@ Allow: /
 
 User-agent: PerplexityBot
 Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# Samenvatting voor AI-assistenten
+# https://kerkjepersingen.nl/llms.txt
 
 Sitemap: https://kerkjepersingen.nl/sitemap.xml
 `;

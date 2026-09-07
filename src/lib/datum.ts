@@ -41,8 +41,11 @@ export function formatDatum(iso: string, metTijd = true): string {
  * Einddatum voor weergave: bij een expositie die alleen op zaterdag is
  * ingevoerd, hoort zondag erbij. Exposities zijn in principe een heel weekend;
  * in het CMS staat bij "Eindtijd" vaak alleen 17.00 uur op zaterdag.
+ *
+ * Ook gebruikt voor Event JSON-LD (SEO), zodat structured data dezelfde
+ * periode toont als de zichtbare tekst.
  */
-function eindVoorWeergave(activiteit: {start: string; eind?: string; soort?: string}): string {
+export function eindVoorWeergave(activiteit: {start: string; eind?: string; soort?: string}): string {
   const fallback = activiteit.eind ?? activiteit.start;
   if (activiteit.soort !== 'expositie') return fallback;
   if (weekdagAmsterdam(activiteit.start) !== 6) return fallback;
