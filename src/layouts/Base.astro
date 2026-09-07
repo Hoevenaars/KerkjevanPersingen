@@ -5,6 +5,7 @@ import Footer from '../components/Footer.astro';
 import FooterBanner from '../components/FooterBanner.astro';
 import Analytics from '@vercel/analytics/astro';
 import SpeedInsights from '@vercel/speed-insights/astro';
+import { OG_IMAGE, SITE_URL, venueJsonLd } from '../lib/seo';
 
 interface Props {
   title: string;
@@ -15,31 +16,16 @@ interface Props {
   noindex?: boolean;
 }
 
-const { title, description, image = '/og-default.jpg', noindex = false } = Astro.props;
+const { title, description, image = OG_IMAGE.pad, noindex = false } = Astro.props;
 
-const site = 'https://kerkjepersingen.nl';
-const canonical = new URL(Astro.url.pathname, site).href;
+const canonical = new URL(Astro.url.pathname, SITE_URL).href;
 const fullTitle = title === 'home' ? 'Kerkje van Persingen' : `${title} — Kerkje van Persingen`;
-const ogImage = new URL(image, site).href;
+const ogImage = new URL(image, SITE_URL).href;
 
 // 14_SEO_AI_SEARCH.md §2 — structured data die de zichtbare content weerspiegelt.
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': ['HistoricalLandmark', 'EventVenue'],
-  name: 'Kerkje van Persingen',
-  description:
-    'Rijksmonumentaal kerkje uit circa 1350 in de Ooijpolder, te huur voor bruiloften, exposities, concerten en bijeenkomsten.',
-  url: site,
-  telephone: '+31652668449',
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: 'Persingensestraat',
-    addressLocality: 'Persingen',
-    addressCountry: 'NL',
-  },
-  isAccessibleForFree: false,
-  publicAccess: true,
-};
+// Adres + geo hier volledig (huisnummer, postcode, coördinaten), gelijk aan
+// /organisatie/ en de footer — anders mist Google de lokale vindbaarheid.
+const jsonLd = venueJsonLd();
 ---
 
 <!doctype html>
@@ -59,6 +45,8 @@ const jsonLd = {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content={String(OG_IMAGE.width)} />
+    <meta property="og:image:height" content={String(OG_IMAGE.height)} />
     <meta property="og:locale" content="nl_NL" />
 
     <meta name="twitter:card" content="summary_large_image" />

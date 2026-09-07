@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import PageHeader from '../components/PageHeader.astro';
+import { FACEBOOK_URL, SITE_URL, VENUE } from '../lib/seo';
 
 /*
   ANBI-publicatieplicht.
@@ -35,7 +36,7 @@ const jsonLdOrganisatie = {
   legalName: 'Stichting "het Kerkje van Persingen"',
   description:
     'Stichting die de instandhouding en het bewaren van het Kerkje van Persingen tot doel heeft, en het monument beheert en exploiteert zodat het voor het publiek toegankelijk blijft.',
-  url: 'https://kerkjepersingen.nl/organisatie/',
+  url: `${SITE_URL}/organisatie/`,
   taxID: '802560374',
   identifier: {
     '@type': 'PropertyValue',
@@ -43,14 +44,10 @@ const jsonLdOrganisatie = {
     value: '41058732',
   },
   foundingDate: '2000-08-26',
-  telephone: '+31652668449',
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: 'Persingensestraat 7',
-    postalCode: '6575 JA',
-    addressLocality: 'Persingen',
-    addressCountry: 'NL',
-  },
+  telephone: VENUE.telephone,
+  address: VENUE.address,
+  geo: VENUE.geo,
+  sameAs: [FACEBOOK_URL],
   nonprofitStatus: 'NonprofitANBI',
 };
 ---
