@@ -88,7 +88,7 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `SANITY_API_TOKEN` | ja | **Schrijfrechten (Editor)** — nodig om vrienden aan te maken en verzendstatus te zetten. Alleen lezen is niet genoeg. |
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
-| `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Preview-deploys tonen `/beheer` altijd (die env ontbreekt daar vaak). Website wijzigt niet. |
+| `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Staat aan in `vercel.json`. Preview en lokaal tonen `/beheer` altijd. Website wijzigt niet. |
 | `CONTENT_BRON` | nee | Alleen samen met `ALLOW_SUPABASE_CONTENT`. Standaard blijft Sanity leidend. |
 | `ALLOW_SUPABASE_CONTENT` | nee | Tweede slot. Zonder `true` leest de website nooit Supabase. |
 
@@ -265,17 +265,28 @@ storing of prijswijziging niet zonder content zit.
 
 ---
 
-## Beheerplatform (voorbereiding, niet live)
+## Beheerplatform (voorbereiding)
 
 Sanity blijft de enige bron voor de website. Er is een fundering klaargezet voor
 later `/beheer` + Supabase, zonder cutover:
 
 - Bedrijfsregels in `src/platform/` (getest, nog nergens aan de publieke site gekoppeld)
 - Databaseschema in `supabase/migrations/`
-- `/beheer` geeft **404** tot `BEHEER_ENABLED=true`
+- **`BEHEER_ENABLED=true`** staat in `vercel.json` — `/beheer` is bereikbaar op Production
+- Lokaal (`npm run dev`) en Vercel Preview werken ook zonder die vlag
 - Website leest Sanity tot `CONTENT_BRON=supabase` **én** `ALLOW_SUPABASE_CONTENT=true`
 
-Documentatie: `docs/beheer/`. `/admin` blijft de doorverwijzing naar Sanity Studio.
+### Naar beheer
+
+| Omgeving | URL |
+| --- | --- |
+| Lokaal | http://localhost:4321/beheer/ |
+| Productie | https://kerkjepersingen.nl/beheer/ |
+| Sanity Studio (agenda/content) | `/admin` → Sanity Studio |
+
+`/beheer` is een klikbare demo (nog geen echte login). `/admin` is de huidige beheeromgeving.
+
+Documentatie: `docs/beheer/`.
 
 ---
 
