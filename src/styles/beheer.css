@@ -738,6 +738,7 @@
 
 .bh-detail-x:hover {
   color: var(--ink);
+  background: var(--sand);
 }
 
 .bh-kalender .stip.aanvraag,
