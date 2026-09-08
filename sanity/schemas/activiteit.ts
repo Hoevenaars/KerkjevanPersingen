@@ -234,6 +234,15 @@ export const activiteit = defineType({
       hidden: ({ document }) => document?.zichtbaarheid !== 'publiek',
     }),
     defineField({
+      name: 'kunstenaars',
+      title: 'Kunstenaars',
+      description:
+        'Zichtbaar op de website bij een groepsexpositie. Bijv. "Judith Aardse, Gea van Eck, Monika Loster, Judith Schepers".',
+      type: 'string',
+      hidden: ({ document }) =>
+        document?.zichtbaarheid !== 'publiek' || document?.soort !== 'expositie',
+    }),
+    defineField({
       name: 'foto',
       title: 'Foto',
       description:
@@ -340,7 +349,7 @@ export const activiteit = defineType({
       name: 'contentStatus',
       title: 'Status website-content',
       description:
-        'Later: bij "goedgekeurd" verschijnt tekst/foto automatisch op de site. Nu nog geen effect op de website.',
+        'Bij "goedgekeurd" verschijnt de aangeleverde tekst en foto op de detailpagina van de activiteit.',
       type: 'string',
       initialValue: 'ontbreekt',
       fieldset: 'websiteContent',

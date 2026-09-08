@@ -313,6 +313,8 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
 
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
+export type ContentStatus = 'ontbreekt' | 'gevraagd' | 'ontvangen' | 'goedgekeurd' | 'afgewezen';
+
 export interface Activiteit {
   _id: string;
   slug: string;
@@ -323,9 +325,13 @@ export interface Activiteit {
   soort: string;
   zichtbaarheid: Zichtbaarheid;
   omschrijving?: string;
+  kunstenaars?: string;
   foto?: unknown;
   fotoAlt?: string;
   toonVanafMaanden?: string;
+  contentStatus?: ContentStatus;
+  aangeleverdeTekst?: string;
+  aangeleverdeFoto?: unknown;
 }
 
 const ACTIVITEIT_VELDEN = `
@@ -338,9 +344,13 @@ const ACTIVITEIT_VELDEN = `
   soort,
   zichtbaarheid,
   omschrijving,
+  kunstenaars,
   foto,
   fotoAlt,
-  toonVanafMaanden
+  toonVanafMaanden,
+  contentStatus,
+  aangeleverdeTekst,
+  aangeleverdeFoto
 `;
 
 /**
@@ -413,7 +423,23 @@ export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
      ] | order(start asc) [0...$limit] { ${ACTIVITEIT_VELDEN} }`,
     { cutoff: cutoffVandaag(), limit }
   );
-  return resultaat.filter(magAlGetoondWorden);
+  const lijst = resultaat.filter(magAlGetoondWorden);
+
+  const { SECOND_NATURE } = await import('./second-nature.ts');
+  const cutoff = cutoffVandaag();
+  const secondNatureRelevant =
+    (SECOND_NATURE.eind && SECOND_NATURE.eind >= cutoff) ||
+    (!SECOND_NATURE.eind && SECOND_NATURE.start >= cutoff);
+  if (
+    secondNatureRelevant &&
+    magAlGetoondWorden(SECOND_NATURE) &&
+    !lijst.some((a) => a.slug === SECOND_NATURE.slug)
+  ) {
+    lijst.push(SECOND_NATURE);
+    lijst.sort((a, b) => a.start.localeCompare(b.start));
+  }
+
+  return lijst.slice(0, limit);
 }
 
 /** Beschikbaarheidskalender: alles wat de datum blokkeert, zonder details prijs te geven.
@@ -462,7 +488,10 @@ export async function getActiviteitBySlug(slug: string): Promise<Activiteit | nu
   const gevonden = rij[0] ?? null;
   // Ook een direct-URL-bezoek respecteert toonVanafMaanden — anders zou een
   // vroegtijdig ingevoerde activiteit alsnog vindbaar zijn via een geraden link.
-  return gevonden && magAlGetoondWorden(gevonden) ? gevonden : null;
+  if (gevonden && magAlGetoondWorden(gevonden)) return gevonden;
+
+  const { secondNatureFallback } = await import('./second-nature.ts');
+  return secondNatureFallback(slug);
 }
 
 export interface VrijWeekend {

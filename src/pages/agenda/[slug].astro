@@ -2,7 +2,9 @@
 import Base from '../../layouts/Base.astro';
 import Button from '../../components/Button.astro';
 import MasonMark from '../../components/MasonMark.astro';
+import { detailTekst, publiekeFotoBron, tekstNaarParagrafen } from '../../lib/activiteit-content';
 import { getActiviteitBySlug, imageUrl, formatDatumBereik } from '../../lib/sanity';
+import { SECOND_NATURE_POSTER } from '../../lib/second-nature';
 import { eventJsonLd } from '../../lib/seo';
 
 const { slug } = Astro.params;
@@ -12,18 +14,20 @@ if (!activiteit) {
   return Astro.redirect('/agenda/', 302);
 }
 
-const foto = activiteit.foto ? imageUrl(activiteit.foto, 1200, 800) : '/foto/geen-foto.jpg';
+const fotoBron = publiekeFotoBron(activiteit);
+const foto =
+  (fotoBron ? imageUrl(fotoBron, 1200, 800) : null) ??
+  (activiteit._id === 'fallback-second-nature' ? SECOND_NATURE_POSTER : null) ??
+  '/foto/geen-foto.jpg';
+const inlineTekst = detailTekst(activiteit);
+const paragrafen = inlineTekst ? tekstNaarParagrafen(inlineTekst) : [];
 const beschrijving =
   activiteit.omschrijving?.slice(0, 155) ??
+  inlineTekst?.slice(0, 155) ??
   `${activiteit.publiekeTitel} in het kerkje van Persingen.`;
 
-// Exposities zijn op zaterdag én zondag te bezoeken van 11.00 tot 17.00 uur — dat
-// stond alleen op de agenda-overzichtspagina vermeld, niet hier op de detailpagina
-// van de activiteit zelf. Precies de plek waar iemand die bezoektijd het hardst nodig heeft.
 const isExpositie = activiteit.soort === 'expositie';
 
-// 14_SEO_AI_SEARCH.md §2 — Event-markup naast de venue-markup in Base.astro.
-// Zelfde weekend-uitbreiding als de zichtbare datums (eindVoorWeergave).
 const jsonLdEvent = eventJsonLd({
   ...activiteit,
   imageUrl: foto,
@@ -39,12 +43,23 @@ const jsonLdEvent = eventJsonLd({
     {isExpositie && (
       <p class="bezoektijden">Te bezoeken op zaterdag en zondag, van 11.00 tot 17.00 uur.</p>
     )}
+    {isExpositie && activiteit.kunstenaars && (
+      <p class="kunstenaars">{activiteit.kunstenaars}</p>
+    )}
 
     <div class="frame frame--wide beeld">
       <img src={foto} alt={activiteit.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="1200" height="675" />
     </div>
 
-    {activiteit.omschrijving && <div class="prose"><p>{activiteit.omschrijving}</p></div>}
+    {
+      paragrafen.length > 0 && (
+        <div class="prose">
+          {paragrafen.map((alinea) => (
+            <p>{alinea}</p>
+          ))}
+        </div>
+      )
+    }
 
     <div class="slot">
       <Button href="/agenda/" variant="text">← Terug naar de agenda</Button>
@@ -65,6 +80,11 @@ const jsonLdEvent = eventJsonLd({
   .bezoektijden {
     color: var(--ink-soft);
     font-size: var(--t-sm);
+    margin-bottom: var(--s-2);
+  }
+  .kunstenaars {
+    color: var(--ink-soft);
+    font-size: var(--t-base);
     margin-bottom: var(--s-8);
   }
   .beeld {
