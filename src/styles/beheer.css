@@ -5,22 +5,26 @@
   background: var(--cream);
   color: var(--ink);
   font-family: var(--font-body);
+  padding: 0.75rem;
+  gap: 0.75rem;
 }
 
 .bh-nav {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border-right: var(--border);
+  border: var(--border);
+  border-radius: 12px;
   color: var(--ink);
   padding: var(--s-6) var(--s-4);
   display: flex;
   flex-direction: column;
-  gap: var(--s-6);
+  gap: var(--s-5);
   position: sticky;
-  top: 0;
-  height: 100vh;
-  min-height: 100%;
+  top: 0.75rem;
+  height: calc(100vh - 1.5rem);
+  min-height: 0;
+  overflow: auto;
 }
 
 .bh-merk {
@@ -109,8 +113,8 @@
   text-decoration: none;
   font-size: var(--t-sm);
   font-weight: 500;
-  padding: var(--s-2) var(--s-3);
-  border-radius: var(--radius);
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
   transition: background 0.22s, color 0.22s;
 }
 
@@ -152,6 +156,8 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  background: transparent;
+  border-radius: 12px;
 }
 
 .bh-werk-kop {
@@ -162,11 +168,12 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-4);
-  padding: var(--s-4) var(--s-8);
+  padding: var(--s-4) var(--s-6) var(--s-3);
   background: rgba(250, 248, 243, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid transparent;
+  border-radius: 12px 12px 0 0;
   transition: border-color 0.2s;
 }
 
@@ -226,32 +233,34 @@
 
 .bh-fab-menu {
   position: absolute;
-  top: calc(100% + 0.45rem);
+  top: calc(100% + 0.5rem);
   right: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
-  min-width: 11.5rem;
-  padding: var(--s-2);
+  gap: 0.15rem;
+  min-width: 13.5rem;
+  padding: 0.4rem;
   background: var(--white);
   border: var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  border-radius: 12px;
+  box-shadow: 0 14px 36px -16px rgba(26, 26, 26, 0.22);
 }
 
 .bh-fab-menu a {
   font: inherit;
   font-size: var(--t-sm);
+  font-weight: 500;
   text-align: left;
   text-decoration: none;
   color: var(--ink);
-  padding: var(--s-3);
-  border-radius: var(--radius);
-  transition: background 0.15s;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
 }
 
 .bh-fab-menu a:hover {
   background: var(--cream-deep);
+  color: var(--pine);
 }
 
 .bh-main {
@@ -663,35 +672,68 @@
 
 .bh-detail-paneel {
   position: absolute;
-  top: 0;
-  right: 0;
-  width: min(540px, 100%);
-  height: 100%;
-  background: rgba(255, 255, 255, 0.98);
+  top: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  width: min(520px, calc(100% - 1.5rem));
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-left: var(--border);
-  transform: translateX(100%);
+  border: var(--border);
+  border-radius: 12px;
+  transform: translateX(calc(100% + 1.25rem));
   transition: transform 0.32s ease;
-  overflow: auto;
-  padding: var(--s-6) var(--s-5) var(--s-8);
-  box-shadow: -12px 0 40px -24px rgba(26, 26, 26, 0.18);
+  overflow: hidden;
+  box-shadow: 0 18px 48px -24px rgba(26, 26, 26, 0.28);
 }
 
 .bh-detail.open .bh-detail-paneel {
   transform: none;
 }
 
+.bh-detail-kop {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  padding: 0.7rem 0.75rem 0;
+}
+
+.bh-detail-inhoud {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.25rem 1.5rem 1.75rem;
+}
+
+.bh-detail-inhoud .bh-demo {
+  display: none;
+}
+
+.bh-detail-inhoud .bh-top {
+  margin-bottom: var(--s-4);
+}
+
+.bh-detail-inhoud .bh-crumb {
+  margin-top: 0;
+}
+
 .bh-detail-x {
-  float: right;
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  background: var(--cream-deep);
   border: 0;
-  font-size: 1.6rem;
+  border-radius: 999px;
+  font-size: 1.35rem;
   line-height: 1;
   cursor: pointer;
   color: var(--ink-mute);
-  padding: var(--s-1) var(--s-2);
-  transition: color 0.2s;
+  transition: color 0.2s, background 0.2s;
 }
 
 .bh-detail-x:hover {
@@ -909,13 +951,14 @@
 @media (max-width: 860px) {
   .bh-app {
     grid-template-columns: 1fr;
+    padding: 0.6rem;
+    gap: 0.6rem;
   }
 
   .bh-nav {
     height: auto;
     position: relative;
-    border-right: 0;
-    border-bottom: var(--border);
+    top: 0;
   }
 
   .bh-werk-kop {
