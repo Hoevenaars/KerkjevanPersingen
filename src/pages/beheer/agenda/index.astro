@@ -21,6 +21,7 @@ function gastheerLabel(boekingId?: string): string {
 <Beheer titel="Agenda">
   <header class="bh-top">
     <div>
+      <p class="bh-label">Agenda</p>
       <h1>Agenda</h1>
       <p class="bh-hint">
         Publieke activiteiten (alleen intern beheer) en interne blokkades. De website toont dit niet.
@@ -44,7 +45,7 @@ function gastheerLabel(boekingId?: string): string {
           DEMO_AGENDA.map((p) => (
             <tr>
               <td>
-                <a href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
+                <a class="bh-detail-link" href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
               </td>
               <td>
                 {formatNl(p.start)}
@@ -76,7 +77,7 @@ function gastheerLabel(boekingId?: string): string {
           DEMO_INTERN.map((i) => (
             <tr>
               <td>
-                <a href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
+                <a class="bh-detail-link" href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
               </td>
               <td>
                 {formatNl(i.start)}
