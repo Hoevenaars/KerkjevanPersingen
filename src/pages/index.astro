@@ -3,10 +3,17 @@ import Base from '../layouts/Base.astro';
 import Button from '../components/Button.astro';
 import MasonMark from '../components/MasonMark.astro';
 import { getAgendaOverzicht, imageUrl, formatDatum, formatDatumBereik } from '../lib/sanity';
+import { SECOND_NATURE_POSTER } from '../lib/second-nature';
 
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
-const vandaagFoto = vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : '/foto/geen-foto.jpg';
-const volgendeFoto = volgende?.foto ? imageUrl(volgende.foto, 900, 600) : '/foto/geen-foto.jpg';
+const vandaagFoto =
+  (vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : null) ??
+  (vandaag?._id === 'fallback-second-nature' ? SECOND_NATURE_POSTER : null) ??
+  '/foto/geen-foto.jpg';
+const volgendeFoto =
+  (volgende?.foto ? imageUrl(volgende.foto, 900, 600) : null) ??
+  (volgende?._id === 'fallback-second-nature' ? SECOND_NATURE_POSTER : null) ??
+  '/foto/geen-foto.jpg';
 
 const MAX_OMSCHRIJVING = 160;
 function kort(tekst?: string): string {
