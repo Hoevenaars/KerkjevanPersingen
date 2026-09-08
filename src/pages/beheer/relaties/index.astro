@@ -8,6 +8,7 @@ import { DEMO_RELATIES } from '../../../platform/demo-data';
 <Beheer titel="Relaties">
   <header class="bh-top">
     <div>
+      <p class="bh-label">Relaties</p>
       <h1>Relaties</h1>
       <p class="bh-hint">
         Huurders en exposanten. Gastheren voor diensten staan onder
@@ -30,7 +31,7 @@ import { DEMO_RELATIES } from '../../../platform/demo-data';
         DEMO_RELATIES.map((r) => (
           <tr>
             <td>
-              <a href={`/beheer/relaties/${r.id}/`}>{r.naam}</a>
+              <a class="bh-detail-link" href={`/beheer/relaties/${r.id}/`}>{r.naam}</a>
             </td>
             <td>{r.email}</td>
             <td>{r.rollen.join(', ')}</td>

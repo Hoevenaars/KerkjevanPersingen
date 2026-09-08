@@ -24,6 +24,7 @@ const tabs = [
 <Beheer titel="Boekingen">
   <header class="bh-top">
     <div>
+      <p class="bh-label">Boekingen</p>
       <h1>Boekingen</h1>
       <p class="bh-hint">Interne boekingen — nooit zichtbaar op de website. Klik een nummer voor details.</p>
     </div>
@@ -55,7 +56,7 @@ const tabs = [
         lijst.map((b) => (
           <tr>
             <td>
-              <a href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
+              <a class="bh-detail-link" href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
             </td>
             <td>{b.interneTitel}</td>
             <td>{b.huurder}</td>

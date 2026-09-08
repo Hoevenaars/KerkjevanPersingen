@@ -33,6 +33,13 @@ const instellingen = [
   { href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
 ];
 
+const snelNieuw = [
+  { href: '/beheer/aanvragen/', label: 'Aanvraag bekijken' },
+  { href: '/beheer/relaties/', label: 'Relatie' },
+  { href: '/beheer/agenda/', label: 'Agenda-item' },
+  { href: '/beheer/boekingen/', label: 'Boeking' },
+];
+
 function actief(href: string): boolean {
   if (href === '/beheer/') return pad === '/beheer' || pad === '/beheer/';
   if (href === '/beheer/instellingen/') {
@@ -48,6 +55,8 @@ function actief(href: string): boolean {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#faf8f3" />
     <title>{titel} — Beheer Kerkje van Persingen</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -94,10 +103,56 @@ function actief(href: string): boolean {
         </ul>
         <p class="bh-user">Voorbeeldweergave als Nick (Super Admin)</p>
       </nav>
-      <div class="bh-main">
-        <p class="bh-banner">{DEMO_BANNER}</p>
-        <slot />
+
+      <div class="bh-werk">
+        <header class="bh-werk-kop" id="bh-werk-kop">
+          <div class="bh-werk-kop-links">
+            <p class="bh-label">Beheer · Kerkje van Persingen</p>
+            <p class="bh-werk-datum" id="bh-datum"></p>
+          </div>
+          <div class="bh-fab-wrap">
+            <button
+              type="button"
+              class="bh-fab"
+              id="bh-fab"
+              aria-label="Snel naar"
+              aria-expanded="false"
+              aria-controls="bh-fab-menu"
+            >
+              +
+            </button>
+            <div id="bh-fab-menu" class="bh-fab-menu" hidden role="menu" aria-label="Snel naar">
+              {
+                snelNieuw.map((item) => (
+                  <a href={item.href} role="menuitem">
+                    {item.label}
+                  </a>
+                ))
+              }
+            </div>
+          </div>
+        </header>
+
+        <div class="bh-main">
+          <p class="bh-demo">{DEMO_BANNER}</p>
+          <slot />
+        </div>
       </div>
     </div>
+
+    <aside id="bh-detail" class="bh-detail" aria-hidden="true">
+      <button type="button" class="bh-detail-backdrop" id="bh-detail-sluit" aria-label="Sluiten"></button>
+      <div class="bh-detail-paneel">
+        <button type="button" class="bh-detail-x" id="bh-detail-x" aria-label="Sluiten">&times;</button>
+        <div class="bh-detail-inhoud" id="bh-detail-inhoud"></div>
+      </div>
+    </aside>
+
+    <script src="/beheer.js" defer></script>
+    <script is:inline>
+      document.getElementById('bh-detail-x')?.addEventListener('click', () => {
+        document.getElementById('bh-detail-sluit')?.click();
+      });
+    </script>
   </body>
 </html>

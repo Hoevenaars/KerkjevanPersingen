@@ -20,17 +20,30 @@ const tabs = [
   { href: '/beheer/aanvragen/?status=goedgekeurd', status: 'goedgekeurd', label: 'Goedgekeurd' },
   { href: '/beheer/aanvragen/?status=afgewezen', status: 'afgewezen', label: 'Afgewezen' },
 ];
+
+const pipeline = [
+  { status: 'nieuw', label: 'Nieuw' },
+  { status: 'in_behandeling', label: 'In behandeling' },
+  { status: 'goedgekeurd', label: 'Goedgekeurd' },
+  { status: 'afgewezen', label: 'Afgewezen' },
+] as const;
 ---
 
 <Beheer titel="Aanvragen">
   <header class="bh-top">
     <div>
+      <p class="bh-label">Aanvragen</p>
       <h1>Aanvragen</h1>
-      <p class="bh-hint">Externe verhuurverzoeken. Klik een naam om de behandeling te openen.</p>
+      <p class="bh-hint">Externe verhuurverzoeken. Klik een naam — het detailpaneel opent aan de rechterkant.</p>
     </div>
   </header>
 
-  <nav class="bh-tabs" aria-label="Filter aanvragen">
+  <nav class="bh-tabs" aria-label="Weergave">
+    <button type="button" data-bh-view="lijst" aria-current="page">Lijst</button>
+    <button type="button" data-bh-view="pipeline">Pipeline</button>
+  </nav>
+
+  <nav class="bh-tabs" aria-label="Filter aanvragen" data-bh-panel="lijst">
     {
       tabs.map((tab) => (
         <a href={tab.href} aria-current={filter === tab.status ? 'page' : undefined}>
@@ -40,41 +53,82 @@ const tabs = [
     }
   </nav>
 
-  <table class="bh-tabel">
-    <thead>
-      <tr>
-        <th>Naam</th>
-        <th>Soort</th>
-        <th>Datum</th>
-        <th>Binnengekomen</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {
-        lijst.length === 0 ? (
-          <tr>
-            <td colspan="5" class="bh-leeg">Geen aanvragen in deze filter.</td>
-          </tr>
-        ) : (
-          lijst.map((a) => (
+  <div data-bh-panel="lijst">
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Naam</th>
+          <th>Soort</th>
+          <th>Datum</th>
+          <th>Binnengekomen</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          lijst.length === 0 ? (
             <tr>
-              <td>
-                <a href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
-              </td>
-              <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
-              <td>
-                {formatNl(a.start)}
-                {a.eind !== a.start ? ` – ${formatNl(a.eind)}` : ''}
-              </td>
-              <td>{formatNl(a.binnengekomen.slice(0, 10))}</td>
-              <td>
-                <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
-              </td>
+              <td colspan="5" class="bh-leeg">Geen aanvragen in deze filter.</td>
             </tr>
-          ))
-        )
+          ) : (
+            lijst.map((a) => (
+              <tr>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
+                </td>
+                <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
+                <td>
+                  {formatNl(a.start)}
+                  {a.eind !== a.start ? ` – ${formatNl(a.eind)}` : ''}
+                </td>
+                <td>{formatNl(a.binnengekomen.slice(0, 10))}</td>
+                <td>
+                  <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
+                </td>
+              </tr>
+            ))
+          )
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div data-bh-panel="pipeline" hidden>
+    <p class="bh-hint" style="margin-bottom: 1rem;">Overzicht per fase — klik een kaart voor details.</p>
+    <div class="bh-board">
+      {
+        pipeline.map((kolom) => {
+          const items = DEMO_AANVRAGEN.filter((a) => a.status === kolom.status);
+          return (
+            <section class="bh-kolom">
+              <div class="bh-kolom-kop">
+                <h3>
+                  {kolom.label} ({items.length})
+                </h3>
+              </div>
+              <div class="bh-kolom-lijst">
+                {
+                  items.length === 0 ? (
+                    <p class="bh-leeg">Geen aanvragen</p>
+                  ) : (
+                    items.map((a) => (
+                      <a
+                        class={`bh-pipeline-kaart bh-detail-link ${a.status === 'nieuw' ? 'bh-pipeline-kaart--nieuw' : ''}`}
+                        href={`/beheer/aanvragen/${a.id}/`}
+                      >
+                        <strong>{a.naam}</strong>
+                        <small>
+                          {SOORT_LABEL[a.soort] ?? a.soort} · {formatNl(a.start)}
+                        </small>
+                      </a>
+                    ))
+                  )
+                }
+              </div>
+            </section>
+          );
+        })
       }
-    </tbody>
-  </table>
+    </div>
+  </div>
 </Beheer>

@@ -26,6 +26,7 @@ const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status ===
 <Beheer titel="Dashboard">
   <header class="bh-top">
     <div>
+      <p class="bh-label">Dashboard</p>
       <h1>Dashboard</h1>
       <p class="bh-hint">
         Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.
@@ -62,7 +63,7 @@ const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status ===
           nieuwe.map((a) => (
             <tr>
               <td>
-                <a href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
+                <a class="bh-detail-link" href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
               </td>
               <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
               <td>{formatNl(a.start)}</td>
@@ -92,7 +93,7 @@ const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status ===
           opties.map((b) => (
             <tr>
               <td>
-                <a href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
+                <a class="bh-detail-link" href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
               </td>
               <td>{b.huurder}</td>
               <td>{formatNl(b.start)}</td>
@@ -121,7 +122,7 @@ const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status ===
           DEMO_AGENDA.map((p) => (
             <tr>
               <td>
-                <a href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
+                <a class="bh-detail-link" href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
               </td>
               <td>{formatNl(p.start)}</td>
               <td>
@@ -134,7 +135,7 @@ const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status ===
           DEMO_INTERN.map((i) => (
             <tr>
               <td>
-                <a href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
+                <a class="bh-detail-link" href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
               </td>
               <td>{formatNl(i.start)}</td>
               <td>
