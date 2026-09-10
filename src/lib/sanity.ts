@@ -4,7 +4,7 @@ import { SOORTEN, type Aanvraag } from './validatie';
 import { eerstvolgendeVrijeWeekenden, maandagVanWeekIso, type VrijWeekend } from './week';
 import { bezetteKalenderDagen } from './datum';
 import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
-import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit } from './sanity-documenten';
+import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
 
 export { maandagVanWeekIso };
 export { formatDatum, formatDatumBereik } from './datum';
@@ -314,7 +314,7 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
   }
 }
 
-export { activiteitenVoorKalender, kiesGepubliceerdeActiviteit } from './sanity-documenten';
+export { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
 
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
@@ -322,6 +322,7 @@ export type ContentStatus = 'ontbreekt' | 'gevraagd' | 'ontvangen' | 'goedgekeur
 
 export interface Activiteit {
   _id: string;
+  _originalId?: string;
   slug: string;
   interneTitel: string;
   publiekeTitel?: string;
@@ -341,6 +342,7 @@ export interface Activiteit {
 
 const ACTIVITEIT_VELDEN = `
   _id,
+  _originalId,
   "slug": slug.current,
   interneTitel,
   publiekeTitel,
@@ -363,10 +365,17 @@ const ACTIVITEIT_VELDEN = `
  * hele pagina niet neerhalen. Bij een fout krijg je een lege agenda plus een log —
  * het leeg-scenario op de landingspagina vangt dat visueel netjes op.
  */
-async function veiligeQuery<T>(query: string, params: Record<string, unknown> = {}): Promise<T[]> {
+async function veiligeQuery<T>(
+  query: string,
+  params: Record<string, unknown> = {},
+  opties: { perspective?: 'published' | 'raw' | 'previewDrafts' } = {},
+): Promise<T[]> {
   if (!client) return [];
   try {
-    return await client.fetch<T[]>(query, params);
+    const bron = opties.perspective
+      ? client.withConfig({ perspective: opties.perspective })
+      : client;
+    return await bron.fetch<T[]>(query, params);
   } catch (error) {
     console.error('[sanity] query mislukt', { query, error });
     return [];
@@ -447,16 +456,24 @@ export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
   return lijst.slice(0, limit);
 }
 
-/** Beschikbaarheidskalender: alles wat de datum blokkeert, zonder details prijs te geven.
- *  Bewust zonder datumfilter — het bestuur plant tot in 2028. Ook zonder
- *  toonVanafMaanden-filter: de kalender toont "bezet", geen inhoud, dus die regel
- *  is hier niet relevant. */
+/** Beschikbaarheidskalender: alleen gepubliceerde bezetting plus de publieke agenda.
+ *  De site-token ziet anders concepten, Content Releases en draft-overlays
+ *  (`previewDrafts` haalt `drafts.` van `_id` af). Die zette 7-8 november grijs
+ *  terwijl Studio en de agenda leeg waren. Geen fallback naar raw: dat haalt
+ *  dezelfde concepten terug. Publieke concepten blijven bezet via de agenda. */
 export async function getBezetteData(): Promise<Activiteit[]> {
-  const ruw = await veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && defined(start)]
-     | order(start asc) { ${ACTIVITEIT_VELDEN} }`
+  const groq = `*[_type == "activiteit" && defined(start) && zichtbaarheid != "verborgen"
+     && !(_id in path("drafts.**")) && !(_id in path("versions.**"))]
+   | order(start asc) { ${ACTIVITEIT_VELDEN} }`;
+  const [gepubliceerd, agenda] = await Promise.all([
+    veiligeQuery<Activiteit>(groq, {}, { perspective: 'published' }),
+    getPubliekeAgenda(50),
+  ]);
+
+  const gekozen = mergeKalenderBronnen(
+    activiteitenVoorKalender(gepubliceerd),
+    agenda,
   );
-  const gekozen = activiteitenVoorKalender(ruw);
 
   const { SECOND_NATURE } = await import('./second-nature.ts');
   if (!gekozen.some((item) => item.slug === SECOND_NATURE.slug)) {
