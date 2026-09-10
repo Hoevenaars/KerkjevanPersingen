@@ -6,13 +6,63 @@
  * tijdstip.
  */
 
-function ymdAmsterdam(iso: string): string {
+export function ymdAmsterdam(iso: string): string {
   return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' });
 }
 
 function utcMiddagVanYmd(ymd: string): Date {
   const [jaar, maand, dag] = ymd.split('-').map(Number);
   return new Date(Date.UTC(jaar, maand - 1, dag, 12, 0, 0));
+}
+
+function volgendeYmd(ymd: string): string {
+  const d = utcMiddagVanYmd(ymd);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Kalenderdagen die een boeking blokkeert, in Nederlandse tijd.
+ *
+ * Sanity slaat datetimes in UTC op. Middernacht in Amsterdam is de avond
+ * ervoor in UTC — zonder vaste tijdzone werd 8 november "bezet" op 7 november,
+ * terwijl Studio (Amsterdam) 8 november toonde.
+ *
+ * Bij een zaterdag-expositie zonder aparte zondag telt zondag mee, net als in
+ * de agenda-tekst (`eindVoorWeergave`).
+ */
+export function bezetteKalenderDagen(
+  activiteiten: readonly {
+    start?: string;
+    eind?: string;
+    soort?: string;
+    zichtbaarheid?: string;
+  }[],
+): Set<string> {
+  const dagen = new Set<string>();
+  for (const item of activiteiten) {
+    if (item.zichtbaarheid === 'verborgen') continue;
+    if (!item.start || Number.isNaN(Date.parse(item.start))) continue;
+
+    const startYmd = ymdAmsterdam(item.start);
+    const eindIso = eindVoorWeergave({
+      start: item.start,
+      eind: item.eind,
+      soort: item.soort,
+    });
+    if (Number.isNaN(Date.parse(eindIso))) continue;
+    const eindYmd = ymdAmsterdam(eindIso);
+    if (eindYmd < startYmd) continue;
+
+    let loper = startYmd;
+    let veiligheid = 0;
+    while (loper <= eindYmd && veiligheid < 400) {
+      dagen.add(loper);
+      loper = volgendeYmd(loper);
+      veiligheid++;
+    }
+  }
+  return dagen;
 }
 
 function weekdagAmsterdam(iso: string): number {

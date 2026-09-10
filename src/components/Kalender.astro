@@ -1,5 +1,7 @@
 ---
 import type { Activiteit } from '../lib/sanity';
+import { bezetteKalenderDagen } from '../lib/datum';
+
 
 interface Props {
   bezet: Activiteit[];
@@ -36,19 +38,7 @@ function sleutel(d: Date): string {
   return `${d.getFullYear()}-${m}-${dag}`;
 }
 
-const bezetteDagen = new Set<string>();
-for (const item of bezet) {
-  const van = new Date(item.start);
-  const tot = item.eind ? new Date(item.eind) : van;
-  const loper = new Date(van.getFullYear(), van.getMonth(), van.getDate());
-  const eindDag = new Date(tot.getFullYear(), tot.getMonth(), tot.getDate());
-  let veiligheid = 0;
-  while (loper <= eindDag && veiligheid < 400) {
-    bezetteDagen.add(sleutel(loper));
-    loper.setDate(loper.getDate() + 1);
-    veiligheid++;
-  }
-}
+const bezetteDagen = bezetteKalenderDagen(bezet);
 
 const eersteVanDeMaand = new Date(jaar, maandIndex, 1);
 const dagenInMaand = new Date(jaar, maandIndex + 1, 0).getDate();
@@ -63,7 +53,7 @@ interface Cel {
 }
 
 const nu = new Date();
-const vandaagSleutel = sleutel(nu);
+const vandaagSleutel = nu.toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' });
 
 const cellen: Cel[] = [];
 for (let i = 0; i < startOffset; i++) cellen.push({ dag: null });

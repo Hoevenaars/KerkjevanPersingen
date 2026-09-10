@@ -81,9 +81,9 @@ export function publiekeStatusVoorDag(
 /**
  * Huidige website-logica, 1-op-1 met Kalender.astro + getBezetteData():
  * alles met zichtbaarheid anders dan "verborgen" telt als bezet, inclusief
- * de hele periode start t/m eind. Opties die in Sanity nog "verborgen"
- * staan, blokkeren dus nu ook niet — totdat het bestuur de zichtbaarheid
- * op "bezet" zet.
+ * de hele periode start t/m eind in Nederlandse kalenderdagen. Opties die in
+ * Sanity nog "verborgen" staan, blokkeren dus nu ook niet — totdat het bestuur
+ * de zichtbaarheid op "bezet" zet.
  */
 export function huidigeBezetteDagen(
   activiteiten: readonly {

@@ -1,11 +1,14 @@
 import { createClient, type SanityClient } from '@sanity/client';
 import imageUrlBuilder from '@sanity/image-url';
 import { SOORTEN, type Aanvraag } from './validatie';
-import { maandagVanWeekIso } from './week';
+import { eerstvolgendeVrijeWeekenden, maandagVanWeekIso, type VrijWeekend } from './week';
+import { bezetteKalenderDagen } from './datum';
 import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
+import { kiesGepubliceerdeActiviteit } from './sanity-documenten';
 
 export { maandagVanWeekIso };
 export { formatDatum, formatDatumBereik } from './datum';
+export type { VrijWeekend };
 export type { VriendFrequentie };
 
 const projectId = process.env.SANITY_PROJECT_ID ?? import.meta.env.SANITY_PROJECT_ID;
@@ -311,6 +314,8 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
   }
 }
 
+export { kiesGepubliceerdeActiviteit } from './sanity-documenten';
+
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
 export type ContentStatus = 'ontbreekt' | 'gevraagd' | 'ontvangen' | 'goedgekeurd' | 'afgewezen';
@@ -423,7 +428,7 @@ export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
      ] | order(start asc) [0...$limit] { ${ACTIVITEIT_VELDEN} }`,
     { cutoff: cutoffVandaag(), limit }
   );
-  const lijst = resultaat.filter(magAlGetoondWorden);
+  const lijst = kiesGepubliceerdeActiviteit(resultaat).filter(magAlGetoondWorden);
 
   const { SECOND_NATURE } = await import('./second-nature.ts');
   const cutoff = cutoffVandaag();
@@ -446,11 +451,20 @@ export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
  *  Bewust zonder datumfilter — het bestuur plant tot in 2028. Ook zonder
  *  toonVanafMaanden-filter: de kalender toont "bezet", geen inhoud, dus die regel
  *  is hier niet relevant. */
-export function getBezetteData(): Promise<Activiteit[]> {
-  return veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && zichtbaarheid != "verborgen"]
+export async function getBezetteData(): Promise<Activiteit[]> {
+  const ruw = await veiligeQuery<Activiteit>(
+    `*[_type == "activiteit" && defined(start)]
      | order(start asc) { ${ACTIVITEIT_VELDEN} }`
   );
+  const gekozen = kiesGepubliceerdeActiviteit(ruw).filter(
+    (item) => item.zichtbaarheid !== 'verborgen',
+  );
+
+  const { SECOND_NATURE } = await import('./second-nature.ts');
+  if (!gekozen.some((item) => item.slug === SECOND_NATURE.slug)) {
+    gekozen.push(SECOND_NATURE);
+  }
+  return gekozen;
 }
 
 export interface AgendaOverzicht {
@@ -485,20 +499,13 @@ export async function getActiviteitBySlug(slug: string): Promise<Activiteit | nu
      { ${ACTIVITEIT_VELDEN} }`,
     { slug }
   );
-  const gevonden = rij[0] ?? null;
+  const gevonden = kiesGepubliceerdeActiviteit(rij)[0] ?? null;
   // Ook een direct-URL-bezoek respecteert toonVanafMaanden — anders zou een
   // vroegtijdig ingevoerde activiteit alsnog vindbaar zijn via een geraden link.
   if (gevonden && magAlGetoondWorden(gevonden)) return gevonden;
 
   const { secondNatureFallback } = await import('./second-nature.ts');
   return secondNatureFallback(slug);
-}
-
-export interface VrijWeekend {
-  zaterdag: string; // YYYY-MM-DD
-  zondag: string;
-  zaterdagVrij: boolean;
-  zondagVrij: boolean;
 }
 
 /**
@@ -508,50 +515,7 @@ export interface VrijWeekend {
  */
 export async function getEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWeekend[]> {
   const bezet = await getBezetteData();
-
-  const bezetteDagen = new Set<string>();
-  for (const item of bezet) {
-    if (item.zichtbaarheid === 'verborgen') continue;
-    const van = new Date(item.start);
-    const tot = item.eind ? new Date(item.eind) : van;
-    const loper = new Date(Date.UTC(van.getUTCFullYear(), van.getUTCMonth(), van.getUTCDate()));
-    const eindDag = new Date(Date.UTC(tot.getUTCFullYear(), tot.getUTCMonth(), tot.getUTCDate()));
-    let veiligheid = 0;
-    while (loper <= eindDag && veiligheid < 400) {
-      bezetteDagen.add(loper.toISOString().slice(0, 10));
-      loper.setUTCDate(loper.getUTCDate() + 1);
-      veiligheid++;
-    }
-  }
-
-  const resultaat: VrijWeekend[] = [];
-  const nu = new Date();
-  let dag = new Date(Date.UTC(nu.getUTCFullYear(), nu.getUTCMonth(), nu.getUTCDate()));
-
-  // Naar de eerstvolgende zaterdag toe lopen (getUTCDay: 0=zo .. 6=za).
-  while (dag.getUTCDay() !== 6) {
-    dag.setUTCDate(dag.getUTCDate() + 1);
-  }
-
-  let veiligheid = 0;
-  while (resultaat.length < aantal && veiligheid < 260) {
-    const zaterdag = dag.toISOString().slice(0, 10);
-    const zondagDatum = new Date(dag);
-    zondagDatum.setUTCDate(zondagDatum.getUTCDate() + 1);
-    const zondag = zondagDatum.toISOString().slice(0, 10);
-
-    const zaterdagVrij = !bezetteDagen.has(zaterdag);
-    const zondagVrij = !bezetteDagen.has(zondag);
-
-    if (zaterdagVrij || zondagVrij) {
-      resultaat.push({ zaterdag, zondag, zaterdagVrij, zondagVrij });
-    }
-
-    dag.setUTCDate(dag.getUTCDate() + 7);
-    veiligheid++;
-  }
-
-  return resultaat;
+  return eerstvolgendeVrijeWeekenden(bezetteKalenderDagen(bezet), aantal);
 }
 
 /**

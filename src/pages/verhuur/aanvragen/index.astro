@@ -15,6 +15,7 @@ import {
   type Fouten,
 } from '../../../lib/aanvraag';
 import { getBezetteData } from '../../../lib/sanity';
+import { bezetteKalenderDagen } from '../../../lib/datum';
 
 export const prerender = false;
 
@@ -38,6 +39,7 @@ if (soortVooraf && GELDIGE_SOORTEN.includes(soortVooraf as never)) {
 }
 
 const bezet = await getBezetteData();
+const bezetteDagen = bezetteKalenderDagen(bezet);
 
 const nu = new Date();
 const gevraagdeMaand = Astro.url.searchParams.get('maand') ?? '';
@@ -45,36 +47,22 @@ const maand = /^\d{4}-(0[1-9]|1[0-2])$/.test(gevraagdeMaand)
   ? gevraagdeMaand
   : `${nu.getFullYear()}-${String(nu.getMonth() + 1).padStart(2, '0')}`;
 
-function alleDagen(vanIso: string, totIso: string): number[] {
-  const dagen: number[] = [];
-  const van = new Date(vanIso);
-  const tot = new Date(totIso);
-  const loper = Date.UTC(van.getUTCFullYear(), van.getUTCMonth(), van.getUTCDate());
-  const eind = Date.UTC(tot.getUTCFullYear(), tot.getUTCMonth(), tot.getUTCDate());
-  let dag = loper;
+function alleYmd(van: string, tot: string): string[] {
+  const dagen: string[] = [];
+  let loper = van;
   let veiligheid = 0;
-  while (dag <= eind && veiligheid < 60) {
-    dagen.push(dag);
-    dag += 24 * 60 * 60 * 1000;
+  while (loper <= tot && veiligheid < 60) {
+    dagen.push(loper);
+    const d = new Date(`${loper}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    loper = d.toISOString().slice(0, 10);
     veiligheid++;
   }
   return dagen;
 }
 
 function isDagBruiloft(dagIso: string): boolean {
-  const dag = Date.UTC(
-    Number(dagIso.slice(0, 4)),
-    Number(dagIso.slice(5, 7)) - 1,
-    Number(dagIso.slice(8, 10))
-  );
-  return bezet.some((a) => {
-    if (a.soort !== 'bruiloft') return false;
-    const start = new Date(a.start);
-    const startDag = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
-    const eind = a.eind ? new Date(a.eind) : start;
-    const eindDag = Date.UTC(eind.getUTCFullYear(), eind.getUTCMonth(), eind.getUTCDate());
-    return startDag <= dag && dag <= eindDag;
-  });
+  return bezet.some((a) => a.soort === 'bruiloft' && bezetteKalenderDagen([a]).has(dagIso));
 }
 
 if (Astro.request.method === 'POST') {
@@ -95,15 +83,8 @@ if (Astro.request.method === 'POST') {
       fouten = valideer(waarden);
 
       if (!fouten.datum && !fouten.datumTot && waarden.datum) {
-        const gevraagdeDagen = alleDagen(waarden.datum, waarden.datumTot || waarden.datum);
-
-        const isBezet = bezet.some((a) => {
-          const start = new Date(a.start);
-          const startDag = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
-          const eind = a.eind ? new Date(a.eind) : start;
-          const eindDag = Date.UTC(eind.getUTCFullYear(), eind.getUTCMonth(), eind.getUTCDate());
-          return gevraagdeDagen.some((d) => startDag <= d && d <= eindDag);
-        });
+        const gevraagdeDagen = alleYmd(waarden.datum, waarden.datumTot || waarden.datum);
+        const isBezet = gevraagdeDagen.some((dag) => bezetteDagen.has(dag));
 
         if (isBezet) {
           const veld = waarden.datumTot ? 'datumTot' : 'datum';
