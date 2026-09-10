@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Button from '../components/Button.astro';
 import MasonMark from '../components/MasonMark.astro';
+import VrijgekomenWeekendBanner from '../components/VrijgekomenWeekendBanner.astro';
 import { getAgendaOverzicht, imageUrl, formatDatum, formatDatumBereik } from '../lib/sanity';
 import { SECOND_NATURE_POSTER } from '../lib/second-nature';
 
@@ -27,6 +28,8 @@ function kort(tekst?: string): string {
   title="home"
   description="Rijksmonumentaal kerkje uit 1350 in de Ooijpolder. Te huur voor bruiloften, exposities, concerten en bijeenkomsten."
 >
+  <VrijgekomenWeekendBanner />
+
   <!-- Hero: de thesis van deze site. Het gebouw is er nog, en dat is het verhaal. -->
   <section class="hero">
     <div class="wrap hero-grid">
@@ -195,7 +198,7 @@ function kort(tekst?: string): string {
 
 <style>
   .hero {
-    padding-block: var(--s-16) var(--s-24);
+    padding-block: var(--s-12) var(--s-24);
   }
 
   .hero-grid {
