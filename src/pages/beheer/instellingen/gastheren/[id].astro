@@ -2,16 +2,12 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import {
-  DEMO_GASTHEREN,
-  DEMO_BOEKINGEN,
-  DEMO_FLASH,
-  demoNaActie,
-  formatNl,
-} from '../../../../platform/demo-data';
+import { demoNaActie, formatNl } from '../../../../platform/demo-data';
+import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 
-const id = Astro.params.id ?? '';
-const gastheer = DEMO_GASTHEREN.find((g) => g.id === id);
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const id = beheerId(Astro.params.id);
+const gastheer = snapshot.gastheren.find((g) => g.id === id);
 
 if (Astro.request.method === 'POST') {
   return Astro.redirect(demoNaActie(Astro.url));
@@ -22,7 +18,7 @@ if (!gastheer) {
 }
 
 const flash = Astro.url.searchParams.get('demo') === '1';
-const diensten = DEMO_BOEKINGEN.filter((b) => b.gastheerId === gastheer.id);
+const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
 ---
 
 <Beheer titel={gastheer.naam}>
@@ -36,7 +32,7 @@ const diensten = DEMO_BOEKINGEN.filter((b) => b.gastheerId === gastheer.id);
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   <section class="bh-kaart">
     <h2>Gegevens</h2>
@@ -72,7 +68,7 @@ const diensten = DEMO_BOEKINGEN.filter((b) => b.gastheerId === gastheer.id);
             {diensten.map((b) => (
               <tr>
                 <td>
-                  <a href={`/beheer/boekingen/${b.id}/`}>{b.interneTitel}</a>
+                  <a href={`/beheer/boekingen/${encodeURIComponent(b.id)}/`}>{b.interneTitel}</a>
                 </td>
                 <td>{formatNl(b.start)}</td>
               </tr>

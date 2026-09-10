@@ -1,7 +1,7 @@
 ---
 import '../styles/global.css';
 import '../styles/beheer.css';
-import { DEMO_BANNER } from '../platform/demo-data';
+import { laadBeheerSnapshot } from '../platform/beheer-bron';
 
 interface Props {
   titel: string;
@@ -10,6 +10,13 @@ interface Props {
 const { titel } = Astro.props;
 const pad = Astro.url.pathname;
 const zoekterm = Astro.url.searchParams.get('q') ?? '';
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const demoLink = new URL(Astro.url);
+demoLink.searchParams.set('bron', 'demo');
+const liveLink = new URL(Astro.url);
+liveLink.searchParams.delete('bron');
+const demoHref = demoLink.pathname + demoLink.search;
+const liveHref = liveLink.pathname + liveLink.search;
 
 const hoofd = [
   { href: '/beheer/', label: 'Dashboard' },
@@ -22,6 +29,7 @@ const hoofd = [
   { href: '/beheer/finance/', label: 'Finance' },
   { href: '/beheer/vrienden/', label: 'Vrienden' },
   { href: '/beheer/nieuwsbrief/', label: 'Nieuwsbrief' },
+  { href: '/beheer/migratie/', label: 'Migratie' },
 ];
 
 const instellingen = [
@@ -101,7 +109,9 @@ function actief(href: string): boolean {
             ))
           }
         </ul>
-        <p class="bh-user">Voorbeeldweergave als Nick (Super Admin)</p>
+        <p class="bh-user">
+          {snapshot.bron === 'sanity' ? 'Live Sanity · alleen lezen · Nick (Super Admin)' : 'Voorbeeldweergave als Nick (Super Admin)'}
+        </p>
       </nav>
 
       <div class="bh-werk">
@@ -134,7 +144,25 @@ function actief(href: string): boolean {
         </header>
 
         <div class="bh-main">
-          <p class="bh-demo">{DEMO_BANNER}</p>
+          <p class="bh-demo">
+            {snapshot.banner}
+            {
+              snapshot.bron === 'sanity' && (
+                <>
+                  {' '}
+                  <a href={demoHref}>Toon voorbeelddata</a>
+                </>
+              )
+            }
+            {
+              snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo' && (
+                <>
+                  {' '}
+                  <a href={liveHref}>Terug naar live</a>
+                </>
+              )
+            }
+          </p>
           <slot />
         </div>
       </div>

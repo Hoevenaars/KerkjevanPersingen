@@ -62,11 +62,15 @@ export function interneStatusVoorDag(
   const treffers = items.filter(
     (item) => item.periode.start <= dag && dag <= item.periode.eind,
   );
-  if (treffers.some((item) => item.status === 'definitief')) return 'definitief';
+  if (treffers.some((item) => item.status === 'definitief' || item.status === 'migratie_vastgelegd')) {
+    return 'definitief';
+  }
   if (treffers.some((item) => item.status === 'interne_blokkade')) return 'interne_activiteit';
   if (treffers.some((item) => item.status === 'optie')) return 'optie';
   if (treffers.some((item) => item.status === 'optie_verlopen')) return 'optie_verlopen';
-  if (treffers.some((item) => item.status === 'aanvraag')) return 'aanvraag';
+  if (treffers.some((item) => item.status === 'aanvraag' || item.status === 'migratie_aanvraag')) {
+    return 'aanvraag';
+  }
   if (treffers.some((item) => item.status === 'afgerond')) return 'afgerond';
   return 'vrij';
 }

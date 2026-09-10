@@ -13,7 +13,9 @@ Zie `docs/beheer/ARCHITECTUUR.md`.
 ## Nog geen remote project
 
 Er is nog geen Supabase-project "Kerkje van Persingen". Schema en seed staan in
-deze map zodat we die in één keer kunnen toepassen zodra het project er is.
+deze map zodat we die in één keer kunnen toepassen zodra het project er is
+(bewuste kostbevestiging). Tot die tijd: live-lezen in `/beheer` + dry-run
+(`npm run migratie:dry-run`) ter voorbereiding van de import.
 
 ```bash
 npx supabase init          # alleen als config.toml ontbreekt

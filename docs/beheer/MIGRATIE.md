@@ -45,16 +45,25 @@ Bijzonderheden:
 
 ## Controlelijst (FO §74)
 
+In `/beheer/migratie/` (live Sanity) of via `npm run migratie:dry-run`.
+
 | Controle | Sanity | Nieuw |
 | --- | ---: | ---: |
-| Activiteiten | | |
-| Toekomstige activiteiten | | |
-| Bezette dagen (oude vs nieuwe regel) | | |
-| Aanvragen | | |
-| Actieve vrienden | | |
-| Inactieve vrienden | | |
-| Nieuwsbrieven | | |
+| Activiteiten | live | boekingen + interne activiteiten |
+| Toekomstige activiteiten | live | live |
+| Bezette dagen (oude vs nieuwe regel) | `huidigeBezetteDagen()` | `publiekeBezetteDagen()` |
+| Aanvragen | live | live |
+| Actieve vrienden | live | live |
+| Inactieve vrienden | live | live |
+| Nieuwsbrieven | live | live |
 
 Bezette dagen: eerst vergelijken met `huidigeBezetteDagen()` (Sanity-gedrag),
 daarna pas met `publiekeBezetteDagen()` (FO: alleen definitief + interne
 blokkade). Zie `docs/beheer/HUIDIGE-GEDRAG.md`.
+
+Dry-run zonder website-cutover:
+
+```bash
+npm run migratie:dry-run
+npm run migratie:dry-run -- --fixture tests/fixtures/sanity-dump.json
+```

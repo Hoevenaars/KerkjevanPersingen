@@ -14,3 +14,5 @@ export * from './nieuwsbrief.ts';
 export * from './dashboard.ts';
 export * from './audit.ts';
 export * from './migratie.ts';
+export * from './migratie-transform.ts';
+export * from './beheer-bron.ts';

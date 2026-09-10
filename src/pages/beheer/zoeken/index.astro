@@ -2,10 +2,13 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { zoekDemo } from '../../../platform/demo-data';
+import { zoekInBron } from '../../../platform/demo-data';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
 
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const q = Astro.url.searchParams.get('q') ?? '';
-const treffers = zoekDemo(q);
+const treffers = zoekInBron(snapshot, q);
+const bronLabel = snapshot.bron === 'sanity' ? 'Sanity' : 'de voorbeelddata';
 ---
 
 <Beheer titel="Zoeken">
@@ -14,7 +17,7 @@ const treffers = zoekDemo(q);
       <h1>Zoeken</h1>
       <p class="bh-hint">
         {q.trim()
-          ? `Resultaten voor “${q.trim()}” in de voorbeelddata.`
+          ? `Resultaten voor “${q.trim()}” in ${bronLabel}.`
           : 'Typ een naam of datum in de zoekbalk, bijvoorbeeld Jansen of 12 september.'}
       </p>
     </div>
@@ -22,7 +25,7 @@ const treffers = zoekDemo(q);
 
   {
     q.trim() && treffers.length === 0 && (
-      <p class="bh-leeg">Geen treffers in de voorbeelddata.</p>
+      <p class="bh-leeg">Geen treffers in {bronLabel}.</p>
     )
   }
 

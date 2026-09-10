@@ -37,6 +37,8 @@ de website Supabase mogen lezen. De website gebruikt deze functie nog nergens.
 | `CONTENT_BRON` | (leeg) | `supabase` alleen samen met de vlag hieronder |
 | `ALLOW_SUPABASE_CONTENT` | (leeg) | moet `true` zijn |
 | `BEHEER_ENABLED` | (leeg) | `/beheer` is 404 op Production tot dit `true` is. Vercel Preview toont `/beheer` altijd. |
+| `BEHEER_PASSWORD` | (leeg) | Extra basic-auth op `/beheer` (gebruiker `kerkje`). Nodig om live Sanity te tonen als de site openbaar is. |
+| `BEHEER_LIVE_SANITY` | (leeg) | `false` = /beheer blijft voorbeelddata, ook met token. |
 
 Per datatype houdt tabel `bronnen` bij wie mag schrijven. Seed: alles `sanity`.
 

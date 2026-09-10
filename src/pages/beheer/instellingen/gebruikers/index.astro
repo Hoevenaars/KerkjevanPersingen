@@ -2,7 +2,8 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { DEMO_GEBRUIKERS, DEMO_FLASH, demoNaActie } from '../../../../platform/demo-data';
+import { demoNaActie } from '../../../../platform/demo-data';
+import { laadBeheerSnapshot, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 import { MODULES, type ModuleSleutel } from '../../../../platform/types.ts';
 import { rechtVoor } from '../../../../platform/rechten.ts';
 
@@ -10,6 +11,7 @@ if (Astro.request.method === 'POST') {
   return Astro.redirect(demoNaActie(Astro.url));
 }
 
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const flash = Astro.url.searchParams.get('demo') === '1';
 
 const labels: Record<ModuleSleutel, string> = {
@@ -39,7 +41,7 @@ const labels: Record<ModuleSleutel, string> = {
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   <section class="bh-kaart">
     <table class="bh-rechten">
@@ -47,7 +49,7 @@ const labels: Record<ModuleSleutel, string> = {
         <tr>
           <th>Module</th>
           {
-            DEMO_GEBRUIKERS.map((g) => (
+            snapshot.gebruikers.map((g) => (
               <th>
                 {g.naam}
                 {g.superAdmin ? ' · Super Admin' : ''}
@@ -61,7 +63,7 @@ const labels: Record<ModuleSleutel, string> = {
           MODULES.map((module) => (
             <tr>
               <th>{labels[module]}</th>
-              {DEMO_GEBRUIKERS.map((g) => {
+              {snapshot.gebruikers.map((g) => {
                 const niveau = rechtVoor(
                   { isSuperAdmin: g.superAdmin, perModule: g.rechten },
                   module,

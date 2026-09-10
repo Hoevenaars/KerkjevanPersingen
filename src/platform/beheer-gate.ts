@@ -66,6 +66,42 @@ const NIET_GEVONDEN_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+export function beheerWachtwoord(env: Record<string, unknown> = {}): string {
+  const beheer = String(env.BEHEER_PASSWORD ?? '').trim();
+  if (beheer) return beheer;
+  return String(env.SITE_PASSWORD ?? '').trim();
+}
+
+export function beheerAuthResponse(): Response {
+  return new Response('Beheer is afgeschermd.', {
+    status: 401,
+    headers: {
+      'WWW-Authenticate': 'Basic realm="Beheer Kerkje van Persingen", charset="UTF-8"',
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function basicVerwacht(gebruiker: string, wachtwoord: string): string {
+  return 'Basic ' + btoa(`${gebruiker}:${wachtwoord}`);
+}
+
+/** Extra slot op /beheer wanneer BEHEER_PASSWORD is gezet (los van het sitewachtwoord). */
+export function beheerAuthOk(
+  header: string | null,
+  env: Record<string, unknown> = {},
+): boolean {
+  const extra = String(env.BEHEER_PASSWORD ?? '').trim();
+  if (!extra) return true;
+  return header === basicVerwacht('kerkje', extra);
+}
+
+export function beheerHeeftEigenWachtwoord(env: Record<string, unknown> = {}): boolean {
+  return String(env.BEHEER_PASSWORD ?? '').trim().length > 0;
+}
+
 export function beheerUitResponse(): Response {
   return new Response(NIET_GEVONDEN_HTML, {
     status: 404,

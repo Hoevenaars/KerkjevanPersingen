@@ -3,22 +3,18 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import {
-  DEMO_BOEKINGEN,
-  DEMO_RELATIES,
-  DEMO_COMMUNICATIE,
-  DEMO_DOCUMENTEN,
-  DEMO_GASTHEREN,
   BOEKING_LABEL,
   SOORT_LABEL,
   COMMUNICATIE_LABEL,
-  DEMO_FLASH,
   demoNaActie,
   formatNl,
   gastheerVan,
 } from '../../../platform/demo-data';
+import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 
-const id = Astro.params.id ?? '';
-const boeking = DEMO_BOEKINGEN.find((b) => b.id === id);
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const id = beheerId(Astro.params.id);
+const boeking = snapshot.boekingen.find((b) => b.id === id);
 
 if (Astro.request.method === 'POST') {
   return Astro.redirect(demoNaActie(Astro.url));
@@ -29,13 +25,13 @@ if (!boeking) {
 }
 
 const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
-const relatie = DEMO_RELATIES.find((r) => r.id === boeking.relatieId);
-const docs = DEMO_DOCUMENTEN.filter((d) => d.boekingId === boeking.id);
-const mails = DEMO_COMMUNICATIE.filter((c) => c.boekingId === boeking.id);
-const gastheer = gastheerVan(boeking.gastheerId);
-const actieveGastheren = DEMO_GASTHEREN.filter((g) => g.actief);
+const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
+const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id);
+const mails = snapshot.communicatie.filter((c) => c.boekingId === boeking.id);
+const gastheer = gastheerVan(boeking.gastheerId, snapshot.gastheren);
+const actieveGastheren = snapshot.gastheren.filter((g) => g.actief);
 const flash = Astro.url.searchParams.get('demo') === '1';
-const basis = `/beheer/boekingen/${boeking.id}/`;
+const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
 ---
 
 <Beheer titel={boeking.interneTitel}>
@@ -51,7 +47,7 @@ const basis = `/beheer/boekingen/${boeking.id}/`;
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   <nav class="bh-tabs" aria-label="Boekingonderdelen">
     <a href={basis} aria-current={tab === 'gegevens' ? 'page' : undefined}>Gegevens</a>
@@ -67,7 +63,7 @@ const basis = `/beheer/boekingen/${boeking.id}/`;
           <dl class="bh-dl">
             <dt>Huurder</dt>
             <dd>
-              {relatie ? <a href={`/beheer/relaties/${relatie.id}/`}>{boeking.huurder}</a> : boeking.huurder}
+              {relatie ? <a href={`/beheer/relaties/${encodeURIComponent(relatie.id)}/`}>{boeking.huurder}</a> : boeking.huurder}
             </dd>
             <dt>E-mail</dt>
             <dd>{boeking.email}</dd>

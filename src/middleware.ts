@@ -1,5 +1,11 @@
 import type { MiddlewareHandler } from 'astro';
-import { isBeheerEnabled, beheerUitResponse } from './platform/beheer-gate';
+import {
+  isBeheerEnabled,
+  beheerUitResponse,
+  beheerAuthOk,
+  beheerHeeftEigenWachtwoord,
+  beheerAuthResponse,
+} from './platform/beheer-gate';
 
 /**
  * Afscherming tot livegang.
@@ -49,6 +55,16 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 
   if (pad.startsWith('/beheer') && !isBeheerEnabled()) {
     return beheerUitResponse();
+  }
+
+  if (pad.startsWith('/beheer') && beheerHeeftEigenWachtwoord(process.env)) {
+    const header = context.request.headers.get('authorization');
+    if (!beheerAuthOk(header, process.env)) {
+      return beheerAuthResponse();
+    }
+    const response = await next();
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    return response;
   }
 
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;

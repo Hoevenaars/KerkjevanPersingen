@@ -3,24 +3,25 @@ export const prerender = false;
 
 import Beheer from '../../layouts/Beheer.astro';
 import {
-  DEMO_AANVRAGEN,
-  DEMO_BOEKINGEN,
-  DEMO_AGENDA,
-  DEMO_INTERN,
   AANVRAAG_LABEL,
   BOEKING_LABEL,
   AGENDA_LABEL,
   SOORT_LABEL,
-  DASHBOARD_HREF,
-  demoDashboardBron,
+  dashboardHref,
   formatNl,
 } from '../../platform/demo-data';
+import { laadBeheerSnapshot, snapshotDashboard } from '../../platform/beheer-bron.ts';
 import { dashboardVoor } from '../../platform/dashboard.ts';
+import { ymdInAmsterdam } from '../../platform/datum.ts';
 
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const vandaag = ymdInAmsterdam(new Date());
 const rechten = { isSuperAdmin: true, perModule: {} };
-const kaarten = dashboardVoor(rechten, demoDashboardBron());
-const nieuwe = DEMO_AANVRAGEN.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling');
-const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');
+const kaarten = dashboardVoor(rechten, snapshotDashboard(snapshot, vandaag));
+const nieuwe = snapshot.aanvragen.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling');
+const opties = snapshot.boekingen.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');
+const maand = vandaag.slice(0, 7);
+const live = snapshot.bron === 'sanity';
 ---
 
 <Beheer titel="Dashboard">
@@ -29,122 +30,145 @@ const opties = DEMO_BOEKINGEN.filter((b) => b.status === 'optie' || b.status ===
       <p class="bh-label">Dashboard</p>
       <h1>Dashboard</h1>
       <p class="bh-hint">
-        Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.
+        {
+          live
+            ? 'Aandachtspunten uit Sanity. Klik een kaart of een naam — schrijven blijft in Studio.'
+            : 'Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.'
+        }
       </p>
     </div>
   </header>
 
   <ul class="bh-kaarten">
     {
-      kaarten.map((item) => (
+      kaarten.length === 0 ? (
         <li>
-          <a href={DASHBOARD_HREF[item.sleutel] ?? '/beheer/'}>
-            <strong>{item.aantal}</strong>
-            <span>{item.label}</span>
+          <a href="/beheer/aanvragen/">
+            <strong>0</strong>
+            <span>Geen openstaande punten</span>
           </a>
         </li>
-      ))
+      ) : (
+        kaarten.map((item) => (
+          <li>
+            <a href={dashboardHref(item.sleutel, maand)}>
+              <strong>{item.aantal}</strong>
+              <span>{item.label}</span>
+            </a>
+          </li>
+        ))
+      )
     }
   </ul>
 
   <section class="bh-kaart">
     <h2>Aanvragen die actie vragen</h2>
-    <table class="bh-tabel">
-      <thead>
-        <tr>
-          <th>Naam</th>
-          <th>Soort</th>
-          <th>Datum</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {
-          nieuwe.map((a) => (
+    {
+      nieuwe.length === 0 ? (
+        <p class="bh-leeg">Geen openstaande aanvragen.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
             <tr>
-              <td>
-                <a class="bh-detail-link" href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
-              </td>
-              <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
-              <td>{formatNl(a.start)}</td>
-              <td>
-                <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
-              </td>
+              <th>Naam</th>
+              <th>Soort</th>
+              <th>Datum</th>
+              <th>Status</th>
             </tr>
-          ))
-        }
-      </tbody>
-    </table>
+          </thead>
+          <tbody>
+            {nieuwe.map((a) => (
+              <tr>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}>{a.naam}</a>
+                </td>
+                <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
+                <td>{formatNl(a.start)}</td>
+                <td>
+                  <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   </section>
 
   <section class="bh-kaart">
     <h2>Opties</h2>
-    <table class="bh-tabel">
-      <thead>
-        <tr>
-          <th>Boeking</th>
-          <th>Huurder</th>
-          <th>Datum</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {
-          opties.map((b) => (
+    {
+      opties.length === 0 ? (
+        <p class="bh-leeg">Geen lopende opties.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
             <tr>
-              <td>
-                <a class="bh-detail-link" href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
-              </td>
-              <td>{b.huurder}</td>
-              <td>{formatNl(b.start)}</td>
-              <td>
-                <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
-              </td>
+              <th>Boeking</th>
+              <th>Huurder</th>
+              <th>Datum</th>
+              <th>Status</th>
             </tr>
-          ))
-        }
-      </tbody>
-    </table>
+          </thead>
+          <tbody>
+            {opties.map((b) => (
+              <tr>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/boekingen/${encodeURIComponent(b.id)}/`}>{b.nummer}</a>
+                </td>
+                <td>{b.huurder}</td>
+                <td>{formatNl(b.start)}</td>
+                <td>
+                  <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   </section>
 
   <section class="bh-kaart">
     <h2>Agenda en intern</h2>
-    <table class="bh-tabel">
-      <thead>
-        <tr>
-          <th>Wat</th>
-          <th>Datum</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {
-          DEMO_AGENDA.map((p) => (
+    {
+      snapshot.agenda.length + snapshot.intern.length === 0 ? (
+        <p class="bh-leeg">Geen agenda-items.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
             <tr>
-              <td>
-                <a class="bh-detail-link" href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
-              </td>
-              <td>{formatNl(p.start)}</td>
-              <td>
-                <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
-              </td>
+              <th>Wat</th>
+              <th>Datum</th>
+              <th>Status</th>
             </tr>
-          ))
-        }
-        {
-          DEMO_INTERN.map((i) => (
-            <tr>
-              <td>
-                <a class="bh-detail-link" href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
-              </td>
-              <td>{formatNl(i.start)}</td>
-              <td>
-                <span class="bh-badge">{i.blokkeert ? 'Blokkeert verhuur' : 'Intern'}</span>
-              </td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
+          </thead>
+          <tbody>
+            {snapshot.agenda.map((p) => (
+              <tr>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(p.id)}/`}>{p.titel}</a>
+                </td>
+                <td>{formatNl(p.start)}</td>
+                <td>
+                  <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
+                </td>
+              </tr>
+            ))}
+            {snapshot.intern.map((i) => (
+              <tr>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(i.id)}/`}>{i.titel}</a>
+                </td>
+                <td>{formatNl(i.start)}</td>
+                <td>
+                  <span class="bh-badge">{i.blokkeert ? 'Blokkeert verhuur' : 'Intern'}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   </section>
 </Beheer>

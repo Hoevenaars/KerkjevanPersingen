@@ -2,17 +2,13 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import {
-  DEMO_NIEUWSBRIEVEN,
-  DEMO_AGENDA,
-  DEMO_FLASH,
-  demoNaActie,
-  formatNl,
-} from '../../../platform/demo-data';
+import { demoNaActie, formatNl } from '../../../platform/demo-data';
+import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { bouwNieuwsbriefHtml, SFEER_URL } from '../../../lib/nieuwsbrief-html';
 
-const id = Astro.params.id ?? '';
-const brief = DEMO_NIEUWSBRIEVEN.find((n) => n.id === id);
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const id = beheerId(Astro.params.id);
+const brief = snapshot.nieuwsbrieven.find((n) => n.id === id);
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -50,7 +46,7 @@ const html = bouwNieuwsbriefHtml(
     donatieUpdate: donatieAan ? donatieTekst || undefined : undefined,
     extraBlokken,
   },
-  DEMO_AGENDA.filter((p) => p.omschrijving).map((p) => ({
+  snapshot.agenda.filter((p) => p.omschrijving).map((p) => ({
     titel: p.titel,
     datumTekst: formatNl(p.start),
     omschrijving: p.omschrijving,
@@ -66,7 +62,7 @@ const html = bouwNieuwsbriefHtml(
     intro: 'Voorbeeldpreview — deze mail gaat nergens heen.',
     onderwerp: `Voorbeeld · week ${formatNl(brief.week)}`,
     agendaKop: 'Komende activiteiten',
-    legeAgendaTekst: 'Deze week geen activiteiten in de voorbeelddata.',
+    legeAgendaTekst: 'Deze week geen activiteiten in deze bron.',
   },
 );
 ---
@@ -80,7 +76,7 @@ const html = bouwNieuwsbriefHtml(
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   <div class="bh-split">
     <section class="bh-kaart">

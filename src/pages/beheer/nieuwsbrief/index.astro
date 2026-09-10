@@ -2,7 +2,10 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { DEMO_NIEUWSBRIEVEN, formatNl } from '../../../platform/demo-data';
+import { formatNl } from '../../../platform/demo-data';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 ---
 
 <Beheer titel="Nieuwsbrief">
@@ -10,8 +13,8 @@ import { DEMO_NIEUWSBRIEVEN, formatNl } from '../../../platform/demo-data';
     <div>
       <h1>Nieuwsbrief</h1>
       <p class="bh-hint">
-        Voorbeeldweken. Donatie-update is optioneel en staat standaard uit. Extra blok is mogelijk.
-        Openen, bewerken en “verzenden” raakt de echte vriendenmail niet.
+        Weken uit {snapshot.bron === 'sanity' ? 'Sanity' : 'de voorbeelddata'}. Openen, bewerken en
+        “verzenden” raakt de echte vriendenmail niet.
       </p>
     </div>
   </header>
@@ -26,19 +29,25 @@ import { DEMO_NIEUWSBRIEVEN, formatNl } from '../../../platform/demo-data';
     </thead>
     <tbody>
       {
-        DEMO_NIEUWSBRIEVEN.map((n) => (
+        snapshot.nieuwsbrieven.length === 0 ? (
           <tr>
-            <td>
-              <a href={`/beheer/nieuwsbrief/${n.id}/`}>{formatNl(n.week)}</a>
-            </td>
-            <td>{n.kortNieuws || '—'}</td>
-            <td>
-              <span class={`bh-badge ${n.verstuurd ? 'bh-badge--definitief' : n.overgeslagen ? 'bh-badge--verborgen' : 'bh-badge--optie'}`}>
-                {n.verstuurd ? 'Verstuurd' : n.overgeslagen ? 'Overgeslagen' : 'Concept'}
-              </span>
-            </td>
+            <td colspan="3" class="bh-leeg">Geen nieuwsbriefweken.</td>
           </tr>
-        ))
+        ) : (
+          snapshot.nieuwsbrieven.map((n) => (
+            <tr>
+              <td>
+                <a href={`/beheer/nieuwsbrief/${encodeURIComponent(n.id)}/`}>{formatNl(n.week)}</a>
+              </td>
+              <td>{n.kortNieuws || '—'}</td>
+              <td>
+                <span class={`bh-badge ${n.verstuurd ? 'bh-badge--definitief' : n.overgeslagen ? 'bh-badge--verborgen' : 'bh-badge--optie'}`}>
+                  {n.verstuurd ? 'Verstuurd' : n.overgeslagen ? 'Overgeslagen' : 'Concept'}
+                </span>
+              </td>
+            </tr>
+          ))
+        )
       }
     </tbody>
   </table>

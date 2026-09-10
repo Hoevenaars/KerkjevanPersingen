@@ -2,19 +2,15 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import {
-  DEMO_AGENDA,
-  DEMO_BOEKINGEN,
-  DEMO_INTERN,
-  AGENDA_LABEL,
-  formatNl,
-  gastheerVan,
-} from '../../../platform/demo-data';
+import { AGENDA_LABEL, formatNl, gastheerVan } from '../../../platform/demo-data';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 
 function gastheerLabel(boekingId?: string): string {
   if (!boekingId) return '—';
-  const boeking = DEMO_BOEKINGEN.find((b) => b.id === boekingId);
-  return gastheerVan(boeking?.gastheerId)?.naam ?? 'Nog niet ingepland';
+  const boeking = snapshot.boekingen.find((b) => b.id === boekingId);
+  return gastheerVan(boeking?.gastheerId, snapshot.gastheren)?.naam ?? 'Nog niet ingepland';
 }
 ---
 
@@ -31,63 +27,71 @@ function gastheerLabel(boekingId?: string): string {
 
   <section class="bh-kaart">
     <h2>Publieke activiteiten</h2>
-    <table class="bh-tabel">
-      <thead>
-        <tr>
-          <th>Titel</th>
-          <th>Datum</th>
-          <th>Gastheer</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {
-          DEMO_AGENDA.map((p) => (
+    {
+      snapshot.agenda.length === 0 ? (
+        <p class="bh-leeg">Geen publieke activiteiten.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
             <tr>
-              <td>
-                <a class="bh-detail-link" href={`/beheer/agenda/${p.id}/`}>{p.titel}</a>
-              </td>
-              <td>
-                {formatNl(p.start)}
-                {p.eind !== p.start ? ` – ${formatNl(p.eind)}` : ''}
-              </td>
-              <td>{gastheerLabel(p.boekingId)}</td>
-              <td>
-                <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
-              </td>
+              <th>Titel</th>
+              <th>Datum</th>
+              <th>Gastheer</th>
+              <th>Status</th>
             </tr>
-          ))
-        }
-      </tbody>
-    </table>
+          </thead>
+          <tbody>
+            {snapshot.agenda.map((p) => (
+              <tr>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(p.id)}/`}>{p.titel}</a>
+                </td>
+                <td>
+                  {formatNl(p.start)}
+                  {p.eind !== p.start ? ` – ${formatNl(p.eind)}` : ''}
+                </td>
+                <td>{gastheerLabel(p.boekingId)}</td>
+                <td>
+                  <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   </section>
 
   <section class="bh-kaart">
     <h2>Interne activiteiten</h2>
-    <table class="bh-tabel">
-      <thead>
-        <tr>
-          <th>Titel</th>
-          <th>Datum</th>
-          <th>Blokkade</th>
-        </tr>
-      </thead>
-      <tbody>
-        {
-          DEMO_INTERN.map((i) => (
+    {
+      snapshot.intern.length === 0 ? (
+        <p class="bh-leeg">Geen interne blokkades.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
             <tr>
-              <td>
-                <a class="bh-detail-link" href={`/beheer/agenda/${i.id}/`}>{i.titel}</a>
-              </td>
-              <td>
-                {formatNl(i.start)}
-                {i.eind !== i.start ? ` – ${formatNl(i.eind)}` : ''}
-              </td>
-              <td>{i.blokkeert ? 'Blokkeert verhuurkalender' : 'Geen blokkade'}</td>
+              <th>Titel</th>
+              <th>Datum</th>
+              <th>Blokkade</th>
             </tr>
-          ))
-        }
-      </tbody>
-    </table>
+          </thead>
+          <tbody>
+            {snapshot.intern.map((i) => (
+              <tr>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(i.id)}/`}>{i.titel}</a>
+                </td>
+                <td>
+                  {formatNl(i.start)}
+                  {i.eind !== i.start ? ` – ${formatNl(i.eind)}` : ''}
+                </td>
+                <td>{i.blokkeert ? 'Blokkeert verhuurkalender' : 'Geen blokkade'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   </section>
 </Beheer>

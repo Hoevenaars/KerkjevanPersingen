@@ -3,20 +3,17 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import {
-  DEMO_AGENDA,
-  DEMO_INTERN,
-  DEMO_BOEKINGEN,
-  DEMO_GASTHEREN,
   AGENDA_LABEL,
-  DEMO_FLASH,
   demoNaActie,
   gastheerVan,
   formatNl,
 } from '../../../platform/demo-data';
+import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 
-const id = Astro.params.id ?? '';
-const publiek = DEMO_AGENDA.find((p) => p.id === id);
-const intern = DEMO_INTERN.find((i) => i.id === id);
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const id = beheerId(Astro.params.id);
+const publiek = snapshot.agenda.find((p) => p.id === id);
+const intern = snapshot.intern.find((i) => i.id === id);
 
 if (Astro.request.method === 'POST') {
   return Astro.redirect(demoNaActie(Astro.url));
@@ -27,10 +24,10 @@ if (!publiek && !intern) {
 }
 
 const flash = Astro.url.searchParams.get('demo') === '1';
-const boeking = publiek?.boekingId ? DEMO_BOEKINGEN.find((b) => b.id === publiek.boekingId) : undefined;
-const gastheer = gastheerVan(boeking?.gastheerId);
+const boeking = publiek?.boekingId ? snapshot.boekingen.find((b) => b.id === publiek.boekingId) : undefined;
+const gastheer = gastheerVan(boeking?.gastheerId, snapshot.gastheren);
 const titel = publiek?.titel ?? intern!.titel;
-const actief = DEMO_GASTHEREN.filter((g) => g.actief);
+const actief = snapshot.gastheren.filter((g) => g.actief);
 ---
 
 <Beheer titel={titel}>
@@ -46,7 +43,7 @@ const actief = DEMO_GASTHEREN.filter((g) => g.actief);
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   {
     publiek && (
@@ -65,7 +62,7 @@ const actief = DEMO_GASTHEREN.filter((g) => g.actief);
             <>
               <dt>Boeking</dt>
               <dd>
-                <a href={`/beheer/boekingen/${boeking.id}/`}>
+                <a href={`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`}>
                   {boeking.nummer} {boeking.interneTitel}
                 </a>
               </dd>

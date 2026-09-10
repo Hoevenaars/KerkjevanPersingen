@@ -26,7 +26,15 @@ export interface DemoAanvraag {
 export interface DemoBoeking {
   id: string;
   nummer: string;
-  status: 'optie' | 'optie_verlopen' | 'definitief' | 'afgewezen' | 'geannuleerd';
+  status:
+    | 'optie'
+    | 'optie_verlopen'
+    | 'definitief'
+    | 'afgewezen'
+    | 'geannuleerd'
+    | 'migratie_aanvraag'
+    | 'migratie_vastgelegd';
+  zichtbaarheid?: 'verborgen' | 'bezet' | 'publiek';
   interneTitel: string;
   soort: string;
   start: string;
@@ -537,7 +545,12 @@ export const DEMO_INSTELLINGEN = {
   contractbeheerder: 'Nelleke',
   openingVan: '11:00',
   openingTot: '17:00',
+  ontvangstAdres: '',
+  extraOntvangstAdres: '',
+  penningmeesterAdres: '',
 };
+
+export type DemoInstellingen = typeof DEMO_INSTELLINGEN;
 
 export const DEMO_COMMUNICATIE = [
   {
@@ -660,21 +673,46 @@ export function maandRaster(jaarMaand: string): { ymd: string | null; dag: numbe
   return cellen;
 }
 
-export function demoDashboardBron() {
+export function dashboardBronVan(
+  data: {
+    aanvragen: readonly DemoAanvraag[];
+    boekingen: readonly DemoBoeking[];
+    agenda: readonly DemoActiviteit[];
+    nieuwsbrieven: readonly DemoNieuwsbrief[];
+    communicatie: readonly { status: string }[];
+  },
+  vandaag = '2026-09-02',
+) {
+  const tot = new Date(`${vandaag}T12:00:00Z`);
+  tot.setUTCDate(tot.getUTCDate() + 7);
+  const totYmd = tot.toISOString().slice(0, 10);
   return {
-    nieuweAanvragen: DEMO_AANVRAGEN.filter((a) => a.status === 'nieuw').length,
-    optiesBijnaVerlopen: DEMO_BOEKINGEN.filter((b) => b.status === 'optie').length,
-    optiesVerlopen: DEMO_BOEKINGEN.filter((b) => b.status === 'optie_verlopen').length,
-    aanbetalingenControleren: DEMO_BOEKINGEN.filter(
+    nieuweAanvragen: data.aanvragen.filter((a) => a.status === 'nieuw').length,
+    optiesBijnaVerlopen: data.boekingen.filter((b) => b.status === 'optie').length,
+    optiesVerlopen: data.boekingen.filter((b) => b.status === 'optie_verlopen').length,
+    aanbetalingenControleren: data.boekingen.filter(
       (b) => !b.aanbetalingBinnen && (b.status === 'optie' || b.status === 'definitief'),
     ).length,
-    activiteitMistContent: DEMO_AGENDA.filter((a) => a.status === 'mist_content').length,
-    communicatieKlaar: DEMO_COMMUNICATIE.filter((c) => c.status === 'concept').length,
-    nieuwsbriefVoorbereiden: DEMO_NIEUWSBRIEVEN.filter((n) => !n.verstuurd && !n.overgeslagen).length,
-    activiteiten7Dagen: DEMO_BOEKINGEN.filter((b) => b.start >= '2026-09-02' && b.start <= '2026-09-09').length,
-    gastherenToewijzen: DEMO_BOEKINGEN.filter((b) => b.soort === 'expositie' && !b.gastheerId).length,
+    activiteitMistContent: data.agenda.filter((a) => a.status === 'mist_content').length,
+    communicatieKlaar: data.communicatie.filter((c) => c.status === 'concept').length,
+    nieuwsbriefVoorbereiden: data.nieuwsbrieven.filter((n) => !n.verstuurd && !n.overgeslagen).length,
+    activiteiten7Dagen: data.boekingen.filter((b) => b.start >= vandaag && b.start <= totYmd).length,
+    gastherenToewijzen: data.boekingen.filter((b) => b.soort === 'expositie' && !b.gastheerId).length,
     mailFout: 0,
   };
+}
+
+export function demoDashboardBron() {
+  return dashboardBronVan(
+    {
+      aanvragen: DEMO_AANVRAGEN,
+      boekingen: DEMO_BOEKINGEN,
+      agenda: DEMO_AGENDA,
+      nieuwsbrieven: DEMO_NIEUWSBRIEVEN,
+      communicatie: DEMO_COMMUNICATIE,
+    },
+    '2026-09-02',
+  );
 }
 
 export const DASHBOARD_HREF: Record<string, string> = {
@@ -685,64 +723,93 @@ export const DASHBOARD_HREF: Record<string, string> = {
   activiteit_mist_content: '/beheer/agenda/',
   communicatie_klaar: '/beheer/boekingen/',
   nieuwsbrief_voorbereiden: '/beheer/nieuwsbrief/',
-  activiteiten_7_dagen: '/beheer/kalender/?maand=2026-09',
+  activiteiten_7_dagen: '/beheer/kalender/',
   gastheren_toewijzen: '/beheer/planning/',
   mail_fout: '/beheer/instellingen/templates/',
 };
 
-export function zoekDemo(q: string): { soort: string; titel: string; href: string; extra: string }[] {
+export function dashboardHref(sleutel: string, maand?: string): string {
+  if (sleutel === 'activiteiten_7_dagen' && maand) {
+    return `/beheer/kalender/?maand=${maand}`;
+  }
+  return DASHBOARD_HREF[sleutel] ?? '/beheer/';
+}
+
+export function zoekInBron(
+  bron: {
+    relaties: readonly DemoRelatie[];
+    gastheren: readonly DemoGastheer[];
+    aanvragen: readonly DemoAanvraag[];
+    boekingen: readonly DemoBoeking[];
+    agenda: readonly DemoActiviteit[];
+  },
+  q: string,
+): { soort: string; titel: string; href: string; extra: string }[] {
   const naald = q.trim().toLowerCase();
   if (!naald) return [];
   const treffers: { soort: string; titel: string; href: string; extra: string }[] = [];
 
-  for (const r of DEMO_RELATIES) {
+  for (const r of bron.relaties) {
     if (`${r.naam} ${r.email}`.toLowerCase().includes(naald)) {
-      treffers.push({ soort: 'Relatie', titel: r.naam, href: `/beheer/relaties/${r.id}/`, extra: r.email });
+      treffers.push({ soort: 'Relatie', titel: r.naam, href: `/beheer/relaties/${encodeURIComponent(r.id)}/`, extra: r.email });
     }
   }
-  for (const g of DEMO_GASTHEREN) {
+  for (const g of bron.gastheren) {
     if (`${g.naam} ${g.email}`.toLowerCase().includes(naald)) {
       treffers.push({
         soort: 'Gastheer',
         titel: g.naam,
-        href: `/beheer/instellingen/gastheren/${g.id}/`,
+        href: `/beheer/instellingen/gastheren/${encodeURIComponent(g.id)}/`,
         extra: g.telefoon,
       });
     }
   }
-  for (const a of DEMO_AANVRAGEN) {
+  for (const a of bron.aanvragen) {
     const tekst = `${a.naam} ${a.email} ${a.start} ${formatNl(a.start)} ${a.soort}`.toLowerCase();
     if (tekst.includes(naald)) {
       treffers.push({
         soort: 'Aanvraag',
         titel: a.naam,
-        href: `/beheer/aanvragen/${a.id}/`,
+        href: `/beheer/aanvragen/${encodeURIComponent(a.id)}/`,
         extra: `${a.soort} · ${formatNl(a.start)}`,
       });
     }
   }
-  for (const b of DEMO_BOEKINGEN) {
+  for (const b of bron.boekingen) {
     const tekst = `${b.nummer} ${b.huurder} ${b.interneTitel} ${b.start} ${formatNl(b.start)}`.toLowerCase();
     if (tekst.includes(naald)) {
       treffers.push({
         soort: 'Boeking',
         titel: `${b.nummer} ${b.interneTitel}`,
-        href: `/beheer/boekingen/${b.id}/`,
+        href: `/beheer/boekingen/${encodeURIComponent(b.id)}/`,
         extra: `${b.status} · ${formatNl(b.start)}`,
       });
     }
   }
-  for (const p of DEMO_AGENDA) {
+  for (const p of bron.agenda) {
     if (`${p.titel} ${p.start} ${formatNl(p.start)}`.toLowerCase().includes(naald)) {
       treffers.push({
         soort: 'Agenda',
         titel: p.titel,
-        href: `/beheer/agenda/${p.id}/`,
+        href: `/beheer/agenda/${encodeURIComponent(p.id)}/`,
         extra: formatNl(p.start),
       });
     }
   }
   return treffers;
+}
+
+export function zoekDemo(q: string): { soort: string; titel: string; href: string; extra: string }[] {
+  return zoekInBron(
+    {
+      relaties: DEMO_RELATIES,
+      gastheren: DEMO_GASTHEREN,
+      aanvragen: DEMO_AANVRAGEN,
+      boekingen: DEMO_BOEKINGEN,
+      agenda: DEMO_AGENDA,
+    },
+    q,
+  );
 }
 
 export const AANVRAAG_LABEL: Record<DemoAanvraag['status'], string> = {
@@ -759,13 +826,17 @@ export const BOEKING_LABEL: Record<DemoBoeking['status'], string> = {
   definitief: 'Definitief',
   afgewezen: 'Afgewezen',
   geannuleerd: 'Geannuleerd',
+  migratie_aanvraag: 'Aanvraag (migratie)',
+  migratie_vastgelegd: 'Vastgelegd (migratie)',
 };
 
 export const SOORT_LABEL: Record<string, string> = {
   expositie: 'Expositie',
   bruiloft: 'Bruiloft',
   concert: 'Concert',
+  viering: 'Viering of dienst',
   diverse: 'Diverse bijeenkomst',
+  blokkade: 'Blokkade',
 };
 
 export const AGENDA_LABEL: Record<DemoActiviteit['status'], string> = {
@@ -787,9 +858,9 @@ export const COMMUNICATIE_LABEL: Record<string, string> = {
 export const DEMO_FLASH =
   'Voorbeeldactie uitgevoerd — niets is opgeslagen, gemaild of naar de website/agenda gestuurd.';
 
-export function gastheerVan(id: string | undefined) {
+export function gastheerVan(id: string | undefined, gastheren: readonly DemoGastheer[] = DEMO_GASTHEREN) {
   if (!id) return undefined;
-  return DEMO_GASTHEREN.find((g) => g.id === id);
+  return gastheren.find((g) => g.id === id);
 }
 
 export function demoNaActie(url: URL, extra: Record<string, string> = {}): string {

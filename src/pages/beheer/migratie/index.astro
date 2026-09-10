@@ -1,0 +1,179 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+import { ymdInAmsterdam } from '../../../platform/datum.ts';
+
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const live = snapshot.bron === 'sanity';
+const migratie = snapshot.migratie;
+const steekproefBoekingen = (migratie?.boekingen ?? snapshot.boekingen).slice(0, 8);
+const steekproefAanvragen = (migratie?.aanvragen ?? snapshot.aanvragen).slice(0, 5);
+const fouten = migratie?.issues.filter((i) => i.ernst === 'fout') ?? [];
+const letops = migratie?.issues.filter((i) => i.ernst === 'letop') ?? [];
+---
+
+<Beheer titel="Migratie">
+  <header class="bh-top">
+    <div>
+      <p class="bh-label">Voorbereiding</p>
+      <h1>Migratie Sanity → beheer</h1>
+      <p class="bh-hint">
+        Controlelijst uit het functioneel ontwerp. De website blijft Sanity lezen tot beide
+        contentvlaggen bewust aan staan. Dit scherm schrijft niets.
+      </p>
+    </div>
+  </header>
+
+  {
+    !live && (
+      <section class="bh-kaart">
+        <h2>Nog voorbeelddata</h2>
+        <p class="bh-muted">{snapshot.reden}</p>
+        <ol class="bh-stappen">
+          <li>Zet <code>BEHEER_PASSWORD</code> (of houd <code>SITE_PASSWORD</code>) zodat /beheer niet openbaar is.</li>
+          <li>Sanity-project-id en token staan al in Vercel voor de website — die volstaan om te lezen.</li>
+          <li>Daarna toont dit scherm echte aantallen. Snapshot vóór import: <code>npm run sanity:snapshot</code>.</li>
+          <li>Supabase-project aanmaken blijft een bewuste kostestap — nog niet in deze ronde.</li>
+        </ol>
+      </section>
+    )
+  }
+
+  {
+    live && migratie && (
+      <>
+        <section class="bh-kaart">
+          <h2>Controlelijst (FO §74)</h2>
+          <p class="bh-muted">
+            Vandaag {ymdInAmsterdam(new Date())}. Bezette dagen: huidige regel {migratie.bezetteDagenHuidig},
+            nieuwe regel {migratie.bezetteDagenNieuw}.
+          </p>
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Controle</th>
+                <th>Sanity</th>
+                <th>Nieuw</th>
+                <th>Toelichting</th>
+              </tr>
+            </thead>
+            <tbody>
+              {migratie.controles.map((rij) => (
+                <tr>
+                  <td>{rij.label}</td>
+                  <td>{rij.sanity}</td>
+                  <td>
+                    <span class={rij.sanity === rij.nieuw ? 'bh-badge bh-badge--goedgekeurd' : 'bh-badge bh-badge--optie'}>
+                      {rij.nieuw}
+                    </span>
+                  </td>
+                  <td>{rij.toelichting ?? ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="bh-kaart">
+          <h2>Aandachtspunten bij mapping</h2>
+          {
+            fouten.length + letops.length === 0 ? (
+              <p class="bh-leeg">Geen opvallende gaten in de mapping.</p>
+            ) : (
+              <ul class="bh-issues">
+                {fouten.map((issue) => (
+                  <li>
+                    <span class="bh-badge bh-badge--afgewezen">Fout</span>
+                    {issue.titel}: {issue.detail}
+                  </li>
+                ))}
+                {letops.slice(0, 40).map((issue) => (
+                  <li>
+                    <span class="bh-badge bh-badge--optie">Let op</span>
+                    {issue.titel}: {issue.detail}
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+          {letops.length > 40 && <p class="bh-muted">Nog {letops.length - 40} waarschuwingen niet getoond.</p>}
+        </section>
+
+        <section class="bh-kaart">
+          <h2>Steekproef boekingen</h2>
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Nummer</th>
+                <th>Titel</th>
+                <th>Huurder</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {steekproefBoekingen.map((b) => (
+                <tr>
+                  <td>
+                    <a href={`/beheer/boekingen/${encodeURIComponent(b.id)}/`}>{b.nummer}</a>
+                  </td>
+                  <td>{b.interneTitel}</td>
+                  <td>{b.huurder}</td>
+                  <td>{b.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="bh-kaart">
+          <h2>Steekproef aanvragen</h2>
+          {
+            steekproefAanvragen.length === 0 ? (
+              <p class="bh-leeg">Geen aanvragen in Sanity.</p>
+            ) : (
+              <table class="bh-tabel">
+                <thead>
+                  <tr>
+                    <th>Naam</th>
+                    <th>Soort</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {steekproefAanvragen.map((a) => (
+                    <tr>
+                      <td>
+                        <a href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}>{a.naam}</a>
+                      </td>
+                      <td>{a.soort}</td>
+                      <td>{a.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          }
+        </section>
+      </>
+    )
+  }
+
+  <section class="bh-kaart">
+    <h2>Volgorde (ongewijzigd)</h2>
+    <ol class="bh-stappen">
+      <li>Nieuwe database (Supabase-project — kostbevestiging)</li>
+      <li>Beheeromgeving achter vlag — dit scherm</li>
+      <li>Sanity-import met legacy_source + legacy_id</li>
+      <li>Controle: aantallen + steekproef</li>
+      <li>Website leest nieuwe backend — nog niet</li>
+      <li>Formulieren schrijven naar nieuwe backend — nog niet</li>
+      <li>Nieuwsbrief overzetten — nog niet</li>
+      <li>Parallelcontrole, daarna Sanity read-only en uit</li>
+    </ol>
+    <p class="bh-muted">
+      Dry-run lokaal: <code>npm run migratie:dry-run</code>. Snapshot: <code>npm run sanity:snapshot</code>.
+    </p>
+  </section>
+</Beheer>

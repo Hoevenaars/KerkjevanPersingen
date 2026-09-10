@@ -67,5 +67,6 @@ blokkade. Nieuw (nog niet op het formulier): harde za+zo / ma–vr-regels in
 
 ## Environment
 
-Zie README. Nieuwe vlaggen (`BEHEER_ENABLED`, `CONTENT_BRON`,
-`ALLOW_SUPABASE_CONTENT`) doen niets zolang ze leeg blijven.
+Zie README. Nieuwe vlaggen (`BEHEER_ENABLED`, `BEHEER_PASSWORD`, `CONTENT_BRON`,
+`ALLOW_SUPABASE_CONTENT`) doen de publieke website niets zolang de contentvlaggen
+leeg blijven. `/beheer` mag live Sanity tonen, maar schrijft niet.

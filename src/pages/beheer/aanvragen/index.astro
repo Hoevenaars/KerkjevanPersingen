@@ -2,16 +2,13 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import {
-  DEMO_AANVRAGEN,
-  AANVRAAG_LABEL,
-  SOORT_LABEL,
-  formatNl,
-} from '../../../platform/demo-data';
+import { AANVRAAG_LABEL, SOORT_LABEL, formatNl } from '../../../platform/demo-data';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
 
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const filter = Astro.url.searchParams.get('status') ?? 'alle';
 const lijst =
-  filter === 'alle' ? DEMO_AANVRAGEN : DEMO_AANVRAGEN.filter((a) => a.status === filter);
+  filter === 'alle' ? snapshot.aanvragen : snapshot.aanvragen.filter((a) => a.status === filter);
 
 const tabs = [
   { href: '/beheer/aanvragen/', status: 'alle', label: 'Alle' },
@@ -74,14 +71,14 @@ const pipeline = [
             lijst.map((a) => (
               <tr>
                 <td>
-                  <a class="bh-detail-link" href={`/beheer/aanvragen/${a.id}/`}>{a.naam}</a>
+                  <a class="bh-detail-link" href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}>{a.naam}</a>
                 </td>
                 <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
                 <td>
                   {formatNl(a.start)}
                   {a.eind !== a.start ? ` – ${formatNl(a.eind)}` : ''}
                 </td>
-                <td>{formatNl(a.binnengekomen.slice(0, 10))}</td>
+                <td>{a.binnengekomen ? formatNl(a.binnengekomen.slice(0, 10)) : '—'}</td>
                 <td>
                   <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
                 </td>
@@ -98,7 +95,7 @@ const pipeline = [
     <div class="bh-board">
       {
         pipeline.map((kolom) => {
-          const items = DEMO_AANVRAGEN.filter((a) => a.status === kolom.status);
+          const items = snapshot.aanvragen.filter((a) => a.status === kolom.status);
           return (
             <section class="bh-kolom">
               <div class="bh-kolom-kop">
@@ -114,7 +111,7 @@ const pipeline = [
                     items.map((a) => (
                       <a
                         class={`bh-pipeline-kaart bh-detail-link ${a.status === 'nieuw' ? 'bh-pipeline-kaart--nieuw' : ''}`}
-                        href={`/beheer/aanvragen/${a.id}/`}
+                        href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}
                       >
                         <strong>{a.naam}</strong>
                         <small>
