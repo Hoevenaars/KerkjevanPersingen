@@ -46,6 +46,58 @@ export function komendWeekend(nu = new Date()): {zaterdag: string; zondag: strin
   return {zaterdag, zondag: utc.toISOString().slice(0, 10)};
 }
 
+export interface VrijWeekend {
+  zaterdag: string;
+  zondag: string;
+  zaterdagVrij: boolean;
+  zondagVrij: boolean;
+}
+
+function volgendWeekend(zaterdag: string): {zaterdag: string; zondag: string} {
+  const utc = new Date(`${zaterdag}T12:00:00Z`);
+  utc.setUTCDate(utc.getUTCDate() + 7);
+  const volgendeZaterdag = utc.toISOString().slice(0, 10);
+  utc.setUTCDate(utc.getUTCDate() + 1);
+  return {zaterdag: volgendeZaterdag, zondag: utc.toISOString().slice(0, 10)};
+}
+
+/** Eerstvolgende zaterdag in Nederlandse tijd — op zondag de volgende, niet gisteren. */
+export function eerstvolgendeZaterdag(nu = new Date()): string {
+  const [jaar, maand, dag] = ymdAmsterdam(nu).split('-').map(Number);
+  const utc = new Date(Date.UTC(jaar, maand - 1, dag, 12, 0, 0));
+  while (utc.getUTCDay() !== 6) {
+    utc.setUTCDate(utc.getUTCDate() + 1);
+  }
+  return utc.toISOString().slice(0, 10);
+}
+
+/**
+ * De eerstvolgende N weekenden waarin minstens één van de twee dagen
+ * (zaterdag of zondag) nog vrij is.
+ */
+export function eerstvolgendeVrijeWeekenden(
+  bezetteDagen: ReadonlySet<string>,
+  aantal = 3,
+  nu = new Date(),
+): VrijWeekend[] {
+  const resultaat: VrijWeekend[] = [];
+  let zaterdag = eerstvolgendeZaterdag(nu);
+  let veiligheid = 0;
+  while (resultaat.length < aantal && veiligheid < 260) {
+    const utc = new Date(`${zaterdag}T12:00:00Z`);
+    utc.setUTCDate(utc.getUTCDate() + 1);
+    const zondag = utc.toISOString().slice(0, 10);
+    const zaterdagVrij = !bezetteDagen.has(zaterdag);
+    const zondagVrij = !bezetteDagen.has(zondag);
+    if (zaterdagVrij || zondagVrij) {
+      resultaat.push({zaterdag, zondag, zaterdagVrij, zondagVrij});
+    }
+    zaterdag = volgendWeekend(zaterdag).zaterdag;
+    veiligheid++;
+  }
+  return resultaat;
+}
+
 export function activiteitRaaktWeekend(
   startIso: string,
   eindIso: string | undefined,
