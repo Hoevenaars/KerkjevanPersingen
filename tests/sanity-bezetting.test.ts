@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { kiesGepubliceerdeActiviteit } from '../src/lib/sanity-documenten.ts';
+import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit } from '../src/lib/sanity-documenten.ts';
 import { bezetteKalenderDagen } from '../src/lib/datum.ts';
 import { eerstvolgendeVrijeWeekenden } from '../src/lib/week.ts';
 import { SECOND_NATURE } from '../src/lib/second-nature.ts';
@@ -74,10 +74,58 @@ describe('agenda vs kalender — Second Nature en 7-8 november', () => {
       },
       SECOND_NATURE,
     ];
-    const voorKalender = kiesGepubliceerdeActiviteit(ruw).filter((a) => a.zichtbaarheid !== 'verborgen');
-    const dagen = bezetteKalenderDagen(voorKalender);
+    const dagen = bezetteKalenderDagen(activiteitenVoorKalender(ruw));
     assert.equal(dagen.has('2026-10-03'), true);
     assert.equal(dagen.has('2026-11-07'), false);
     assert.equal(dagen.has('2026-11-08'), false);
+  });
+
+  test('een ongepubliceerd "alleen bezet"-concept blokkeert 7-8 november niet', () => {
+    const ruw = [
+      {
+        _id: 'drafts.leeg-weekend',
+        start: '2026-11-07T09:00:00.000Z',
+        eind: '2026-11-08T16:00:00.000Z',
+        zichtbaarheid: 'bezet' as const,
+      },
+      SECOND_NATURE,
+    ];
+    const dagen = bezetteKalenderDagen(activiteitenVoorKalender(ruw));
+    assert.equal(dagen.has('2026-11-07'), false);
+    assert.equal(dagen.has('2026-11-08'), false);
+    const weekenden = eerstvolgendeVrijeWeekenden(dagen, 1, new Date('2026-11-05T12:00:00Z'));
+    assert.equal(weekenden[0].zaterdag, '2026-11-07');
+    assert.equal(weekenden[0].zondag, '2026-11-08');
+  });
+
+  test('een gepubliceerde "alleen bezet"-boeking blijft de kalender blokkeren', () => {
+    const dagen = bezetteKalenderDagen(
+      activiteitenVoorKalender([
+        {
+          _id: 'echt',
+          start: '2026-11-07T09:00:00.000Z',
+          eind: '2026-11-08T16:00:00.000Z',
+          zichtbaarheid: 'bezet' as const,
+        },
+      ]),
+    );
+    assert.equal(dagen.has('2026-11-07'), true);
+    assert.equal(dagen.has('2026-11-08'), true);
+  });
+
+  test('een ongepubliceerde publieke expositie blijft de kalender blokkeren', () => {
+    const dagen = bezetteKalenderDagen(
+      activiteitenVoorKalender([
+        {
+          _id: 'drafts.september',
+          start: '2026-09-12T09:00:00.000Z',
+          eind: '2026-09-13T16:00:00.000Z',
+          soort: 'expositie',
+          zichtbaarheid: 'publiek' as const,
+        },
+      ]),
+    );
+    assert.equal(dagen.has('2026-09-12'), true);
+    assert.equal(dagen.has('2026-09-13'), true);
   });
 });

@@ -22,3 +22,25 @@ export function kiesGepubliceerdeActiviteit<T extends { _id: string }>(docs: rea
   }
   return [...gekozen.values()];
 }
+
+/**
+ * Wat de publieke verhuurkalender mag blokkeren.
+ *
+ * - Publiek: altijd, ook als het nog een concept is (staat al in de agenda).
+ * - Alleen bezet: alleen ná Publish. Een concept "alleen bezet" is intern werk;
+ *   in Studio lijkt het weekend vrij, op de site stond het alsnog grijs.
+ */
+export function teltVoorPubliekeKalender(item: {
+  _id: string;
+  zichtbaarheid?: string;
+}): boolean {
+  if (item.zichtbaarheid === 'publiek') return true;
+  if (item.zichtbaarheid === 'bezet' && !item._id.startsWith('drafts.')) return true;
+  return false;
+}
+
+export function activiteitenVoorKalender<T extends { _id: string; zichtbaarheid?: string }>(
+  docs: readonly T[],
+): T[] {
+  return kiesGepubliceerdeActiviteit(docs).filter(teltVoorPubliekeKalender);
+}

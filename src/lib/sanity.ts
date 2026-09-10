@@ -4,7 +4,7 @@ import { SOORTEN, type Aanvraag } from './validatie';
 import { eerstvolgendeVrijeWeekenden, maandagVanWeekIso, type VrijWeekend } from './week';
 import { bezetteKalenderDagen } from './datum';
 import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
-import { kiesGepubliceerdeActiviteit } from './sanity-documenten';
+import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit } from './sanity-documenten';
 
 export { maandagVanWeekIso };
 export { formatDatum, formatDatumBereik } from './datum';
@@ -314,7 +314,7 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
   }
 }
 
-export { kiesGepubliceerdeActiviteit } from './sanity-documenten';
+export { activiteitenVoorKalender, kiesGepubliceerdeActiviteit } from './sanity-documenten';
 
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
@@ -456,9 +456,7 @@ export async function getBezetteData(): Promise<Activiteit[]> {
     `*[_type == "activiteit" && defined(start)]
      | order(start asc) { ${ACTIVITEIT_VELDEN} }`
   );
-  const gekozen = kiesGepubliceerdeActiviteit(ruw).filter(
-    (item) => item.zichtbaarheid !== 'verborgen',
-  );
+  const gekozen = activiteitenVoorKalender(ruw);
 
   const { SECOND_NATURE } = await import('./second-nature.ts');
   if (!gekozen.some((item) => item.slug === SECOND_NATURE.slug)) {
