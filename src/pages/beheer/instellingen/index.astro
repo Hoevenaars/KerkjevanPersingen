@@ -2,15 +2,18 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { DEMO_INSTELLINGEN, DEMO_FLASH, demoNaActie } from '../../../platform/demo-data';
+import { demoNaActie } from '../../../platform/demo-data';
+import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { standaardBronnen } from '../../../platform/bron.ts';
 
 if (Astro.request.method === 'POST') {
   return Astro.redirect(demoNaActie(Astro.url));
 }
 
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const flash = Astro.url.searchParams.get('demo') === '1';
 const bronnen = standaardBronnen();
+const inst = snapshot.instellingen;
 ---
 
 <Beheer titel="Instellingen">
@@ -18,22 +21,30 @@ const bronnen = standaardBronnen();
     <div>
       <h1>Algemeen</h1>
       <p class="bh-hint">
-        Sanity blijft de schrijvende bron. Deze velden zijn voorbeeldinstellingen en worden niet bewaard.
+        Sanity blijft de schrijvende bron. Bewaren slaat niets op.
       </p>
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   <section class="bh-kaart">
     <h2>Openingstijden (voorbeeld)</h2>
     <form method="post" class="bh-form">
       <label for="van">Open vanaf</label>
-      <input id="van" name="openingVan" value={DEMO_INSTELLINGEN.openingVan} />
+      <input id="van" name="openingVan" value={inst.openingVan} />
       <label for="tot">Open tot</label>
-      <input id="tot" name="openingTot" value={DEMO_INSTELLINGEN.openingTot} />
+      <input id="tot" name="openingTot" value={inst.openingTot} />
       <label for="beheerder">Contractbeheerder</label>
-      <input id="beheerder" name="contractbeheerder" value={DEMO_INSTELLINGEN.contractbeheerder} />
+      <input id="beheerder" name="contractbeheerder" value={inst.contractbeheerder} />
+      {
+        inst.ontvangstAdres ? (
+          <>
+            <label for="ontvangst">Ontvangstadres aanvragen (Sanity)</label>
+            <input id="ontvangst" name="ontvangstAdres" value={inst.ontvangstAdres} readonly />
+          </>
+        ) : null
+      }
       <div class="bh-acties">
         <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
       </div>

@@ -2,22 +2,26 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import {
-  DEMO_BOEKINGEN,
-  BOEKING_LABEL,
-  SOORT_LABEL,
-  formatNl,
-} from '../../../platform/demo-data';
+import { BOEKING_LABEL, SOORT_LABEL, formatNl } from '../../../platform/demo-data';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
 
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const filter = Astro.url.searchParams.get('status') ?? 'alle';
 const lijst =
-  filter === 'alle' ? DEMO_BOEKINGEN : DEMO_BOEKINGEN.filter((b) => b.status === filter);
+  filter === 'alle' ? snapshot.boekingen : snapshot.boekingen.filter((b) => b.status === filter);
 
+const heeftMigratie = snapshot.boekingen.some((b) => b.status.startsWith('migratie_'));
 const tabs = [
   { href: '/beheer/boekingen/', status: 'alle', label: 'Alle' },
   { href: '/beheer/boekingen/?status=optie', status: 'optie', label: 'Optie' },
   { href: '/beheer/boekingen/?status=optie_verlopen', status: 'optie_verlopen', label: 'Optie verlopen' },
   { href: '/beheer/boekingen/?status=definitief', status: 'definitief', label: 'Definitief' },
+  ...(heeftMigratie
+    ? [
+        { href: '/beheer/boekingen/?status=migratie_vastgelegd', status: 'migratie_vastgelegd', label: 'Vastgelegd' },
+        { href: '/beheer/boekingen/?status=migratie_aanvraag', status: 'migratie_aanvraag', label: 'Aanvraag' },
+      ]
+    : []),
 ];
 ---
 
@@ -53,23 +57,29 @@ const tabs = [
     </thead>
     <tbody>
       {
-        lijst.map((b) => (
+        lijst.length === 0 ? (
           <tr>
-            <td>
-              <a class="bh-detail-link" href={`/beheer/boekingen/${b.id}/`}>{b.nummer}</a>
-            </td>
-            <td>{b.interneTitel}</td>
-            <td>{b.huurder}</td>
-            <td>
-              {formatNl(b.start)}
-              {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
-            </td>
-            <td>{b.tarief}</td>
-            <td>
-              <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
-            </td>
+            <td colspan="6" class="bh-leeg">Geen boekingen in deze filter.</td>
           </tr>
-        ))
+        ) : (
+          lijst.map((b) => (
+            <tr>
+              <td>
+                <a class="bh-detail-link" href={`/beheer/boekingen/${encodeURIComponent(b.id)}/`}>{b.nummer}</a>
+              </td>
+              <td>{b.interneTitel}</td>
+              <td>{b.huurder}</td>
+              <td>
+                {formatNl(b.start)}
+                {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
+              </td>
+              <td>{b.tarief}</td>
+              <td>
+                <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status] ?? b.status}</span>
+              </td>
+            </tr>
+          ))
+        )
       }
     </tbody>
   </table>

@@ -12,6 +12,7 @@
     "sanity:export": "sanity dataset export production ./backups/production.tar.gz",
     "sanity:snapshot": "bash scripts/sanity-snapshot.sh",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "migratie:dry-run": "node --experimental-strip-types scripts/migratie-dry-run.ts",
     "nieuwsbrief:preview": "node --experimental-strip-types scripts/verstuur-nieuwsbrief-preview.ts",
     "seed:second-nature": "node --experimental-strip-types scripts/seed-second-nature.ts"
   },

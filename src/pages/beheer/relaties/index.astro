@@ -2,7 +2,9 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { DEMO_RELATIES } from '../../../platform/demo-data';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 ---
 
 <Beheer titel="Relaties">
@@ -28,16 +30,22 @@ import { DEMO_RELATIES } from '../../../platform/demo-data';
     </thead>
     <tbody>
       {
-        DEMO_RELATIES.map((r) => (
+        snapshot.relaties.length === 0 ? (
           <tr>
-            <td>
-              <a class="bh-detail-link" href={`/beheer/relaties/${r.id}/`}>{r.naam}</a>
-            </td>
-            <td>{r.email}</td>
-            <td>{r.rollen.join(', ')}</td>
-            <td>{r.reservelijst ? 'Ja' : 'Nee'}</td>
+            <td colspan="4" class="bh-leeg">Geen relaties.</td>
           </tr>
-        ))
+        ) : (
+          snapshot.relaties.map((r) => (
+            <tr>
+              <td>
+                <a class="bh-detail-link" href={`/beheer/relaties/${encodeURIComponent(r.id)}/`}>{r.naam}</a>
+              </td>
+              <td>{r.email}</td>
+              <td>{r.rollen.join(', ')}</td>
+              <td>{r.reservelijst ? 'Ja' : 'Nee'}</td>
+            </tr>
+          ))
+        )
       }
     </tbody>
   </table>

@@ -2,12 +2,14 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { DEMO_INSTELLINGEN, DEMO_FLASH, demoNaActie } from '../../../../platform/demo-data';
+import { demoNaActie } from '../../../../platform/demo-data';
+import { laadBeheerSnapshot, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 
 if (Astro.request.method === 'POST') {
   return Astro.redirect(demoNaActie(Astro.url));
 }
 
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const flash = Astro.url.searchParams.get('demo') === '1';
 ---
 
@@ -19,14 +21,14 @@ const flash = Astro.url.searchParams.get('demo') === '1';
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{DEMO_FLASH}</p>}
+  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   <section class="bh-kaart">
     <form method="post" class="bh-form">
       <label for="aanbetaling">Aanbetaling (€)</label>
-      <input id="aanbetaling" name="aanbetaling" type="number" value={DEMO_INSTELLINGEN.aanbetaling} />
+      <input id="aanbetaling" name="aanbetaling" type="number" value={snapshot.instellingen.aanbetaling} />
       <label for="termijn">Betaaltermijn (dagen)</label>
-      <input id="termijn" name="betaaltermijn" type="number" value={DEMO_INSTELLINGEN.betaaltermijn} />
+      <input id="termijn" name="betaaltermijn" type="number" value={snapshot.instellingen.betaaltermijn} />
       <div class="bh-acties">
         <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
       </div>

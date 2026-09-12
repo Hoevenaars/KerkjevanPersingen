@@ -89,6 +89,8 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
 | `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Staat aan in `vercel.json`. Preview en lokaal tonen `/beheer` altijd. Website wijzigt niet. |
+| `BEHEER_PASSWORD` | nee | Extra wachtwoord op `/beheer` (gebruiker `kerkje`). Zonder dit én zonder `SITE_PASSWORD` toont `/beheer` alleen voorbeelddata. |
+| `BEHEER_LIVE_SANITY` | nee | `false` houdt `/beheer` op voorbeelddata, ook als Sanity-tokens aanwezig zijn. |
 | `CONTENT_BRON` | nee | Alleen samen met `ALLOW_SUPABASE_CONTENT`. Standaard blijft Sanity leidend. |
 | `ALLOW_SUPABASE_CONTENT` | nee | Tweede slot. Zonder `true` leest de website nooit Supabase. |
 
@@ -284,7 +286,9 @@ later `/beheer` + Supabase, zonder cutover:
 | Productie | https://kerkjepersingen.nl/beheer/ |
 | Sanity Studio (agenda/content) | `/admin` → Sanity Studio |
 
-`/beheer` is een klikbare demo (nog geen echte login). `/admin` is de huidige beheeromgeving.
+`/beheer` toont **Sanity, alleen lezen**, zodra er een beheer- of sitewachtwoord staat.
+Zonder wachtwoord blijft de klikbare voorbeelddata. Schrijven gaat nog via Studio (`/admin`).
+Migratiecontrole: `/beheer/migratie/` en `npm run migratie:dry-run`.
 
 Documentatie: `docs/beheer/`.
 

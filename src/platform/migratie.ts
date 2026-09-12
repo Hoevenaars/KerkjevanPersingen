@@ -104,7 +104,9 @@ export function sanityAanvraagStatus(status: string): 'nieuw' | 'goedgekeurd' | 
   return 'nieuw';
 }
 
-export function sanityBoekingStatus(status: string | undefined): string {
+export function sanityBoekingStatus(
+  status: string | undefined,
+): import('./types.ts').BoekingStatus {
   switch (status) {
     case 'optie':
       return 'optie';
@@ -112,6 +114,8 @@ export function sanityBoekingStatus(status: string | undefined): string {
       return 'definitief';
     case 'geannuleerd':
       return 'geannuleerd';
+    case 'afgewezen':
+      return 'afgewezen';
     case 'aanvraag':
       return 'migratie_aanvraag';
     case 'vastgelegd':

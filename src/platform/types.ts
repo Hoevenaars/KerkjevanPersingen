@@ -46,6 +46,8 @@ export const BOEKING_STATUSSEN = [
   'geannuleerd',
   'afgerond',
   'gearchiveerd',
+  'migratie_aanvraag',
+  'migratie_vastgelegd',
 ] as const;
 export type BoekingStatus = (typeof BOEKING_STATUSSEN)[number];
 

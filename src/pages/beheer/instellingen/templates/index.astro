@@ -2,7 +2,9 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { DEMO_TEMPLATES } from '../../../../platform/demo-data';
+import { laadBeheerSnapshot } from '../../../../platform/beheer-bron.ts';
+
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 ---
 
 <Beheer titel="Templates">
@@ -24,10 +26,10 @@ import { DEMO_TEMPLATES } from '../../../../platform/demo-data';
     </thead>
     <tbody>
       {
-        DEMO_TEMPLATES.map((t) => (
+        snapshot.templates.map((t) => (
           <tr>
             <td>
-              <a href={`/beheer/instellingen/templates/${t.id}/`}>{t.naam}</a>
+              <a href={`/beheer/instellingen/templates/${encodeURIComponent(t.id)}/`}>{t.naam}</a>
             </td>
             <td>{t.verhuurtype}</td>
             <td>

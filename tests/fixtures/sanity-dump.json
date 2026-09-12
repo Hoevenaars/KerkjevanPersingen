@@ -1,0 +1,105 @@
+{
+  "aanvragen": [
+    {
+      "_id": "aanvraag-jansen",
+      "binnengekomenOp": "2026-08-20T10:00:00.000Z",
+      "status": "nieuw",
+      "naam": "Jansen",
+      "email": "jansen@voorbeeld.nl",
+      "telefoon": "06 1234 5678",
+      "soort": "expositie",
+      "datum": "2026-11-07",
+      "datumTot": "2026-11-08",
+      "toelichting": "Groepsexpositie"
+    },
+    {
+      "_id": "aanvraag-zonder-mail",
+      "status": "ja",
+      "naam": "Onbekend",
+      "soort": "concert",
+      "datum": "2026-12-01"
+    }
+  ],
+  "activiteiten": [
+    {
+      "_id": "act-second-nature",
+      "interneTitel": "Second Nature",
+      "huurderNaam": "Collectief Second Nature",
+      "huurderEmail": "second@voorbeeld.nl",
+      "start": "2026-10-03T07:00:00.000Z",
+      "eind": "2026-10-04T16:00:00.000Z",
+      "soort": "expositie",
+      "zichtbaarheid": "publiek",
+      "publiekeTitel": "Second Nature",
+      "slug": "second-nature",
+      "omschrijving": "Groepsexpositie.",
+      "boekingStatus": "vastgelegd",
+      "contentStatus": "goedgekeurd"
+    },
+    {
+      "_id": "act-optie",
+      "interneTitel": "Optie bruiloft",
+      "huurderNaam": "Kim de Vries",
+      "huurderEmail": "kim@voorbeeld.nl",
+      "start": "2026-09-12T09:00:00.000Z",
+      "eind": "2026-09-13T16:00:00.000Z",
+      "soort": "bruiloft",
+      "zichtbaarheid": "verborgen",
+      "boekingStatus": "optie"
+    },
+    {
+      "_id": "act-blokkade",
+      "interneTitel": "Kerstsluiting",
+      "start": "2026-12-25T09:00:00.000Z",
+      "eind": "2026-12-26T16:00:00.000Z",
+      "soort": "blokkade",
+      "zichtbaarheid": "bezet"
+    },
+    {
+      "_id": "act-zonder-start",
+      "interneTitel": "Onvolledig",
+      "soort": "diverse",
+      "zichtbaarheid": "bezet",
+      "boekingStatus": "vastgelegd"
+    }
+  ],
+  "personen": [
+    {
+      "_id": "persoon-henk",
+      "naam": "Henk Vos",
+      "email": "henk@voorbeeld.nl",
+      "telefoon": "06 1111 1111",
+      "rollen": ["gastheer"]
+    }
+  ],
+  "vrienden": [
+    {
+      "_id": "vriend-actief",
+      "naam": "Anna",
+      "email": "anna@voorbeeld.nl",
+      "actief": true,
+      "frequentie": "wekelijks",
+      "uitschrijfToken": "token-1"
+    },
+    {
+      "_id": "vriend-stil",
+      "naam": "Bert",
+      "email": "bert@voorbeeld.nl",
+      "actief": false,
+      "frequentie": "maandelijks"
+    }
+  ],
+  "nieuwsbrieven": [
+    {
+      "_id": "nb-1",
+      "week": "2026-09-07",
+      "kortNieuws": "Restauratie vordert.",
+      "geannuleerd": false,
+      "verstuurd": true
+    }
+  ],
+  "instellingen": {
+    "ontvangstAdres": "contractbeheer.kvp@gmail.com",
+    "mailAfwijzing": "Beste {naam}, helaas."
+  }
+}
