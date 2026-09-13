@@ -3,8 +3,8 @@ import {
   isBeheerEnabled,
   beheerUitResponse,
   beheerAuthOk,
-  beheerHeeftEigenWachtwoord,
   beheerAuthResponse,
+  beheerGateEnv,
 } from './platform/beheer-gate';
 
 /**
@@ -15,10 +15,13 @@ import {
  * erlangs zonder in te loggen. Dit draait server-side: de HTML wordt pas verstuurd
  * nadat de credentials kloppen (03_SECURITY_PRIVACY.md §3 en §4).
  *
- * Aan/uit via twee omgevingsvariabelen:
+ * Aan/uit via twee omgevingsvariabelen (alleen de publieke site):
  *   SITE_PASSWORD gezet, LIVE_VANAF niet gezet/nog niet bereikt -> afgeschermd + noindex
  *   SITE_PASSWORD gezet, LIVE_VANAF bereikt of gepasseerd        -> automatisch open
  *   SITE_PASSWORD leeg                                          -> altijd open
+ *
+ * /beheer volgt LIVE_VANAF niet. Altijd basic-auth (BEHEER_PASSWORD of
+ * SITE_PASSWORD). Zonder wachtwoord: 401, geen HTML.
  *
  * LIVE_VANAF is een ISO-datumtijd, bijv. "2026-08-08T00:00:00+02:00" voor middernacht
  * Nederlandse tijd. Zodra de serverklok dat moment bereikt, valt de afscherming en de
@@ -53,17 +56,19 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
     return next();
   }
 
-  if (pad.startsWith('/beheer') && !isBeheerEnabled()) {
-    return beheerUitResponse();
-  }
-
-  if (pad.startsWith('/beheer') && beheerHeeftEigenWachtwoord(process.env)) {
+  // /beheer blijft achter wachtwoord, ook als de publieke site live is (LIVE_VANAF).
+  // Zonder BEHEER_PASSWORD of SITE_PASSWORD: 401, geen data.
+  if (pad.startsWith('/beheer')) {
+    if (!isBeheerEnabled()) {
+      return beheerUitResponse();
+    }
     const header = context.request.headers.get('authorization');
-    if (!beheerAuthOk(header, process.env)) {
+    if (!beheerAuthOk(header, beheerGateEnv())) {
       return beheerAuthResponse();
     }
     const response = await next();
     response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    response.headers.set('Cache-Control', 'no-store');
     return response;
   }
 

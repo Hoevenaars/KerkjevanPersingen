@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { isoNaarYmd, transformSanityDump, type SanityDump } from '../src/platform/migratie-transform.ts';
 import { magLiveSanityLezen } from '../src/platform/beheer-bron.ts';
-import { beheerAuthOk, beheerHeeftEigenWachtwoord, beheerWachtwoord } from '../src/platform/beheer-gate.ts';
+import {
+  beheerAuthOk,
+  beheerHeeftWachtwoord,
+  beheerWachtwoord,
+} from '../src/platform/beheer-gate.ts';
 
 const fixture = JSON.parse(
   await readFile(new URL('./fixtures/sanity-dump.json', import.meta.url), 'utf8'),
@@ -94,12 +98,28 @@ describe('live Sanity in /beheer is achter een wachtwoord gezet', () => {
     );
   });
 
-  test('BEHEER_PASSWORD is een eigen slot', () => {
-    assert.equal(beheerHeeftEigenWachtwoord({ BEHEER_PASSWORD: 'beheer' }), true);
+  test('zonder wachtwoord is /beheer dicht (fail-closed)', () => {
+    assert.equal(beheerHeeftWachtwoord({}), false);
+    assert.equal(beheerAuthOk(null, {}), false);
+    assert.equal(beheerAuthOk('x', {}), false);
+    assert.equal(beheerAuthOk('Basic ' + Buffer.from('kerkje:').toString('base64'), {}), false);
+  });
+
+  test('SITE_PASSWORD sluit /beheer ook als de site live is', () => {
+    const header = 'Basic ' + Buffer.from('kerkje:site').toString('base64');
+    assert.equal(beheerHeeftWachtwoord({ SITE_PASSWORD: 'site' }), true);
+    assert.equal(beheerAuthOk(null, { SITE_PASSWORD: 'site' }), false);
+    assert.equal(beheerAuthOk(header, { SITE_PASSWORD: 'site' }), true);
+    assert.equal(beheerAuthOk(header, { SITE_PASSWORD: 'ander' }), false);
+  });
+
+  test('BEHEER_PASSWORD gaat voor SITE_PASSWORD', () => {
+    assert.equal(beheerHeeftWachtwoord({ BEHEER_PASSWORD: 'beheer' }), true);
     assert.equal(beheerWachtwoord({ BEHEER_PASSWORD: 'beheer', SITE_PASSWORD: 'site' }), 'beheer');
     assert.equal(beheerAuthOk(null, { BEHEER_PASSWORD: 'beheer' }), false);
-    const header = 'Basic ' + Buffer.from('kerkje:beheer').toString('base64');
-    assert.equal(beheerAuthOk(header, { BEHEER_PASSWORD: 'beheer' }), true);
-    assert.equal(beheerAuthOk('x', {}), true);
+    const beheer = 'Basic ' + Buffer.from('kerkje:beheer').toString('base64');
+    const site = 'Basic ' + Buffer.from('kerkje:site').toString('base64');
+    assert.equal(beheerAuthOk(beheer, { BEHEER_PASSWORD: 'beheer', SITE_PASSWORD: 'site' }), true);
+    assert.equal(beheerAuthOk(site, { BEHEER_PASSWORD: 'beheer', SITE_PASSWORD: 'site' }), false);
   });
 });
