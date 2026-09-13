@@ -32,7 +32,7 @@ const letops = migratie?.issues.filter((i) => i.ernst === 'letop') ?? [];
         <h2>Nog voorbeelddata</h2>
         <p class="bh-muted">{snapshot.reden}</p>
         <ol class="bh-stappen">
-          <li>Zet <code>BEHEER_PASSWORD</code> (of houd <code>SITE_PASSWORD</code>) zodat /beheer niet openbaar is.</li>
+          <li><code>BEHEER_PASSWORD</code> (of <code>SITE_PASSWORD</code>) is verplicht — zonder inloggen geen data.</li>
           <li>Sanity-project-id en token staan al in Vercel voor de website — die volstaan om te lezen.</li>
           <li>Daarna toont dit scherm echte aantallen. Snapshot vóór import: <code>npm run sanity:snapshot</code>.</li>
           <li>Supabase-project aanmaken blijft een bewuste kostestap — nog niet in deze ronde.</li>

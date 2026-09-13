@@ -1,9 +1,9 @@
 /**
  * Databron voor /beheer: live Sanity (alleen lezen) of voorbeelddata.
  *
- * Live data alleen als Sanity geconfigureerd is én /beheer al achter een
- * wachtwoord zit (BEHEER_PASSWORD of SITE_PASSWORD). Zonder dat blijft de
- * klikbare demo staan — persoonsgegevens komen nooit op een open URL.
+ * Live data alleen als Sanity geconfigureerd is én er een wachtwoord is
+ * (BEHEER_PASSWORD of SITE_PASSWORD). Middleware weigert /beheer zonder
+ * inloggen. Deze check is een tweede slot: zonder wachtwoord geen Sanity-dump.
  */
 
 import { ymdInAmsterdam } from './datum.ts';
