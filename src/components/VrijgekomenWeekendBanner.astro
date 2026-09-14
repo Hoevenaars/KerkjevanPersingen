@@ -3,57 +3,63 @@ import Button from './Button.astro';
 import {
   VRIJGEKOMEN_EXPOSITIE_WEEKEND,
   aanvraagPadVrijgekomenWeekend,
-  toonVrijgekomenWeekendBanner,
+  toonVrijgekomenWeekendBannerOpPagina,
+  weekendDatumKaarten,
 } from '../lib/vrijgekomen-weekend';
 
-const zichtbaar = toonVrijgekomenWeekendBanner();
-const { titel, tekst, knop } = VRIJGEKOMEN_EXPOSITIE_WEEKEND;
+const zichtbaar = toonVrijgekomenWeekendBannerOpPagina(Astro.url.pathname);
+const { eyebrow, titel, tekst, knop } = VRIJGEKOMEN_EXPOSITIE_WEEKEND;
 const href = aanvraagPadVrijgekomenWeekend();
+const kaarten = weekendDatumKaarten();
 ---
 
 {
   zichtbaar && (
     <aside class="banner" aria-labelledby="vrijgekomen-weekend-titel">
       <svg class="blad blad--links" viewBox="0 0 120 150" aria-hidden="true" focusable="false">
-        <g opacity="0.72">
-          <path d="M18 142 C38 104 48 68 72 18" fill="none" stroke="#5f6549" stroke-width="1.35" stroke-linecap="round" />
-          <path d="M40 108 C52 90 64 74 80 52" fill="none" stroke="#5f6549" stroke-width="1.05" stroke-linecap="round" />
-          <path d="M22 128 C8 112 4 96 10 80 C24 86 34 104 22 128Z" fill="#7c8460" />
-          <path d="M28 122 C44 108 56 96 58 78 C40 86 30 102 28 122Z" fill="#6a7354" />
-          <path d="M36 104 C22 86 20 66 30 50 C46 60 50 84 36 104Z" fill="#8a9270" />
-          <path d="M42 98 C58 84 72 70 78 52 C60 60 48 78 42 98Z" fill="#5f6549" />
-          <path d="M50 78 C38 58 40 38 52 24 C64 38 66 60 50 78Z" fill="#7c8460" />
-          <path d="M56 72 C72 58 86 42 92 26 C76 36 62 54 56 72Z" fill="#6a7354" />
-          <path d="M64 52 C56 34 60 16 74 6 C82 22 80 40 64 52Z" fill="#8a9270" />
-          <path d="M70 46 C84 34 96 20 104 8 C90 16 78 30 70 46Z" fill="#5f6549" />
-          <path d="M62 64 C74 54 88 48 100 38 C88 50 74 58 62 64Z" fill="#7c8460" opacity="0.85" />
+        <g opacity="0.38">
+          <path d="M18 142 C38 104 48 68 72 18" fill="none" stroke="#d9cfbc" stroke-width="1.35" stroke-linecap="round" />
+          <path d="M40 108 C52 90 64 74 80 52" fill="none" stroke="#d9cfbc" stroke-width="1.05" stroke-linecap="round" />
+          <path d="M22 128 C8 112 4 96 10 80 C24 86 34 104 22 128Z" fill="#f3efe6" />
+          <path d="M28 122 C44 108 56 96 58 78 C40 86 30 102 28 122Z" fill="#d9cfbc" />
+          <path d="M36 104 C22 86 20 66 30 50 C46 60 50 84 36 104Z" fill="#faf8f3" />
+          <path d="M42 98 C58 84 72 70 78 52 C60 60 48 78 42 98Z" fill="#d9cfbc" />
+          <path d="M50 78 C38 58 40 38 52 24 C64 38 66 60 50 78Z" fill="#f3efe6" />
+          <path d="M56 72 C72 58 86 42 92 26 C76 36 62 54 56 72Z" fill="#d9cfbc" />
+          <path d="M64 52 C56 34 60 16 74 6 C82 22 80 40 64 52Z" fill="#faf8f3" />
+          <path d="M70 46 C84 34 96 20 104 8 C90 16 78 30 70 46Z" fill="#d9cfbc" />
+          <path d="M62 64 C74 54 88 48 100 38 C88 50 74 58 62 64Z" fill="#f3efe6" opacity="0.85" />
         </g>
       </svg>
       <svg class="blad blad--rechts" viewBox="0 0 120 150" aria-hidden="true" focusable="false">
-        <g opacity="0.72">
-          <path d="M18 142 C38 104 48 68 72 18" fill="none" stroke="#5f6549" stroke-width="1.35" stroke-linecap="round" />
-          <path d="M40 108 C52 90 64 74 80 52" fill="none" stroke="#5f6549" stroke-width="1.05" stroke-linecap="round" />
-          <path d="M22 128 C8 112 4 96 10 80 C24 86 34 104 22 128Z" fill="#7c8460" />
-          <path d="M28 122 C44 108 56 96 58 78 C40 86 30 102 28 122Z" fill="#6a7354" />
-          <path d="M36 104 C22 86 20 66 30 50 C46 60 50 84 36 104Z" fill="#8a9270" />
-          <path d="M42 98 C58 84 72 70 78 52 C60 60 48 78 42 98Z" fill="#5f6549" />
-          <path d="M50 78 C38 58 40 38 52 24 C64 38 66 60 50 78Z" fill="#7c8460" />
-          <path d="M56 72 C72 58 86 42 92 26 C76 36 62 54 56 72Z" fill="#6a7354" />
-          <path d="M64 52 C56 34 60 16 74 6 C82 22 80 40 64 52Z" fill="#8a9270" />
-          <path d="M70 46 C84 34 96 20 104 8 C90 16 78 30 70 46Z" fill="#5f6549" />
-          <path d="M62 64 C74 54 88 48 100 38 C88 50 74 58 62 64Z" fill="#7c8460" opacity="0.85" />
+        <g opacity="0.38">
+          <path d="M18 142 C38 104 48 68 72 18" fill="none" stroke="#d9cfbc" stroke-width="1.35" stroke-linecap="round" />
+          <path d="M40 108 C52 90 64 74 80 52" fill="none" stroke="#d9cfbc" stroke-width="1.05" stroke-linecap="round" />
+          <path d="M22 128 C8 112 4 96 10 80 C24 86 34 104 22 128Z" fill="#f3efe6" />
+          <path d="M28 122 C44 108 56 96 58 78 C40 86 30 102 28 122Z" fill="#d9cfbc" />
+          <path d="M36 104 C22 86 20 66 30 50 C46 60 50 84 36 104Z" fill="#faf8f3" />
+          <path d="M42 98 C58 84 72 70 78 52 C60 60 48 78 42 98Z" fill="#d9cfbc" />
+          <path d="M50 78 C38 58 40 38 52 24 C64 38 66 60 50 78Z" fill="#f3efe6" />
+          <path d="M56 72 C72 58 86 42 92 26 C76 36 62 54 56 72Z" fill="#d9cfbc" />
+          <path d="M64 52 C56 34 60 16 74 6 C82 22 80 40 64 52Z" fill="#faf8f3" />
+          <path d="M70 46 C84 34 96 20 104 8 C90 16 78 30 70 46Z" fill="#d9cfbc" />
+          <path d="M62 64 C74 54 88 48 100 38 C88 50 74 58 62 64Z" fill="#f3efe6" opacity="0.85" />
         </g>
       </svg>
 
       <div class="wrap binnen">
-        <div class="icoon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="4" y="6" width="16" height="14" rx="2.2" />
-            <path d="M8 3.8v4M16 3.8v4M4 10h16" />
-          </svg>
-        </div>
+        <ol class="datums">
+          {kaarten.map((kaart) => (
+            <li class="kaart">
+              <span class="kaart-weekdag">{kaart.weekdag}</span>
+              <span class="kaart-dag">{kaart.dag}</span>
+              <span class="kaart-maand">{kaart.maand}</span>
+            </li>
+          ))}
+        </ol>
 
         <div class="tekstblok">
+          <p class="eyebrow">{eyebrow}</p>
           <p class="titel" id="vrijgekomen-weekend-titel">{titel}</p>
           <p class="tekst">{tekst}</p>
         </div>
@@ -72,23 +78,24 @@ const href = aanvraagPadVrijgekomenWeekend();
   .banner {
     position: relative;
     overflow: hidden;
-    background: var(--cream-deep);
-    border-bottom: var(--border);
+    background: var(--pine);
+    color: var(--cream);
+    border-bottom: 1px solid var(--olive-dark);
   }
 
   .binnen {
     position: relative;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: var(--s-6);
+    gap: var(--s-8);
     align-items: center;
-    padding-block: var(--s-6);
+    padding-block: var(--s-8);
   }
 
   .blad {
     position: absolute;
     top: 50%;
-    width: 130px;
+    width: 150px;
     height: auto;
     pointer-events: none;
     z-index: 0;
@@ -110,32 +117,63 @@ const href = aanvraagPadVrijgekomenWeekend();
     z-index: 1;
   }
 
-  .icoon {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    border: 1.5px solid var(--sand);
+  .datums {
+    display: flex;
+    gap: var(--s-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .kaart {
+    min-width: 5.25rem;
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--radius);
     background: var(--cream);
-    color: var(--olive-dark);
+    color: var(--pine);
+    text-align: center;
     display: grid;
-    place-items: center;
+    gap: 0.1rem;
+  }
+
+  .kaart-weekdag,
+  .kaart-maand {
+    font-size: var(--t-xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--olive-dark);
+  }
+
+  .kaart-dag {
+    font-family: var(--font-display);
+    font-size: var(--t-3xl);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--pine);
+  }
+
+  .eyebrow {
+    color: var(--sand);
+    margin-bottom: var(--s-2);
   }
 
   .titel {
     font-family: var(--font-display);
-    font-size: var(--t-2xl);
+    font-size: var(--t-3xl);
     font-weight: 600;
-    line-height: 1.2;
-    margin: 0 0 var(--s-2);
+    line-height: 1.15;
+    margin: 0 0 var(--s-3);
     max-width: none;
     text-wrap: balance;
+    color: var(--cream);
   }
 
   .tekst {
     margin: 0;
-    font-size: var(--t-sm);
-    color: var(--ink-soft);
-    max-width: none;
+    font-size: var(--t-base);
+    color: var(--sand);
+    max-width: 46ch;
   }
 
   .knop {
@@ -148,22 +186,30 @@ const href = aanvraagPadVrijgekomenWeekend();
     }
 
     .binnen {
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: 1fr;
       gap: var(--s-4);
-      align-items: start;
+      padding-block: var(--s-6);
     }
 
-    .icoon {
-      width: 44px;
-      height: 44px;
+    .datums {
+      justify-content: flex-start;
+    }
+
+    .kaart {
+      min-width: 4.5rem;
+      padding: var(--s-2) var(--s-3);
+    }
+
+    .kaart-dag {
+      font-size: var(--t-2xl);
     }
 
     .titel {
-      font-size: var(--t-xl);
+      font-size: var(--t-2xl);
     }
 
-    .knop {
-      grid-column: 1 / -1;
+    .tekst {
+      max-width: none;
     }
 
     .knop :global(.btn) {
