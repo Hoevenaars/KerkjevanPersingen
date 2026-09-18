@@ -1,28 +1,17 @@
 /**
  * Banner voor een onverwacht vrij expositieweekend.
  *
- * 7 en 8 november 2026 is vergeven — daarom staat de schakelaar nu uit.
- * Component, styling en copy blijven staan zodat we hem later weer
- * kunnen aanzetten voor een ander weekend.
+ * 7 en 8 november 2026 is weer vrij — de schakelaar staat aan.
+ * Zet `VRIJGEKOMEN_WEEKEND_BANNER_AAN` op `false` om hem tijdelijk te verbergen
+ * zonder component of copy te verwijderen. Bij een ander weekend: datums en
+ * copy hieronder bijwerken.
  *
- * Weer aanzetten:
- * 1. Werk `zaterdag`, `zondag` en de copy hieronder bij.
- * 2. Zet `VRIJGEKOMEN_WEEKEND_BANNER_AAN` op `true`.
- * 3. De banner verschijnt dan bovenaan alle publieke pagina's behalve
- *    `/verhuur/aanvragen`, tot en met die zondag (Nederlandse tijd).
- *
- * Uiterlijk (zoals gebruikt voor 7-8 november 2026):
- * - Donkergroene balk (`--pine`) direct onder de header, cream tekst.
- * - Links twee cream datumkaarten (weekdag / groot dagnummer / maand).
- * - Midden: zandkleurige eyebrow, display-titel, korte wervende tekst.
- * - Rechts: primaire knop (brick) naar het aanvraagformulier, al ingevuld
- *   met dit weekend en soort expositie.
- * - Decoratieve blad-illustraties links en rechts; op smalle schermen
- *   verdwijnen die en stapelt de balk (kaarten, tekst, knop full-width).
+ * Staat op alle publieke pagina's behalve `/verhuur/aanvragen`.
+ * Na afloop van dat weekend verdwijnt de banner vanzelf — Nederlandse tijd.
  */
 
-/** Zet op `true` om de banner weer te tonen (na het bijwerken van de datums). */
-export const VRIJGEKOMEN_WEEKEND_BANNER_AAN = false;
+/** Zet op `false` om de banner te verbergen zonder de code te verwijderen. */
+export const VRIJGEKOMEN_WEEKEND_BANNER_AAN = true;
 
 export const VRIJGEKOMEN_EXPOSITIE_WEEKEND = {
   zaterdag: '2026-11-07',
