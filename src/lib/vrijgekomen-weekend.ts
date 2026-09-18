@@ -1,12 +1,28 @@
 /**
- * Tijdelijke banner voor het onverwacht vrije expositieweekend van
- * 7 en 8 november 2026. De knop vult het aanvraagformulier al in
- * (expositie, zaterdag t/m zondag), zodat iemand niet zelf hoeft te zoeken.
+ * Banner voor een onverwacht vrij expositieweekend.
  *
- * Staat op alle publieke pagina's behalve het aanvraagformulier zelf.
- * Na afloop van dat weekend verdwijnt de banner vanzelf — Nederlandse tijd,
- * dezelfde regel als de rest van de kalender.
+ * 7 en 8 november 2026 is vergeven — daarom staat de schakelaar nu uit.
+ * Component, styling en copy blijven staan zodat we hem later weer
+ * kunnen aanzetten voor een ander weekend.
+ *
+ * Weer aanzetten:
+ * 1. Werk `zaterdag`, `zondag` en de copy hieronder bij.
+ * 2. Zet `VRIJGEKOMEN_WEEKEND_BANNER_AAN` op `true`.
+ * 3. De banner verschijnt dan bovenaan alle publieke pagina's behalve
+ *    `/verhuur/aanvragen`, tot en met die zondag (Nederlandse tijd).
+ *
+ * Uiterlijk (zoals gebruikt voor 7-8 november 2026):
+ * - Donkergroene balk (`--pine`) direct onder de header, cream tekst.
+ * - Links twee cream datumkaarten (weekdag / groot dagnummer / maand).
+ * - Midden: zandkleurige eyebrow, display-titel, korte wervende tekst.
+ * - Rechts: primaire knop (brick) naar het aanvraagformulier, al ingevuld
+ *   met dit weekend en soort expositie.
+ * - Decoratieve blad-illustraties links en rechts; op smalle schermen
+ *   verdwijnen die en stapelt de balk (kaarten, tekst, knop full-width).
  */
+
+/** Zet op `true` om de banner weer te tonen (na het bijwerken van de datums). */
+export const VRIJGEKOMEN_WEEKEND_BANNER_AAN = false;
 
 export const VRIJGEKOMEN_EXPOSITIE_WEEKEND = {
   zaterdag: '2026-11-07',
@@ -45,9 +61,15 @@ export function aanvraagPadVrijgekomenWeekend(): string {
   return `/verhuur/aanvragen/?datum=${zaterdag}&datumTot=${zondag}&soort=expositie`;
 }
 
-export function toonVrijgekomenWeekendBanner(nu = new Date()): boolean {
+/** Of het weekend in de copy nog in de toekomst of gaande is. */
+export function weekendNogBeschikbaar(nu = new Date()): boolean {
   const vandaag = nu.toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' });
   return vandaag <= VRIJGEKOMEN_EXPOSITIE_WEEKEND.zondag;
+}
+
+export function toonVrijgekomenWeekendBanner(nu = new Date()): boolean {
+  if (!VRIJGEKOMEN_WEEKEND_BANNER_AAN) return false;
+  return weekendNogBeschikbaar(nu);
 }
 
 /** Op het aanvraagformulier zelf zou de banner alleen afleiden. */
