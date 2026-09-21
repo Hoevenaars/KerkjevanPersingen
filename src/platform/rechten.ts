@@ -23,9 +23,13 @@ export function rechtVoor(
   return rechten.perModule[module] ?? 'verborgen';
 }
 
+export const getPermission = rechtVoor;
+
 export function magZien(rechten: GebruikerRechten, module: ModuleSleutel): boolean {
   return VOLGORDE[rechtVoor(rechten, module)] >= VOLGORDE.lezen;
 }
+
+export const canView = magZien;
 
 export function magLezen(rechten: GebruikerRechten, module: ModuleSleutel): boolean {
   return magZien(rechten, module);
@@ -34,6 +38,8 @@ export function magLezen(rechten: GebruikerRechten, module: ModuleSleutel): bool
 export function magSchrijven(rechten: GebruikerRechten, module: ModuleSleutel): boolean {
   return rechtVoor(rechten, module) === 'schrijven';
 }
+
+export const canWrite = magSchrijven;
 
 /** Schrijfrecht = domeinverantwoordelijke (FO §6). */
 export function isDomeinVerantwoordelijke(

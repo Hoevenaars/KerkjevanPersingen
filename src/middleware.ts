@@ -6,30 +6,29 @@ import {
   beheerAuthResponse,
   beheerGateEnv,
 } from './platform/beheer-gate';
+import {
+  beheerToegang,
+  isBeheerAuthPad,
+  isBeheerPad,
+  isMutatieMethode,
+  moduleVoorPad,
+} from './platform/autorisatie.ts';
+import { VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
+import { basisSessie, bouwSessie } from './lib/beheer-auth.ts';
+import { beheerWeigering, loginRedirect, zelfdeOorsprong } from './lib/beheer-http.ts';
+import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
 
 /**
  * Afscherming tot livegang.
- *
- * Vervangt het eerdere wachtwoordscherm in client-side JavaScript. Daar stond het
- * wachtwoord leesbaar in de paginabron; iedereen die "paginabron bekijken" koos, kwam
- * erlangs zonder in te loggen. Dit draait server-side: de HTML wordt pas verstuurd
- * nadat de credentials kloppen (03_SECURITY_PRIVACY.md §3 en §4).
  *
  * Aan/uit via twee omgevingsvariabelen (alleen de publieke site):
  *   SITE_PASSWORD gezet, LIVE_VANAF niet gezet/nog niet bereikt -> afgeschermd + noindex
  *   SITE_PASSWORD gezet, LIVE_VANAF bereikt of gepasseerd        -> automatisch open
  *   SITE_PASSWORD leeg                                          -> altijd open
  *
- * /beheer volgt LIVE_VANAF niet. Altijd basic-auth (BEHEER_PASSWORD of
- * SITE_PASSWORD). Zonder wachtwoord: 401, geen HTML.
- *
- * LIVE_VANAF is een ISO-datumtijd, bijv. "2026-08-08T00:00:00+02:00" voor middernacht
- * Nederlandse tijd. Zodra de serverklok dat moment bereikt, valt de afscherming en de
- * noindex-header automatisch weg — niemand hoeft er 's nachts voor op te blijven om
- * handmatig een omgevingsvariabele te verwijderen.
- *
- * Werkt de datum-check onverwacht niet (bijv. verkeerde tijdzone-notatie), dan blijft
- * de site gewoon afgeschermd — de veilige kant om in te falen.
+ * /beheer volgt LIVE_VANAF niet. Met Supabase-auth: individuele login.
+ * Zonder Supabase-configuratie blijft de oude Basic Auth staan, zodat bestaande
+ * omgevingen niet op slot gaan voordat de projectkeys er zijn.
  */
 
 const USER = 'kerkje';
@@ -47,35 +46,120 @@ function isLive(): boolean {
   return new Date() >= moment;
 }
 
+function plakBeheerHeaders(response: Response, extra?: Headers): Response {
+  response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  response.headers.set('Cache-Control', 'no-store');
+  extra?.forEach((value, key) => {
+    if (key.toLowerCase() === 'set-cookie') response.headers.append(key, value);
+    else response.headers.set(key, value);
+  });
+  return response;
+}
+
+async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]): Promise<Response> {
+  const pad = context.url.pathname;
+  const alsJson = pad.startsWith('/api/beheer');
+
+  if (!isBeheerEnabled()) {
+    return alsJson
+      ? new Response(JSON.stringify({ fout: 'uit', melding: 'Beheer is uitgeschakeld.' }), { status: 404 })
+      : beheerUitResponse();
+  }
+
+  if (isMutatieMethode(context.request.method) && !zelfdeOorsprong(context.request)) {
+    return beheerWeigering('verborgen', alsJson);
+  }
+
+  const cookieHeaders = new Headers();
+  context.locals.supabaseCookies = cookieHeaders;
+
+  if (supabaseGeconfigureerd()) {
+    const supabase = maakBeheerServerClient({
+      request: context.request,
+      cookies: context.cookies,
+      responseHeaders: cookieHeaders,
+    });
+    const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+    const user = data.user;
+    const authPad = isBeheerAuthPad(pad);
+
+    if (!user) {
+      if (authPad) {
+        return plakBeheerHeaders(await next(), cookieHeaders);
+      }
+      return plakBeheerHeaders(alsJson ? beheerWeigering('login', true) : loginRedirect(context), cookieHeaders);
+    }
+
+    if (!supabase) {
+      return plakBeheerHeaders(beheerWeigering('login', alsJson), cookieHeaders);
+    }
+
+    const sessie = await bouwSessie({
+      client: supabase,
+      userId: user.id,
+      viewAsId: context.cookies.get(VIEW_AS_COOKIE)?.value ?? null,
+    });
+
+    if ('fout' in sessie) {
+      await supabase.auth.signOut();
+      if (authPad) return plakBeheerHeaders(await next(), cookieHeaders);
+      const doel = new URL('/beheer/login', context.url);
+      doel.searchParams.set('fout', sessie.fout);
+      return plakBeheerHeaders(alsJson ? beheerWeigering('disabled', true) : context.redirect(doel.pathname + doel.search), cookieHeaders);
+    }
+
+    context.locals.beheer = sessie;
+
+    if (authPad) {
+      if (pad.replace(/\/+$/, '') === '/beheer/login' && context.request.method === 'GET') {
+        return plakBeheerHeaders(context.redirect('/beheer/'), cookieHeaders);
+      }
+      return plakBeheerHeaders(await next(), cookieHeaders);
+    }
+
+    const uitkomst = beheerToegang({
+      methode: context.request.method,
+      module: moduleVoorPad(pad),
+      ingelogd: true,
+      actief: sessie.gebruiker.status !== 'disabled',
+      rechten: sessie.effectieveRechten,
+      viewAsActief: Boolean(sessie.viewAs),
+    });
+    if (uitkomst !== 'ok') {
+      return plakBeheerHeaders(beheerWeigering(uitkomst, alsJson), cookieHeaders);
+    }
+
+    return plakBeheerHeaders(await next(), cookieHeaders);
+  }
+
+  if (isBeheerAuthPad(pad)) {
+    return plakBeheerHeaders(await next());
+  }
+
+  const header = context.request.headers.get('authorization');
+  if (!beheerAuthOk(header, beheerGateEnv())) {
+    return beheerAuthResponse();
+  }
+  context.locals.beheer = basisSessie();
+  return plakBeheerHeaders(await next());
+};
+
 export const onRequest: MiddlewareHandler = async (context, next) => {
   const pad = context.url.pathname;
 
-  // Cron heeft een eigen Bearer-secret; basic-auth zou die aanroep altijd 401 geven.
-  // Afmelden moet ook zonder sitewachtwoord werken — dat is een AVG-plicht.
+  // Cron heeft een eigen Bearer-secret. Afmelden moet zonder sitewachtwoord (AVG).
   if (pad.startsWith('/api/cron/') || pad.startsWith('/vrienden/afmelden')) {
-    return next();
+    return await next();
   }
 
-  // /beheer blijft achter wachtwoord, ook als de publieke site live is (LIVE_VANAF).
-  // Zonder BEHEER_PASSWORD of SITE_PASSWORD: 401, geen data.
-  if (pad.startsWith('/beheer')) {
-    if (!isBeheerEnabled()) {
-      return beheerUitResponse();
-    }
-    const header = context.request.headers.get('authorization');
-    if (!beheerAuthOk(header, beheerGateEnv())) {
-      return beheerAuthResponse();
-    }
-    const response = await next();
-    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
-    response.headers.set('Cache-Control', 'no-store');
-    return response;
+  if (isBeheerPad(pad)) {
+    return await beheerMiddleware(context, next);
   }
 
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;
 
   if (!password || isLive()) {
-    return next();
+    return await next();
   }
 
   const header = context.request.headers.get('authorization');

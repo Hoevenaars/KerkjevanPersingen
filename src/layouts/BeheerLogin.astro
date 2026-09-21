@@ -1,0 +1,35 @@
+---
+import '../styles/global.css';
+import '../styles/beheer.css';
+
+interface Props {
+  titel: string;
+}
+
+const { titel } = Astro.props;
+---
+
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light" />
+    <title>{titel} — Beheer Kerkje van Persingen</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Work+Sans:wght@400;500;600&display=swap"
+    />
+  </head>
+  <body class="bh-login-body">
+    <main class="bh-login">
+      <p class="bh-label">Beheer</p>
+      <h1>Kerkje van Persingen</h1>
+      <slot />
+    </main>
+  </body>
+</html>

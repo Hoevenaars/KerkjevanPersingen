@@ -8,6 +8,9 @@ import {
   magVriendenExporteren,
   magRechtWijzigen,
   rechtVoor,
+  getPermission,
+  canView,
+  canWrite,
 } from '../src/platform/rechten.ts';
 import type { GebruikerRechten } from '../src/platform/types.ts';
 
@@ -72,5 +75,11 @@ describe('rechten', () => {
 
   test('lezen is geen domeinverantwoordelijkheid', () => {
     assert.equal(isDomeinVerantwoordelijke(paul, 'kalender'), false);
+  });
+
+  test('getPermission/canView/canWrite zijn aliassen van het bestaande model', () => {
+    assert.equal(getPermission(nelleke, 'aanvragen'), rechtVoor(nelleke, 'aanvragen'));
+    assert.equal(canView(paul, 'aanvragen'), magZien(paul, 'aanvragen'));
+    assert.equal(canWrite(paul, 'finance'), magSchrijven(paul, 'finance'));
   });
 });

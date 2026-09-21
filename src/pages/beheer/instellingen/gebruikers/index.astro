@@ -2,33 +2,61 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { demoNaActie } from '../../../../platform/demo-data';
-import { laadBeheerSnapshot, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
-import { MODULES, type ModuleSleutel } from '../../../../platform/types.ts';
-import { rechtVoor } from '../../../../platform/rechten.ts';
+import { MODULES, BEHEER_MODULES } from '../../../../platform/modules.ts';
+import { FUNCTIE_LABELS, GEBRUIKER_FUNCTIES, rechtenVoorFunctie } from '../../../../platform/referentie-gebruikers.ts';
+import { loginFoutmelding } from '../../../../lib/beheer-auth.ts';
+import {
+  functieLabel,
+  laadAlleGebruikers,
+  statusLabel,
+} from '../../../../lib/beheer-gebruikers.ts';
+import { maakBeheerAdminClient, supabaseGeconfigureerd } from '../../../../lib/supabase.ts';
+import type { Rechtniveau } from '../../../../platform/types.ts';
 
-if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+const sessie = Astro.locals.beheer;
+const gekozenId = Astro.url.searchParams.get('id') ?? '';
+const fout = Astro.url.searchParams.get('fout');
+const ok = Astro.url.searchParams.get('ok');
+const meldingParam = Astro.url.searchParams.get('melding');
+
+let gebruikers: Awaited<ReturnType<typeof laadAlleGebruikers>> = [];
+let laadFout = '';
+if (supabaseGeconfigureerd()) {
+  const admin = maakBeheerAdminClient();
+  if (!admin) {
+    laadFout = 'SUPABASE_SERVICE_ROLE_KEY ontbreekt. Uitnodigen en bewerken werken daardoor niet.';
+  } else {
+    try {
+      gebruikers = await laadAlleGebruikers(admin);
+    } catch (error) {
+      laadFout = error instanceof Error ? error.message : 'Gebruikers konden niet worden geladen.';
+    }
+  }
+} else {
+  laadFout = 'Supabase Auth is nog niet gekoppeld. Individuele accounts staan klaar zodra de projectkeys er zijn.';
 }
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
-const flash = Astro.url.searchParams.get('demo') === '1';
+const gekozen = gebruikers.find((g) => g.id === gekozenId) ?? null;
+const flash =
+  ok === 'uitgenodigd'
+    ? 'Uitnodiging verstuurd. De gebruiker activeert het account zelf via de mail.'
+    : ok === 'bewaard'
+      ? 'Rechten opgeslagen.'
+      : ok === 'disable'
+        ? 'Account gedeactiveerd. De rechten blijven bewaard.'
+        : ok === 'reactivate'
+          ? 'Account weer geactiveerd.'
+          : ok === 'opnieuw'
+            ? 'Uitnodiging opnieuw verstuurd.'
+            : fout
+              ? meldingParam || loginFoutmelding(fout)
+              : '';
 
-const labels: Record<ModuleSleutel, string> = {
-  dashboard: 'Dashboard',
-  aanvragen: 'Aanvragen',
-  boekingen: 'Boekingen',
-  kalender: 'Kalender',
-  agenda: 'Agenda',
-  planning: 'Planning',
-  relaties: 'Relaties',
-  finance: 'Finance',
-  vrienden: 'Vrienden',
-  nieuwsbrief: 'Nieuwsbrief',
-  templates: 'Templates',
-  gebruikers: 'Gebruikers',
-  instellingen: 'Instellingen',
-};
+function niveauVoor(rechten: Record<string, Rechtniveau | undefined>, module: string): Rechtniveau {
+  return rechten[module] ?? 'verborgen';
+}
+
+const nieuweRechten = rechtenVoorFunctie('operationeel');
 ---
 
 <Beheer titel="Gebruikers">
@@ -36,49 +64,249 @@ const labels: Record<ModuleSleutel, string> = {
     <div>
       <h1>Gebruikers</h1>
       <p class="bh-hint">
-        Nick is Super Admin. Nelleke, Paul en Hans hebben modulaire rechten. Dit is geen echte login.
+        Iedere beheerder heeft een eigen login. Rechten per module: verborgen, lezen of schrijven.
+        Super Admin ziet en schrijft alles.
       </p>
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {flash && <p class={`bh-flash${fout ? ' bh-flash--fout' : ''}`} role="status">{flash}</p>}
+  {laadFout && <p class="bh-flash bh-flash--fout">{laadFout}</p>}
 
   <section class="bh-kaart">
-    <table class="bh-rechten">
+    <table class="bh-tabel bh-gebruikers">
       <thead>
         <tr>
-          <th>Module</th>
-          {
-            snapshot.gebruikers.map((g) => (
-              <th>
-                {g.naam}
-                {g.superAdmin ? ' · Super Admin' : ''}
-              </th>
-            ))
-          }
+          <th>Gebruiker</th>
+          <th>E-mail</th>
+          <th>Status</th>
+          <th>Type</th>
+          <th>Laatst actief</th>
+          <th>Acties</th>
         </tr>
       </thead>
       <tbody>
         {
-          MODULES.map((module) => (
+          gebruikers.length === 0 ? (
             <tr>
-              <th>{labels[module]}</th>
-              {snapshot.gebruikers.map((g) => {
-                const niveau = rechtVoor(
-                  { isSuperAdmin: g.superAdmin, perModule: g.rechten },
-                  module,
-                );
-                return <td>{niveau}</td>;
-              })}
+              <td colspan="6" class="bh-leeg">Nog geen accounts. Nodig hieronder de eerste beheerder uit.</td>
             </tr>
-          ))
+          ) : (
+            gebruikers.map((g) => (
+              <tr class={g.id === gekozenId ? 'is-gekozen' : undefined}>
+                <td>
+                  <strong>{g.naam}</strong>
+                  {g.isSuperAdmin ? <span class="bh-badge">Super Admin</span> : ''}
+                </td>
+                <td>{g.email}</td>
+                <td>
+                  <span class={`bh-badge bh-badge--${g.status}`}>{statusLabel(g.status)}</span>
+                </td>
+                <td>{functieLabel(g.functie, g.isSuperAdmin)}</td>
+                <td>{g.lastActiveAt ? new Date(g.lastActiveAt).toLocaleString('nl-NL') : '—'}</td>
+                <td>
+                  <div class="bh-acties-inline">
+                    <a class="bh-link" href={`/beheer/instellingen/gebruikers/?id=${g.id}`}>
+                      Bewerken
+                    </a>
+                    {
+                      sessie?.rechten.isSuperAdmin && g.id !== sessie.gebruiker.id && (
+                        <form method="post" action="/api/beheer/view-as">
+                          <input type="hidden" name="actie" value="start" />
+                          <input type="hidden" name="id" value={g.id} />
+                          <button class="bh-link" type="submit" title={`Bekijk als ${g.naam}`}>
+                            👁 Bekijk als
+                          </button>
+                        </form>
+                      )
+                    }
+                    {
+                      g.status !== 'disabled' && g.id !== sessie?.gebruiker.id && (
+                        <form method="post" action="/api/beheer/gebruikers">
+                          <input type="hidden" name="actie" value="disable" />
+                          <input type="hidden" name="id" value={g.id} />
+                          <button class="bh-link" type="submit">Deactiveren</button>
+                        </form>
+                      )
+                    }
+                    {
+                      g.status === 'disabled' && (
+                        <form method="post" action="/api/beheer/gebruikers">
+                          <input type="hidden" name="actie" value="reactivate" />
+                          <input type="hidden" name="id" value={g.id} />
+                          <button class="bh-link" type="submit">Reactiveren</button>
+                        </form>
+                      )
+                    }
+                    {
+                      g.status === 'invited' && (
+                        <form method="post" action="/api/beheer/gebruikers">
+                          <input type="hidden" name="actie" value="resend" />
+                          <input type="hidden" name="id" value={g.id} />
+                          <button class="bh-link" type="submit">Uitnodiging opnieuw</button>
+                        </form>
+                      )
+                    }
+                  </div>
+                </td>
+              </tr>
+            ))
+          )
         }
       </tbody>
     </table>
-    <form method="post" class="bh-acties">
-      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
-        Bewaar rechten (voorbeeld)
-      </button>
+  </section>
+
+  <section class="bh-kaart" id="bewerken">
+    <h2>{gekozen ? `Rechten van ${gekozen.naam}` : 'Gebruiker toevoegen'}</h2>
+    <form method="post" action="/api/beheer/gebruikers" class="bh-gebruiker-form">
+      <input type="hidden" name="actie" value={gekozen ? 'bewaar' : 'invite'} />
+      {gekozen && <input type="hidden" name="id" value={gekozen.id} />}
+      <div class="bh-form-rij">
+        <label>
+          Naam
+          <input type="text" name="naam" required value={gekozen?.naam ?? ''} />
+        </label>
+        <label>
+          E-mailadres
+          <input
+            type="email"
+            name="email"
+            required
+            value={gekozen?.email ?? ''}
+            readonly={Boolean(gekozen)}
+          />
+        </label>
+        <label>
+          Functie
+          <select name="functie" id="bh-functie">
+            <option value="">Aangepast</option>
+            {
+              GEBRUIKER_FUNCTIES.map((functie) => (
+                <option value={functie} selected={gekozen?.functie === functie}>
+                  {FUNCTIE_LABELS[functie]}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+      </div>
+      <p class="bh-hint">Functie vult de matrix voor. De echte toegang blijft per module staan.</p>
+      <table class="bh-rechten bh-rechten-editor">
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Verborgen</th>
+            <th>Lezen</th>
+            <th>Schrijven</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            MODULES.map((module) => {
+              const huidige = gekozen
+                ? gekozen.isSuperAdmin
+                  ? 'schrijven'
+                  : niveauVoor(gekozen.rechten, module)
+                : niveauVoor(nieuweRechten, module);
+              return (
+                <tr>
+                  <th>{BEHEER_MODULES[module].label}</th>
+                  {(['verborgen', 'lezen', 'schrijven'] as const).map((niveau) => (
+                    <td>
+                      <label class="bh-radio">
+                        <input
+                          type="radio"
+                          name={`recht_${module}`}
+                          value={niveau}
+                          checked={huidige === niveau}
+                          disabled={gekozen?.isSuperAdmin}
+                        />
+                        <span class="visually-hidden">{niveau}</span>
+                      </label>
+                    </td>
+                  ))}
+                </tr>
+              );
+            })
+          }
+        </tbody>
+      </table>
+      {
+        gekozen?.isSuperAdmin ? (
+          <p class="bh-hint">Super Admin heeft overal schrijfrecht en kan niet beperkt worden.</p>
+        ) : (
+          <div class="bh-acties">
+            <button class="bh-btn" type="submit">
+              {gekozen ? 'Opslaan' : 'Uitnodiging versturen'}
+            </button>
+            {gekozen && (
+              <a class="bh-btn bh-btn--sec" href="/beheer/instellingen/gebruikers/">
+                Annuleren
+              </a>
+            )}
+          </div>
+        )
+      }
     </form>
   </section>
 </Beheer>
+
+<script is:inline>
+  const presets = {
+    operationeel: {
+      dashboard: 'lezen',
+      aanvragen: 'schrijven',
+      boekingen: 'schrijven',
+      kalender: 'schrijven',
+      agenda: 'schrijven',
+      planning: 'lezen',
+      finance: 'lezen',
+      nieuwsbrief: 'schrijven',
+      vrienden: 'schrijven',
+      relaties: 'schrijven',
+      templates: 'schrijven',
+      gebruikers: 'verborgen',
+      instellingen: 'lezen',
+    },
+    finance: {
+      dashboard: 'lezen',
+      aanvragen: 'verborgen',
+      boekingen: 'lezen',
+      kalender: 'lezen',
+      agenda: 'verborgen',
+      planning: 'verborgen',
+      finance: 'schrijven',
+      nieuwsbrief: 'verborgen',
+      vrienden: 'verborgen',
+      relaties: 'verborgen',
+      templates: 'verborgen',
+      gebruikers: 'verborgen',
+      instellingen: 'lezen',
+    },
+    planning: {
+      dashboard: 'lezen',
+      aanvragen: 'verborgen',
+      boekingen: 'lezen',
+      kalender: 'lezen',
+      agenda: 'lezen',
+      planning: 'schrijven',
+      finance: 'verborgen',
+      nieuwsbrief: 'verborgen',
+      vrienden: 'verborgen',
+      relaties: 'lezen',
+      templates: 'verborgen',
+      gebruikers: 'verborgen',
+      instellingen: 'lezen',
+    },
+  };
+  document.getElementById('bh-functie')?.addEventListener('change', (event) => {
+    const keuze = event.target.value;
+    const matrix = presets[keuze];
+    if (!matrix) return;
+    for (const [module, niveau] of Object.entries(matrix)) {
+      const knop = document.querySelector(`input[name="recht_${module}"][value="${niveau}"]`);
+      if (knop) knop.checked = true;
+    }
+  });
+</script>

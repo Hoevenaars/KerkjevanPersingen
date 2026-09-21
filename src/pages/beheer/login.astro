@@ -1,0 +1,73 @@
+---
+export const prerender = false;
+
+import BeheerLogin from '../../layouts/BeheerLogin.astro';
+import { loginFoutmelding } from '../../lib/beheer-auth.ts';
+import { maakBeheerServerClient, supabaseGeconfigureerd } from '../../lib/supabase.ts';
+
+const next = Astro.url.searchParams.get('next') || '/beheer/';
+const veiligNext = next.startsWith('/beheer') && !next.startsWith('//') ? next : '/beheer/';
+let fout = Astro.url.searchParams.get('fout');
+let melding = '';
+
+if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  const email = String(data.get('email') ?? '').trim();
+  const wachtwoord = String(data.get('wachtwoord') ?? '');
+  const terug = String(data.get('next') ?? veiligNext);
+  const doel = terug.startsWith('/beheer') && !terug.startsWith('//') ? terug : '/beheer/';
+
+  const supabase = maakBeheerServerClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    responseHeaders: Astro.locals.supabaseCookies,
+  });
+  if (!supabase) {
+    fout = 'ontbreekt';
+  } else {
+    const { error } = await supabase.auth.signInWithPassword({ email, password: wachtwoord });
+    if (error) {
+      fout = 'ongeldig';
+    } else {
+      return Astro.redirect(doel);
+    }
+  }
+}
+
+if (fout) melding = loginFoutmelding(fout);
+const geconfigureerd = supabaseGeconfigureerd();
+---
+
+<BeheerLogin titel="Inloggen">
+  <p class="bh-hint">Log in met je eigen beheeraccount.</p>
+  {
+    melding && (
+      <p class="bh-flash" role="alert">
+        {melding}
+      </p>
+    )
+  }
+  {
+    geconfigureerd ? (
+      <form method="post" class="bh-login-form">
+        <input type="hidden" name="next" value={veiligNext} />
+        <label>
+          E-mailadres
+          <input type="email" name="email" autocomplete="username" required />
+        </label>
+        <label>
+          Wachtwoord
+          <input type="password" name="wachtwoord" autocomplete="current-password" required />
+        </label>
+        <button class="bh-btn" type="submit">
+          Inloggen
+        </button>
+      </form>
+    ) : (
+      <p class="bh-hint">
+        Individuele login is nog niet gekoppeld. Zet <code>SUPABASE_URL</code> en de bijbehorende
+        sleutels, of gebruik tijdelijk de gedeelde Basic Auth.
+      </p>
+    )
+  }
+</BeheerLogin>

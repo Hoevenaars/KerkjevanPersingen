@@ -8,23 +8,8 @@
 
 export const TIJDZONE = 'Europe/Amsterdam';
 
-export const MODULES = [
-  'dashboard',
-  'aanvragen',
-  'boekingen',
-  'kalender',
-  'agenda',
-  'planning',
-  'relaties',
-  'finance',
-  'vrienden',
-  'nieuwsbrief',
-  'templates',
-  'gebruikers',
-  'instellingen',
-] as const;
-
-export type ModuleSleutel = (typeof MODULES)[number];
+export { MODULES, type ModuleSleutel } from './modules.ts';
+import type { ModuleSleutel } from './modules.ts';
 
 export const RECHTNIVEAUS = ['verborgen', 'lezen', 'schrijven'] as const;
 export type Rechtniveau = (typeof RECHTNIVEAUS)[number];

@@ -2,6 +2,10 @@
 import '../styles/global.css';
 import '../styles/beheer.css';
 import { laadBeheerSnapshot } from '../platform/beheer-bron';
+import { BEHEER_MODULES, INSTELLINGEN_PAGINAS, SNEL_NIEUW } from '../platform/modules.ts';
+import { magZien } from '../platform/rechten.ts';
+import { beheerModus } from '../platform/beheer-sessie.ts';
+import { moduleVoorPad } from '../platform/autorisatie.ts';
 
 interface Props {
   titel: string;
@@ -11,6 +15,11 @@ const { titel } = Astro.props;
 const pad = Astro.url.pathname;
 const zoekterm = Astro.url.searchParams.get('q') ?? '';
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const sessie = Astro.locals.beheer;
+const rechten = sessie?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const module = moduleVoorPad(pad);
+const modus = sessie ? beheerModus(sessie, module === 'auth' || module === 'onbekend' ? null : module) : 'lezen';
+
 const demoLink = new URL(Astro.url);
 demoLink.searchParams.set('bron', 'demo');
 const liveLink = new URL(Astro.url);
@@ -18,35 +27,20 @@ liveLink.searchParams.delete('bron');
 const demoHref = demoLink.pathname + demoLink.search;
 const liveHref = liveLink.pathname + liveLink.search;
 
-const hoofd = [
-  { href: '/beheer/', label: 'Dashboard' },
-  { href: '/beheer/aanvragen/', label: 'Aanvragen' },
-  { href: '/beheer/boekingen/', label: 'Boekingen' },
-  { href: '/beheer/kalender/', label: 'Kalender' },
-  { href: '/beheer/agenda/', label: 'Agenda' },
-  { href: '/beheer/planning/', label: 'Planning' },
-  { href: '/beheer/relaties/', label: 'Relaties' },
-  { href: '/beheer/finance/', label: 'Finance' },
-  { href: '/beheer/vrienden/', label: 'Vrienden' },
-  { href: '/beheer/nieuwsbrief/', label: 'Nieuwsbrief' },
-  { href: '/beheer/migratie/', label: 'Migratie' },
-];
+const hoofd = (Object.keys(BEHEER_MODULES) as Array<keyof typeof BEHEER_MODULES>)
+  .filter((sleutel) => BEHEER_MODULES[sleutel].groep === 'hoofd' && magZien(rechten, sleutel))
+  .map((sleutel) => ({ href: BEHEER_MODULES[sleutel].href, label: BEHEER_MODULES[sleutel].label }));
 
-const instellingen = [
-  { href: '/beheer/instellingen/', label: 'Algemeen' },
-  { href: '/beheer/instellingen/verhuur/', label: 'Verhuur' },
-  { href: '/beheer/instellingen/finance/', label: 'Finance' },
-  { href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },
-  { href: '/beheer/instellingen/templates/', label: 'Templates' },
-  { href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
-];
+if (magZien(rechten, 'instellingen')) {
+  hoofd.push({ href: '/beheer/migratie/', label: 'Migratie' });
+}
 
-const snelNieuw = [
-  { href: '/beheer/aanvragen/', label: 'Aanvraag bekijken' },
-  { href: '/beheer/relaties/', label: 'Relatie' },
-  { href: '/beheer/agenda/', label: 'Agenda-item' },
-  { href: '/beheer/boekingen/', label: 'Boeking' },
-];
+const instellingen = INSTELLINGEN_PAGINAS.filter((item) => magZien(rechten, item.module)).map((item) => ({
+  href: item.href,
+  label: item.label,
+}));
+
+const snelNieuw = SNEL_NIEUW.filter((item) => magZien(rechten, item.module));
 
 function actief(href: string): boolean {
   if (href === '/beheer/') return pad === '/beheer' || pad === '/beheer/';
@@ -55,6 +49,8 @@ function actief(href: string): boolean {
   }
   return pad === href || pad.startsWith(href);
 }
+
+const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerder';
 ---
 
 <!doctype html>
@@ -74,7 +70,24 @@ function actief(href: string): boolean {
       href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Work+Sans:wght@400;500;600&display=swap"
     />
   </head>
-  <body>
+  <body data-beheer-modus={modus}>
+    {
+      sessie?.viewAs && (
+        <div class="bh-viewas" role="status">
+          <p>
+            Je bekijkt Beheer als <strong>{sessie.viewAs.naam}</strong>
+            <span>Previewmodus – wijzigingen zijn uitgeschakeld</span>
+          </p>
+          <form method="post" action="/api/beheer/view-as">
+            <input type="hidden" name="actie" value="stop" />
+            <input type="hidden" name="next" value={pad} />
+            <button class="bh-btn bh-btn--sec" type="submit">
+              Terug naar Super Admin
+            </button>
+          </form>
+        </div>
+      )
+    }
     <div class="bh-app">
       <nav class="bh-nav" aria-label="Beheer">
         <a class="bh-merk" href="/beheer/">
@@ -97,21 +110,30 @@ function actief(href: string): boolean {
             ))
           }
         </ul>
-        <p class="bh-groep">Instellingen</p>
-        <ul class="bh-sub">
-          {
-            instellingen.map((item) => (
-              <li>
-                <a href={item.href} aria-current={actief(item.href) ? 'page' : undefined}>
-                  {item.label}
-                </a>
-              </li>
-            ))
-          }
-        </ul>
-        <p class="bh-user">
-          {snapshot.bron === 'sanity' ? 'Live Sanity · alleen lezen · Nick (Super Admin)' : 'Voorbeeldweergave als Nick (Super Admin)'}
-        </p>
+        {
+          instellingen.length > 0 && (
+            <>
+              <p class="bh-groep">Instellingen</p>
+              <ul class="bh-sub">
+                {instellingen.map((item) => (
+                  <li>
+                    <a href={item.href} aria-current={actief(item.href) ? 'page' : undefined}>
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )
+        }
+        <div class="bh-user">
+          {weergaveNaam}
+          {sessie?.rechten.isSuperAdmin && !sessie.viewAs ? ' · Super Admin' : ''}
+          {sessie?.bron === 'basic' ? ' · gedeelde toegang' : ''}
+          <form method="post" action="/beheer/uitloggen" class="bh-logout">
+            <button type="submit">Uitloggen</button>
+          </form>
+        </div>
       </nav>
 
       <div class="bh-werk">
@@ -120,27 +142,29 @@ function actief(href: string): boolean {
             <p class="bh-label">Beheer · Kerkje van Persingen</p>
             <p class="bh-werk-datum" id="bh-datum"></p>
           </div>
-          <div class="bh-fab-wrap">
-            <button
-              type="button"
-              class="bh-fab"
-              id="bh-fab"
-              aria-label="Snel naar"
-              aria-expanded="false"
-              aria-controls="bh-fab-menu"
-            >
-              +
-            </button>
-            <div id="bh-fab-menu" class="bh-fab-menu" hidden role="menu" aria-label="Snel naar">
-              {
-                snelNieuw.map((item) => (
-                  <a href={item.href} role="menuitem">
-                    {item.label}
-                  </a>
-                ))
-              }
-            </div>
-          </div>
+          {
+            snelNieuw.length > 0 && modus === 'schrijven' && (
+              <div class="bh-fab-wrap">
+                <button
+                  type="button"
+                  class="bh-fab"
+                  id="bh-fab"
+                  aria-label="Snel naar"
+                  aria-expanded="false"
+                  aria-controls="bh-fab-menu"
+                >
+                  +
+                </button>
+                <div id="bh-fab-menu" class="bh-fab-menu" hidden role="menu" aria-label="Snel naar">
+                  {snelNieuw.map((item) => (
+                    <a href={item.href} role="menuitem">
+                      {item.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )
+          }
         </header>
 
         <div class="bh-main">
