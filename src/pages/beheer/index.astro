@@ -16,7 +16,7 @@ import { ymdInAmsterdam } from '../../platform/datum.ts';
 
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const vandaag = ymdInAmsterdam(new Date());
-const rechten = { isSuperAdmin: true, perModule: {} };
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const kaarten = dashboardVoor(rechten, snapshotDashboard(snapshot, vandaag));
 const nieuwe = snapshot.aanvragen.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling');
 const opties = snapshot.boekingen.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');

@@ -1,9 +1,8 @@
 /**
  * Databron voor /beheer: live Sanity (alleen lezen) of voorbeelddata.
  *
- * Live data alleen als Sanity geconfigureerd is én er een wachtwoord is
- * (BEHEER_PASSWORD of SITE_PASSWORD). Middleware weigert /beheer zonder
- * inloggen. Deze check is een tweede slot: zonder wachtwoord geen Sanity-dump.
+ * Live data alleen als Sanity geconfigureerd is én /beheer al achter een
+ * login zit (Supabase-sessie of, zonder keys, de oude Basic Auth).
  */
 
 import { ymdInAmsterdam } from './datum.ts';
@@ -17,7 +16,6 @@ import {
   DEMO_DOCUMENTEN,
   DEMO_FLASH,
   DEMO_GASTHEREN,
-  DEMO_GEBRUIKERS,
   DEMO_INSTELLINGEN,
   DEMO_INTERN,
   DEMO_NIEUWSBRIEVEN,
@@ -29,7 +27,6 @@ import {
   type DemoActiviteit,
   type DemoBoeking,
   type DemoGastheer,
-  type DemoGebruiker,
   type DemoInstellingen,
   type DemoIntern,
   type DemoNieuwsbrief,
@@ -54,7 +51,6 @@ export interface BeheerSnapshot {
   vrienden: DemoVriend[];
   nieuwsbrieven: DemoNieuwsbrief[];
   templates: DemoTemplate[];
-  gebruikers: DemoGebruiker[];
   instellingen: DemoInstellingen;
   communicatie: { id: string; boekingId: string; template: string; status: string; wanneer: string; ontvanger: string }[];
   documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string }[];
@@ -78,6 +74,8 @@ export function magLiveSanityLezen(env: Record<string, unknown> = omgevingsRecor
   if (env.BEHEER_LIVE_SANITY === false || env.BEHEER_LIVE_SANITY === 'false') return false;
   const projectId = String(env.SANITY_PROJECT_ID ?? '').trim();
   if (!projectId) return false;
+  const supabaseUrl = String(env.SUPABASE_URL ?? env.PUBLIC_SUPABASE_URL ?? '').trim();
+  if (supabaseUrl) return true;
   return beheerWachtwoord(env).length > 0;
 }
 
@@ -95,7 +93,6 @@ export function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan Sanit
     vrienden: DEMO_VRIENDEN,
     nieuwsbrieven: DEMO_NIEUWSBRIEVEN,
     templates: DEMO_TEMPLATES,
-    gebruikers: DEMO_GEBRUIKERS,
     instellingen: DEMO_INSTELLINGEN,
     communicatie: [...DEMO_COMMUNICATIE],
     documenten: [...DEMO_DOCUMENTEN],
@@ -117,7 +114,6 @@ export function snapshotVanMigratie(resultaat: MigratieResultaat): BeheerSnapsho
     vrienden: resultaat.vrienden,
     nieuwsbrieven: resultaat.nieuwsbrieven,
     templates: resultaat.templates,
-    gebruikers: DEMO_GEBRUIKERS,
     instellingen: resultaat.instellingen,
     communicatie: [],
     documenten: [],
@@ -165,7 +161,7 @@ async function laadBeheerSnapshotOngecached(opties: {
   if (!magLiveSanityLezen(opties.env)) {
     const heeftProject = String(opties.env.SANITY_PROJECT_ID ?? '').trim().length > 0;
     const reden = heeftProject
-      ? 'Sanity is geconfigureerd, maar /beheer heeft geen wachtwoord. Voorbeelddata blijft staan tot BEHEER_PASSWORD of SITE_PASSWORD is gezet.'
+      ? 'Sanity is geconfigureerd, maar /beheer heeft geen login. Voorbeelddata blijft staan tot Supabase Auth of een beheerwachtwoord is gezet.'
       : 'Geen Sanity-project in deze omgeving — voorbeelddata.';
     return demoSnapshot(reden);
   }

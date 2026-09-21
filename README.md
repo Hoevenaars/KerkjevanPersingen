@@ -286,11 +286,16 @@ later `/beheer` + Supabase, zonder cutover:
 | Productie | https://kerkjepersingen.nl/beheer/ |
 | Sanity Studio (agenda/content) | `/admin` → Sanity Studio |
 
-`/beheer` is altijd achter basic-auth (gebruiker `kerkje`). Wachtwoord:
-`BEHEER_PASSWORD`, of anders `SITE_PASSWORD`. `LIVE_VANAF` opent `/beheer` niet.
-Zonder wachtwoord: 401, geen data. Met wachtwoord: Sanity alleen-lezen.
-Schrijven gaat nog via Studio (`/admin`). Migratiecontrole: `/beheer/migratie/`
-en `npm run migratie:dry-run`.
+`/beheer` gebruikt individuele Supabase-accounts (`/beheer/login`) zodra
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` en `SUPABASE_SERVICE_ROLE_KEY` staan.
+De eerste Super Admin wordt `SUPER_ADMIN_EMAIL`. Uitnodigen gaat vanuit
+`/beheer/instellingen/gebruikers/`. `LIVE_VANAF` opent `/beheer` niet.
+
+Zonder die Supabase-keys blijft tijdelijk de oude Basic Auth staan (gebruiker
+`kerkje`, wachtwoord `BEHEER_PASSWORD` of `SITE_PASSWORD`), zodat bestaande
+omgevingen niet op slot gaan. Zonder login: 401, geen data. Na inloggen: Sanity
+alleen-lezen. Schrijven van content gaat nog via Studio (`/admin`).
+Migratiecontrole: `/beheer/migratie/` en `npm run migratie:dry-run`.
 
 Documentatie: `docs/beheer/`.
 

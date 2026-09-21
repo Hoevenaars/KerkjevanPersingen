@@ -1,0 +1,70 @@
+---
+export const prerender = false;
+
+import BeheerLogin from '../../layouts/BeheerLogin.astro';
+import { maakBeheerAdminClient, maakBeheerServerClient } from '../../lib/supabase.ts';
+import { markeerGebruikerActief } from '../../lib/beheer-gebruikers.ts';
+
+let melding = '';
+let gelukt = false;
+
+if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  const wachtwoord = String(data.get('wachtwoord') ?? '');
+  const herhaal = String(data.get('herhaal') ?? '');
+  if (wachtwoord.length < 10) {
+    melding = 'Kies een wachtwoord van minstens 10 tekens.';
+  } else if (wachtwoord !== herhaal) {
+    melding = 'De wachtwoorden komen niet overeen.';
+  } else {
+    const supabase = maakBeheerServerClient({
+      request: Astro.request,
+      cookies: Astro.cookies,
+      responseHeaders: Astro.locals.supabaseCookies,
+    });
+    if (!supabase) {
+      melding = 'Inloggen is nog niet geconfigureerd.';
+    } else {
+      const { data: sessie } = await supabase.auth.getUser();
+      if (!sessie.user) {
+        melding = 'De uitnodigingslink is ongeldig of verlopen. Vraag een nieuwe aan.';
+      } else {
+        const { error } = await supabase.auth.updateUser({ password: wachtwoord });
+        if (error) {
+          melding = error.message;
+        } else {
+          const admin = maakBeheerAdminClient();
+          if (admin) await markeerGebruikerActief(admin, sessie.user.id);
+          gelukt = true;
+        }
+      }
+    }
+  }
+}
+---
+
+<BeheerLogin titel="Account activeren">
+  <p class="bh-hint">Stel je eigen wachtwoord in. Het bestuur ziet dit wachtwoord niet.</p>
+  {melding && <p class="bh-flash" role="alert">{melding}</p>}
+  {
+    gelukt ? (
+      <p>
+        Je account is actief. <a href="/beheer/">Ga naar beheer</a>
+      </p>
+    ) : (
+      <form method="post" class="bh-login-form">
+        <label>
+          Nieuw wachtwoord
+          <input type="password" name="wachtwoord" autocomplete="new-password" minlength="10" required />
+        </label>
+        <label>
+          Herhaal wachtwoord
+          <input type="password" name="herhaal" autocomplete="new-password" minlength="10" required />
+        </label>
+        <button class="bh-btn" type="submit">
+          Account activeren
+        </button>
+      </form>
+    )
+  }
+</BeheerLogin>

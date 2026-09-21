@@ -23,6 +23,8 @@ npx supabase link --project-ref <project-id>
 npx supabase db push
 ```
 
-Super Admin (Nick) wordt daarna als eerste auth-user aangemaakt en in
-`profielen.is_super_admin = true` gezet. Dat veld kan niet door andere
-gebruikers worden beperkt.
+Daarna migraties pushen, inclusief `20260921120000_beheer_gebruikersaccounts.sql`.
+Zet `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` en
+`SUPER_ADMIN_EMAIL`. Die laatste wordt bij eerste login Super Admin. Nodig de
+overige beheerders uit via `/beheer/instellingen/gebruikers/`. Het veld
+`is_super_admin` kan niet door andere gebruikers worden gezet.

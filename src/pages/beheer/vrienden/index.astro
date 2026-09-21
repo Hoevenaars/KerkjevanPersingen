@@ -7,8 +7,8 @@ import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-
 import { magVriendenExporteren } from '../../../platform/rechten.ts';
 
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
-const superAdmin = { isSuperAdmin: true, perModule: {} };
-const magExport = magVriendenExporteren(superAdmin);
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const magExport = magVriendenExporteren(rechten);
 const live = snapshot.bron === 'sanity';
 
 if (Astro.request.method === 'POST') {

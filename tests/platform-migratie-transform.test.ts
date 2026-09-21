@@ -82,9 +82,16 @@ describe('Sanity-dump transformeert naar beheerrecords', () => {
 });
 
 describe('live Sanity in /beheer is achter een wachtwoord gezet', () => {
-  test('zonder project of wachtwoord blijft demo', () => {
+  test('zonder project of login blijft demo', () => {
     assert.equal(magLiveSanityLezen({}), false);
     assert.equal(magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc' }), false);
+  });
+
+  test('met project én Supabase-url mag live (individuele login)', () => {
+    assert.equal(
+      magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc', SUPABASE_URL: 'https://example.supabase.co' }),
+      true,
+    );
   });
 
   test('met project én SITE_PASSWORD mag live', () => {

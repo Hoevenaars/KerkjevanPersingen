@@ -1,4 +1,7 @@
 export * from './types.ts';
+export * from './referentie-gebruikers.ts';
+export * from './autorisatie.ts';
+export * from './beheer-sessie.ts';
 export * from './datum.ts';
 export * from './bron.ts';
 export * from './rechten.ts';
