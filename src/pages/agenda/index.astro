@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Button from '../../components/Button.astro';
 import { getPubliekeAgenda, imageUrl, formatDatumBereik } from '../../lib/sanity';
-import { SECOND_NATURE_POSTER } from '../../lib/second-nature';
+import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
 
 const activiteiten = await getPubliekeAgenda(50);
 
@@ -34,12 +34,12 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
         <ul class="lijst">
           {activiteiten.map((a) => {
             const foto =
+              secondNaturePoster(a) ??
               (a.foto ? imageUrl(a.foto, 800, 600) : null) ??
-              (a._id === 'fallback-second-nature' ? SECOND_NATURE_POSTER : null) ??
               '/foto/geen-foto.jpg';
             return (
               <li class="kaart">
-                <div class="frame frame--photo">
+                <div class:list={['frame', 'frame--photo', { 'frame--poster': isSecondNature(a) }]}>
                   <img src={foto} alt={a.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="800" height="600" loading="lazy" />
                 </div>
                 <div class="kaart-tekst">
