@@ -22,8 +22,22 @@ Second Nature gaat niet alleen over natuur als onderwerp, maar ook over de manie
   fotoAlt: 'Expositieposter Second Nature met werk van vier kunstenaars',
 };
 
-/** Poster in /public; geen Sanity-asset nodig voor de fallback. */
+/** Poster in /public. Wint altijd van de Sanity-foto — Studio-upload is onbetrouwbaar. */
 export const SECOND_NATURE_POSTER = '/foto/exposities/second-nature.jpg';
+export const SECOND_NATURE_POSTER_ABSOLUUT = `https://kerkjepersingen.nl${SECOND_NATURE_POSTER}`;
+
+export function isSecondNature(activiteit: { slug?: string | null } | null | undefined): boolean {
+  return activiteit?.slug === 'second-nature';
+}
+
+/** Lokale poster, of null als het een andere activiteit is. */
+export function secondNaturePoster(
+  activiteit: { slug?: string | null } | null | undefined,
+  opties: { absoluut?: boolean } = {},
+): string | null {
+  if (!isSecondNature(activiteit)) return null;
+  return opties.absoluut ? SECOND_NATURE_POSTER_ABSOLUUT : SECOND_NATURE_POSTER;
+}
 
 export function secondNatureFallback(slug: string): Activiteit | null {
   return slug === 'second-nature' ? SECOND_NATURE : null;

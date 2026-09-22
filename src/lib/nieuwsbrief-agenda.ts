@@ -11,6 +11,7 @@ import {
   kopAgendaBlok,
 } from './week';
 import { filterActiviteitenInPeriode } from './nieuwsbrief-frequentie';
+import { secondNaturePoster } from './second-nature';
 import { SFEER_URL, type NieuwsbriefActiviteitBlok } from './nieuwsbrief-html';
 
 function kiesActiviteit(
@@ -35,7 +36,7 @@ function naarActiviteitBlok(activiteit: Activiteit, kop: string): NieuwsbriefAct
     titel: activiteit.publiekeTitel || activiteit.interneTitel,
     datumTekst: formatDatumBereik(activiteit),
     omschrijving: activiteit.omschrijving?.slice(0, 155),
-    fotoUrl: cmsFoto ?? SFEER_URL,
+    fotoUrl: secondNaturePoster(activiteit, { absoluut: true }) ?? cmsFoto ?? SFEER_URL,
     fotoAlt: activiteit.fotoAlt || 'Het kerkje van Persingen in de Ooijpolder',
     agendaUrl: activiteit.slug
       ? `https://kerkjepersingen.nl/agenda/${activiteit.slug}/`
