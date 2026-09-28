@@ -19,3 +19,4 @@ export * from './audit.ts';
 export * from './migratie.ts';
 export * from './migratie-transform.ts';
 export * from './beheer-bron.ts';
+export * from './mailtemplates/index.ts';

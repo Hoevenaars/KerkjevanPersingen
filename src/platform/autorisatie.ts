@@ -52,7 +52,13 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   ) {
     return 'gebruikers';
   }
-  if (pad.startsWith('/beheer/instellingen/templates')) return 'templates';
+  if (
+    pad.startsWith('/beheer/instellingen/templates') ||
+    pad.startsWith('/beheer/instellingen/mailtemplates') ||
+    pad.startsWith('/beheer/mail/')
+  ) {
+    return 'templates';
+  }
   if (pad.startsWith('/beheer/instellingen')) return 'instellingen';
   if (pad.startsWith('/beheer/aanvragen')) return 'aanvragen';
   if (pad.startsWith('/beheer/boekingen')) return 'boekingen';

@@ -1,0 +1,101 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+import { actieBevestigingsTitel, leesActieToken, type MailActieSoort } from '../../../platform/mailtemplates/actie.ts';
+import { voegCommunicatieToe } from '../../../platform/mailtemplates/store.ts';
+
+let token = Astro.url.searchParams.get('token') ?? '';
+let payload = token ? leesActieToken(token) : null;
+let uitgevoerd = false;
+let fout = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  token = String(form.get('token') ?? token);
+  payload = token ? leesActieToken(token) : null;
+  const bevestig = form.get('bevestig') === '1';
+  if (!payload) {
+    fout = 'Ongeldige of verlopen link';
+  } else
+  if (!bevestig) {
+    fout = 'Bevestiging ontbreekt';
+  } else {
+    await voegCommunicatieToe({
+      id: `actie-${Date.now()}`,
+      boekingId: payload.boekingId,
+      templateId: payload.templateId,
+      templateNaam: payload.actie,
+      ontvanger: 'systeem',
+      onderwerp: actieBevestigingsTitel(payload.actie),
+      status: 'verzonden',
+      verzondenOp: new Date().toISOString(),
+      automatisch: false,
+      door: 'gebruiker',
+      test: false,
+    });
+    uitgevoerd = true;
+  }
+}
+
+const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const boeking = payload ? snapshot.boekingen.find((b) => b.id === payload.boekingId) : null;
+const aanvraag = payload?.aanvraagId
+  ? snapshot.aanvragen.find((a) => a.id === payload.aanvraagId)
+  : snapshot.aanvragen.find((a) => a.boekingId === payload?.boekingId);
+---
+
+<Beheer titel="Bevestiging">
+  <header class="bh-top">
+    <div>
+      <h1>{payload ? actieBevestigingsTitel(payload.actie as MailActieSoort) : 'Ongeldige link'}</h1>
+      <p class="bh-hint">Kritieke acties vanuit e-mail vereisen altijd een bevestiging in Beheer.</p>
+    </div>
+  </header>
+
+  {
+    !payload && <p class="bh-flash bh-flash--fout">Deze link is ongeldig of verlopen.</p>
+  }
+
+  {
+    payload && !uitgevoerd && (
+      <section class="bh-kaart">
+        <dl class="bh-dl">
+          <dt>Aanvrager</dt>
+          <dd>{aanvraag?.naam ?? boeking?.huurder ?? '—'}</dd>
+          <dt>Activiteit</dt>
+          <dd>{aanvraag?.soort ?? boeking?.soort ?? '—'}</dd>
+          <dt>Datum</dt>
+          <dd>{aanvraag?.start ?? boeking?.start ?? '—'}</dd>
+        </dl>
+        <p class="bh-muted">
+          Pas na bevestiging worden status, auditlog en vervolgmails bijgewerkt. De knop in de e-mail voert nooit direct een besluit uit.
+        </p>
+        <form method="post" class="bh-acties">
+          <input type="hidden" name="token" value={token} />
+          <button class="bh-btn" type="submit" name="bevestig" value="1">Bevestig {payload.actie.replace(/_/g, ' ')}</button>
+          <a class="bh-btn bh-btn--sec" href={boeking ? `/beheer/boekingen/${encodeURIComponent(boeking.id)}/` : '/beheer/aanvragen/'}>Annuleren</a>
+        </form>
+        {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+      </section>
+    )
+  }
+
+  {
+    uitgevoerd && payload && (
+      <section class="bh-kaart">
+        <p class="bh-flash" role="status">
+          Actie <strong>{payload.actie}</strong> is geregistreerd voor boeking {payload.boekingId}. Vervolgstappen (status en mail) worden vanuit het dossier verwerkt.
+        </p>
+        {
+          boeking && (
+            <p class="bh-acties">
+              <a class="bh-btn" href={`/beheer/boekingen/${encodeURIComponent(boeking.id)}/?tab=communicatie`}>Naar communicatie</a>
+            </p>
+          )
+        }
+      </section>
+    )
+  }
+</Beheer>

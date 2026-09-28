@@ -57,8 +57,8 @@ export const BEHEER_MODULES = {
     groep: 'hoofd',
   },
   templates: {
-    label: 'Templates',
-    href: '/beheer/instellingen/templates/',
+    label: 'Mailtemplates',
+    href: '/beheer/instellingen/mailtemplates/',
     groep: 'instellingen',
   },
   gebruikers: {
@@ -91,7 +91,7 @@ export const INSTELLINGEN_PAGINAS = [
   { module: 'instellingen', href: '/beheer/instellingen/verhuur/', label: 'Verhuur' },
   { module: 'instellingen', href: '/beheer/instellingen/finance/', label: 'Finance' },
   { module: 'instellingen', href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },
-  { module: 'templates', href: '/beheer/instellingen/templates/', label: 'Templates' },
+  { module: 'templates', href: '/beheer/instellingen/mailtemplates/', label: 'Mailtemplates' },
   { module: 'gebruikers', href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
 ] as const;
 

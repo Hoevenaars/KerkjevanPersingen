@@ -20,7 +20,6 @@ import {
   DEMO_INTERN,
   DEMO_NIEUWSBRIEVEN,
   DEMO_RELATIES,
-  DEMO_TEMPLATES,
   DEMO_VRIENDEN,
   dashboardBronVan,
   type DemoAanvraag,
@@ -35,6 +34,7 @@ import {
   type DemoVriend,
 } from './demo-data.ts';
 import { transformSanityDump, type MigratieResultaat } from './migratie-transform.ts';
+import { laadMailtemplates, mailtemplatesNaarDemo } from './mailtemplates/index.ts';
 
 export type BeheerBronSoort = 'demo' | 'sanity';
 
@@ -79,7 +79,8 @@ export function magLiveSanityLezen(env: Record<string, unknown> = omgevingsRecor
   return beheerWachtwoord(env).length > 0;
 }
 
-export function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan Sanity of de live site.'): BeheerSnapshot {
+export async function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan Sanity of de live site.'): Promise<BeheerSnapshot> {
+  const mailtemplates = await laadMailtemplates();
   return {
     bron: 'demo',
     banner: DEMO_BANNER,
@@ -92,7 +93,7 @@ export function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan Sanit
     gastheren: DEMO_GASTHEREN,
     vrienden: DEMO_VRIENDEN,
     nieuwsbrieven: DEMO_NIEUWSBRIEVEN,
-    templates: DEMO_TEMPLATES,
+    templates: mailtemplatesNaarDemo(mailtemplates),
     instellingen: DEMO_INSTELLINGEN,
     communicatie: [...DEMO_COMMUNICATIE],
     documenten: [...DEMO_DOCUMENTEN],
@@ -100,7 +101,8 @@ export function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan Sanit
   };
 }
 
-export function snapshotVanMigratie(resultaat: MigratieResultaat): BeheerSnapshot {
+export async function snapshotVanMigratie(resultaat: MigratieResultaat): Promise<BeheerSnapshot> {
+  const mailtemplates = await laadMailtemplates();
   return {
     bron: 'sanity',
     banner: LIVE_BANNER,
@@ -113,7 +115,7 @@ export function snapshotVanMigratie(resultaat: MigratieResultaat): BeheerSnapsho
     gastheren: resultaat.gastheren,
     vrienden: resultaat.vrienden,
     nieuwsbrieven: resultaat.nieuwsbrieven,
-    templates: resultaat.templates,
+    templates: mailtemplatesNaarDemo(mailtemplates),
     instellingen: resultaat.instellingen,
     communicatie: [],
     documenten: [],
