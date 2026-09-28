@@ -239,6 +239,11 @@
   box-shadow: var(--shadow);
 }
 
+/* display:flex hierboven wint anders van het hidden-attribuut */
+.bh-fab-menu[hidden] {
+  display: none;
+}
+
 .bh-fab-menu a {
   font: inherit;
   font-size: var(--t-sm);
