@@ -1,0 +1,33 @@
+import type { MailVariabelenMap } from './types.ts';
+
+/** Fictieve gegevens voor live preview en testmail (FO §5). */
+export const VOORBEELD_VARIABELEN: MailVariabelenMap = {
+  voornaam: 'Jan',
+  naam: 'Jan Jansen',
+  activiteitstype: 'Pianoconcert',
+  activiteitnaam: 'Pianoconcert Jan Jansen',
+  datum: 'zaterdag 14 juni 2027',
+  tijd: '19.30 tot 22.00 uur',
+  toegang_vanaf: '18.45 uur',
+  aantal_personen: '60',
+  bedrag: '€250',
+  betaaldeadline: 'vrijdag 28 maart 2027',
+  contentdeadline: 'vrijdag 14 maart 2027',
+  gastheer_naam: 'Peter Jansen',
+  gastheer_telefoon: '06 12 34 56 78',
+  klantnaam: 'Jan Jansen',
+  klanttelefoon: '06 98 76 54 32',
+  bijzonderheden: 'Extra stoelen achterin gewenst.',
+  feedback: 'De titel op de poster graag iets korter formuleren.',
+  reden_afwijzing: 'De gekozen datum valt samen met een andere activiteit.',
+  vraag: 'Kunt u toelichten hoeveel bezoekers u verwacht?',
+  omschrijving: 'Intiem pianoconcert met werken van Chopin.',
+  controle_overzicht: 'Datum vrij · Geen overlap · Past bij het Kerkje',
+  ontbrekende_content: 'Foto en korte omschrijving voor de website',
+  praktische_kerninformatie: 'Parkeren op het terrein aan de overkant. Entree is gratis.',
+  laatste_bijzonderheden: 'De deuren gaan open om 19.15 uur.',
+  content_lijst: '• Titel en korte tekst\n• Foto (jpg)\n• Link naar uw website (optioneel)',
+  annulering_toelichting: 'Op verzoek van de huurder.',
+  datum_of_weekend: 'zaterdag 21 en zondag 22 juni 2027',
+  aanvullende_informatie: 'Verwacht circa 50 bezoekers; geen versterking nodig.',
+};

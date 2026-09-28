@@ -11,6 +11,9 @@ import {
   gastheerVan,
 } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
+import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
+import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
 
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const id = beheerId(Astro.params.id);
@@ -27,7 +30,48 @@ if (!boeking) {
 const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
 const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
 const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id);
-const mails = snapshot.communicatie.filter((c) => c.boekingId === boeking.id);
+const demoMails = snapshot.communicatie.filter((c) => c.boekingId === boeking.id);
+const opgeslagen = await laadCommunicatieVoorBoeking(boeking.id);
+const templates = await laadMailtemplates();
+const gepland = geplandeMailsVoorBoeking(boeking, templates, opgeslagen);
+const mails: {
+  id: string;
+  template: string;
+  ontvanger: string;
+  wanneer: string;
+  status: string;
+  automatisch?: boolean;
+  door?: string;
+  onderwerp?: string;
+}[] = [
+  ...opgeslagen.map((r: MailCommunicatieRegel) => ({
+    id: r.id,
+    template: r.templateNaam,
+    ontvanger: r.ontvanger,
+    wanneer: r.verzondenOp ?? r.geplandOp ?? '',
+    status: r.status,
+    automatisch: r.automatisch,
+    door: r.door,
+    onderwerp: r.onderwerp,
+  })),
+  ...gepland.map((r) => ({
+    id: r.id,
+    template: r.templateNaam,
+    ontvanger: r.ontvanger,
+    wanneer: r.geplandOp ?? '',
+    status: r.status,
+    automatisch: r.automatisch,
+    door: r.door,
+    onderwerp: r.onderwerp,
+  })),
+  ...demoMails.map((r) => ({
+    id: r.id,
+    template: r.template,
+    ontvanger: r.ontvanger,
+    wanneer: r.wanneer,
+    status: r.status,
+  })),
+].sort((a, b) => (a.wanneer || '').localeCompare(b.wanneer || ''));
 const gastheer = gastheerVan(boeking.gastheerId, snapshot.gastheren);
 const actieveGastheren = snapshot.gastheren.filter((g) => g.actief);
 const flash = Astro.url.searchParams.get('demo') === '1';
@@ -180,28 +224,34 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
     tab === 'communicatie' && (
       <section class="bh-kaart">
         <h2>Communicatie</h2>
-        <p class="bh-muted">Concepten en geplande mails — niet verstuurd. Reserve-lijstmail blijft handmatig.</p>
+        <p class="bh-muted">
+          Chronologisch overzicht inclusief geplande toekomstige mails. Officiële verzending is maximaal één keer per template en ontvanger.
+        </p>
         {mails.length === 0 ? (
           <p class="bh-leeg">Geen communicatie voor deze boeking.</p>
         ) : (
           <table class="bh-tabel">
             <thead>
               <tr>
+                <th>Datum / tijd</th>
                 <th>Template</th>
                 <th>Ontvanger</th>
-                <th>Wanneer</th>
+                <th>Onderwerp</th>
                 <th>Status</th>
+                <th>Auto / hand</th>
               </tr>
             </thead>
             <tbody>
               {mails.map((c) => (
                 <tr>
+                  <td>{c.wanneer ? formatNl(c.wanneer.slice(0, 10)) : '—'}</td>
                   <td>{c.template}</td>
                   <td>{c.ontvanger}</td>
-                  <td>{formatNl(c.wanneer)}</td>
+                  <td>{c.onderwerp ?? '—'}</td>
                   <td>
-                    <span class={`bh-badge bh-badge--${c.status}`}>{COMMUNICATIE_LABEL[c.status]}</span>
+                    <span class={`bh-badge bh-badge--${c.status}`}>{COMMUNICATIE_LABEL[c.status] ?? c.status}</span>
                   </td>
+                  <td>{c.automatisch == null ? '—' : c.automatisch ? 'Automatisch' : `Handmatig (${c.door ?? '—'})`}</td>
                 </tr>
               ))}
             </tbody>

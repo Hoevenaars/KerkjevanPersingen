@@ -1,0 +1,240 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import {
+  bewaarMailtemplate,
+  herstelMailtemplateVersie,
+  laadMailtemplate,
+  laadTemplateVersies,
+  registreerTestmail,
+} from '../../../../platform/mailtemplates/store.ts';
+import { MAIL_VARIABELEN } from '../../../../platform/mailtemplates/types.ts';
+import { renderMailHtml, onderwerpUitTemplate } from '../../../../platform/mailtemplates/render.ts';
+import { VOORBEELD_VARIABELEN } from '../../../../platform/mailtemplates/voorbeeld.ts';
+import { beheerId } from '../../../../platform/beheer-bron.ts';
+import { verstuurTestMail } from '../../../../lib/mailtemplate-verzending.ts';
+
+const id = beheerId(Astro.params.id);
+const sessie = Astro.locals.beheer;
+const gebruiker = sessie?.gebruiker.email ?? sessie?.gebruiker.naam ?? 'beheerder';
+
+let melding = '';
+let fout = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actie = String(form.get('actie') ?? '');
+  if (actie === 'bewaar') {
+    try {
+      await bewaarMailtemplate(
+        id,
+        {
+          naam: String(form.get('naam') ?? ''),
+          categorie: String(form.get('categorie') ?? '') as import('../../../../platform/mailtemplates/types.ts').MailCategorie,
+          actief: form.get('actief') === 'on',
+          ontvanger: String(form.get('ontvanger') ?? ''),
+          cc: String(form.get('cc') ?? ''),
+          bcc: String(form.get('bcc') ?? ''),
+          onderwerp: String(form.get('onderwerp') ?? ''),
+          aanhef: String(form.get('aanhef') ?? ''),
+          introductie: String(form.get('introductie') ?? ''),
+          hoofdtekst: String(form.get('hoofdtekst') ?? ''),
+          callToActionTekst: String(form.get('callToActionTekst') ?? ''),
+          secundaireTekst: String(form.get('secundaireTekst') ?? ''),
+          slottekst: String(form.get('slottekst') ?? ''),
+          ondertekening: String(form.get('ondertekening') ?? ''),
+          trigger: {
+            soort: String(form.get('triggerSoort') ?? '') as import('../../../../platform/mailtemplates/types.ts').MailTriggerSoort,
+            beschrijving: String(form.get('triggerBeschrijving') ?? ''),
+            offsetWaarde: form.get('offsetWaarde') ? Number(form.get('offsetWaarde')) : undefined,
+            offsetEenheid: (form.get('offsetEenheid') as 'dagen' | 'weken') || undefined,
+            offsetRichting: (form.get('offsetRichting') as 'voor' | 'na') || undefined,
+            automatischVersturen: form.get('automatischVersturen') === 'on',
+            conceptKlaarzetten: form.get('conceptKlaarzetten') === 'on',
+          },
+          verzendwijze: String(form.get('verzendwijze') ?? '') as import('../../../../platform/mailtemplates/types.ts').MailVerzendwijze,
+        },
+        gebruiker,
+      );
+      melding = 'Template opgeslagen.';
+    } catch (e) {
+      fout = e instanceof Error ? e.message : 'Opslaan mislukt';
+    }
+  } else if (actie === 'testmail') {
+    const email = String(form.get('testEmail') ?? '').trim();
+    const tpl = await laadMailtemplate(id);
+    if (!tpl) fout = 'Template niet gevonden';
+    else if (!email) fout = 'Vul een e-mailadres in';
+    else {
+      const html = renderMailHtml(tpl, VOORBEELD_VARIABELEN, { voorbeeldUrl: 'https://kerkjepersingen.nl/' });
+      const ok = await verstuurTestMail({ naar: email, onderwerp: `[Test] ${onderwerpUitTemplate(tpl, VOORBEELD_VARIABELEN)}`, html });
+      await registreerTestmail({ templateId: id, email, gebruiker });
+      melding = ok.verzonden
+        ? `Testmail verstuurd naar ${email}.`
+        : `Testmail voorbereid (geen Resend-key): ${ok.detail}`;
+    }
+  } else if (actie === 'herstel') {
+    const versie = Number(form.get('versie'));
+    const hersteld = await herstelMailtemplateVersie(id, versie, gebruiker);
+    melding = hersteld ? `Versie ${versie} hersteld.` : 'Versie niet gevonden';
+  }
+}
+
+const template = await laadMailtemplate(id);
+if (!template) {
+  return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const versies = await laadTemplateVersies(id);
+const previewHtml = renderMailHtml(template, VOORBEELD_VARIABELEN, { voorbeeldUrl: 'https://kerkjepersingen.nl/' });
+---
+
+<Beheer titel={template.naam}>
+  <p class="bh-crumb">
+    <a href="/beheer/instellingen/mailtemplates/">Mailtemplates</a> / {template.naam}
+  </p>
+  <header class="bh-top">
+    <div>
+      <h1>{template.naam}</h1>
+      <p class="bh-hint">
+        {template.categorie} · {template.trigger.beschrijving} · {template.verzendwijze} · {template.ontvanger}
+      </p>
+    </div>
+  </header>
+
+  {melding && <p class="bh-flash" role="status">{melding}</p>}
+  {fout && <p class="bh-flash bh-flash--fout" role="alert">{fout}</p>}
+
+  <div class="bh-mail-editor">
+    <section class="bh-kaart bh-mail-editor__form">
+      <form method="post" class="bh-form" id="mailtemplate-form">
+        <h2>Algemeen</h2>
+        <label for="naam">Naam</label>
+        <input id="naam" name="naam" value={template.naam} required />
+
+        <label for="templateId">Template ID</label>
+        <input id="templateId" value={template.id} readonly class="bh-readonly" />
+
+        <label for="categorie">Categorie</label>
+        <select id="categorie" name="categorie">
+          {['Aanvraag', 'Betaling', 'Boeking', 'Content', 'Planning', 'Gastheer', 'Nazorg', 'Intern'].map((c) => (
+            <option value={c} selected={c === template.categorie}>{c}</option>
+          ))}
+        </select>
+
+        <label class="bh-check">
+          <input type="checkbox" name="actief" checked={template.actief} /> Actief
+        </label>
+
+        <label for="ontvanger">Ontvanger</label>
+        <input id="ontvanger" name="ontvanger" value={template.ontvanger} />
+
+        <label for="cc">CC</label>
+        <input id="cc" name="cc" value={template.cc} />
+
+        <label for="bcc">BCC</label>
+        <input id="bcc" name="bcc" value={template.bcc} />
+
+        <h2>Trigger</h2>
+        <input type="hidden" name="triggerSoort" value={template.trigger.soort} />
+        <label for="triggerBeschrijving">Moment</label>
+        <input id="triggerBeschrijving" name="triggerBeschrijving" value={template.trigger.beschrijving} />
+
+        <div class="bh-form-row">
+          <div>
+            <label for="offsetWaarde">Aantal</label>
+            <input id="offsetWaarde" name="offsetWaarde" type="number" min="0" value={template.trigger.offsetWaarde ?? ''} />
+          </div>
+          <div>
+            <label for="offsetEenheid">Eenheid</label>
+            <select id="offsetEenheid" name="offsetEenheid">
+              <option value="">—</option>
+              <option value="dagen" selected={template.trigger.offsetEenheid === 'dagen'}>Dagen</option>
+              <option value="weken" selected={template.trigger.offsetEenheid === 'weken'}>Weken</option>
+            </select>
+          </div>
+          <div>
+            <label for="offsetRichting">Voor / na</label>
+            <select id="offsetRichting" name="offsetRichting">
+              <option value="">—</option>
+              <option value="voor" selected={template.trigger.offsetRichting === 'voor'}>Voor activiteit</option>
+              <option value="na" selected={template.trigger.offsetRichting === 'na'}>Na activiteit</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="bh-check">
+          <input type="checkbox" name="automatischVersturen" checked={template.trigger.automatischVersturen} /> Automatisch versturen
+        </label>
+        <label class="bh-check">
+          <input type="checkbox" name="conceptKlaarzetten" checked={template.trigger.conceptKlaarzetten} /> Concept klaarzetten
+        </label>
+
+        <label for="verzendwijze">Verzendwijze</label>
+        <select id="verzendwijze" name="verzendwijze">
+          {['automatisch', 'besluit', 'escalatie', 'handmatig'].map((v) => (
+            <option value={v} selected={v === template.verzendwijze}>{v}</option>
+          ))}
+        </select>
+
+        <h2>Inhoud</h2>
+        {['onderwerp', 'aanhef', 'introductie', 'hoofdtekst', 'callToActionTekst', 'secundaireTekst', 'slottekst', 'ondertekening'].map((veld) => (
+          <>
+            <label for={veld}>{veld}</label>
+            {veld === 'hoofdtekst' || veld === 'introductie' ? (
+              <textarea id={veld} name={veld} rows={8} data-mail-veld>{template[veld as keyof typeof template] as string}</textarea>
+            ) : (
+              <input id={veld} name={veld} value={template[veld as keyof typeof template] as string} data-mail-veld />
+            )}
+          </>
+        ))}
+
+        <div class="bh-acties">
+          <button class="bh-btn" type="submit" name="actie" value="bewaar">Bewaar</button>
+        </div>
+      </form>
+
+      <form method="post" class="bh-form bh-mail-test">
+        <h2>Testmail</h2>
+        <p class="bh-muted">Gebruikt voorbeelddata. Telt niet als officiële verzending.</p>
+        <label for="testEmail">E-mailadres</label>
+        <input id="testEmail" name="testEmail" type="email" placeholder="u@organisatie.nl" required />
+        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="testmail">Stuur testmail</button>
+      </form>
+
+      {
+        versies.length > 0 && (
+          <section>
+            <h2>Versies</h2>
+            <ul class="bh-versielijst">
+              {versies.slice(0, 8).map((v) => (
+                <li>
+                  v{v.versie} · {v.opgeslagenOp.slice(0, 16).replace('T', ' ')} · {v.gebruiker}
+                  <form method="post" class="bh-inline-form">
+                    <input type="hidden" name="versie" value={v.versie} />
+                    <button class="bh-link-btn" type="submit" name="actie" value="herstel">Herstel</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+    </section>
+
+    <aside class="bh-kaart bh-mail-editor__zij">
+      <h2>Invoegvelden</h2>
+      <div class="bh-variabelen" id="mail-variabelen">
+        {MAIL_VARIABELEN.map((v) => (
+          <button type="button" class="bh-chip" data-var={`{{${v}}}`}>{v}</button>
+        ))}
+      </div>
+
+      <h2>Live voorbeeld</h2>
+      <div class="bh-mail-preview-frame" id="mail-preview" set:html={previewHtml} />
+    </aside>
+  </div>
+
+  <script src="/beheer-mailtemplates.js" defer></script>
+</Beheer>
