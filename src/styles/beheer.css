@@ -681,7 +681,7 @@
   position: absolute;
   top: 0;
   right: 0;
-  width: min(540px, 100%);
+  width: min(64rem, 100%);
   height: 100%;
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(10px);
@@ -689,19 +689,59 @@
   border-left: var(--border);
   transform: translateX(100%);
   transition: transform 0.32s ease;
-  overflow: auto;
-  padding: var(--s-6) var(--s-5) var(--s-8);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
   box-shadow: -12px 0 40px -24px rgba(26, 26, 26, 0.18);
+  container-type: inline-size;
+  container-name: detail;
 }
 
 .bh-detail.open .bh-detail-paneel {
   transform: none;
 }
 
+.bh-detail-inhoud {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-6) calc(var(--s-8) + 1.75rem) var(--s-8) var(--s-8);
+}
+
+.bh-detail-paneel .bh-split,
+.bh-detail-paneel .bh-kaart,
+.bh-detail-paneel .bh-top,
+.bh-detail-paneel .bh-dl {
+  min-width: 0;
+}
+
+.bh-detail-paneel .bh-dl {
+  grid-template-columns: minmax(6.5rem, 10rem) minmax(0, 1fr);
+}
+
+.bh-detail-paneel .bh-dl dd,
+.bh-detail-paneel .bh-hint,
+.bh-detail-paneel h1,
+.bh-detail-paneel a {
+  overflow-wrap: anywhere;
+}
+
+@container detail (max-width: 44rem) {
+  .bh-detail-paneel .bh-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .bh-detail-x {
-  float: right;
-  background: none;
+  position: absolute;
+  top: var(--s-4);
+  right: var(--s-4);
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.94);
   border: 0;
+  border-radius: var(--radius);
   font-size: 1.6rem;
   line-height: 1;
   cursor: pointer;
