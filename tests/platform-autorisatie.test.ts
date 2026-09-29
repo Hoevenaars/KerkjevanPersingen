@@ -44,6 +44,7 @@ describe('route → module', () => {
     assert.equal(moduleVoorPad('/beheer/instellingen/gebruikers/'), 'gebruikers');
     assert.equal(moduleVoorPad('/api/beheer/gebruikers'), 'gebruikers');
     assert.equal(moduleVoorPad('/api/beheer/view-as'), 'gebruikers');
+    assert.equal(moduleVoorPad('/api/beheer/rollen'), 'gebruikers');
     assert.equal(isViewAsWisselPad('/api/beheer/view-as'), true);
     assert.equal(isViewAsWisselPad('/api/beheer/gebruikers'), false);
     assert.equal(moduleVoorPad('/beheer/instellingen/templates/abc/'), 'templates');

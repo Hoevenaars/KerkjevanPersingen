@@ -52,6 +52,13 @@ describe('sessie en view-as', () => {
     assert.equal(alsHans.effectieveRechten.perModule.dashboard, 'lezen');
     assert.equal(alsHans.effectieveRechten.perModule.finance, 'verborgen');
     assert.equal(pasRolWeergaveToe(nick, 'geen-rol').viewAs, null);
+    const metFinance = pasRolWeergaveToe(nick, rolWeergaveId('hans'), {
+      slug: 'hans',
+      naam: 'Hans',
+      rechten: { dashboard: 'lezen', finance: 'schrijven' },
+    });
+    assert.equal(metFinance.effectieveRechten.perModule.finance, 'schrijven');
+    assert.equal(pasRolWeergaveToe(nick, rolWeergaveId('weg'), null).viewAs, null);
     const nelleke: BeheerSessie = {
       ...nick,
       rechten: { isSuperAdmin: false, perModule: {} },
@@ -84,8 +91,9 @@ describe('uitnodigen', () => {
   test('weigert ongeldige invoer', () => {
     assert.ok(valideerInvite({ naam: '', email: 'a@b.nl', redirectTo: '/' }));
     assert.ok(valideerInvite({ naam: 'Paul', email: 'geen-mail', redirectTo: '/' }));
-    assert.ok(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'finance', redirectTo: '/' }));
+    assert.ok(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'geen rol!', redirectTo: '/' }));
     assert.equal(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'paul', redirectTo: '/' }), null);
+    assert.equal(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'finance', redirectTo: '/' }), null);
   });
 
   test('rol vult de lege startmatrix, zelf ingevulde rechten blijven leidend', () => {

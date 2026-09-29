@@ -10,21 +10,24 @@ ALLOW_SUPABASE_CONTENT=true
 
 Zie `docs/beheer/ARCHITECTUUR.md`.
 
-## Nog geen remote project
+## Remote project
 
-Er is nog geen Supabase-project "Kerkje van Persingen". Schema en seed staan in
-deze map zodat we die in één keer kunnen toepassen zodra het project er is
-(bewuste kostbevestiging). Tot die tijd: live-lezen in `/beheer` + dry-run
-(`npm run migratie:dry-run`) ter voorbereiding van de import.
+Supabase-project **Kerkje van Persingen**, ref `xskqpefeumylrticrphp`, regio
+`eu-central-1`. API: `https://xskqpefeumylrticrphp.supabase.co`.
+
+De kern (profielen, modules, rechten) staat erin. Rollen zijn een naam met een
+rechtenmatrix (`beheer_rollen`), los van een account. Hans, Nelleke en Paul zijn
+de start. De overige migraties in deze map zijn nog niet volledig toegepast.
+Fluweel en Kopvast zijn andere projecten en horen hier niet bij.
 
 ```bash
-npx supabase init          # alleen als config.toml ontbreekt
-npx supabase link --project-ref <project-id>
+npx supabase link --project-ref xskqpefeumylrticrphp
 npx supabase db push
 ```
 
-Daarna migraties pushen, inclusief `20260921120000_beheer_gebruikersaccounts.sql`.
-Zet `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` en
-`SUPER_ADMIN_EMAIL`. Die laatste wordt bij eerste login Super Admin. Nodig de
-overige beheerders uit via `/beheer/instellingen/gebruikers/`. Het veld
+Zet daarna op de host `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY` en `SUPER_ADMIN_EMAIL`. Die laatste wordt bij de
+eerste login Super Admin. Hans, Nelleke en Paul nodig je uit via
+`/beheer/instellingen/gebruikers/` zodra hun e-mailadres bekend is. De rol zelf
+richt je daar al in en bekijk je via het oogje, zonder iemand te koppelen. Het veld
 `is_super_admin` kan niet door andere gebruikers worden gezet.

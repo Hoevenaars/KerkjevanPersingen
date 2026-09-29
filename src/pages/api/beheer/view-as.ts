@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { magViewAsStarten, VIEW_AS_COOKIE } from '../../../platform/beheer-sessie.ts';
-import { rolUitWeergave, rolWeergaveId, type GebruikerFunctie } from '../../../platform/referentie-gebruikers.ts';
+import { rolUitWeergave, rolWeergaveId } from '../../../platform/rollen.ts';
 import { schrijfViewAsAudit } from '../../../lib/beheer-gebruikers.ts';
+import { laadRollen, vindRol } from '../../../lib/rollen-opslag.ts';
 import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
 
 export const prerender = false;
@@ -27,9 +28,10 @@ export const POST: APIRoute = async (context) => {
   }
 
   const rol = rolUitWeergave(doelId);
-  const geldigDoel = Boolean(rol) || (Boolean(doelId) && !doelId.startsWith('rol:') && doelId !== sessie.gebruiker.id);
+  const bekendeRol = rol ? vindRol(await laadRollen(admin), rol) : null;
+  const geldigDoel = Boolean(bekendeRol) || (Boolean(doelId) && !doelId.startsWith('rol:') && doelId !== sessie.gebruiker.id);
   if (actie === 'start' && geldigDoel) {
-    const cookieWaarde = rol ? rolWeergaveId(rol as GebruikerFunctie) : doelId;
+    const cookieWaarde = bekendeRol ? rolWeergaveId(bekendeRol.slug) : doelId;
     context.cookies.set(VIEW_AS_COOKIE, cookieWaarde, {
       path: '/',
       httpOnly: true,

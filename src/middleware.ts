@@ -15,7 +15,9 @@ import {
   moduleVoorPad,
 } from './platform/autorisatie.ts';
 import { pasRolWeergaveToe, VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
+import { rolUitWeergave } from './platform/rollen.ts';
 import { basisSessie, bouwSessie } from './lib/beheer-auth.ts';
+import { laadRollen, vindRol } from './lib/rollen-opslag.ts';
 import { beheerWeigering, loginRedirect, zelfdeOorsprong } from './lib/beheer-http.ts';
 import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
 
@@ -145,7 +147,10 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
   if (!beheerAuthOk(header, beheerGateEnv())) {
     return beheerAuthResponse();
   }
-  const sessie = pasRolWeergaveToe(basisSessie(), context.cookies.get(VIEW_AS_COOKIE)?.value ?? null);
+  const viewAsCookie = context.cookies.get(VIEW_AS_COOKIE)?.value ?? null;
+  const rolSlug = rolUitWeergave(viewAsCookie);
+  const catalogus = rolSlug ? vindRol(await laadRollen(null), rolSlug) : undefined;
+  const sessie = pasRolWeergaveToe(basisSessie(), viewAsCookie, catalogus);
   context.locals.beheer = sessie;
   if (sessie.viewAs && !isBeheerAuthPad(pad)) {
     const wissel = isViewAsWisselPad(pad);

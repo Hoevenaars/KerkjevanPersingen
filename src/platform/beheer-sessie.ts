@@ -4,13 +4,14 @@
  */
 
 import {
-  FUNCTIE_LABELS,
+  labelVoorFunctie,
   rechtenVoorFunctie,
   rolUitWeergave,
   rolWeergaveId,
   type AccountStatus,
   type GebruikerFunctie,
 } from './referentie-gebruikers.ts';
+import type { BeheerRol } from './rollen.ts';
 import type { GebruikerRechten, ModuleSleutel, Rechtniveau } from './types.ts';
 import { MODULES } from './modules.ts';
 
@@ -58,18 +59,24 @@ export function magViewAsStarten(actor: GebruikerRechten): boolean {
 }
 
 /**
- * Super Admin kijkt door een benoemde rol (Hans, Nelleke, Paul).
+ * Super Admin kijkt door een opgeslagen rol.
  * De actor blijft zichzelf; alleen de effectieve rechten wisselen.
+ * Zonder catalogus geldt de lege startmatrix. `null` betekent: rol onbekend, niet kijken.
  * Een gewoon account-id laat deze functie met rust.
  */
-export function pasRolWeergaveToe(sessie: BeheerSessie, viewAsId: string | null | undefined): BeheerSessie {
+export function pasRolWeergaveToe(
+  sessie: BeheerSessie,
+  viewAsId: string | null | undefined,
+  catalogus?: BeheerRol | null,
+): BeheerSessie {
   if (!sessie.rechten.isSuperAdmin) return sessie;
   const rol = rolUitWeergave(viewAsId);
-  if (!rol) return sessie;
+  if (!rol || catalogus === null) return sessie;
+  if (catalogus && catalogus.slug !== rol) return sessie;
   const viewAs: BeheerProfiel = {
     id: rolWeergaveId(rol),
     email: '',
-    naam: FUNCTIE_LABELS[rol],
+    naam: catalogus?.naam ?? labelVoorFunctie(rol),
     functie: rol,
     status: 'active',
     isSuperAdmin: false,
@@ -78,7 +85,7 @@ export function pasRolWeergaveToe(sessie: BeheerSessie, viewAsId: string | null 
   };
   return {
     ...sessie,
-    effectieveRechten: { isSuperAdmin: false, perModule: rechtenVoorFunctie(rol) },
+    effectieveRechten: { isSuperAdmin: false, perModule: catalogus?.rechten ?? rechtenVoorFunctie(rol) },
     viewAs,
   };
 }

@@ -9,11 +9,11 @@ import { rolUitWeergave } from '../platform/referentie-gebruikers.ts';
 import type { GebruikerRechten } from '../platform/types.ts';
 import {
   laadProfiel,
-  laadProfielVoorRol,
   markeerGebruikerActief,
   waarborgSuperAdmin,
   werkLastActiveBij,
 } from './beheer-gebruikers.ts';
+import { laadRollen, vindRol } from './rollen-opslag.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
 
 export function basisSessie(): BeheerSessie {
@@ -67,18 +67,14 @@ export async function bouwSessie(opties: {
   let viewAsRechten: GebruikerRechten | null = null;
   const rol = rolUitWeergave(opties.viewAsId);
   if (rol && rechten.isSuperAdmin) {
-    const gekoppeld = admin ? await laadProfielVoorRol(admin, rol) : null;
-    if (gekoppeld) {
-      viewAs = gekoppeld.profiel;
-      viewAsRechten = gekoppeld.rechten;
-    } else {
-      const voorbeeld = pasRolWeergaveToe(
-        { gebruiker, rechten, effectieveRechten: rechten, viewAs: null, bron: 'supabase' },
-        opties.viewAsId,
-      );
-      viewAs = voorbeeld.viewAs;
-      viewAsRechten = voorbeeld.effectieveRechten;
-    }
+    const catalogus = vindRol(await laadRollen(admin), rol);
+    const voorbeeld = pasRolWeergaveToe(
+      { gebruiker, rechten, effectieveRechten: rechten, viewAs: null, bron: 'supabase' },
+      opties.viewAsId,
+      catalogus,
+    );
+    viewAs = voorbeeld.viewAs;
+    viewAsRechten = voorbeeld.viewAs ? voorbeeld.effectieveRechten : null;
   } else if (opties.viewAsId && rechten.isSuperAdmin && opties.viewAsId !== gebruiker.id) {
     const doel = await laadProfiel(opties.client, opties.viewAsId);
     if (doel && !doel.rechten.isSuperAdmin) {
