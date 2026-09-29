@@ -10,12 +10,14 @@ ALLOW_SUPABASE_CONTENT=true
 
 Zie `docs/beheer/ARCHITECTUUR.md`.
 
-## Nog geen remote project
+## Remote project
 
-Er is nog geen Supabase-project "Kerkje van Persingen". Schema en seed staan in
-deze map zodat we die in één keer kunnen toepassen zodra het project er is
-(bewuste kostbevestiging). Tot die tijd: live-lezen in `/beheer` + dry-run
-(`npm run migratie:dry-run`) ter voorbereiding van de import.
+Supabase-project **Kerkje van Persingen**, ref `xskqpefeumylrticrphp`, regio
+`eu-central-1`. API: `https://xskqpefeumylrticrphp.supabase.co`.
+
+De kern (profielen, modules, rechten) en de rollen Hans, Nelleke en Paul staan
+erin. De overige migraties in deze map zijn nog niet volledig toegepast. Fluweel
+en Kopvast zijn andere projecten en horen hier niet bij.
 
 ```bash
 npx supabase init          # alleen als config.toml ontbreekt
