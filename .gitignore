@@ -5,3 +5,4 @@ dist/
 .env.local
 .DS_Store
 data/mailtemplates-state.json
+data/beheer-rollen.json

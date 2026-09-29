@@ -53,6 +53,7 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   if (
     pad.startsWith('/beheer/instellingen/gebruikers') ||
     pad.startsWith('/api/beheer/gebruikers') ||
+    pad.startsWith('/api/beheer/rollen') ||
     pad.startsWith('/api/beheer/view-as')
   ) {
     return 'gebruikers';

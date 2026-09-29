@@ -1227,6 +1227,45 @@
   justify-content: center;
 }
 
+.bh-rol-lijst {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  list-style: none;
+  margin: 0 0 var(--s-3);
+  padding: 0;
+}
+
+.bh-rol-lijst a {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border: var(--border);
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.bh-rol-lijst a.is-gekozen {
+  background: var(--cream-deep);
+  font-weight: 600;
+}
+
+.bh-rol-nieuw {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: end;
+}
+
+.bh-rol-nieuw label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.bh-rol-weg {
+  margin-top: var(--s-2);
+}
+
 .bh-acties-inline {
   display: flex;
   flex-wrap: wrap;
