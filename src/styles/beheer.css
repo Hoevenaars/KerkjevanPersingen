@@ -181,6 +181,88 @@
   min-width: 0;
 }
 
+.bh-werk-kop-rechts {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.bh-oog {
+  position: relative;
+}
+
+.bh-oog-knop {
+  list-style: none;
+  width: 2.55rem;
+  height: 2.55rem;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--pine);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.bh-oog-knop::-webkit-details-marker {
+  display: none;
+}
+
+.bh-oog[open] > .bh-oog-knop,
+.bh-oog-knop:hover {
+  background: var(--cream-deep);
+}
+
+.bh-oog-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  min-width: 12.5rem;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: var(--s-2);
+  box-shadow: 0 10px 28px rgba(26, 26, 26, 0.08);
+  z-index: 40;
+}
+
+.bh-oog-menu p {
+  margin: 0;
+  padding: var(--s-2) var(--s-3) var(--s-1);
+  font-size: var(--t-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.bh-oog-menu form {
+  margin: 0;
+}
+
+.bh-oog-menu button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: var(--t-sm);
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--ink);
+}
+
+.bh-oog-menu button:hover {
+  background: var(--cream);
+}
+
+.bh-oog-menu button[aria-current='true'] {
+  background: var(--cream-deep);
+  font-weight: 600;
+}
+
 .bh-label {
   font-size: var(--t-xs);
   font-weight: 500;

@@ -3,7 +3,14 @@
  * Pure functies: geen I/O, zodat securitytests zonder Supabase kunnen.
  */
 
-import type { AccountStatus, GebruikerFunctie } from './referentie-gebruikers.ts';
+import {
+  FUNCTIE_LABELS,
+  rechtenVoorFunctie,
+  rolUitWeergave,
+  rolWeergaveId,
+  type AccountStatus,
+  type GebruikerFunctie,
+} from './referentie-gebruikers.ts';
 import type { GebruikerRechten, ModuleSleutel, Rechtniveau } from './types.ts';
 import { MODULES } from './modules.ts';
 
@@ -48,6 +55,32 @@ export function effectieveRechten(actor: GebruikerRechten, viewAs: GebruikerRech
 
 export function magViewAsStarten(actor: GebruikerRechten): boolean {
   return actor.isSuperAdmin;
+}
+
+/**
+ * Super Admin kijkt door een benoemde rol (Hans, Nelleke, Paul).
+ * De actor blijft zichzelf; alleen de effectieve rechten wisselen.
+ * Een gewoon account-id laat deze functie met rust.
+ */
+export function pasRolWeergaveToe(sessie: BeheerSessie, viewAsId: string | null | undefined): BeheerSessie {
+  if (!sessie.rechten.isSuperAdmin) return sessie;
+  const rol = rolUitWeergave(viewAsId);
+  if (!rol) return sessie;
+  const viewAs: BeheerProfiel = {
+    id: rolWeergaveId(rol),
+    email: '',
+    naam: FUNCTIE_LABELS[rol],
+    functie: rol,
+    status: 'active',
+    isSuperAdmin: false,
+    actief: true,
+    lastActiveAt: null,
+  };
+  return {
+    ...sessie,
+    effectieveRechten: { isSuperAdmin: false, perModule: rechtenVoorFunctie(rol) },
+    viewAs,
+  };
 }
 
 export function lastActiveMoetBijwerken(laatst: string | null | undefined, nu = Date.now()): boolean {

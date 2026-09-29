@@ -56,7 +56,7 @@ function niveauVoor(rechten: Record<string, Rechtniveau | undefined>, module: st
   return rechten[module] ?? 'verborgen';
 }
 
-const nieuweRechten = rechtenVoorFunctie('operationeel');
+const nieuweRechten = rechtenVoorFunctie('');
 ---
 
 <Beheer titel="Gebruikers">
@@ -64,8 +64,9 @@ const nieuweRechten = rechtenVoorFunctie('operationeel');
     <div>
       <h1>Gebruikers</h1>
       <p class="bh-hint">
-        Iedere beheerder heeft een eigen login. Rechten per module: verborgen, lezen of schrijven.
-        Super Admin ziet en schrijft alles.
+        Rollen op naam: Hans, Nelleke en Paul. Rechten per module richt je hier zelf in
+        (verborgen, lezen of schrijven). Super Admin ziet en schrijft alles, en kan via het oogje
+        bovenaan kijken wat een rol ziet.
       </p>
     </div>
   </header>
@@ -80,7 +81,7 @@ const nieuweRechten = rechtenVoorFunctie('operationeel');
           <th>Gebruiker</th>
           <th>E-mail</th>
           <th>Status</th>
-          <th>Type</th>
+          <th>Rol</th>
           <th>Laatst actief</th>
           <th>Acties</th>
         </tr>
@@ -178,9 +179,9 @@ const nieuweRechten = rechtenVoorFunctie('operationeel');
           />
         </label>
         <label>
-          Functie
-          <select name="functie" id="bh-functie">
-            <option value="">Aangepast</option>
+          Rol
+          <select name="functie" id="bh-rol">
+            <option value="">Geen rol</option>
             {
               GEBRUIKER_FUNCTIES.map((functie) => (
                 <option value={functie} selected={gekozen?.functie === functie}>
@@ -191,7 +192,7 @@ const nieuweRechten = rechtenVoorFunctie('operationeel');
           </select>
         </label>
       </div>
-      <p class="bh-hint">Functie vult de matrix voor. De echte toegang blijft per module staan.</p>
+      <p class="bh-hint">Kies de rol op naam. De rechten hieronder bepaal je zelf; die bepalen wat deze persoon ziet.</p>
       <table class="bh-rechten bh-rechten-editor">
         <thead>
           <tr>
@@ -251,62 +252,3 @@ const nieuweRechten = rechtenVoorFunctie('operationeel');
     </form>
   </section>
 </Beheer>
-
-<script is:inline>
-  const presets = {
-    operationeel: {
-      dashboard: 'lezen',
-      aanvragen: 'schrijven',
-      boekingen: 'schrijven',
-      kalender: 'schrijven',
-      agenda: 'schrijven',
-      planning: 'lezen',
-      finance: 'lezen',
-      nieuwsbrief: 'schrijven',
-      vrienden: 'schrijven',
-      relaties: 'schrijven',
-      templates: 'schrijven',
-      gebruikers: 'verborgen',
-      instellingen: 'lezen',
-    },
-    finance: {
-      dashboard: 'lezen',
-      aanvragen: 'verborgen',
-      boekingen: 'lezen',
-      kalender: 'lezen',
-      agenda: 'verborgen',
-      planning: 'verborgen',
-      finance: 'schrijven',
-      nieuwsbrief: 'verborgen',
-      vrienden: 'verborgen',
-      relaties: 'verborgen',
-      templates: 'verborgen',
-      gebruikers: 'verborgen',
-      instellingen: 'lezen',
-    },
-    planning: {
-      dashboard: 'lezen',
-      aanvragen: 'verborgen',
-      boekingen: 'lezen',
-      kalender: 'lezen',
-      agenda: 'lezen',
-      planning: 'schrijven',
-      finance: 'verborgen',
-      nieuwsbrief: 'verborgen',
-      vrienden: 'verborgen',
-      relaties: 'lezen',
-      templates: 'verborgen',
-      gebruikers: 'verborgen',
-      instellingen: 'lezen',
-    },
-  };
-  document.getElementById('bh-functie')?.addEventListener('change', (event) => {
-    const keuze = event.target.value;
-    const matrix = presets[keuze];
-    if (!matrix) return;
-    for (const [module, niveau] of Object.entries(matrix)) {
-      const knop = document.querySelector(`input[name="recht_${module}"][value="${niveau}"]`);
-      if (knop) knop.checked = true;
-    }
-  });
-</script>

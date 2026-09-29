@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { VIEW_AS_COOKIE } from '../../../platform/beheer-sessie.ts';
-import { magViewAsStarten } from '../../../platform/beheer-sessie.ts';
+import { magViewAsStarten, VIEW_AS_COOKIE } from '../../../platform/beheer-sessie.ts';
+import { rolUitWeergave, rolWeergaveId, type GebruikerFunctie } from '../../../platform/referentie-gebruikers.ts';
 import { schrijfViewAsAudit } from '../../../lib/beheer-gebruikers.ts';
 import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
 
@@ -26,8 +26,11 @@ export const POST: APIRoute = async (context) => {
     return context.redirect(terug.startsWith('/beheer') ? terug : '/beheer/');
   }
 
-  if (actie === 'start' && doelId && doelId !== sessie.gebruiker.id) {
-    context.cookies.set(VIEW_AS_COOKIE, doelId, {
+  const rol = rolUitWeergave(doelId);
+  const geldigDoel = Boolean(rol) || (Boolean(doelId) && !doelId.startsWith('rol:') && doelId !== sessie.gebruiker.id);
+  if (actie === 'start' && geldigDoel) {
+    const cookieWaarde = rol ? rolWeergaveId(rol as GebruikerFunctie) : doelId;
+    context.cookies.set(VIEW_AS_COOKIE, cookieWaarde, {
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
@@ -35,9 +38,10 @@ export const POST: APIRoute = async (context) => {
       maxAge: 60 * 60,
     });
     if (admin) {
-      await schrijfViewAsAudit(admin, { id: sessie.gebruiker.id, naam: sessie.gebruiker.naam }, doelId, 'VIEW_AS_STARTED');
+      await schrijfViewAsAudit(admin, { id: sessie.gebruiker.id, naam: sessie.gebruiker.naam }, cookieWaarde, 'VIEW_AS_STARTED');
     }
-    return context.redirect('/beheer/');
+    const terug = String(data.get('next') ?? '/beheer/');
+    return context.redirect(terug.startsWith('/beheer') ? terug : '/beheer/');
   }
 
   return context.redirect('/beheer/instellingen/gebruikers/');

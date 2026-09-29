@@ -107,7 +107,23 @@ export function profielUitRij(rij: {
 export function functieLabel(functie: GebruikerFunctie | null, isSuperAdmin: boolean): string {
   if (isSuperAdmin) return 'Super Admin';
   if (functie) return FUNCTIE_LABELS[functie];
-  return 'Aangepast';
+  return 'Geen rol';
+}
+
+export async function laadProfielVoorRol(
+  admin: SupabaseClient,
+  rol: GebruikerFunctie,
+): Promise<{ profiel: BeheerProfiel; rechten: GebruikerRechten } | null> {
+  const { data, error } = await admin
+    .from('profielen')
+    .select('id')
+    .eq('functie', rol)
+    .eq('is_super_admin', false)
+    .order('naam')
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.id) return null;
+  return laadProfiel(admin, data.id);
 }
 
 export function statusLabel(status: AccountStatus): string {

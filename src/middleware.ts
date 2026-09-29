@@ -11,9 +11,10 @@ import {
   isBeheerAuthPad,
   isBeheerPad,
   isMutatieMethode,
+  isViewAsWisselPad,
   moduleVoorPad,
 } from './platform/autorisatie.ts';
-import { VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
+import { pasRolWeergaveToe, VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
 import { basisSessie, bouwSessie } from './lib/beheer-auth.ts';
 import { beheerWeigering, loginRedirect, zelfdeOorsprong } from './lib/beheer-http.ts';
 import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
@@ -117,16 +118,20 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
       return plakBeheerHeaders(await next(), cookieHeaders);
     }
 
+    const wissel = isViewAsWisselPad(pad);
     const uitkomst = beheerToegang({
       methode: context.request.method,
       module: moduleVoorPad(pad),
       ingelogd: true,
       actief: sessie.gebruiker.status !== 'disabled',
-      rechten: sessie.effectieveRechten,
-      viewAsActief: Boolean(sessie.viewAs),
+      rechten: wissel ? sessie.rechten : sessie.effectieveRechten,
+      viewAsActief: wissel ? false : Boolean(sessie.viewAs),
     });
     if (uitkomst !== 'ok') {
-      return plakBeheerHeaders(beheerWeigering(uitkomst, alsJson), cookieHeaders);
+      return plakBeheerHeaders(
+        beheerWeigering(uitkomst, alsJson, { previewStop: Boolean(sessie.viewAs) && !alsJson }),
+        cookieHeaders,
+      );
     }
 
     return plakBeheerHeaders(await next(), cookieHeaders);
@@ -140,7 +145,22 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
   if (!beheerAuthOk(header, beheerGateEnv())) {
     return beheerAuthResponse();
   }
-  context.locals.beheer = basisSessie();
+  const sessie = pasRolWeergaveToe(basisSessie(), context.cookies.get(VIEW_AS_COOKIE)?.value ?? null);
+  context.locals.beheer = sessie;
+  if (sessie.viewAs && !isBeheerAuthPad(pad)) {
+    const wissel = isViewAsWisselPad(pad);
+    const uitkomst = beheerToegang({
+      methode: context.request.method,
+      module: moduleVoorPad(pad),
+      ingelogd: true,
+      actief: true,
+      rechten: wissel ? sessie.rechten : sessie.effectieveRechten,
+      viewAsActief: wissel ? false : true,
+    });
+    if (uitkomst !== 'ok') {
+      return plakBeheerHeaders(beheerWeigering(uitkomst, alsJson, { previewStop: !alsJson }));
+    }
+  }
   return plakBeheerHeaders(await next());
 };
 
