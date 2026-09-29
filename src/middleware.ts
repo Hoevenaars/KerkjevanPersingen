@@ -18,6 +18,10 @@ import { pasRolWeergaveToe, VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
 import { basisSessie, bouwSessie } from './lib/beheer-auth.ts';
 import { beheerWeigering, loginRedirect, zelfdeOorsprong } from './lib/beheer-http.ts';
 import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
+import { volgPubliekePageview } from './analytics/volg.ts';
+import { analyticsTeVaak } from './analytics/rate-limit.ts';
+import { bewaarPageview, wachtNietOp } from './platform/analytics-opslag.ts';
+import { kerkjeAnalytics } from './platform/analytics-config.ts';
 
 /**
  * Afscherming tot livegang.
@@ -33,6 +37,38 @@ import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.t
  */
 
 const USER = 'kerkje';
+
+function leesAdres(context: { clientAddress: string }): string | null {
+  try {
+    return context.clientAddress;
+  } catch {
+    return null;
+  }
+}
+
+function metAnalytics(context: Parameters<MiddlewareHandler>[0], response: Response): Response {
+  const pad = context.url.pathname;
+  if (
+    pad.startsWith('/beheer') ||
+    pad.startsWith('/api') ||
+    pad.startsWith('/klant') ||
+    pad.startsWith('/admin')
+  ) {
+    return response;
+  }
+  volgPubliekePageview({
+    request: context.request,
+    pathname: pad,
+    response,
+    config: kerkjeAnalytics,
+    adresSleutel: leesAdres(context),
+    rateLimit: analyticsTeVaak,
+    schrijf(ontwerp) {
+      wachtNietOp(context, bewaarPageview(ontwerp));
+    },
+  });
+  return response;
+}
 
 function isLive(): boolean {
   const liveVanaf = import.meta.env.LIVE_VANAF ?? process.env.LIVE_VANAF;
@@ -86,7 +122,7 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
 
     if (!user) {
       if (authPad) {
-        return plakBeheerHeaders(await next(), cookieHeaders);
+        return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
       }
       return plakBeheerHeaders(alsJson ? beheerWeigering('login', true) : loginRedirect(context), cookieHeaders);
     }
@@ -103,7 +139,7 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
 
     if ('fout' in sessie) {
       await supabase.auth.signOut();
-      if (authPad) return plakBeheerHeaders(await next(), cookieHeaders);
+      if (authPad) return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
       const doel = new URL('/beheer/login', context.url);
       doel.searchParams.set('fout', sessie.fout);
       return plakBeheerHeaders(alsJson ? beheerWeigering('disabled', true) : context.redirect(doel.pathname + doel.search), cookieHeaders);
@@ -115,7 +151,7 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
       if (pad.replace(/\/+$/, '') === '/beheer/login' && context.request.method === 'GET') {
         return plakBeheerHeaders(context.redirect('/beheer/'), cookieHeaders);
       }
-      return plakBeheerHeaders(await next(), cookieHeaders);
+      return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
     }
 
     const wissel = isViewAsWisselPad(pad);
@@ -134,11 +170,11 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
       );
     }
 
-    return plakBeheerHeaders(await next(), cookieHeaders);
+    return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
   }
 
   if (isBeheerAuthPad(pad)) {
-    return plakBeheerHeaders(await next());
+    return plakBeheerHeaders(metAnalytics(context, await next()));
   }
 
   const header = context.request.headers.get('authorization');
@@ -161,7 +197,7 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
       return plakBeheerHeaders(beheerWeigering(uitkomst, alsJson, { previewStop: !alsJson }));
     }
   }
-  return plakBeheerHeaders(await next());
+  return plakBeheerHeaders(metAnalytics(context, await next()));
 };
 
 export const onRequest: MiddlewareHandler = async (context, next) => {
@@ -169,7 +205,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 
   // Cron heeft een eigen Bearer-secret. Afmelden moet zonder sitewachtwoord (AVG).
   if (pad.startsWith('/api/cron/') || pad.startsWith('/vrienden/afmelden') || pad.startsWith('/klant/')) {
-    return await next();
+    return metAnalytics(context, await next());
   }
 
   if (isBeheerPad(pad)) {
@@ -179,7 +215,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;
 
   if (!password || isLive()) {
-    return await next();
+    return metAnalytics(context, await next());
   }
 
   const header = context.request.headers.get('authorization');
@@ -196,7 +232,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
     });
   }
 
-  const response = await next();
+  const response = metAnalytics(context, await next());
   response.headers.set('X-Robots-Tag', 'noindex, nofollow');
   return response;
 };

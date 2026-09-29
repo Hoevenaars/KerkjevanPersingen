@@ -56,6 +56,11 @@ export const BEHEER_MODULES = {
     href: '/beheer/nieuwsbrief/',
     groep: 'hoofd',
   },
+  analytics: {
+    label: 'Analytics',
+    href: '/beheer/analytics/',
+    groep: 'hoofd',
+  },
   templates: {
     label: 'Mailtemplates',
     href: '/beheer/instellingen/mailtemplates/',

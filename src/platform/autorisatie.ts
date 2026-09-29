@@ -74,6 +74,7 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   if (pad.startsWith('/beheer/finance')) return 'finance';
   if (pad.startsWith('/beheer/vrienden')) return 'vrienden';
   if (pad.startsWith('/beheer/nieuwsbrief')) return 'nieuwsbrief';
+  if (pad.startsWith('/beheer/analytics')) return 'analytics';
   if (pad === '/beheer' || pad === '/beheer/zoeken' || pad === '/beheer/migratie') {
     return 'dashboard';
   }
