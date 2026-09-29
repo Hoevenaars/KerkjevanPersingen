@@ -5,6 +5,7 @@
  * login zit (Supabase-sessie of, zonder keys, de oude Basic Auth).
  */
 
+import { huidigeContentBron } from './bron.ts';
 import { ymdInAmsterdam } from './datum.ts';
 import { beheerWachtwoord } from './beheer-gate.ts';
 import {
@@ -36,7 +37,7 @@ import {
 import { transformSanityDump, type MigratieResultaat } from './migratie-transform.ts';
 import { laadMailtemplates, mailtemplatesNaarDemo } from './mailtemplates/index.ts';
 
-export type BeheerBronSoort = 'demo' | 'sanity';
+export type BeheerBronSoort = 'demo' | 'sanity' | 'supabase';
 
 export interface BeheerSnapshot {
   bron: BeheerBronSoort;
@@ -55,6 +56,15 @@ export interface BeheerSnapshot {
   communicatie: { id: string; boekingId: string; template: string; status: string; wanneer: string; ontvanger: string }[];
   documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string }[];
   migratie: MigratieResultaat | null;
+  incidenten?: { id: string; boekingId: string; omschrijving: string; status: string }[];
+  signalen?: {
+    boekingId: string;
+    titel: string;
+    start: string;
+    uitkomst: 'gereed' | 'actie_vereist';
+    issues: { oorzaak: string; eigenaar: string; deadline: string | null; actie: string }[];
+  }[];
+  technisch?: number;
 }
 
 const LIVE_BANNER =
@@ -124,6 +134,7 @@ export async function snapshotVanMigratie(resultaat: MigratieResultaat): Promise
 }
 
 export function schrijfActieFlash(bron: BeheerBronSoort): string {
+  if (bron === 'supabase') return 'Opgeslagen in Supabase. Sanity en de productiesite zijn niet gewijzigd.';
   if (bron === 'sanity') {
     return 'Actie niet uitgevoerd — /beheer schrijft nog niet. Wijzigingen gaan via Sanity Studio.';
   }
@@ -144,7 +155,7 @@ export async function laadBeheerSnapshot(opties: {
   const env = opties.env ?? omgevingsRecord();
   const forceDemo =
     opties.forceDemo === true || opties.url?.searchParams.get('bron') === 'demo';
-  const key = `${forceDemo ? 'demo' : 'auto'}:${String(env.SANITY_PROJECT_ID ?? '')}`;
+  const key = `${forceDemo ? 'demo' : huidigeContentBron(env)}:${String(env.SANITY_PROJECT_ID ?? '')}`;
   const nu = Date.now();
   if (cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
 
@@ -159,6 +170,26 @@ async function laadBeheerSnapshotOngecached(opties: {
 }): Promise<BeheerSnapshot> {
   if (opties.forceDemo) {
     return demoSnapshot('Voorbeelddata — bewust gekozen via ?bron=demo.');
+  }
+  if (huidigeContentBron(opties.env) === 'supabase') {
+    try {
+      const { beheerSnapshotUitSupabase } = await import('../lib/operatie/runtime.ts');
+      return await beheerSnapshotUitSupabase(opties.env);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'onbekende fout';
+      const leeg = await demoSnapshot(`Supabase is de bron, maar laden mislukte: ${detail}`);
+      return {
+        ...leeg,
+        bron: 'supabase',
+        banner: `Supabase-staging is niet geladen (${detail}). Er wordt geen voorbeelddata als dossier getoond.`,
+        aanvragen: [],
+        boekingen: [],
+        agenda: [],
+        relaties: [],
+        gastheren: [],
+        communicatie: [],
+      };
+    }
   }
   if (!magLiveSanityLezen(opties.env)) {
     const heeftProject = String(opties.env.SANITY_PROJECT_ID ?? '').trim().length > 0;

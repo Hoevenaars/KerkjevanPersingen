@@ -8,7 +8,7 @@ export const DEMO_BANNER =
 
 export interface DemoAanvraag {
   id: string;
-  status: 'nieuw' | 'in_behandeling' | 'goedgekeurd' | 'afgewezen' | 'gesloten';
+  status: 'nieuw' | 'in_behandeling' | 'wacht_op_aanvrager' | 'goedgekeurd' | 'afgewezen' | 'gesloten';
   naam: string;
   email: string;
   telefoon: string;
@@ -32,6 +32,8 @@ export interface DemoBoeking {
     | 'definitief'
     | 'afgewezen'
     | 'geannuleerd'
+    | 'afgerond'
+    | 'gearchiveerd'
     | 'migratie_aanvraag'
     | 'migratie_vastgelegd';
   zichtbaarheid?: 'verborgen' | 'bezet' | 'publiek';
@@ -734,6 +736,7 @@ export function zoekDemo(q: string): { soort: string; titel: string; href: strin
 export const AANVRAAG_LABEL: Record<DemoAanvraag['status'], string> = {
   nieuw: 'Nieuw',
   in_behandeling: 'In behandeling',
+  wacht_op_aanvrager: 'Wacht op aanvrager',
   goedgekeurd: 'Goedgekeurd',
   afgewezen: 'Afgewezen',
   gesloten: 'Gesloten',
@@ -745,6 +748,8 @@ export const BOEKING_LABEL: Record<DemoBoeking['status'], string> = {
   definitief: 'Definitief',
   afgewezen: 'Afgewezen',
   geannuleerd: 'Geannuleerd',
+  afgerond: 'Afgerond',
+  gearchiveerd: 'Gearchiveerd',
   migratie_aanvraag: 'Aanvraag (migratie)',
   migratie_vastgelegd: 'Vastgelegd (migratie)',
 };

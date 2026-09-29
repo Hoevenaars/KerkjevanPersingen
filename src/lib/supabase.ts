@@ -6,6 +6,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient, parseCookieHeader } from '@supabase/ssr';
 import type { AstroCookies } from 'astro';
+import type { Database } from './database.types.ts';
 
 export interface SupabaseOmgeving {
   url: string;
@@ -73,10 +74,10 @@ export function maakBeheerServerClient(opties: {
 
 export function maakBeheerAdminClient(
   env: Record<string, unknown> = typeof process !== 'undefined' ? process.env : {},
-): SupabaseClient | null {
+): SupabaseClient<Database> | null {
   const cfg = leesSupabaseOmgeving(env);
   if (!cfg?.serviceRoleKey) return null;
-  return createClient(cfg.url, cfg.serviceRoleKey, {
+  return createClient<Database>(cfg.url, cfg.serviceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

@@ -17,6 +17,7 @@ export type Rechtniveau = (typeof RECHTNIVEAUS)[number];
 export const AANVRAAG_STATUSSEN = [
   'nieuw',
   'in_behandeling',
+  'wacht_op_aanvrager',
   'goedgekeurd',
   'afgewezen',
   'gesloten',

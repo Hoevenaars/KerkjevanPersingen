@@ -31,6 +31,12 @@ const builder = client ? imageUrlBuilder(client) : null;
 
 /** Beeldverwerking gebeurt bij Sanity, niet bij het bestuur.
  *  Een staande telefoonfoto van 6 MB komt er als bijgesneden WebP uit. */
+/** Sanity-beeld of, in de Supabase-preview, een directe publieke URL. */
+export function publiekeFotoUrl(source: unknown, width = 1200, height?: number): string | null {
+  if (typeof source === 'string' && /^https?:\/\//.test(source)) return source;
+  return imageUrl(source, width, height);
+}
+
 export function imageUrl(source: unknown, width = 1200, height?: number): string | null {
   if (!builder || !source) return null;
   let url = builder.image(source as never).width(width).format('webp').quality(78);
@@ -428,6 +434,12 @@ function magAlGetoondWorden(a: Activiteit): boolean {
  * "aan de beurt" is volgens toonVanafMaanden.
  */
 export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
+  const { huidigeContentBron } = await import('../platform/bron.ts');
+  if (huidigeContentBron() === 'supabase') {
+    const { publiekeActiviteiten } = await import('./operatie/runtime.ts');
+    const lijst = await publiekeActiviteiten();
+    return lijst.slice(0, limit);
+  }
   const resultaat = await veiligeQuery<Activiteit>(
     `*[_type == "activiteit" && zichtbaarheid == "publiek"
        && (
@@ -462,6 +474,12 @@ export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
  *  terwijl Studio en de agenda leeg waren. Geen fallback naar raw: dat haalt
  *  dezelfde concepten terug. Publieke concepten blijven bezet via de agenda. */
 export async function getBezetteData(): Promise<Activiteit[]> {
+  const { huidigeContentBron } = await import('../platform/bron.ts');
+  if (huidigeContentBron() === 'supabase') {
+    const { bezetteActiviteiten, publiekeActiviteiten } = await import('./operatie/runtime.ts');
+    const [bezet, agenda] = await Promise.all([bezetteActiviteiten(), publiekeActiviteiten()]);
+    return [...bezet, ...agenda];
+  }
   const groq = `*[_type == "activiteit" && defined(start) && zichtbaarheid != "verborgen"
      && !(_id in path("drafts.**")) && !(_id in path("versions.**"))]
    | order(start asc) { ${ACTIVITEIT_VELDEN} }`;
@@ -509,6 +527,11 @@ export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
 }
 
 export async function getActiviteitBySlug(slug: string): Promise<Activiteit | null> {
+  const { huidigeContentBron } = await import('../platform/bron.ts');
+  if (huidigeContentBron() === 'supabase') {
+    const { activiteitOpSlug } = await import('./operatie/runtime.ts');
+    return activiteitOpSlug(slug);
+  }
   const rij = await veiligeQuery<Activiteit>(
     `*[_type == "activiteit" && zichtbaarheid == "publiek" && slug.current == $slug][0...1]
      { ${ACTIVITEIT_VELDEN} }`,

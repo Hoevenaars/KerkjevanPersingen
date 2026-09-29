@@ -10,7 +10,8 @@ import {
   formatNl,
   gastheerVan,
 } from '../../../platform/demo-data';
-import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
@@ -20,6 +21,13 @@ const id = beheerId(Astro.params.id);
 const boeking = snapshot.boekingen.find((b) => b.id === id);
 
 if (Astro.request.method === 'POST') {
+  const operationeel = await postAlsSupabase({
+    request: Astro.request,
+    url: Astro.url,
+    env: omgevingsRecord(),
+    actor: actorVanSessie(Astro.locals.beheer),
+  });
+  if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
 }
 
@@ -166,8 +174,12 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
           )}
         </section>
         <section class="bh-kaart">
-          <h2>Acties (voorbeeld)</h2>
-          <p class="bh-muted">Geen contractgeneratie, geen echte mail, geen wijziging in Sanity.</p>
+          <h2>{snapshot.bron === 'supabase' ? 'Dossieracties' : 'Acties (voorbeeld)'}</h2>
+          <p class="bh-muted">
+            {snapshot.bron === 'supabase'
+              ? 'Deze acties schrijven het Supabase-dossier. Sanity en productie blijven onaangeroerd.'
+              : 'Geen contractgeneratie, geen echte mail, geen wijziging in Sanity.'}
+          </p>
           <form method="post" class="bh-acties">
             <button class="bh-btn" type="submit" name="actie" value="definitief">
               Zet definitief
@@ -179,6 +191,33 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
               Annuleer
             </button>
           </form>
+          {snapshot.bron === 'supabase' && (
+            <>
+              <form method="post" class="bh-form">
+                <label for="incident">Incident</label>
+                <textarea id="incident" name="omschrijving" rows="3"></textarea>
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="incident">
+                  Incident vastleggen
+                </button>
+              </form>
+              {(snapshot.incidenten ?? [])
+                .filter((item) => item.boekingId === boeking.id && item.status !== 'gesloten')
+                .map((item) => (
+                  <form method="post" class="bh-acties">
+                    <p>{item.omschrijving}</p>
+                    <input type="hidden" name="incidentId" value={item.id} />
+                    <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="incident_sluiten">
+                      Incident sluiten
+                    </button>
+                  </form>
+                ))}
+              <form method="post" class="bh-acties">
+                <button class="bh-btn" type="submit" name="actie" value="sluit">
+                  Dossier afronden
+                </button>
+              </form>
+            </>
+          )}
         </section>
       </div>
     )

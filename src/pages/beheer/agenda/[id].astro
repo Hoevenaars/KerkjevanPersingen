@@ -8,7 +8,8 @@ import {
   gastheerVan,
   formatNl,
 } from '../../../platform/demo-data';
-import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const id = beheerId(Astro.params.id);
@@ -16,6 +17,13 @@ const publiek = snapshot.agenda.find((p) => p.id === id);
 const intern = snapshot.intern.find((i) => i.id === id);
 
 if (Astro.request.method === 'POST') {
+  const operationeel = await postAlsSupabase({
+    request: Astro.request,
+    url: Astro.url,
+    env: omgevingsRecord(),
+    actor: actorVanSessie(Astro.locals.beheer),
+  });
+  if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
 }
 

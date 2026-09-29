@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Button from '../../components/Button.astro';
 import MasonMark from '../../components/MasonMark.astro';
 import { detailTekst, publiekeFotoBron, tekstNaarParagrafen } from '../../lib/activiteit-content';
-import { getActiviteitBySlug, imageUrl, formatDatumBereik } from '../../lib/sanity';
+import { getActiviteitBySlug, publiekeFotoUrl, formatDatumBereik } from '../../lib/sanity';
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
 import { eventJsonLd } from '../../lib/seo';
 
@@ -17,7 +17,7 @@ if (!activiteit) {
 const fotoBron = publiekeFotoBron(activiteit);
 const foto =
   secondNaturePoster(activiteit) ??
-  (fotoBron ? imageUrl(fotoBron, 1200, 800) : null) ??
+  (fotoBron ? publiekeFotoUrl(fotoBron, 1200, 800) : null) ??
   '/foto/geen-foto.jpg';
 const poster = isSecondNature(activiteit);
 const inlineTekst = detailTekst(activiteit);
