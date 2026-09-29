@@ -13,11 +13,15 @@ import {
 import { laadBeheerSnapshot, snapshotDashboard } from '../../platform/beheer-bron.ts';
 import { dashboardVoor } from '../../platform/dashboard.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
+import { magZien } from '../../platform/rechten.ts';
 
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const vandaag = ymdInAmsterdam(new Date());
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const kaarten = dashboardVoor(rechten, snapshotDashboard(snapshot, vandaag));
+const zietAanvragen = magZien(rechten, 'aanvragen');
+const zietBoekingen = magZien(rechten, 'boekingen');
+const zietAgenda = magZien(rechten, 'agenda');
 const nieuwe = snapshot.aanvragen.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling');
 const opties = snapshot.boekingen.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');
 const maand = vandaag.slice(0, 7);
@@ -43,7 +47,7 @@ const live = snapshot.bron === 'sanity';
     {
       kaarten.length === 0 ? (
         <li>
-          <a href="/beheer/aanvragen/">
+          <a href={zietAanvragen ? '/beheer/aanvragen/' : '/beheer/'}>
             <strong>0</strong>
             <span>Geen openstaande punten</span>
           </a>
@@ -61,6 +65,8 @@ const live = snapshot.bron === 'sanity';
     }
   </ul>
 
+  {
+    zietAanvragen && (
   <section class="bh-kaart">
     <h2>Aanvragen die actie vragen</h2>
     {
@@ -94,7 +100,11 @@ const live = snapshot.bron === 'sanity';
       )
     }
   </section>
+    )
+  }
 
+  {
+    zietBoekingen && (
   <section class="bh-kaart">
     <h2>Opties</h2>
     {
@@ -128,7 +138,11 @@ const live = snapshot.bron === 'sanity';
       )
     }
   </section>
+    )
+  }
 
+  {
+    zietAgenda && (
   <section class="bh-kaart">
     <h2>Agenda en intern</h2>
     {
@@ -171,4 +185,6 @@ const live = snapshot.bron === 'sanity';
       )
     }
   </section>
+    )
+  }
 </Beheer>
