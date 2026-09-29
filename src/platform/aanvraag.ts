@@ -9,8 +9,9 @@ import type { AanvraagStatus, GebruikerRechten } from './types.ts';
 import { isDomeinVerantwoordelijke } from './rechten.ts';
 
 export const AANVRAAG_OVERGANGEN: Record<AanvraagStatus, readonly AanvraagStatus[]> = {
-  nieuw: ['in_behandeling', 'goedgekeurd', 'afgewezen', 'gesloten'],
-  in_behandeling: ['goedgekeurd', 'afgewezen', 'gesloten', 'nieuw'],
+  nieuw: ['in_behandeling', 'wacht_op_aanvrager', 'goedgekeurd', 'afgewezen', 'gesloten'],
+  in_behandeling: ['wacht_op_aanvrager', 'goedgekeurd', 'afgewezen', 'gesloten', 'nieuw'],
+  wacht_op_aanvrager: ['in_behandeling', 'goedgekeurd', 'afgewezen', 'gesloten'],
   goedgekeurd: ['gesloten'],
   afgewezen: ['gesloten', 'in_behandeling'],
   gesloten: [],

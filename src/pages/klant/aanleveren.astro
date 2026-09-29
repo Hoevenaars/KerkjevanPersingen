@@ -1,0 +1,108 @@
+---
+export const prerender = false;
+
+import Base from '../../layouts/Base.astro';
+import { operationeelSupabase, voerOperationeel } from '../../lib/operatie/runtime';
+
+const token = Astro.url.searchParams.get('token') ?? '';
+const actief = operationeelSupabase();
+let melding = '';
+let fout = '';
+
+if (Astro.request.method === 'POST' && actief) {
+  const data = await Astro.request.formData();
+  const uit = await voerOperationeel(
+    {
+      soort: 'content_indienen',
+      token: String(data.get('token') ?? ''),
+      titel: String(data.get('titel') ?? '').trim(),
+      omschrijving: String(data.get('omschrijving') ?? '').trim(),
+      praktisch: String(data.get('praktisch') ?? '').trim(),
+      foto: data.get('foto') === 'ja',
+    },
+    {
+      actor: { type: 'klant', naam: 'Aanvrager' },
+      basisUrl: Astro.url.origin,
+    },
+  );
+  if (uit.ok) melding = uit.melding;
+  else fout = uit.melding;
+}
+---
+
+<Base
+  title="Gegevens aanleveren"
+  description="Beveiligde aanlevering voor een activiteit in het Kerkje van Persingen."
+  noindex={true}
+>
+  <article class="wrap prose klant-form">
+    <h1>Gegevens aanleveren</h1>
+    <p>Deze pagina hoort bij één activiteit. Zonder geldige link slaan we niets op.</p>
+    {melding && <p class="klant-ok">{melding}</p>}
+    {fout && <p class="klant-fout">{fout}</p>}
+    {
+      !actief ? (
+        <p>Aanleveren is op deze omgeving nog gesloten.</p>
+      ) : !token && !melding ? (
+        <p>De link is onvolledig.</p>
+      ) : (
+        <form method="post">
+          <input type="hidden" name="token" value={token} />
+          <label for="titel">Publieke titel</label>
+          <input id="titel" name="titel" required />
+          <label for="omschrijving">Omschrijving</label>
+          <textarea id="omschrijving" name="omschrijving" rows="6" required></textarea>
+          <label for="praktisch">Praktische informatie</label>
+          <textarea id="praktisch" name="praktisch" rows="4"></textarea>
+          <label class="klant-check">
+            <input type="checkbox" name="foto" value="ja" />
+            Er is een foto aangeleverd
+          </label>
+          <button type="submit">Verstuur</button>
+        </form>
+      )
+    }
+  </article>
+</Base>
+
+<style>
+  .klant-form {
+    padding-block: 3rem 4rem;
+    max-width: 40rem;
+  }
+  .klant-form form {
+    display: grid;
+    gap: 0.5rem;
+  }
+  .klant-form input,
+  .klant-form textarea {
+    font: inherit;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid #1c1917;
+    background: #fff;
+  }
+  .klant-form button {
+    margin-top: 0.75rem;
+    justify-self: start;
+    font: inherit;
+    padding: 0.7rem 1rem;
+    background: #1c1917;
+    color: #faf7f2;
+    border: 0;
+  }
+  .klant-check {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .klant-ok,
+  .klant-fout {
+    padding: 0.75rem 1rem;
+  }
+  .klant-ok {
+    background: #e7f0e4;
+  }
+  .klant-fout {
+    background: #f6e4dc;
+  }
+</style>

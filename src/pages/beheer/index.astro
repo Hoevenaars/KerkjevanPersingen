@@ -26,6 +26,7 @@ const nieuwe = snapshot.aanvragen.filter((a) => a.status === 'nieuw' || a.status
 const opties = snapshot.boekingen.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');
 const maand = vandaag.slice(0, 7);
 const live = snapshot.bron === 'sanity';
+const supabase = snapshot.bron === 'supabase';
 ---
 
 <Beheer titel="Dashboard">
@@ -35,9 +36,11 @@ const live = snapshot.bron === 'sanity';
       <h1>Dashboard</h1>
       <p class="bh-hint">
         {
-          live
-            ? 'Aandachtspunten uit Sanity. Klik een kaart of een naam — schrijven blijft in Studio.'
-            : 'Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.'
+          supabase
+            ? 'Projectie van de Supabase-dossiers. Dezelfde staat als de keten, niet een aparte dashboardwaarheid.'
+            : live
+              ? 'Aandachtspunten uit Sanity. Klik een kaart of een naam — schrijven blijft in Studio.'
+              : 'Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.'
         }
       </p>
     </div>
@@ -185,6 +188,75 @@ const live = snapshot.bron === 'sanity';
       )
     }
   </section>
+    )
+  }
+
+  {
+    supabase && snapshot.signalen && zietBoekingen && (
+      <>
+        <section class="bh-kaart">
+          <h2>Actie nodig</h2>
+          {snapshot.technisch ? (
+            <p class="bh-flash">Technisch signaal: {snapshot.technisch} verzending wacht op actie na de retrylimiet.</p>
+          ) : (
+            <p class="bh-muted">Geen open technische verzendfout.</p>
+          )}
+          {snapshot.signalen.filter((item) => item.uitkomst === 'actie_vereist').length === 0 ? (
+            <p class="bh-leeg">Geen dossier met open actie.</p>
+          ) : (
+            <ul>
+              {snapshot.signalen
+                .filter((item) => item.uitkomst === 'actie_vereist')
+                .map((signaal) => (
+                  <li>
+                    <a href={`/beheer/boekingen/${encodeURIComponent(signaal.boekingId)}/`}>{signaal.titel}</a>
+                    {signaal.issues[0]
+                      ? ` — ${signaal.issues[0].oorzaak}. ${signaal.issues[0].eigenaar}. ${signaal.issues[0].actie}`
+                      : ''}
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
+        <section class="bh-kaart">
+          <h2>Op schema</h2>
+          {snapshot.signalen.filter((item) => item.uitkomst === 'gereed').length === 0 ? (
+            <p class="bh-leeg">Nog geen dossier dat gereed is.</p>
+          ) : (
+            <ul>
+              {snapshot.signalen
+                .filter((item) => item.uitkomst === 'gereed')
+                .map((signaal) => (
+                  <li>
+                    <a href={`/beheer/boekingen/${encodeURIComponent(signaal.boekingId)}/`}>{signaal.titel}</a>
+                    {' '}
+                    Gereed
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
+        <section class="bh-kaart">
+          <h2>Acties per eigenaar</h2>
+          <p class="bh-muted">Afgeleid uit de readiness van dezelfde dossiers. Er is geen aparte takenlijst.</p>
+          {snapshot.signalen.flatMap((item) => item.issues).length === 0 ? (
+            <p class="bh-leeg">Geen open actie.</p>
+          ) : (
+            <ul>
+              {snapshot.signalen.flatMap((signaal) =>
+                signaal.issues.map((issue) => (
+                  <li>
+                    {issue.eigenaar}: {issue.actie}
+                    {issue.deadline ? ` (deadline ${formatNl(issue.deadline)})` : ''}
+                    {' — '}
+                    <a href={`/beheer/boekingen/${encodeURIComponent(signaal.boekingId)}/`}>{signaal.titel}</a>
+                  </li>
+                )),
+              )}
+            </ul>
+          )}
+        </section>
+      </>
     )
   }
 </Beheer>

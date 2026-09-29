@@ -3,13 +3,21 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { AANVRAAG_LABEL, SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
-import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const id = beheerId(Astro.params.id);
 const aanvraag = snapshot.aanvragen.find((a) => a.id === id);
 
 if (Astro.request.method === 'POST') {
+  const operationeel = await postAlsSupabase({
+    request: Astro.request,
+    url: Astro.url,
+    env: omgevingsRecord(),
+    actor: actorVanSessie(Astro.locals.beheer),
+  });
+  if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
 }
 
@@ -35,6 +43,8 @@ const flash = Astro.url.searchParams.get('demo') === '1';
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {Astro.url.searchParams.get('melding') && <p class="bh-flash">{Astro.url.searchParams.get('melding')}</p>}
+  {Astro.url.searchParams.get('fout') && <p class="bh-flash">{Astro.url.searchParams.get('fout')}</p>}
 
   <div class="bh-split">
     <section class="bh-kaart">
@@ -78,13 +88,25 @@ const flash = Astro.url.searchParams.get('demo') === '1';
     <section class="bh-kaart">
       <h2>Behandeling</h2>
       <p class="bh-muted">
-        Deze knoppen slaan niets op en sturen geen mail. Beoordelen blijft in Sanity Studio tot de cutover.
+        {
+          snapshot.bron === 'supabase'
+            ? 'Goedkeuren maakt een echte optie. Meer informatie zet de aanvraag op wacht op aanvrager.'
+            : 'Deze knoppen slaan niets op en sturen geen mail. Beoordelen blijft in Sanity Studio tot de cutover.'
+        }
       </p>
       <form method="post" class="bh-acties">
         <button class="bh-btn" type="submit" name="actie" value="optie">Zet in optie</button>
         <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="akkoord">Goedkeuren</button>
         <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="weiger">Afwijzen</button>
-        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mail">Mailconcept</button>
+        {
+          snapshot.bron === 'supabase' && (
+            <>
+              <label for="vraag">Vraag aan de aanvrager</label>
+              <input id="vraag" name="vraag" type="text" />
+              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="meer">Meer informatie</button>
+            </>
+          )
+        }
       </form>
     </section>
   </div>

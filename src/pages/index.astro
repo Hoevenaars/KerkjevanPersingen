@@ -2,17 +2,17 @@
 import Base from '../layouts/Base.astro';
 import Button from '../components/Button.astro';
 import MasonMark from '../components/MasonMark.astro';
-import { getAgendaOverzicht, imageUrl, formatDatum, formatDatumBereik } from '../lib/sanity';
+import { getAgendaOverzicht, publiekeFotoUrl, formatDatum, formatDatumBereik } from '../lib/sanity';
 import { isSecondNature, secondNaturePoster } from '../lib/second-nature';
 
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
 const vandaagFoto =
   secondNaturePoster(vandaag) ??
-  (vandaag?.foto ? imageUrl(vandaag.foto, 900, 600) : null) ??
+  (vandaag?.foto ? publiekeFotoUrl(vandaag.foto, 900, 600) : null) ??
   '/foto/geen-foto.jpg';
 const volgendeFoto =
   secondNaturePoster(volgende) ??
-  (volgende?.foto ? imageUrl(volgende.foto, 900, 600) : null) ??
+  (volgende?.foto ? publiekeFotoUrl(volgende.foto, 900, 600) : null) ??
   '/foto/geen-foto.jpg';
 
 const MAX_OMSCHRIJVING = 160;

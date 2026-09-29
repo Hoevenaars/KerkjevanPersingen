@@ -168,7 +168,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   const pad = context.url.pathname;
 
   // Cron heeft een eigen Bearer-secret. Afmelden moet zonder sitewachtwoord (AVG).
-  if (pad.startsWith('/api/cron/') || pad.startsWith('/vrienden/afmelden')) {
+  if (pad.startsWith('/api/cron/') || pad.startsWith('/vrienden/afmelden') || pad.startsWith('/klant/')) {
     return await next();
   }
 
