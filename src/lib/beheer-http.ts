@@ -26,7 +26,11 @@ export function loginRedirect(context: APIContext, nextPad?: string): Response {
   return context.redirect(doel.pathname + doel.search);
 }
 
-export function beheerWeigering(soort: BeheerToegang, alsJson: boolean): Response {
+export function beheerWeigering(
+  soort: BeheerToegang,
+  alsJson: boolean,
+  opties: { previewStop?: boolean } = {},
+): Response {
   const teksten: Record<BeheerToegang, { status: number; titel: string; tekst: string }> = {
     ok: { status: 200, titel: '', tekst: '' },
     login: { status: 401, titel: 'Niet ingelogd', tekst: 'Log in om /beheer te openen.' },
@@ -68,6 +72,14 @@ export function beheerWeigering(soort: BeheerToegang, alsJson: boolean): Respons
     <h1>${keuze.titel}</h1>
     <p>${keuze.tekst}</p>
     <a href="/beheer/">Naar het dashboard</a>
+    ${
+      opties.previewStop
+        ? `<form method="post" action="/api/beheer/view-as" style="margin-top:1rem">
+      <input type="hidden" name="actie" value="stop" />
+      <button type="submit" style="font:inherit;background:#4a5235;color:#faf8f3;border:0;border-radius:4px;padding:.6rem 1rem;cursor:pointer">Terug naar Super Admin</button>
+    </form>`
+        : ''
+    }
   </main>
 </body>
 </html>`,

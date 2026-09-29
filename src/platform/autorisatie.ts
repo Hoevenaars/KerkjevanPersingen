@@ -41,6 +41,11 @@ export function isBeheerPad(pathname: string): boolean {
   return pathname.startsWith('/beheer') || pathname.startsWith('/api/beheer');
 }
 
+/** Wisselen van kijkrol blijft van de echte super admin, ook midden in een preview. */
+export function isViewAsWisselPad(pathname: string): boolean {
+  return normaliseerPad(pathname) === '/api/beheer/view-as';
+}
+
 export function moduleVoorPad(pathname: string): BeheerPadSoort {
   const pad = normaliseerPad(pathname);
   if (isBeheerAuthPad(pad)) return 'auth';

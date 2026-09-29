@@ -7,10 +7,12 @@ import {
   magViewAsStarten,
   nieuweStatusNaDeactiveren,
   nieuweStatusNaReactiveren,
+  pasRolWeergaveToe,
   rechtenVanRijen,
+  type BeheerSessie,
 } from '../src/platform/beheer-sessie.ts';
 import { inviteRechten, matrixVanFormulier, valideerInvite } from '../src/lib/beheer-gebruikers.ts';
-import { REFERENTIE_RECHTEN } from '../src/platform/referentie-gebruikers.ts';
+import { REFERENTIE_RECHTEN, rolWeergaveId } from '../src/platform/referentie-gebruikers.ts';
 
 describe('sessie en view-as', () => {
   test('alleen Super Admin mag View as User starten', () => {
@@ -20,9 +22,42 @@ describe('sessie en view-as', () => {
 
   test('effectieve rechten komen van het doel, actor blijft Super Admin', () => {
     const nick = { isSuperAdmin: true, perModule: {} };
-    const nelleke = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.operationeel };
+    const nelleke = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.nelleke };
     assert.deepEqual(effectieveRechten(nick, nelleke), nelleke);
     assert.equal(nick.isSuperAdmin, true);
+  });
+
+  test('super admin schakelt naar een benoemde rol, een ander account niet', () => {
+    const nick: BeheerSessie = {
+      gebruiker: {
+        id: 'nick',
+        email: 'nick@example.com',
+        naam: 'Nick',
+        functie: null,
+        status: 'active',
+        isSuperAdmin: true,
+        actief: true,
+        lastActiveAt: null,
+      },
+      rechten: { isSuperAdmin: true, perModule: {} },
+      effectieveRechten: { isSuperAdmin: true, perModule: {} },
+      viewAs: null,
+      bron: 'basic',
+    };
+    const alsHans = pasRolWeergaveToe(nick, rolWeergaveId('hans'));
+    assert.equal(alsHans.viewAs?.naam, 'Hans');
+    assert.equal(alsHans.viewAs?.functie, 'hans');
+    assert.equal(alsHans.rechten.isSuperAdmin, true);
+    assert.equal(alsHans.effectieveRechten.isSuperAdmin, false);
+    assert.equal(alsHans.effectieveRechten.perModule.dashboard, 'lezen');
+    assert.equal(alsHans.effectieveRechten.perModule.finance, 'verborgen');
+    assert.equal(pasRolWeergaveToe(nick, 'geen-rol').viewAs, null);
+    const nelleke: BeheerSessie = {
+      ...nick,
+      rechten: { isSuperAdmin: false, perModule: {} },
+      effectieveRechten: { isSuperAdmin: false, perModule: {} },
+    };
+    assert.equal(pasRolWeergaveToe(nelleke, rolWeergaveId('paul')).viewAs, null);
   });
 
   test('last active wordt hooguit eens per vijf minuten ververst', () => {
@@ -39,7 +74,7 @@ describe('sessie en view-as', () => {
   });
 
   test('gewone gebruiker kan zichzelf geen Super Admin maken', () => {
-    const nelleke = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.operationeel };
+    const nelleke = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.nelleke };
     assert.equal(magSuperAdminVlagZetten(nelleke, true, false), false);
     assert.equal(magSuperAdminVlagZetten({ isSuperAdmin: true, perModule: {} }, true, false), true);
   });
@@ -49,18 +84,18 @@ describe('uitnodigen', () => {
   test('weigert ongeldige invoer', () => {
     assert.ok(valideerInvite({ naam: '', email: 'a@b.nl', redirectTo: '/' }));
     assert.ok(valideerInvite({ naam: 'Paul', email: 'geen-mail', redirectTo: '/' }));
-    assert.ok(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'penningmeester', redirectTo: '/' }));
-    assert.equal(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'finance', redirectTo: '/' }), null);
+    assert.ok(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'finance', redirectTo: '/' }));
+    assert.equal(valideerInvite({ naam: 'Paul', email: 'paul@kerkje.nl', functie: 'paul', redirectTo: '/' }), null);
   });
 
-  test('functie vult de bestaande referentierechten, niet een nieuw rollensysteem', () => {
+  test('rol vult de lege startmatrix, zelf ingevulde rechten blijven leidend', () => {
     assert.deepEqual(
-      inviteRechten({ naam: 'Nelleke', email: 'n@x.nl', functie: 'operationeel', redirectTo: '/' }),
-      REFERENTIE_RECHTEN.operationeel,
+      inviteRechten({ naam: 'Nelleke', email: 'n@x.nl', functie: 'nelleke', redirectTo: '/' }),
+      REFERENTIE_RECHTEN.nelleke,
     );
     const eigen = { finance: 'schrijven' as const };
     assert.deepEqual(
-      inviteRechten({ naam: 'Paul', email: 'p@x.nl', functie: 'operationeel', rechten: eigen, redirectTo: '/' }),
+      inviteRechten({ naam: 'Paul', email: 'p@x.nl', functie: 'paul', rechten: eigen, redirectTo: '/' }),
       eigen,
     );
   });

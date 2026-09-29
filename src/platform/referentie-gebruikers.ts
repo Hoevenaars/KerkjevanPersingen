@@ -1,15 +1,16 @@
 /**
- * Referentierechten van de voormalige demo-gebruikers.
- * Alleen als uitgangspunt bij uitnodigen (functie vult de matrix voor).
- * Toegang wordt nooit op deze labels gebaseerd.
+ * Benoemde beheerdersrollen. Maximaal een kleine vaste groep.
+ * De matrix hieronder is bewust leeg (alleen het dashboard): de super admin
+ * richt de echte rechten later per rol in. Toegang volgt die matrix, niet de naam.
  */
 
+import { MODULES } from './modules.ts';
 import type { ModuleSleutel, Rechtniveau } from './types.ts';
 
 export const ACCOUNT_STATUSSEN = ['invited', 'active', 'disabled'] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSSEN)[number];
 
-export const GEBRUIKER_FUNCTIES = ['operationeel', 'finance', 'planning'] as const;
+export const GEBRUIKER_FUNCTIES = ['hans', 'nelleke', 'paul'] as const;
 export type GebruikerFunctie = (typeof GEBRUIKER_FUNCTIES)[number];
 
 export const AUDIT_ACTIES = [
@@ -26,58 +27,35 @@ export type AuditActie = (typeof AUDIT_ACTIES)[number];
 export type RechtenMatrix = Partial<Record<ModuleSleutel, Rechtniveau>>;
 
 export const FUNCTIE_LABELS: Record<GebruikerFunctie, string> = {
-  operationeel: 'Operationeel',
-  finance: 'Finance',
-  planning: 'Planning',
+  hans: 'Hans',
+  nelleke: 'Nelleke',
+  paul: 'Paul',
 };
 
+/** Startpunt tot de super admin de rol zelf inricht. Dashboard blijft zichtbaar zodat je kunt terugschakelen. */
+function legeRol(): RechtenMatrix {
+  const matrix: RechtenMatrix = {};
+  for (const module of MODULES) {
+    matrix[module] = module === 'dashboard' ? 'lezen' : 'verborgen';
+  }
+  return matrix;
+}
+
 export const REFERENTIE_RECHTEN: Record<GebruikerFunctie, RechtenMatrix> = {
-  operationeel: {
-    dashboard: 'lezen',
-    aanvragen: 'schrijven',
-    boekingen: 'schrijven',
-    kalender: 'schrijven',
-    agenda: 'schrijven',
-    planning: 'lezen',
-    finance: 'lezen',
-    nieuwsbrief: 'schrijven',
-    vrienden: 'schrijven',
-    relaties: 'schrijven',
-    templates: 'schrijven',
-    gebruikers: 'verborgen',
-    instellingen: 'lezen',
-  },
-  finance: {
-    dashboard: 'lezen',
-    aanvragen: 'verborgen',
-    boekingen: 'lezen',
-    kalender: 'lezen',
-    agenda: 'verborgen',
-    planning: 'verborgen',
-    finance: 'schrijven',
-    nieuwsbrief: 'verborgen',
-    vrienden: 'verborgen',
-    relaties: 'verborgen',
-    templates: 'verborgen',
-    gebruikers: 'verborgen',
-    instellingen: 'lezen',
-  },
-  planning: {
-    dashboard: 'lezen',
-    aanvragen: 'verborgen',
-    boekingen: 'lezen',
-    kalender: 'lezen',
-    agenda: 'lezen',
-    planning: 'schrijven',
-    finance: 'verborgen',
-    nieuwsbrief: 'verborgen',
-    vrienden: 'verborgen',
-    relaties: 'lezen',
-    templates: 'verborgen',
-    gebruikers: 'verborgen',
-    instellingen: 'lezen',
-  },
+  hans: legeRol(),
+  nelleke: legeRol(),
+  paul: legeRol(),
 };
+
+export function rolWeergaveId(rol: GebruikerFunctie): string {
+  return `rol:${rol}`;
+}
+
+export function rolUitWeergave(waarde: string | null | undefined): GebruikerFunctie | null {
+  if (!waarde?.startsWith('rol:')) return null;
+  const rol = waarde.slice('rol:'.length);
+  return isGebruikerFunctie(rol) ? rol : null;
+}
 
 export function isGebruikerFunctie(waarde: string): waarde is GebruikerFunctie {
   return (GEBRUIKER_FUNCTIES as readonly string[]).includes(waarde);

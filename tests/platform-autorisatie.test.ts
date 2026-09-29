@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   beheerToegang,
   isBeheerAuthPad,
+  isViewAsWisselPad,
   moduleVoorPad,
 } from '../src/platform/autorisatie.ts';
 import { MODULES } from '../src/platform/modules.ts';
@@ -10,9 +11,15 @@ import { REFERENTIE_RECHTEN } from '../src/platform/referentie-gebruikers.ts';
 import type { GebruikerRechten } from '../src/platform/types.ts';
 
 const nick: GebruikerRechten = { isSuperAdmin: true, perModule: {} };
-const nelleke: GebruikerRechten = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.operationeel };
-const paul: GebruikerRechten = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.finance };
-const hans: GebruikerRechten = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.planning };
+const nelleke: GebruikerRechten = {
+  isSuperAdmin: false,
+  perModule: { aanvragen: 'schrijven', gebruikers: 'verborgen', dashboard: 'lezen' },
+};
+const paul: GebruikerRechten = {
+  isSuperAdmin: false,
+  perModule: { aanvragen: 'verborgen', boekingen: 'lezen', finance: 'schrijven' },
+};
+const hans: GebruikerRechten = { isSuperAdmin: false, perModule: REFERENTIE_RECHTEN.hans };
 
 describe('centrale module-registry', () => {
   test('iedere bekende module heeft een href en label', () => {
@@ -37,6 +44,8 @@ describe('route → module', () => {
     assert.equal(moduleVoorPad('/beheer/instellingen/gebruikers/'), 'gebruikers');
     assert.equal(moduleVoorPad('/api/beheer/gebruikers'), 'gebruikers');
     assert.equal(moduleVoorPad('/api/beheer/view-as'), 'gebruikers');
+    assert.equal(isViewAsWisselPad('/api/beheer/view-as'), true);
+    assert.equal(isViewAsWisselPad('/api/beheer/gebruikers'), false);
     assert.equal(moduleVoorPad('/beheer/instellingen/templates/abc/'), 'templates');
     assert.equal(moduleVoorPad('/beheer/instellingen/verhuur/'), 'instellingen');
     assert.equal(moduleVoorPad('/beheer/finance/'), 'finance');
@@ -164,11 +173,11 @@ describe('server-side toegang', () => {
     }
   });
 
-  test('referentierechten van Hans laten planning schrijven en finance verborgen', () => {
+  test('een nog niet ingerichte rol ziet alleen het dashboard', () => {
     assert.equal(
       beheerToegang({
-        methode: 'POST',
-        module: 'planning',
+        methode: 'GET',
+        module: 'dashboard',
         ingelogd: true,
         actief: true,
         rechten: hans,
@@ -180,6 +189,17 @@ describe('server-side toegang', () => {
       beheerToegang({
         methode: 'GET',
         module: 'finance',
+        ingelogd: true,
+        actief: true,
+        rechten: hans,
+        viewAsActief: false,
+      }),
+      'verborgen',
+    );
+    assert.equal(
+      beheerToegang({
+        methode: 'GET',
+        module: 'planning',
         ingelogd: true,
         actief: true,
         rechten: hans,
