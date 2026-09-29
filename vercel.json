@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/nieuwsbrief-verzenden",
       "schedule": "30 9 * * 5"
+    },
+    {
+      "path": "/api/cron/workflow",
+      "schedule": "0 6 * * *"
     }
   ]
 }

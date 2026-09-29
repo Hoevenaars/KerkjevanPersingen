@@ -3,11 +3,19 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { BOEKING_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
-import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { INITIELE_TARIEVEN } from '../../../platform/finance.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 
 if (Astro.request.method === 'POST') {
+  const operationeel = await postAlsSupabase({
+    request: Astro.request,
+    url: Astro.url,
+    env: omgevingsRecord(),
+    actor: actorVanSessie(Astro.locals.beheer),
+  });
+  if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
 }
 
@@ -63,13 +71,22 @@ const tarieven = INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= 
       </tbody>
     </table>
     {
-      openstaand.length > 0 && (
-        <form method="post" class="bh-acties">
-          <button class="bh-btn" type="submit" name="actie" value="check">
-            Markeer aanbetaling binnen (voorbeeld)
-          </button>
-        </form>
-      )
+      snapshot.bron === 'supabase'
+        ? openstaand.map((b) => (
+            <form method="post" class="bh-acties">
+              <input type="hidden" name="boekingId" value={b.id} />
+              <button class="bh-btn" type="submit" name="actie" value="betaling">
+                Aanbetaling binnen voor {b.nummer}
+              </button>
+            </form>
+          ))
+        : openstaand.length > 0 && (
+            <form method="post" class="bh-acties">
+              <button class="bh-btn" type="submit" name="actie" value="check">
+                Markeer aanbetaling binnen (voorbeeld)
+              </button>
+            </form>
+          )
     }
   </section>
 

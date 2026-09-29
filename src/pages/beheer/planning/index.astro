@@ -3,9 +3,17 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { demoNaActie, formatNl } from '../../../platform/demo-data';
-import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 
 if (Astro.request.method === 'POST') {
+  const operationeel = await postAlsSupabase({
+    request: Astro.request,
+    url: Astro.url,
+    env: omgevingsRecord(),
+    actor: actorVanSessie(Astro.locals.beheer),
+  });
+  if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
 }
 

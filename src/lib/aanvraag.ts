@@ -140,6 +140,37 @@ export interface Uitkomst {
 }
 
 export async function verstuurAanvraag(a: Aanvraag): Promise<Uitkomst> {
+  const { huidigeContentBron } = await import('../platform/bron.ts');
+  if (huidigeContentBron() === 'supabase') {
+    const { voerOperationeel } = await import('./operatie/runtime.ts');
+    const uit = await voerOperationeel(
+      {
+        soort: 'dien_aanvraag',
+        naam: a.naam,
+        email: a.email,
+        telefoon: a.telefoon,
+        adres: a.adres,
+        verhuurtype: a.soort,
+        start: a.datum,
+        eind: a.datumTot || a.datum,
+        toelichting: a.toelichting,
+        website: a.website,
+        personen: a.personen,
+      },
+      {
+        actor: { type: 'klant', naam: a.naam },
+        basisUrl: process.env.SITE_URL ?? 'https://kerkjepersingen.nl',
+      },
+    );
+    if (!uit.ok) {
+      return {
+        ok: false,
+        fouten: { algemeen: uit.melding },
+      };
+    }
+    return { ok: true };
+  }
+
   const storing = {
     ok: false,
     fouten: {
