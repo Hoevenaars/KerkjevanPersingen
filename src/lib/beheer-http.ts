@@ -1,22 +1,52 @@
 import type { APIContext } from 'astro';
 import type { BeheerToegang } from '../platform/autorisatie.ts';
 
+const CANONIEKE_OORSPRONGEN = ['https://kerkjepersingen.nl', 'https://www.kerkjepersingen.nl'];
+
+function voegOriginToe(doelen: Set<string>, waarde: string | null | undefined): void {
+  if (!waarde) return;
+  try {
+    doelen.add(new URL(waarde).origin);
+  } catch {
+    /* geen bruikbare url */
+  }
+}
+
+/**
+ * Eigen formulier, ook achter de Vercel-proxy.
+ * Daar is request.url soms een intern adres, terwijl de browser Origin
+ * het publieke domein stuurt. Een vreemde site blijft geweigerd.
+ */
+export function toegestaneOorsprongen(request: Request): Set<string> {
+  const doelen = new Set<string>(CANONIEKE_OORSPRONGEN);
+  voegOriginToe(doelen, request.url);
+
+  const host = request.headers.get('host')?.split(',')[0]?.trim();
+  if (host) {
+    doelen.add(`https://${host}`);
+    doelen.add(`http://${host}`);
+  }
+
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https';
+  if (forwardedHost) doelen.add(`${forwardedProto}://${forwardedHost}`);
+
+  return doelen;
+}
+
 export function zelfdeOorsprong(request: Request): boolean {
   const oorsprong = request.headers.get('origin');
-  if (!oorsprong) {
+  let bron = oorsprong;
+  if (!bron) {
     const referer = request.headers.get('referer');
     if (!referer) return request.method === 'GET' || request.method === 'HEAD';
     try {
-      return new URL(referer).origin === new URL(request.url).origin;
+      bron = new URL(referer).origin;
     } catch {
       return false;
     }
   }
-  try {
-    return oorsprong === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
+  return toegestaneOorsprongen(request).has(bron);
 }
 
 export function loginRedirect(context: APIContext, nextPad?: string): Response {
