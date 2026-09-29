@@ -136,7 +136,6 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
         <div class="bh-user">
           {weergaveNaam}
           {sessie?.rechten.isSuperAdmin && !sessie.viewAs ? ' · Super Admin' : ''}
-          {sessie?.bron === 'basic' ? ' · gedeelde toegang' : ''}
           <form method="post" action="/beheer/uitloggen" class="bh-logout">
             <button type="submit">Uitloggen</button>
           </form>

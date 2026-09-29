@@ -42,7 +42,7 @@ describe('sessie en view-as', () => {
       rechten: { isSuperAdmin: true, perModule: {} },
       effectieveRechten: { isSuperAdmin: true, perModule: {} },
       viewAs: null,
-      bron: 'basic',
+      bron: 'supabase',
     };
     const alsHans = pasRolWeergaveToe(nick, rolWeergaveId('hans'));
     assert.equal(alsHans.viewAs?.naam, 'Hans');

@@ -1,7 +1,7 @@
-# Supabase — beheerplatform (nog niet live)
+# Supabase — beheerplatform
 
-Dit is de databasestructuur voor `/beheer`. De publieke website leest en schrijft
-nog **Sanity**. Niets hier is gekoppeld tot beide vlaggen bewust aan staan:
+`/beheer` logt in via Supabase Auth. De publieke website leest en schrijft
+nog **Sanity**. Content uit Supabase komt pas als beide vlaggen bewust aan staan:
 
 ```text
 CONTENT_BRON=supabase
@@ -10,12 +10,18 @@ ALLOW_SUPABASE_CONTENT=true
 
 Zie `docs/beheer/ARCHITECTUUR.md`.
 
-## Nog geen remote project
+## Remote project
 
-Er is nog geen Supabase-project "Kerkje van Persingen". Schema en seed staan in
-deze map zodat we die in één keer kunnen toepassen zodra het project er is
-(bewuste kostbevestiging). Tot die tijd: live-lezen in `/beheer` + dry-run
-(`npm run migratie:dry-run`) ter voorbereiding van de import.
+Project **Kerkje van Persingen** (`xskqpefeumylrticrphp`, eu-central-1).
+`/beheer/login` gebruikt de publishable key. `SUPABASE_SERVICE_ROLE_KEY` blijft
+in het Vercel-dashboard en is nodig om gebruikers uit te nodigen.
+
+Redirect-URL voor uitnodigingen en wachtwoordherstel, in Authentication → URL
+Configuration:
+
+```text
+https://kerkjepersingen.nl/beheer/auth/callback
+```
 
 ```bash
 npx supabase init          # alleen als config.toml ontbreekt
