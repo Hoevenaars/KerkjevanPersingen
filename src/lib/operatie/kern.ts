@@ -95,6 +95,7 @@ export interface PubliekRij {
   start: string;
   eind: string;
   trigger: PublicatieTrigger;
+  zichtbaarheid?: 'publiek' | 'bezet' | 'verborgen' | null;
   gepubliceerd: boolean;
   inhoudStatus: InhoudStatus;
   praktisch: string;

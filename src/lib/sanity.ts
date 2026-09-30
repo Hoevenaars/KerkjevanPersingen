@@ -1,10 +1,11 @@
+import { createRequire } from 'node:module';
 import { createClient, type SanityClient } from '@sanity/client';
-import imageUrlBuilder from '@sanity/image-url';
 import { SOORTEN, type Aanvraag } from './validatie';
 import { eerstvolgendeVrijeWeekenden, maandagVanWeekIso, type VrijWeekend } from './week';
 import { bezetteKalenderDagen } from './datum';
 import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
 import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
+import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import { noteerSanityOproep } from '../platform/sanity-registratie.ts';
 
 export { maandagVanWeekIso };
@@ -36,28 +37,70 @@ if (client) {
   }) as SanityClient['fetch'];
 }
 
-const builder = client ? imageUrlBuilder(client) : null;
+type ImageChain = {
+  width: (n: number) => ImageChain;
+  height: (n: number) => ImageChain;
+  fit: (mode: string) => ImageChain;
+  format: (mode: string) => ImageChain;
+  quality: (n: number) => ImageChain;
+  url: () => string;
+};
+type ImageBuilder = {
+  image: (source: unknown) => ImageChain;
+};
+
+let builder: ImageBuilder | null | undefined;
+
+/** De builder laadt pas als een Sanity-asset echt geresolveerd wordt.
+ *  Een http(s)- of sitepad in de Supabase-testmodus raakt dit niet. */
+function sanityImageBuilder(): ImageBuilder | null {
+  if (builder !== undefined) return builder;
+  if (!client) {
+    builder = null;
+    return builder;
+  }
+  const require = createRequire(import.meta.url);
+  const geladen = require('@sanity/image-url') as { default?: (c: SanityClient) => ImageBuilder } | ((c: SanityClient) => ImageBuilder);
+  const maak = typeof geladen === 'function' ? geladen : geladen.default;
+  if (!maak) {
+    builder = null;
+    return builder;
+  }
+  builder = maak(client);
+  return builder;
+}
+
+function directeUrl(source: unknown): string | null {
+  return directeFotoUrl(source);
+}
 
 /** Beeldverwerking gebeurt bij Sanity, niet bij het bestuur.
  *  Een staande telefoonfoto van 6 MB komt er als bijgesneden WebP uit. */
 /** Sanity-beeld of, in de Supabase-preview, een directe publieke URL. */
 export function publiekeFotoUrl(source: unknown, width = 1200, height?: number): string | null {
-  if (typeof source === 'string' && /^https?:\/\//.test(source)) return source;
+  const direct = directeUrl(source);
+  if (direct) return direct;
   return imageUrl(source, width, height);
 }
 
 export function imageUrl(source: unknown, width = 1200, height?: number): string | null {
-  if (!builder || !source) return null;
-  let url = builder.image(source as never).width(width).format('webp').quality(78);
+  const direct = directeUrl(source);
+  if (direct) return direct;
+  const actief = sanityImageBuilder();
+  if (!actief || !source) return null;
+  let url = actief.image(source).width(width).format('webp').quality(78);
   if (height) url = url.height(height).fit('crop');
   return url.url();
 }
 
 /** JPEG i.p.v. WebP: Outlook en sommige webmail tonen WebP niet. */
 export function mailImageUrl(source: unknown, width = 1120, height = 560): string | null {
-  if (!builder || !source) return null;
-  return builder
-    .image(source as never)
+  const direct = directeUrl(source);
+  if (direct) return direct;
+  const actief = sanityImageBuilder();
+  if (!actief || !source) return null;
+  return actief
+    .image(source)
     .width(width)
     .height(height)
     .fit('crop')
@@ -444,21 +487,22 @@ function magAlGetoondWorden(a: Activiteit): boolean {
  */
 export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
   const { huidigeContentBron } = await import('../platform/bron.ts');
+  let lijst: Activiteit[];
   if (huidigeContentBron() === 'supabase') {
     const { publiekeActiviteiten } = await import('./operatie/runtime.ts');
-    const lijst = await publiekeActiviteiten();
-    return lijst.slice(0, limit);
-  }
-  const resultaat = await veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && zichtbaarheid == "publiek"
+    lijst = (await publiekeActiviteiten()).filter(magAlGetoondWorden);
+  } else {
+    const resultaat = await veiligeQuery<Activiteit>(
+      `*[_type == "activiteit" && zichtbaarheid == "publiek"
        && (
          (defined(eind) && eind >= $cutoff) ||
          (!defined(eind) && start >= $cutoff)
        )
      ] | order(start asc) [0...$limit] { ${ACTIVITEIT_VELDEN} }`,
-    { cutoff: cutoffVandaag(), limit }
-  );
-  const lijst = kiesGepubliceerdeActiviteit(resultaat).filter(magAlGetoondWorden);
+      { cutoff: cutoffVandaag(), limit }
+    );
+    lijst = kiesGepubliceerdeActiviteit(resultaat).filter(magAlGetoondWorden);
+  }
 
   const { SECOND_NATURE } = await import('./second-nature.ts');
   const cutoff = cutoffVandaag();
@@ -539,7 +583,10 @@ export async function getActiviteitBySlug(slug: string): Promise<Activiteit | nu
   const { huidigeContentBron } = await import('../platform/bron.ts');
   if (huidigeContentBron() === 'supabase') {
     const { activiteitOpSlug } = await import('./operatie/runtime.ts');
-    return activiteitOpSlug(slug);
+    const gevonden = await activiteitOpSlug(slug);
+    if (gevonden && magAlGetoondWorden(gevonden)) return gevonden;
+    const { secondNatureFallback } = await import('./second-nature.ts');
+    return secondNatureFallback(slug);
   }
   const rij = await veiligeQuery<Activiteit>(
     `*[_type == "activiteit" && zichtbaarheid == "publiek" && slug.current == $slug][0...1]
