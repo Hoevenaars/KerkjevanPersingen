@@ -1,6 +1,7 @@
 /**
- * Verhuuraanvraag in expliciete testmodus (?bron=supabase).
- * Schrijft naar Supabase en stuurt geen mail. De gewone route blijft Sanity.
+ * Verhuuraanvraag op Supabase. Geen mail en geen Sanity-write.
+ * Dedup zit in bewaar_test_aanvraag: hetzelfde e-mailadres en dezelfde startdatum
+ * levert geen tweede rij op zolang de bestaande aanvraag niet is afgewezen.
  */
 
 import { createClient } from '@supabase/supabase-js';

@@ -9,12 +9,10 @@ import {
   leesFormulier,
   valideer,
   weekendWaarschuwing,
-  verstuurAanvraag,
   teVaak,
   type Aanvraag,
   type Fouten,
 } from '../../../lib/aanvraag';
-import { getBezetteData } from '../../../lib/sanity';
 import { bezettingVoorTest, bewaarTestAanvraag } from '../../../lib/aanvraag-test';
 import { bezetteKalenderDagen } from '../../../lib/datum';
 
@@ -39,8 +37,7 @@ if (soortVooraf && GELDIGE_SOORTEN.includes(soortVooraf as never)) {
   waarden.soort = soortVooraf;
 }
 
-const testmodus = Astro.url.searchParams.get('bron') === 'supabase';
-const bezet = testmodus ? await bezettingVoorTest() : await getBezetteData();
+const bezet = await bezettingVoorTest();
 const bezetteDagen = bezetteKalenderDagen(bezet);
 
 const nu = new Date();
@@ -100,9 +97,7 @@ if (Astro.request.method === 'POST') {
       }
 
       if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {
-        const uitkomst = testmodus
-          ? await bewaarTestAanvraag(waarden, Astro.url.searchParams.get('mailjob') === '1')
-          : await verstuurAanvraag(waarden);
+        const uitkomst = await bewaarTestAanvraag(waarden, false);
         if (uitkomst.ok) {
           return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
         }
@@ -166,7 +161,7 @@ const vandaag = new Date().toISOString().split('T')[0];
       )
     }
 
-    <form method="POST" action={testmodus ? '/verhuur/aanvragen/?bron=supabase' : '/verhuur/aanvragen/'}>
+    <form method="POST" action="/verhuur/aanvragen/">
       <div class="veld">
         <label for="soort">Wat voor bijeenkomst wordt het?</label>
         <select

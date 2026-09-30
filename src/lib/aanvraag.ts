@@ -1,5 +1,3 @@
-import { Resend } from 'resend';
-import { getOntvangstAdres, getExtraOntvangstAdres, bewaarAanvraag } from './sanity';
 import { SOORTEN, type Aanvraag, type Fouten } from './validatie';
 
 /**
@@ -140,95 +138,6 @@ export interface Uitkomst {
 }
 
 export async function verstuurAanvraag(a: Aanvraag): Promise<Uitkomst> {
-  const { huidigeContentBron } = await import('../platform/bron.ts');
-  if (huidigeContentBron() === 'supabase') {
-    const { voerOperationeel } = await import('./operatie/runtime.ts');
-    const uit = await voerOperationeel(
-      {
-        soort: 'dien_aanvraag',
-        naam: a.naam,
-        email: a.email,
-        telefoon: a.telefoon,
-        adres: a.adres,
-        verhuurtype: a.soort,
-        start: a.datum,
-        eind: a.datumTot || a.datum,
-        toelichting: a.toelichting,
-        website: a.website,
-        personen: a.personen,
-      },
-      {
-        actor: { type: 'klant', naam: a.naam },
-        basisUrl: process.env.SITE_URL ?? 'https://kerkjepersingen.nl',
-      },
-    );
-    if (!uit.ok) {
-      return {
-        ok: false,
-        fouten: { algemeen: uit.melding },
-      };
-    }
-    return { ok: true };
-  }
-
-  const storing = {
-    ok: false,
-    fouten: {
-      algemeen: `Verzenden lukt nu niet. Bel ${TELEFOON}, dan pakken we het direct op.`,
-    },
-  };
-
-  const apiKey = process.env.RESEND_API_KEY ?? import.meta.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.error('[aanvraag] RESEND_API_KEY ontbreekt — aanvraag niet verstuurd', {
-      naam: a.naam,
-      datum: a.datum,
-    });
-    return storing;
-  }
-
-  const naar = await getOntvangstAdres();
-  if (!naar) {
-    console.error('[aanvraag] geen ontvangstadres beschikbaar, ook geen fallback');
-    return storing;
-  }
-
-  const resend = new Resend(apiKey);
-  const bcc = process.env.CONTACT_BCC_EMAIL ?? import.meta.env.CONTACT_BCC_EMAIL;
-  const extra = await getExtraOntvangstAdres();
-  const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
-
-  try {
-    const { error } = await resend.emails.send({
-      from: VAN,
-      to: extra ? [naar, extra] : [naar],
-      bcc: bcc ? [bcc] : undefined,
-      replyTo: a.email,
-      subject: `Huuraanvraag ${soort} — ${datumBereik(a)}`,
-      html: bestuurMail(a),
-    });
-
-    if (error) {
-      console.error('[aanvraag] Resend gaf een fout', error);
-      return storing;
-    }
-  } catch (e) {
-    console.error('[aanvraag] verzenden naar bestuur mislukt', e);
-    return storing;
-  }
-
-  try {
-    await resend.emails.send({
-      from: VAN,
-      to: [a.email],
-      subject: 'Je aanvraag voor het Kerkje van Persingen',
-      html: bevestigingMail(a),
-    });
-  } catch (e) {
-    console.error('[aanvraag] bevestigingsmail mislukt, aanvraag zelf is wel verstuurd', e);
-  }
-
-  await bewaarAanvraag(a);
-
-  return { ok: true };
+  const { bewaarTestAanvraag } = await import('./aanvraag-test.ts');
+  return bewaarTestAanvraag(a, false);
 }

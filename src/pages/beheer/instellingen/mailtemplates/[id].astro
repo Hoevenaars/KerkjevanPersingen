@@ -15,6 +15,7 @@ import { VOORBEELD_VARIABELEN } from '../../../../platform/mailtemplates/voorbee
 import { beheerId } from '../../../../platform/beheer-bron.ts';
 import { verstuurTestMail } from '../../../../lib/mailtemplate-verzending.ts';
 import { gekoppeldeSupabaseClient } from '../../../../platform/sanity-registratie.ts';
+import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
 import {
   bewaarMailtemplateInSupabase,
   laadMailtemplateUitSupabase,
@@ -25,7 +26,7 @@ import type { MailTemplateDef } from '../../../../platform/mailtemplates/types.t
 const id = beheerId(Astro.params.id);
 const sessie = Astro.locals.beheer;
 const gebruiker = sessie?.gebruiker.email ?? sessie?.gebruiker.naam ?? 'beheerder';
-const supabaseTest = Astro.url.searchParams.get('bron') === 'supabase';
+const supabaseTest = Astro.url.searchParams.get('bron') !== 'demo';
 
 let melding = '';
 let fout = '';
@@ -63,7 +64,7 @@ function formulierNaarTemplate(huidig: MailTemplateDef, form: FormData): MailTem
 if (Astro.request.method === 'POST' && supabaseTest) {
   const form = await Astro.request.formData();
   const actie = String(form.get('actie') ?? '');
-  const client = gekoppeldeSupabaseClient();
+  const client = gekoppeldeSupabaseClient() ?? maakBeheerAdminClient();
   if (!client) {
     fout = 'Geen Supabase-sessie. Er is niets naar de code-catalogus geschreven.';
   } else if (actie === 'testmail') {
@@ -163,7 +164,7 @@ if (Astro.request.method === 'POST' && supabaseTest) {
 let template;
 let versies: { versie: number; opgeslagenOp: string; gebruiker: string }[] = [];
 if (supabaseTest) {
-  const client = gekoppeldeSupabaseClient();
+  const client = gekoppeldeSupabaseClient() ?? maakBeheerAdminClient();
   if (!client) {
     fout = fout || 'Geen Supabase-sessie. De code-catalogus wordt niet geladen.';
     return new Response(fout, { status: 503, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });

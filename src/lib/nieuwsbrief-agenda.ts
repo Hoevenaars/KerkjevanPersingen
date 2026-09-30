@@ -1,18 +1,15 @@
-import {
-  formatDatumBereik,
-  mailImageUrl,
-  type Activiteit,
-  type AgendaOverzicht,
-  type VriendFrequentie,
-} from './sanity';
+import type { Activiteit, AgendaOverzicht } from './sanity';
+import type { VriendFrequentie } from './nieuwsbrief-frequentie.ts';
+import { formatDatumBereik } from './datum.ts';
+import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import {
   activiteitRaaktWeekend,
   komendWeekend,
   kopAgendaBlok,
-} from './week';
-import { filterActiviteitenInPeriode } from './nieuwsbrief-frequentie';
-import { secondNaturePoster } from './second-nature';
-import { SFEER_URL, type NieuwsbriefActiviteitBlok } from './nieuwsbrief-html';
+} from './week.ts';
+import { filterActiviteitenInPeriode } from './nieuwsbrief-frequentie.ts';
+import { secondNaturePoster } from './second-nature.ts';
+import { SFEER_URL, type NieuwsbriefActiviteitBlok } from './nieuwsbrief-html.ts';
 
 function kiesActiviteit(
   agenda: AgendaOverzicht,
@@ -31,7 +28,7 @@ function kiesActiviteit(
 }
 
 function naarActiviteitBlok(activiteit: Activiteit, kop: string): NieuwsbriefActiviteitBlok {
-  const cmsFoto = mailImageUrl(activiteit.foto, 1120, 560);
+  const cmsFoto = directeFotoUrl(activiteit.foto);
   return {
     titel: activiteit.publiekeTitel || activiteit.interneTitel,
     datumTekst: formatDatumBereik(activiteit),

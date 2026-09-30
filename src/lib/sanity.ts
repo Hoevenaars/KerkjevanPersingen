@@ -1,10 +1,8 @@
 import { createRequire } from 'node:module';
 import { createClient, type SanityClient } from '@sanity/client';
 import { SOORTEN, type Aanvraag } from './validatie';
-import { eerstvolgendeVrijeWeekenden, maandagVanWeekIso, type VrijWeekend } from './week';
-import { bezetteKalenderDagen } from './datum';
+import { maandagVanWeekIso, type VrijWeekend } from './week';
 import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
-import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
 import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import { noteerSanityOproep } from '../platform/sanity-registratie.ts';
 
@@ -398,60 +396,6 @@ export interface Activiteit {
   aangeleverdeFoto?: unknown;
 }
 
-const ACTIVITEIT_VELDEN = `
-  _id,
-  _originalId,
-  "slug": slug.current,
-  interneTitel,
-  publiekeTitel,
-  start,
-  eind,
-  soort,
-  zichtbaarheid,
-  omschrijving,
-  kunstenaars,
-  foto,
-  fotoAlt,
-  toonVanafMaanden,
-  contentStatus,
-  aangeleverdeTekst,
-  aangeleverdeFoto
-`;
-
-/**
- * 02_CODING_STANDARDS.md §6: nooit silent fail, maar een storing bij Sanity mag de
- * hele pagina niet neerhalen. Bij een fout krijg je een lege agenda plus een log —
- * het leeg-scenario op de landingspagina vangt dat visueel netjes op.
- */
-async function veiligeQuery<T>(
-  query: string,
-  params: Record<string, unknown> = {},
-  opties: { perspective?: 'published' | 'raw' | 'previewDrafts' } = {},
-): Promise<T[]> {
-  if (!client) return [];
-  try {
-    const bron = opties.perspective
-      ? client.withConfig({ perspective: opties.perspective })
-      : client;
-    return await bron.fetch<T[]>(query, params);
-  } catch (error) {
-    console.error('[sanity] query mislukt', { query, error });
-    return [];
-  }
-}
-
-/**
- * Start van vandaag (00:00 UTC), niet het exacte huidige moment.
- *
- * Reden: met `start >= now()` verdween een activiteit uit beeld zodra de klok voorbij
- * de starttijd was, ook al liep hij die dag nog gewoon door. Deze cutoff houdt een
- * activiteit de hele dag zichtbaar, ongeacht hoe laat hij begon.
- */
-function cutoffVandaag(): string {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
-}
-
 function startVanDag(iso: string): number {
   const d = new Date(iso);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -464,61 +408,10 @@ function loopVandaag(a: Activiteit, vandaag: number): boolean {
   return start <= vandaag && vandaag <= eind;
 }
 
-/**
- * Is deze activiteit al "aan de beurt" om getoond te worden, gezien
- * toonVanafMaanden? Zonder die instelling: altijd ja. Rekent in hele maanden
- * vanaf vandaag — geen kalenderprecisie tot op de dag nodig voor dit doel.
- */
-function magAlGetoondWorden(a: Activiteit): boolean {
-  if (!a.toonVanafMaanden) return true;
-  const maanden = Number(a.toonVanafMaanden);
-  if (!maanden) return true;
-
-  const start = new Date(a.start);
-  const drempel = new Date(start);
-  drempel.setUTCMonth(drempel.getUTCMonth() - maanden);
-
-  return new Date() >= drempel;
-}
-
-/**
- * Publieke agenda: alles wat nog relevant is — lopend of toekomstig — én al
- * "aan de beurt" is volgens toonVanafMaanden.
- */
+/** Publieke agenda via Supabase. ToonVanafMaanden filtert in publiek-lezen. */
 export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
-  const { huidigeContentBron } = await import('../platform/bron.ts');
-  let lijst: Activiteit[];
-  if (huidigeContentBron() === 'supabase') {
-    const { publiekeActiviteiten } = await import('./operatie/runtime.ts');
-    lijst = (await publiekeActiviteiten()).filter(magAlGetoondWorden);
-  } else {
-    const resultaat = await veiligeQuery<Activiteit>(
-      `*[_type == "activiteit" && zichtbaarheid == "publiek"
-       && (
-         (defined(eind) && eind >= $cutoff) ||
-         (!defined(eind) && start >= $cutoff)
-       )
-     ] | order(start asc) [0...$limit] { ${ACTIVITEIT_VELDEN} }`,
-      { cutoff: cutoffVandaag(), limit }
-    );
-    lijst = kiesGepubliceerdeActiviteit(resultaat).filter(magAlGetoondWorden);
-  }
-
-  const { SECOND_NATURE } = await import('./second-nature.ts');
-  const cutoff = cutoffVandaag();
-  const secondNatureRelevant =
-    (SECOND_NATURE.eind && SECOND_NATURE.eind >= cutoff) ||
-    (!SECOND_NATURE.eind && SECOND_NATURE.start >= cutoff);
-  if (
-    secondNatureRelevant &&
-    magAlGetoondWorden(SECOND_NATURE) &&
-    !lijst.some((a) => a.slug === SECOND_NATURE.slug)
-  ) {
-    lijst.push(SECOND_NATURE);
-    lijst.sort((a, b) => a.start.localeCompare(b.start));
-  }
-
-  return lijst.slice(0, limit);
+  const { leesPubliekeAgenda } = await import('./publiek-lezen.ts');
+  return leesPubliekeAgenda(limit);
 }
 
 /** Beschikbaarheidskalender: alleen gepubliceerde bezetting plus de publieke agenda.
@@ -527,30 +420,8 @@ export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
  *  terwijl Studio en de agenda leeg waren. Geen fallback naar raw: dat haalt
  *  dezelfde concepten terug. Publieke concepten blijven bezet via de agenda. */
 export async function getBezetteData(): Promise<Activiteit[]> {
-  const { huidigeContentBron } = await import('../platform/bron.ts');
-  if (huidigeContentBron() === 'supabase') {
-    const { bezetteActiviteiten, publiekeActiviteiten } = await import('./operatie/runtime.ts');
-    const [bezet, agenda] = await Promise.all([bezetteActiviteiten(), publiekeActiviteiten()]);
-    return [...bezet, ...agenda];
-  }
-  const groq = `*[_type == "activiteit" && defined(start) && zichtbaarheid != "verborgen"
-     && !(_id in path("drafts.**")) && !(_id in path("versions.**"))]
-   | order(start asc) { ${ACTIVITEIT_VELDEN} }`;
-  const [gepubliceerd, agenda] = await Promise.all([
-    veiligeQuery<Activiteit>(groq, {}, { perspective: 'published' }),
-    getPubliekeAgenda(50),
-  ]);
-
-  const gekozen = mergeKalenderBronnen(
-    activiteitenVoorKalender(gepubliceerd),
-    agenda,
-  );
-
-  const { SECOND_NATURE } = await import('./second-nature.ts');
-  if (!gekozen.some((item) => item.slug === SECOND_NATURE.slug)) {
-    gekozen.push(SECOND_NATURE);
-  }
-  return gekozen;
+  const { leesBezetteData } = await import('./publiek-lezen.ts');
+  return leesBezetteData();
 }
 
 export interface AgendaOverzicht {
@@ -580,26 +451,8 @@ export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
 }
 
 export async function getActiviteitBySlug(slug: string): Promise<Activiteit | null> {
-  const { huidigeContentBron } = await import('../platform/bron.ts');
-  if (huidigeContentBron() === 'supabase') {
-    const { activiteitOpSlug } = await import('./operatie/runtime.ts');
-    const gevonden = await activiteitOpSlug(slug);
-    if (gevonden && magAlGetoondWorden(gevonden)) return gevonden;
-    const { secondNatureFallback } = await import('./second-nature.ts');
-    return secondNatureFallback(slug);
-  }
-  const rij = await veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && zichtbaarheid == "publiek" && slug.current == $slug][0...1]
-     { ${ACTIVITEIT_VELDEN} }`,
-    { slug }
-  );
-  const gevonden = kiesGepubliceerdeActiviteit(rij)[0] ?? null;
-  // Ook een direct-URL-bezoek respecteert toonVanafMaanden — anders zou een
-  // vroegtijdig ingevoerde activiteit alsnog vindbaar zijn via een geraden link.
-  if (gevonden && magAlGetoondWorden(gevonden)) return gevonden;
-
-  const { secondNatureFallback } = await import('./second-nature.ts');
-  return secondNatureFallback(slug);
+  const { leesActiviteitOpSlug } = await import('./publiek-lezen.ts');
+  return leesActiviteitOpSlug(slug);
 }
 
 /**
@@ -608,8 +461,8 @@ export async function getActiviteitBySlug(slug: string): Promise<Activiteit | nu
  * onverwacht een dag vrijkomt, staat dat weekend meteen weer in de lijst.
  */
 export async function getEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWeekend[]> {
-  const bezet = await getBezetteData();
-  return eerstvolgendeVrijeWeekenden(bezetteKalenderDagen(bezet), aantal);
+  const { leesEerstvolgendeVrijeWeekenden } = await import('./publiek-lezen.ts');
+  return leesEerstvolgendeVrijeWeekenden(aantal);
 }
 
 /**

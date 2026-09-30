@@ -161,7 +161,7 @@ export async function leesSupabaseBeheer(
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
     lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving'),
-    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id'),
+    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
     lees(client, 'tarieven', 'id,verhuurtype_sleutel,prijstype,bedrag,geldig_vanaf,geldig_tot,toelichting'),
   ]);
@@ -246,14 +246,14 @@ export async function leesSupabaseBeheer(
   }));
 
   const banner = opties.testmodus
-    ? 'Supabase-testmodus. Lezen komt uit Supabase, zonder terugval naar Sanity. Boekingen en betalingen blijven alleen-lezen en er gaat geen mail uit. CONTENT_BRON is niet gewijzigd.'
+    ? 'Beheer leest Supabase, zonder terugval naar Sanity of voorbeelddata. CONTENT_BRON blijft sanity. Er gaat geen mail uit.'
     : 'Supabase is de operationele bron. Sanity en de productiesite worden niet vanuit deze leesactie beschreven.';
 
   return {
     bron: 'supabase',
     banner,
     reden: opties.testmodus
-      ? 'Expliciete testmodus via ?bron=supabase. CONTENT_BRON is niet gewijzigd.'
+      ? 'Normale /beheer-runtime op Supabase. CONTENT_BRON is niet gewijzigd.'
       : 'CONTENT_BRON is supabase.',
     aanvragen: aanvraagRijen.map((rij) => ({
       id: tekst(rij.id),
@@ -270,6 +270,8 @@ export async function leesSupabaseBeheer(
       binnengekomen: tekst(rij.binnengekomen_op).slice(0, 10),
       website: tekst(rij.website),
       boekingId: rij.boeking_id == null ? undefined : tekst(rij.boeking_id),
+      afwijsreden: tekst(rij.afwijsreden),
+      relatieId: rij.relatie_id == null ? undefined : tekst(rij.relatie_id),
     })),
     boekingen,
     agenda: agendaRijen.map((rij) => ({

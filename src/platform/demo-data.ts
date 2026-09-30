@@ -21,6 +21,8 @@ export interface DemoAanvraag {
   binnengekomen: string;
   website?: string;
   boekingId?: string;
+  afwijsreden?: string;
+  relatieId?: string;
 }
 
 export interface DemoBoeking {

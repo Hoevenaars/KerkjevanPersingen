@@ -6,9 +6,10 @@ import { demoNaActie } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { bewaarInstellingen } from '../../../platform/beheer-supabase-schrijf.ts';
 import { gekoppeldeSupabaseClient } from '../../../platform/sanity-registratie.ts';
+import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
 import { standaardBronnen } from '../../../platform/bron.ts';
 
-const supabaseTest = Astro.url.searchParams.get('bron') === 'supabase';
+const supabaseTest = Astro.url.searchParams.get('bron') !== 'demo';
 let schrijfFout = '';
 
 if (Astro.request.method === 'POST') {
@@ -16,7 +17,7 @@ if (Astro.request.method === 'POST') {
     return Astro.redirect(demoNaActie(Astro.url));
   }
   const form = await Astro.request.formData();
-  const client = gekoppeldeSupabaseClient();
+  const client = gekoppeldeSupabaseClient() ?? maakBeheerAdminClient();
   if (!client) {
     schrijfFout = 'Geen Supabase-sessie. Instellingen zijn niet opgeslagen en er is niet teruggeschreven naar Sanity.';
   } else {

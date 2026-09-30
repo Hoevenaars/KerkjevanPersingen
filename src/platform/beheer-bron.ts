@@ -1,11 +1,9 @@
 /**
- * Databron voor /beheer: live Sanity (alleen lezen) of voorbeelddata.
- *
- * Live data alleen als Sanity geconfigureerd is én Supabase-login aan staat.
+ * Databron voor /beheer: Supabase. CONTENT_BRON blijft sanity.
+ * Voorbeelddata alleen via ?bron=demo. Geen Sanity-fallback.
  */
 
 import { supabaseLoginUitOmgeving, STANDAARD_SUPER_ADMIN_EMAIL, STANDAARD_SUPABASE_PUBLISHABLE_KEY, STANDAARD_SUPABASE_URL } from '../lib/supabase-project.ts';
-import { huidigeContentBron } from './bron.ts';
 import { ymdInAmsterdam } from './datum.ts';
 import { leesSupabaseBeheer, supabaseFoutSnapshot, type SupabaseLeesClient } from './beheer-supabase-lees.ts';
 import { bewaarRequestSnapshot, gekoppeldeSupabaseClient, leesRequestSnapshot } from './sanity-registratie.ts';
@@ -35,7 +33,7 @@ import {
   type DemoTemplate,
   type DemoVriend,
 } from './demo-data.ts';
-import { transformSanityDump, type MigratieResultaat } from './migratie-transform.ts';
+import type { MigratieResultaat } from './migratie-transform.ts';
 import { laadMailtemplates, mailtemplatesNaarDemo } from './mailtemplates/index.ts';
 
 export type BeheerBronSoort = 'demo' | 'sanity' | 'supabase';
@@ -177,10 +175,10 @@ export async function laadBeheerSnapshot(opties: {
   const gekozen = opties.url?.searchParams.get('bron');
   const forceDemo = opties.forceDemo === true || gekozen === 'demo';
   const forceSupabase = gekozen === 'supabase';
-  const sleutel = forceDemo ? 'demo' : forceSupabase ? 'supabase-test' : huidigeContentBron(env);
-  const key = `${sleutel}:${String(env.SANITY_PROJECT_ID ?? '')}`;
+  const sleutel = forceDemo ? 'demo' : 'supabase';
+  const key = sleutel;
   const nu = Date.now();
-  if (!forceSupabase && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
+  if (!forceDemo && !forceSupabase && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
 
   const client = opties.client ?? gekoppeldeSupabaseClient();
   if (forceSupabase) {
@@ -208,42 +206,14 @@ async function laadBeheerSnapshotOngecached(opties: {
   forceSupabase: boolean;
   client: SupabaseLeesClient | null;
 }): Promise<BeheerSnapshot> {
-  if (opties.forceSupabase) {
-    try {
-      return await supabaseTestSnapshot(opties.env, opties.client);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : 'onbekende fout';
-      return supabaseFoutSnapshot(detail);
-    }
-  }
   if (opties.forceDemo) {
     return demoSnapshot('Voorbeelddata — bewust gekozen via ?bron=demo.');
   }
-  if (huidigeContentBron(opties.env) === 'supabase') {
-    try {
-      const { beheerSnapshotUitSupabase } = await import('../lib/operatie/runtime.ts');
-      return await beheerSnapshotUitSupabase(opties.env);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : 'onbekende fout';
-      return supabaseFoutSnapshot(detail);
-    }
-  }
-  if (!magLiveSanityLezen(opties.env)) {
-    const heeftProject = String(opties.env.SANITY_PROJECT_ID ?? '').trim().length > 0;
-    const reden = heeftProject
-      ? 'Sanity is geconfigureerd, maar Supabase-login staat nog niet aan. Voorbeelddata blijft staan.'
-      : 'Geen Sanity-project in deze omgeving — voorbeelddata.';
-    return demoSnapshot(reden);
-  }
-
   try {
-    const { haalSanityDump } = await import('../lib/sanity-beheer.ts');
-    const dump = await haalSanityDump(opties.env);
-    return snapshotVanMigratie(transformSanityDump(dump));
+    return await supabaseTestSnapshot(opties.env, opties.client);
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'onbekende fout';
-    console.error('[beheer] Sanity-dump mislukt, val terug op voorbeelddata', error);
-    return demoSnapshot(`Sanity kon niet worden gelezen (${detail}). Voorbeelddata als vangnet.`);
+    return supabaseFoutSnapshot(detail);
   }
 }
 

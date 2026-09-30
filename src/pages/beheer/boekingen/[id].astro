@@ -15,6 +15,7 @@ import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.t
 import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import { gekoppeldeSupabaseClient } from '../../../platform/sanity-registratie.ts';
+import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
 
@@ -45,7 +46,7 @@ const opgeslagen = snapshot.bron === 'supabase' ? [] : await laadCommunicatieVoo
 const templates =
   snapshot.bron === 'supabase'
     ? await (async () => {
-        const client = gekoppeldeSupabaseClient();
+        const client = gekoppeldeSupabaseClient() ?? maakBeheerAdminClient();
         return client ? laadMailtemplatesUitSupabase(client) : [];
       })()
     : await laadMailtemplates();
