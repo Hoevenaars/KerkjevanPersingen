@@ -6,6 +6,9 @@ import {
   STANDAARD_AUTOMATISERINGEN,
   auditregel,
   isStatus,
+  gekoppeldeFlow,
+  kanExternVersturen,
+  magAutomatiseringUitvoeren,
   planStatuswijziging,
   statusLabel,
   type Automatisering,
@@ -152,9 +155,11 @@ const groepen = [
           <thead>
             <tr>
               <th>Naam</th>
-              <th>Trigger aanwezig</th>
-              <th>Ontvanger</th>
               <th>Status</th>
+              <th>Trigger</th>
+              <th>Flow</th>
+              <th>Provider</th>
+              <th>Extern</th>
               <th>Laatste run</th>
               <th></th>
             </tr>
@@ -164,14 +169,17 @@ const groepen = [
               <tr>
                 <td>
                   <strong>{item.naam}</strong>
+                  <div class="bh-muted">{item.sleutel}</div>
                   <div class="bh-muted">{item.omschrijving}</div>
                 </td>
+                <td>{statusLabel(item.status)}</td>
                 <td>
                   {item.actieveTrigger ? 'Ja' : 'Nee'}
                   <div class="bh-muted">{item.actieveTrigger ? item.trigger : 'Geen actieve trigger'}</div>
                 </td>
-                <td>{item.ontvangerstype}</td>
-                <td>{statusLabel(item.status)}</td>
+                <td>{gekoppeldeFlow(item.sleutel)}</td>
+                <td>{magAutomatiseringUitvoeren(item.sleutel, lijst).provider ? 'Ja' : 'Nee'}</td>
+                <td>{kanExternVersturen(item, lijst) ? 'Ja' : 'Nee'}</td>
                 <td>
                   {item.laatsteRun ? item.laatsteRun.slice(0, 16).replace('T', ' ') : '—'}
                   {item.laatsteResultaat ? <div class="bh-muted">{item.laatsteResultaat}</div> : null}

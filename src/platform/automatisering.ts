@@ -327,6 +327,85 @@ export const TEMPLATE_AUTOMATISERING: Record<string, string> = {
   optie_verlopen_contractbeheerder: 'workflow',
 };
 
+/**
+ * Verdeling van de 40 communicatie_templates:
+ * 19 met een echte caller, 8 alleen in de catalogus, 13 legacy of duplicaat.
+ */
+export const TEMPLATES_MET_CALLER = [
+  'booking_request_received',
+  'internal_booking_review_required',
+  'booking_request_rejected',
+  'booking_more_information_requested',
+  'booking_approved_payment_required',
+  'booking_confirmed',
+  'booking_payment_reminder',
+  'booking_payment_final_reminder',
+  'internal_payment_overdue',
+  'booking_content_request',
+  'booking_content_reminder',
+  'internal_content_overdue',
+  'booking_practical_information',
+  'booking_final_instructions',
+  'booking_review_request',
+  'internal_host_required',
+  'host_practical_information',
+  'host_final_instructions',
+  'host_post_event_check',
+] as const;
+
+export const TEMPLATES_ALLEEN_CATALOGUS = [
+  'booking_cancelled',
+  'host_availability_request',
+  'host_assignment_confirmed',
+  'internal_booking_information_received',
+  'internal_content_review_required',
+  'booking_content_changes_requested',
+  'booking_content_approved',
+  'exhibition_weekend_available',
+] as const;
+
+export const TEMPLATES_LEGACY = [
+  'afwijzing',
+  'content_verzoek',
+  'content_ter_beoordeling',
+  'praktisch_4w',
+  'praktisch_gastheer',
+  'herinnering_1d',
+  'herinnering_gastheer',
+  'review_verzoek',
+  'reservelijst',
+  'aanbetaling_check_paul',
+  'contract_begeleiding',
+  'volgende_stappen',
+  'optie_verlopen_contractbeheerder',
+] as const;
+
+const GEKOPPELDE_FLOW: Record<string, string> = {
+  contact_bestuur: 'Geen formulier',
+  aanvraag_bestuur: 'Verhuurformulier',
+  aanvraag_bevestiging: 'Geen route',
+  workflow: 'Cron /api/cron/workflow',
+  nieuwsbrief: 'Nieuwsbriefcron',
+  betaalherinnering: 'Planner',
+  statusmail_huurder: 'Dossieractie',
+  content_herinnering: 'Planner',
+  herinnering: 'Planner',
+  gastheer_mail: 'Planner',
+  nazorg: 'Planner',
+  reservelijst_mail: 'Geen verzendroute',
+  handmatige_template: 'Geen verzendroute',
+  mailtemplate_test: 'Knop Testmail',
+  gebruiker_uitnodiging: 'Uitnodigen of opnieuw',
+};
+
+export function gekoppeldeFlow(sleutel: string): string {
+  return GEKOPPELDE_FLOW[sleutel] ?? 'Onbekend';
+}
+
+export function kanExternVersturen(item: Automatisering, register: readonly Automatisering[] = STANDAARD_AUTOMATISERINGEN): boolean {
+  return item.actieveTrigger && magAutomatiseringUitvoeren(item.sleutel, register).provider;
+}
+
 export function automatiseringVoorTemplate(templateSleutel: string): string | null {
   return TEMPLATE_AUTOMATISERING[templateSleutel] ?? null;
 }

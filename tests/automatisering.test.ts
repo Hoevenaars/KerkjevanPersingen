@@ -4,6 +4,9 @@ import {
   MAILCATEGORIEEN,
   STANDAARD_AUTOMATISERINGEN,
   TEMPLATE_AUTOMATISERING,
+  TEMPLATES_ALLEEN_CATALOGUS,
+  TEMPLATES_LEGACY,
+  TEMPLATES_MET_CALLER,
   auditregel,
   magAutomatiseringUitvoeren,
   planStatuswijziging,
@@ -196,60 +199,11 @@ test('een geblokkeerde verzending wordt niet als verzonden gemarkeerd', async ()
   assert.equal(audit.length, 0);
 });
 
-const MET_CALLER = [
-  ['booking_request_received', 'dien_aanvraag in src/lib/operatie/kern.ts'],
-  ['internal_booking_review_required', 'dien_aanvraag in src/lib/operatie/kern.ts'],
-  ['booking_request_rejected', 'beoordeel afwijzen in src/lib/operatie/kern.ts'],
-  ['booking_more_information_requested', 'beoordeel meer informatie in src/lib/operatie/kern.ts'],
-  ['booking_approved_payment_required', 'beoordeel goedkeuren in src/lib/operatie/kern.ts'],
-  ['booking_confirmed', 'betaling in src/lib/operatie/kern.ts'],
-  ['booking_payment_reminder', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['booking_payment_final_reminder', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['internal_payment_overdue', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['booking_content_request', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['booking_content_reminder', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['internal_content_overdue', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['booking_practical_information', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['booking_final_instructions', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['booking_review_request', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['internal_host_required', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['host_practical_information', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['host_final_instructions', 'communicatieStappen in src/platform/continuiteit.ts'],
-  ['host_post_event_check', 'communicatieStappen in src/platform/continuiteit.ts'],
-] as const;
-
-const ALLEEN_CATALOGUS = [
-  'booking_cancelled',
-  'host_availability_request',
-  'host_assignment_confirmed',
-  'internal_booking_information_received',
-  'internal_content_review_required',
-  'booking_content_changes_requested',
-  'booking_content_approved',
-  'exhibition_weekend_available',
-] as const;
-
-const LEGACY = [
-  'afwijzing',
-  'content_verzoek',
-  'content_ter_beoordeling',
-  'praktisch_4w',
-  'praktisch_gastheer',
-  'herinnering_1d',
-  'herinnering_gastheer',
-  'review_verzoek',
-  'reservelijst',
-  'aanbetaling_check_paul',
-  'contract_begeleiding',
-  'volgende_stappen',
-  'optie_verlopen_contractbeheerder',
-] as const;
-
 test('de 40 templates vallen sluitend in caller, catalogus of legacy', () => {
-  const alles = [...MET_CALLER.map(([id]) => id), ...ALLEEN_CATALOGUS, ...LEGACY];
-  assert.equal(MET_CALLER.length, 19);
-  assert.equal(ALLEEN_CATALOGUS.length, 8);
-  assert.equal(LEGACY.length, 13);
+  const alles = [...TEMPLATES_MET_CALLER, ...TEMPLATES_ALLEEN_CATALOGUS, ...TEMPLATES_LEGACY];
+  assert.equal(TEMPLATES_MET_CALLER.length, 19);
+  assert.equal(TEMPLATES_ALLEEN_CATALOGUS.length, 8);
+  assert.equal(TEMPLATES_LEGACY.length, 13);
   assert.equal(alles.length, 40);
   assert.equal(new Set(alles).size, 40);
   assert.deepEqual([...alles].sort(), Object.keys(TEMPLATE_AUTOMATISERING).sort());
