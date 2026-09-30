@@ -49,6 +49,12 @@ const regels = [
   `Conflicten ${rapport.conflicten.length}; duplicaten ${rapport.duplicaten.length}; integriteit ${rapport.integriteit.ok ? 'ok' : rapport.integriteit.fouten.join(' | ')}`,
   `Tweede run nieuwe records: ${rapport.tweedeRunNieuw}`,
   '',
+  'Vergelijking (bestaand exact = verrijken + unchanged):',
+  ...(['relaties', 'rollen', 'boekingen', 'betalingen', 'blokkades', 'gastbegeleider'] as const).map((sleutel) => {
+    const rij = rapport.vergelijking[sleutel];
+    return `  ${sleutel}: bron ${rij.bronrecords}  bestaand exact ${rij.bestaandExact}  nieuw ${rij.nieuw}  verrijken ${rij.zouVerrijken}  unchanged ${rij.unchanged}  conflict ${rij.conflict}  review ${rij.reviewBlocked}  orphan ${rij.orphan}  schema ${rij.schemaWacht}  overgeslagen ${rij.bewustOvergeslagen}`;
+  }),
+  '',
   'High-review:',
   ...rapport.highReview.map((regel) => `  ${regel.entityId} ${regel.field}: ${regel.issue} → ${regel.dispositie}`),
   '',

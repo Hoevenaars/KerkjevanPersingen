@@ -8,7 +8,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SCHEMA_WIJZIGINGEN } from './consolidatie-mapping.ts';
 
-export type Actie = 'insert' | 'update' | 'skip' | 'conflict' | 'review_blocked' | 'schema_wacht';
+export type Actie = 'insert' | 'update' | 'skip' | 'conflict' | 'review_blocked' | 'schema_wacht' | 'orphan';
 
 export interface Planrij {
   tabel: string;
@@ -16,6 +16,10 @@ export interface Planrij {
   actie: Actie;
   reden: string;
   schema: string[];
+  bestaandId?: string;
+  toegevoegd?: string[];
+  behouden?: string[];
+  conflictVelden?: string[];
 }
 
 export interface ReviewRegel {
@@ -37,6 +41,23 @@ export interface Telling {
   conflict: number;
   review_blocked: number;
   schema_wacht: number;
+  orphan: number;
+}
+
+export interface Vergelijking {
+  bronrecords: number;
+  bestaandExact: number;
+  nieuw: number;
+  zouVerrijken: number;
+  unchanged: number;
+  conflict: number;
+  reviewBlocked: number;
+  orphan: number;
+  schemaWacht: number;
+  bewustOvergeslagen: number;
+  verrijkingen: { externalId: string; bestaandId?: string; toegevoegd: string[]; behouden: string[] }[];
+  conflicten: { externalId: string; bestaandId?: string; velden: string[]; reden: string }[];
+  orphans: { externalId: string; reden: string }[];
 }
 
 export interface DryRunRapport {
@@ -71,6 +92,14 @@ export interface DryRunRapport {
   tweedeRunNieuw: number | null;
   schemaWijzigingen: typeof SCHEMA_WIJZIGINGEN;
   ongemapt: string[];
+  vergelijking: {
+    relaties: Vergelijking;
+    rollen: Vergelijking;
+    boekingen: Vergelijking;
+    betalingen: Vergelijking;
+    blokkades: Vergelijking;
+    gastbegeleider: Vergelijking;
+  };
 }
 
 export interface BestaandeRij {
@@ -362,7 +391,40 @@ function iso(waarde: string | undefined): boolean {
 }
 
 function legeTelling(): Telling {
-  return { insert: 0, update: 0, skip: 0, conflict: 0, review_blocked: 0, schema_wacht: 0 };
+  return { insert: 0, update: 0, skip: 0, conflict: 0, review_blocked: 0, schema_wacht: 0, orphan: 0 };
+}
+
+function vergelijkingVan(rijen: Planrij[], bronrecords: number): Vergelijking {
+  const verrijkingen = rijen.filter((rij) => rij.actie === 'update');
+  const ongewijzigd = rijen.filter((rij) => rij.actie === 'skip' && !rij.reden.includes('bronwaarde x'));
+  return {
+    bronrecords,
+    bestaandExact: verrijkingen.length + ongewijzigd.length,
+    nieuw: rijen.filter((rij) => rij.actie === 'insert').length,
+    zouVerrijken: verrijkingen.length,
+    unchanged: ongewijzigd.length,
+    conflict: rijen.filter((rij) => rij.actie === 'conflict').length,
+    reviewBlocked: rijen.filter((rij) => rij.actie === 'review_blocked').length,
+    orphan: rijen.filter((rij) => rij.actie === 'orphan').length,
+    schemaWacht: rijen.filter((rij) => rij.actie === 'schema_wacht').length,
+    bewustOvergeslagen: rijen.filter((rij) => rij.actie === 'skip' && rij.reden.includes('bronwaarde x')).length,
+    verrijkingen: verrijkingen.map((rij) => ({
+      externalId: rij.externalId,
+      bestaandId: rij.bestaandId,
+      toegevoegd: rij.toegevoegd ?? [],
+      behouden: rij.behouden ?? [],
+    })),
+    conflicten: rijen.filter((rij) => rij.actie === 'conflict').map((rij) => ({
+      externalId: rij.externalId,
+      bestaandId: rij.bestaandId,
+      velden: rij.conflictVelden ?? [],
+      reden: rij.reden,
+    })),
+    orphans: rijen.filter((rij) => rij.actie === 'orphan').map((rij) => ({
+      externalId: rij.externalId,
+      reden: rij.reden,
+    })),
+  };
 }
 
 function tel(rijen: Planrij[]): Telling {
@@ -431,14 +493,28 @@ function veldactie(
   return 'conflict';
 }
 
-function combineer(id: string, tabel: string, schema: string[], beslissingen: ('gelijk' | 'vul' | 'behoud' | 'conflict')[], conflictreden: string): Planrij & { schrijft: boolean } {
-  if (beslissingen.includes('conflict')) {
-    return { tabel, externalId: id, actie: 'conflict', reden: conflictreden, schema, schrijft: false };
+function combineer(
+  id: string,
+  tabel: string,
+  schema: string[],
+  beslissingen: { veld: string; uitkomst: 'gelijk' | 'vul' | 'behoud' | 'conflict' }[],
+  conflictreden: string,
+  bestaandId?: string,
+): Planrij {
+  const conflictVelden = beslissingen.filter((besluit) => besluit.uitkomst === 'conflict').map((besluit) => besluit.veld);
+  const toegevoegd = beslissingen.filter((besluit) => besluit.uitkomst === 'vul').map((besluit) => besluit.veld);
+  const behouden = beslissingen.filter((besluit) => besluit.uitkomst === 'behoud').map((besluit) => besluit.veld);
+  if (conflictVelden.length > 0) {
+    return { tabel, externalId: id, actie: 'conflict', reden: `${conflictreden}: ${conflictVelden.join(', ')}`, schema, bestaandId, toegevoegd: [], behouden, conflictVelden };
   }
-  if (beslissingen.includes('vul')) {
-    return { tabel, externalId: id, actie: 'update', reden: 'lege bestaande velden aanvullen', schema, schrijft: true };
+  if (toegevoegd.length > 0) {
+    return { tabel, externalId: id, actie: 'update', reden: 'lege bestaande velden aanvullen', schema, bestaandId, toegevoegd, behouden, conflictVelden: [] };
   }
-  return { tabel, externalId: id, actie: 'skip', reden: 'bestaande rij is gelijk of rijker', schema, schrijft: false };
+  return { tabel, externalId: id, actie: 'skip', reden: 'bestaande rij is gelijk of rijker', schema, bestaandId, toegevoegd: [], behouden, conflictVelden: [] };
+}
+
+function ouderInBeeld(bestaand: BestaandeRij[], tabel: string, id: string): boolean {
+  return bestaand.some((rij) => rij.tabel === tabel && (rij.externalId === id || rij.legacyId === id || rij.velden.migratie_id === id));
 }
 
 export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: BestaandeRij[] = []): { rapport: DryRunRapport; beeld: BestaandeRij[] } {
@@ -503,20 +579,22 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
       continue;
     }
     const beslissingen = [
-      veldactie(match.rij.velden.naam, bron.naam, 'naam'),
-      veldactie(match.rij.velden.adres, bron.adres_raw),
-      gebruikEmail ? veldactie(match.rij.velden.email, normEmail(bron.email)) : 'behoud' as const,
-      gebruikTelefoon ? veldactie(match.rij.velden.telefoon, bron.telefoon.trim(), 'telefoon') : 'behoud' as const,
+      { veld: 'naam', uitkomst: veldactie(match.rij.velden.naam, bron.naam, 'naam') },
+      { veld: 'adres', uitkomst: veldactie(match.rij.velden.adres, bron.adres_raw) },
+      { veld: 'email', uitkomst: gebruikEmail ? veldactie(match.rij.velden.email, normEmail(bron.email)) : 'behoud' as const },
+      { veld: 'telefoon', uitkomst: gebruikTelefoon ? veldactie(match.rij.velden.telefoon, bron.telefoon.trim(), 'telefoon') : 'behoud' as const },
     ];
-    const samen = combineer(bron.relatie_id, 'relaties', schema, beslissingen, 'bron wijkt af van gevulde bestaande waarden');
+    const samen = combineer(bron.relatie_id, 'relaties', schema, beslissingen, 'bron wijkt af van gevulde bestaande waarden', match.rij.externalId);
     relatieplannen.push({ ...samen, velden, email: velden.email ?? '', telefoon: velden.telefoon ?? '', naam: bron.naam, doelId: match.rij.externalId });
   }
   const relatieActie = new Map(relatieplannen.map((rij) => [rij.externalId, rij.actie]));
 
   const rolplannen: Planrij[] = pakket.rollen.map((bron) => {
     const ouder = relatieActie.get(bron.relatie_id);
-    if (!ouder) return { tabel: 'relatie_rollen', externalId: bron.rol_id, actie: 'conflict', reden: 'relatie_id ontbreekt in relaties.csv', schema: [] };
-    if (!toepasbaar(ouder)) return { tabel: 'relatie_rollen', externalId: bron.rol_id, actie: 'review_blocked', reden: `relatie ${bron.relatie_id} is niet importeerbaar`, schema: [] };
+    if (!ouder && !ouderInBeeld(bestaand, 'relaties', bron.relatie_id)) {
+      return { tabel: 'relatie_rollen', externalId: bron.rol_id, actie: 'orphan', reden: 'relatie_id ontbreekt in bron en database', schema: [] };
+    }
+    if (ouder && !toepasbaar(ouder)) return { tabel: 'relatie_rollen', externalId: bron.rol_id, actie: 'review_blocked', reden: `relatie ${bron.relatie_id} is niet importeerbaar`, schema: [] };
     if (!bron.rol.trim()) return { tabel: 'relatie_rollen', externalId: bron.rol_id, actie: 'review_blocked', reden: 'lege rol', schema: [] };
     const sleutel = bestaand.find((rij) => rij.tabel === 'relatie_rollen' && (rij.externalId === bron.rol_id || (rij.velden.relatie_id === bron.relatie_id && rij.velden.rol === bron.rol.trim())));
     if (sleutel) return { tabel: 'relatie_rollen', externalId: bron.rol_id, actie: 'skip', reden: 'rol staat al op de relatie', schema: [] };
@@ -546,19 +624,32 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     } else if (!status) {
       actie = 'review_blocked';
       reden = 'onbekende boekingstatus';
-    } else if (!toepasbaar(relatieActie.get(bron.relatie_id))) {
-      actie = relatieActie.has(bron.relatie_id) ? 'review_blocked' : 'conflict';
-      reden = relatieActie.has(bron.relatie_id) ? `huurder ${bron.relatie_id} is niet importeerbaar` : 'relatie_id ontbreekt in relaties.csv';
+    } else if (!toepasbaar(relatieActie.get(bron.relatie_id)) && !ouderInBeeld(bestaand, 'relaties', bron.relatie_id)) {
+      actie = relatieActie.has(bron.relatie_id) ? 'review_blocked' : 'orphan';
+      reden = relatieActie.has(bron.relatie_id) ? `huurder ${bron.relatie_id} is niet importeerbaar` : 'relatie_id ontbreekt in bron en database';
     }
     const veldenOk = actie === null;
-    const match = bestaand.find((rij) => rij.tabel === 'boekingen' && (rij.externalId === bron.boeking_id || rij.legacyId === bron.boeking_id || rij.velden.nummer === bron.boeking_id));
+    const opSleutel = bestaand.filter((rij) => rij.tabel === 'boekingen' && (rij.externalId === bron.boeking_id || rij.legacyId === bron.boeking_id || rij.velden.nummer === bron.boeking_id || rij.velden.migratie_id === bron.boeking_id));
+    const opBusiness = bestaand.filter((rij) => {
+      if (rij.tabel !== 'boekingen') return false;
+      if (rij.velden.start_datum !== bron.datum_start || rij.velden.eind_datum !== bron.datum_eind) return false;
+      if (rij.velden.huurder_relatie_id && rij.velden.huurder_relatie_id === bron.relatie_id) return true;
+      const email = normEmail(bron.email_raw);
+      return Boolean(email) && normEmail(rij.velden.huurder_email_snapshot) === email;
+    });
+    const match = opSleutel.length === 1 ? opSleutel[0] : opSleutel.length === 0 && opBusiness.length === 1 ? opBusiness[0] : undefined;
+    if (veldenOk && (opSleutel.length > 1 || (opSleutel.length === 0 && opBusiness.length > 1))) {
+      boekingplannen.push({ tabel: 'boekingen', externalId: bron.boeking_id, actie: 'conflict', reden: 'meerdere bestaande boekingen op dezelfde sleutel of periode+huurder', schema: [], status, start: bron.datum_start, eind: bron.datum_eind, conflictVelden: ['periode'] });
+      continue;
+    }
     if (veldenOk && match) {
       const beslissingen = [
-        veldactie(match.velden.status, status),
-        veldactie(match.velden.start_datum, bron.datum_start),
-        veldactie(match.velden.eind_datum, bron.datum_eind),
+        { veld: 'status', uitkomst: veldactie(match.velden.status, status) },
+        { veld: 'start_datum', uitkomst: veldactie(match.velden.start_datum, bron.datum_start) },
+        { veld: 'eind_datum', uitkomst: veldactie(match.velden.eind_datum, bron.datum_eind) },
+        { veld: 'interne_notities', uitkomst: veldactie(match.velden.interne_notities, bron.bijzonderheden_raw) },
       ];
-      const samen = combineer(bron.boeking_id, 'boekingen', [], beslissingen, 'boeking wijkt af van bestaande periode of status');
+      const samen = combineer(bron.boeking_id, 'boekingen', [], beslissingen, 'boeking wijkt af van bestaande periode of status', match.externalId);
       boekingplannen.push({ ...samen, status, start: bron.datum_start, eind: bron.datum_eind });
       continue;
     }
@@ -622,15 +713,24 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     if (!soort) {
       return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'review_blocked', reden: 'onbekende betaalsoort', schema: [] };
     }
-    if (!boeking) {
-      return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'conflict', reden: 'boeking_id ontbreekt', schema: [] };
+    if (!boeking && !ouderInBeeld(bestaand, 'boekingen', bron.boeking_id)) {
+      return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'orphan', reden: 'boeking_id ontbreekt in bron en database', schema: [] };
     }
-    if (!toepasbaar(boeking)) {
+    if (boeking && !toepasbaar(boeking)) {
       return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'review_blocked', reden: `boeking ${bron.boeking_id} is niet importeerbaar`, schema: [] };
     }
     const schema = schemaNodig ? ['betalingen_historisch'] : [];
-    const al = bestaand.find((rij) => rij.tabel === 'betalingen' && rij.externalId === bron.betaling_id);
-    if (al) return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'skip', reden: 'betaalregel bestaat al op migratiesleutel', schema };
+    const al = bestaand.find((rij) => rij.tabel === 'betalingen' && (
+      rij.externalId === bron.betaling_id
+      || rij.legacyId === bron.betaling_id
+      || (rij.velden.boeking_id === bron.boeking_id && rij.velden.soort === soort)
+    ));
+    if (al) {
+      return combineer(bron.betaling_id, 'betalingen', schema, [
+        { veld: 'bedrag', uitkomst: veldactie(al.velden.bedrag, bron.bedrag_eur_eerste_waarde) },
+        { veld: 'status', uitkomst: veldactie(al.velden.status, status) },
+      ], 'betaalregel wijkt af van bestaande waarden', al.externalId);
+    }
     if (schemaNodig) {
       return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'schema_wacht', reden: `${bron.soort} past niet in betalingen.soort`, schema };
     }
@@ -651,7 +751,14 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     if (bron.type !== 'dienst' && bron.type !== 'assist') {
       return { tabel: 'gastbegeleider_toewijzingen', externalId: bron.toewijzing_id, actie: 'review_blocked', reden: 'onbekend toewijzingstype', schema: [] };
     }
-    if (!toepasbaar(boekingActie.get(bron.boeking_id)) || !toepasbaar(relatieActie.get(bron.gastbegeleider_relatie_id))) {
+    const boekingActieNu = boekingActie.get(bron.boeking_id);
+    const relatieActieNu = relatieActie.get(bron.gastbegeleider_relatie_id);
+    const boekingAfwezig = !boekingActieNu && !ouderInBeeld(bestaand, 'boekingen', bron.boeking_id);
+    const relatieAfwezig = !relatieActieNu && !ouderInBeeld(bestaand, 'relaties', bron.gastbegeleider_relatie_id);
+    if (boekingAfwezig || relatieAfwezig) {
+      return { tabel: 'gastbegeleider_toewijzingen', externalId: bron.toewijzing_id, actie: 'orphan', reden: 'boeking of gastbegeleider ontbreekt in bron en database', schema: ['gastbegeleider_toewijzingen'] };
+    }
+    if ((boekingActieNu && !toepasbaar(boekingActieNu)) || (relatieActieNu && !toepasbaar(relatieActieNu))) {
       return { tabel: 'gastbegeleider_toewijzingen', externalId: bron.toewijzing_id, actie: 'review_blocked', reden: 'boeking of gastbegeleider is niet importeerbaar', schema: ['gastbegeleider_toewijzingen'] };
     }
     const al = bestaand.find((rij) => rij.tabel === 'gastbegeleider_toewijzingen' && rij.externalId === bron.toewijzing_id);
@@ -678,8 +785,18 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     if (bron.date_parse_status !== 'high' || !iso(bron.datum_start) || !iso(bron.datum_eind)) {
       return { tabel: 'interne_activiteiten', externalId: bron.blokkade_id, actie: 'review_blocked', reden: 'blokkadedatum onbetrouwbaar', schema: [] };
     }
-    const al = bestaand.find((rij) => rij.tabel === 'interne_activiteiten' && (rij.externalId === bron.blokkade_id || rij.legacyId === bron.blokkade_id));
-    if (al) return { tabel: 'interne_activiteiten', externalId: bron.blokkade_id, actie: 'skip', reden: 'blokkade bestaat al', schema: [] };
+    const opSleutel = bestaand.filter((rij) => rij.tabel === 'interne_activiteiten' && (rij.externalId === bron.blokkade_id || rij.legacyId === bron.blokkade_id || rij.velden.migratie_id === bron.blokkade_id));
+    const opPeriode = bestaand.filter((rij) => rij.tabel === 'interne_activiteiten' && rij.velden.start_datum === bron.datum_start && rij.velden.eind_datum === bron.datum_eind);
+    if (opSleutel.length > 1 || (opSleutel.length === 0 && opPeriode.length > 1)) {
+      return { tabel: 'interne_activiteiten', externalId: bron.blokkade_id, actie: 'conflict', reden: 'meerdere bestaande blokkades op dezelfde sleutel of periode', schema: [], conflictVelden: ['periode'] };
+    }
+    const al = opSleutel[0] ?? (opPeriode.length === 1 ? opPeriode[0] : undefined);
+    if (al) {
+      return combineer(bron.blokkade_id, 'interne_activiteiten', [], [
+        { veld: 'titel', uitkomst: veldactie(al.velden.titel, 'Winterstop') },
+        { veld: 'notities', uitkomst: veldactie(al.velden.notities, '') },
+      ], 'blokkade wijkt af van bestaande waarden', al.externalId);
+    }
     return { tabel: 'interne_activiteiten', externalId: bron.blokkade_id, actie: 'insert', reden: 'winterstop als interne activiteit', schema: [] };
   });
 
@@ -898,6 +1015,14 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     integriteit: { ok: integriteit.length === 0 && duplicaten.length === 0, fouten: integriteit },
     duplicaten,
     tweedeRunNieuw: null,
+    vergelijking: {
+      relaties: vergelijkingVan(relatieplannen, pakket.relaties.length),
+      rollen: vergelijkingVan(rolplannen, pakket.rollen.length),
+      boekingen: vergelijkingVan(boekingplannen, pakket.boekingen.length),
+      betalingen: vergelijkingVan(betalingplannen, pakket.betalingen.length),
+      blokkades: vergelijkingVan(blokkadeplannen, pakket.blokkades.length),
+      gastbegeleider: vergelijkingVan(toewijzingplannen, pakket.toewijzingen.length),
+    },
     schemaWijzigingen: SCHEMA_WIJZIGINGEN,
     ongemapt: [
       'cont_raw (ja/nee) blijft buiten aanbetaling_ontvangen',

@@ -32,7 +32,7 @@ describe('consolidatiemapping', () => {
       assert.equal(velden.has(`relaties.csv:${veld}`), true);
     }
     assert.equal(CONSOLIDATIE_VELDEN.some((veld) => veld.bronVeld === 'datum_suggestie' && veld.doelVeld === '(geen)'), true);
-    assert.equal(CONSOLIDATIE_VELDEN.some((veld) => veld.bronVeld === 'cont_raw' && veld.doelTabel === 'migratie_herkomst'), true);
+    assert.equal(CONSOLIDATIE_VELDEN.some((veld) => veld.bronVeld === 'cont_raw' && veld.doelTabel === 'domeinrij'), true);
   });
 });
 
@@ -173,6 +173,61 @@ describe('dry-run zonder database', () => {
     const uit = consolidatieDryRun(pakket);
     assert.equal(uit.rapport.relaties.nieuw, 1);
     assert.equal(uit.rapport.boekingen.review_blocked, 1);
+  });
+
+  test('verrijkt alleen lege velden en houdt een rijkere waarde', () => {
+    const pakket = leegPakket();
+    pakket.relaties.push({
+      relatie_id: 'REL-V', naam: 'Gijs Hof', email: '', telefoon: '0655555555', adres_raw: 'Nieuw pad 1',
+      geboortedatum: '', geboortedatum_raw: '', naam_bronwaarden: '', email_bronwaarden: '', telefoon_bronwaarden: '', bronreferenties: '', review_status: 'OK',
+    });
+    const bestaand: BestaandeRij[] = [{
+      tabel: 'relaties', externalId: 'db-1', legacyId: 'sanity-1', email: 'gijs@example.test', telefoon: '+31655555555', naam: 'Gijs Hof',
+      velden: { naam: 'Gijs Hof', email: 'gijs@example.test', telefoon: '+31655555555', adres: '' },
+    }];
+    const uit = consolidatieDryRun(pakket, bestaand);
+    const rij = uit.rapport.vergelijking.relaties;
+    assert.equal(rij.zouVerrijken, 1);
+    assert.equal(rij.bestaandExact, 1);
+    assert.equal(rij.nieuw, 0);
+    assert.deepEqual(rij.verrijkingen[0].toegevoegd, ['adres']);
+    assert.deepEqual(rij.verrijkingen[0].behouden, ['email']);
+    assert.equal(uit.beeld.find((item) => item.externalId === 'db-1')?.velden.email, 'gijs@example.test');
+  });
+
+  test('boeking matcht op periode plus huurder, niet op naam', () => {
+    const pakket = leegPakket();
+    pakket.relaties.push({
+      relatie_id: 'REL-1', naam: 'Anna Boer', email: 'anna@example.test', telefoon: '', adres_raw: '',
+      geboortedatum: '', geboortedatum_raw: '', naam_bronwaarden: '', email_bronwaarden: '', telefoon_bronwaarden: '', bronreferenties: '', review_status: 'OK',
+    });
+    pakket.boekingen.push({
+      boeking_id: 'BKG-1', jaar: '2026', datum_label_raw: 'Mei', datum_start: '2026-05-01', datum_eind: '2026-05-02', datum_suggestie: '',
+      date_parse_status: 'high', status: 'actief', type: '', huurder_naam_raw: 'Anna', huurder_primair_naam: 'Anna Boer', relatie_id: 'REL-1',
+      telefoon_raw: '', email_raw: 'anna@example.test', cont_raw: 'ja', totaal_raw: '', totaal_eur: '', termijn_1_raw: '', termijn_2_raw: '',
+      bijzonderheden_raw: '', contract_datum: '', bronbestand: '2026.xlsx', bronregel: '1', review_status: 'OK',
+    });
+    const bestaand: BestaandeRij[] = [{
+      tabel: 'boekingen', externalId: 'db-boeking', velden: {
+        start_datum: '2026-05-01', eind_datum: '2026-05-02', huurder_relatie_id: 'REL-1', status: 'migratie_vastgelegd', interne_notities: 'bewaar dit',
+      },
+    }];
+    const uit = consolidatieDryRun(pakket, bestaand);
+    assert.equal(uit.rapport.vergelijking.boekingen.unchanged, 1);
+    assert.equal(uit.rapport.vergelijking.boekingen.nieuw, 0);
+    assert.deepEqual(uit.rapport.vergelijking.boekingen.verrijkingen, []);
+    assert.ok(uit.rapport.vergelijking.boekingen.bestaandExact === 1);
+  });
+
+  test('een betaalregel zonder boeking is een orphan', () => {
+    const pakket = leegPakket();
+    pakket.betalingen.push({
+      betaling_id: 'PAY-X', boeking_id: 'BKG-ONTBREEKT', soort: 'termijn_1', bedrag_eur_eerste_waarde: '10.00', status: 'betaald',
+      betaaldatum: '', vervaldatum: '', raw: '10,--', parse_status: 'OK', bronbestand: '2026.xlsx', bronregel: '1', bronkolom: 't1',
+    });
+    const uit = consolidatieDryRun(pakket);
+    assert.equal(uit.rapport.vergelijking.betalingen.orphan, 1);
+    assert.equal(uit.rapport.vergelijking.betalingen.conflicten.length, 0);
   });
 
   test('e-mail en telefoon+naam naar twee verschillende relaties is een conflict', () => {
