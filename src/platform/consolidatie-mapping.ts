@@ -76,7 +76,7 @@ export const CONSOLIDATIE_VELDEN: readonly ConsolidatieVeld[] = [
   { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'bronwaarde', doelTabel: '(niet)', doelVeld: '(geen)', regel: 'x wordt nergens als dienst bewaard. dienst en assist staan in type.' },
   { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'match_confidence', doelTabel: '(poort)', doelVeld: '(geen)', regel: 'low blokkeert, ook als import_advies IMPORT is.' },
   { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'gastbegeleider_kolom', doelTabel: '(niet)', doelVeld: '(geen)', regel: 'Persoonskolom (BETTY, HANS, …), geen datum en geen dienst. Volgorde van kolommen wijst geen dag aan.' },
-  { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'datum_label_raw', doelTabel: '(poort)', doelVeld: '(geen)', regel: 'Alleen een controle. Een datum wordt uitsluitend gezet als de gekoppelde boeking precies één high-confidence dag is en het label geen tweede dag noemt.' },
+  { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'datum_label_raw', doelTabel: 'gastbegeleider_toewijzingen', doelVeld: 'datum', regel: 'Datum blijft leeg als de bron alleen de boekingsperiode noemt. Alleen een expliciete enkele high-confidence dag vult datum. Nooit één dag kiezen uit een tweedaagse periode.' },
 
   { bronBestand: 'kalender_blokkades.csv', bronVeld: 'blokkade_id', doelTabel: 'domeinrij', doelVeld: 'migration_external_id', regel: 'Ook interne_activiteiten.legacy_id met legacy_source=consolidatie.' },
   { bronBestand: 'kalender_blokkades.csv', bronVeld: 'datum_start', doelTabel: 'interne_activiteiten', doelVeld: 'start_datum', regel: 'Alleen bij date_parse_status=high.' },
@@ -111,11 +111,11 @@ Geen migration_raw: de bron blijft in de migratiebestanden.`,
   },
   {
     id: 'gastbegeleider_toewijzingen',
-    nodigVoor: 'Meerdere diensten per boeking, plus assist, per datumslot. gastheer_relatie_id blijft alleen voor precies één gastheer.',
+    nodigVoor: 'Gastbegeleider hoort bij de boeking. datum is alleen gevuld als de bron expliciet één dag noemt. gastheer_relatie_id blijft alleen voor precies één gastheer.',
     voorstel: `create table public.gastbegeleider_toewijzingen (
-  id, boeking_id, relatie_id, datum date not null, type check (type in ('dienst', 'assist')),
+  id, boeking_id, relatie_id, datum date null, type check (type in ('dienst', 'assist')),
   migratiekolommen,
-  unique (boeking_id, relatie_id, datum, type),
+  unique (boeking_id, relatie_id, type),
   unique (migration_source, migration_external_id)
 );`,
   },

@@ -94,12 +94,11 @@ export interface DryRunRapport {
   };
   gastbegeleiderDatums: {
     bruikbaar: number;
-    exact: number;
-    ambigu: number;
-    onmogelijk: number;
-    exactRijen: DatumAfleidingRij[];
-    ambiguRijen: DatumAfleidingRij[];
-    onmogelijkRijen: DatumAfleidingRij[];
+    importeerbaar: number;
+    metDatum: number;
+    boekingsniveau: number;
+    metDatumRijen: DatumAfleidingRij[];
+    boekingsniveauRijen: DatumAfleidingRij[];
   };
   blokkades: Telling;
   gastheerEenOpEen: number;
@@ -713,13 +712,9 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     const bedragen = bron.raw.match(BEDRAG) ?? [];
     const boeking = boekingActie.get(bron.boeking_id);
     let soort = '';
-    let schemaNodig = false;
     if (bron.soort === 'termijn_1') soort = 'aanbetaling';
     else if (bron.soort === 'termijn_2') soort = 'restant';
-    else if (bron.soort.startsWith('historisch_')) {
-      soort = 'historisch';
-      schemaNodig = true;
-    }
+    else if (bron.soort.startsWith('historisch_')) soort = 'historisch';
     let status = '';
     if (bron.status === 'betaald') status = 'ontvangen';
     else if (bron.status === 'openstaand') status = 'open';
@@ -745,7 +740,7 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     if (boeking && !toepasbaar(boeking)) {
       return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'review_blocked', reden: `boeking ${bron.boeking_id} is niet importeerbaar`, schema: [] };
     }
-    const schema = schemaNodig ? ['betalingen_historisch'] : [];
+    const schema: string[] = [];
     const al = bestaand.find((rij) => rij.tabel === 'betalingen' && (
       rij.externalId === bron.betaling_id
       || rij.legacyId === bron.betaling_id
@@ -756,9 +751,6 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
         { veld: 'bedrag', uitkomst: veldactie(al.velden.bedrag, bron.bedrag_eur_eerste_waarde) },
         { veld: 'status', uitkomst: veldactie(al.velden.status, status) },
       ], 'betaalregel wijkt af van bestaande waarden', al.externalId);
-    }
-    if (schemaNodig) {
-      return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'schema_wacht', reden: `${bron.soort} past niet in betalingen.soort`, schema };
     }
     if ((medium.has('termijn_1') || medium.has('termijn_2') || medium.has(bron.soort)) && !iso(bron.betaaldatum) && !iso(bron.vervaldatum)) {
       return { tabel: 'betalingen', externalId: bron.betaling_id, actie: 'insert', reden: 'bedrag importeerbaar; onbetrouwbare datum blijft achterwege', schema };
@@ -788,8 +780,25 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
       return { tabel: 'gastbegeleider_toewijzingen', externalId: bron.toewijzing_id, actie: 'review_blocked', reden: 'boeking of gastbegeleider is niet importeerbaar', schema: ['gastbegeleider_toewijzingen'] };
     }
     const al = bestaand.find((rij) => rij.tabel === 'gastbegeleider_toewijzingen' && rij.externalId === bron.toewijzing_id);
-    if (al) return { tabel: 'gastbegeleider_toewijzingen', externalId: bron.toewijzing_id, actie: 'skip', reden: 'toewijzing bestaat al', schema: ['gastbegeleider_toewijzingen'] };
-    return { tabel: 'gastbegeleider_toewijzingen', externalId: bron.toewijzing_id, actie: 'schema_wacht', reden: bron.type, schema: ['gastbegeleider_toewijzingen'] };
+    if (al) return { tabel: 'gastbegeleider_toewijzingen', externalId: bron.toewijzing_id, actie: 'skip', reden: 'toewijzing bestaat al', schema: [] };
+    const boeking = pakket.boekingen.find((rij) => rij.boeking_id === bron.boeking_id);
+    const start = boeking?.datum_start ?? '';
+    const eind = boeking?.datum_eind ?? '';
+    const label = bron.datum_label_raw.trim();
+    const eenDag = Boolean(boeking)
+      && boeking?.date_parse_status === 'high'
+      && iso(start)
+      && iso(eind)
+      && start === eind
+      && !labelNoemtTweeDagen(label);
+    return {
+      tabel: 'gastbegeleider_toewijzingen',
+      externalId: bron.toewijzing_id,
+      actie: 'insert',
+      reden: bron.type,
+      schema: [],
+      afgeleideDatum: eenDag ? start : undefined,
+    };
   });
 
   const dienstPerBoeking = new Map<string, string[]>();
@@ -804,43 +813,28 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
   const gastheerOpenGelaten = [...dienstPerBoeking.entries()].filter(([, relaties]) => new Set(relaties).size !== 1).map(([id]) => id);
   const gastheerEenOpEen = [...dienstPerBoeking.values()].filter((relaties) => new Set(relaties).size === 1).length;
   const boekingOpId = new Map(pakket.boekingen.map((rij) => [rij.boeking_id, rij]));
-  const exactRijen: DatumAfleidingRij[] = [];
-  const ambiguRijen: DatumAfleidingRij[] = [];
-  const onmogelijkRijen: DatumAfleidingRij[] = [];
+  const metDatumRijen: DatumAfleidingRij[] = [];
+  const boekingsniveauRijen: DatumAfleidingRij[] = [];
   for (const plan of toewijzingplannen) {
-    if (plan.actie !== 'schema_wacht') continue;
+    if (plan.actie !== 'insert') continue;
     const bron = pakket.toewijzingen.find((rij) => rij.toewijzing_id === plan.externalId);
     if (!bron || (bron.type !== 'dienst' && bron.type !== 'assist')) continue;
     const boeking = boekingOpId.get(bron.boeking_id);
-    const label = bron.datum_label_raw.trim();
-    const start = boeking?.datum_start ?? '';
-    const eind = boeking?.datum_eind ?? '';
     const basis: DatumAfleidingRij = {
       toewijzingId: bron.toewijzing_id,
       boekingId: bron.boeking_id,
       type: bron.type,
       kolom: bron.gastbegeleider_kolom,
-      label,
-      start,
-      eind,
-      reden: '',
+      label: bron.datum_label_raw.trim(),
+      start: boeking?.datum_start ?? '',
+      eind: boeking?.datum_eind ?? '',
+      reden: plan.afgeleideDatum
+        ? 'bron wijst precies één high-confidence dag aan'
+        : 'bron noemt de boekingsperiode; datum blijft leeg',
+      datum: plan.afgeleideDatum,
     };
-    const betrouwbaar = Boolean(boeking) && boeking?.date_parse_status === 'high' && iso(start) && iso(eind) && eind >= start;
-    if (!betrouwbaar) {
-      onmogelijkRijen.push({ ...basis, reden: boeking ? 'boekingsdatum is niet high-confidence' : 'geen gekoppelde boeking' });
-      continue;
-    }
-    if (labelNoemtTweeDagen(label) || start !== eind) {
-      ambiguRijen.push({
-        ...basis,
-        reden: start !== eind
-          ? `boeking loopt van ${start} tot ${eind}; de broncel wijst geen dag aan`
-          : 'label noemt twee dagen',
-      });
-      continue;
-    }
-    plan.afgeleideDatum = start;
-    exactRijen.push({ ...basis, datum: start, reden: 'gekoppelde boeking is precies één high-confidence dag' });
+    if (plan.afgeleideDatum) metDatumRijen.push(basis);
+    else boekingsniveauRijen.push(basis);
   }
 
   const blokkadeplannen: Planrij[] = pakket.blokkades.map((bron) => {
@@ -980,8 +974,8 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
   const boekTelling = tel(boekingplannen);
   const betTelling = tel(betalingplannen);
   const blokTelling = tel(blokkadeplannen);
-  const dienst = toewijzingplannen.filter((rij) => rij.actie === 'schema_wacht' && rij.reden === 'dienst').length;
-  const assist = toewijzingplannen.filter((rij) => rij.actie === 'schema_wacht' && rij.reden === 'assist').length;
+  const dienst = toewijzingplannen.filter((rij) => rij.actie === 'insert' && rij.reden === 'dienst').length;
+  const assist = toewijzingplannen.filter((rij) => rij.actie === 'insert' && rij.reden === 'assist').length;
 
   const beeld: BestaandeRij[] = bestaand.map((rij) => ({ ...rij, velden: { ...rij.velden } }));
   const zet = (rij: BestaandeRij) => {
@@ -1070,13 +1064,12 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
       schema_wacht: toewijzingplannen.filter((rij) => rij.actie === 'schema_wacht').length,
     },
     gastbegeleiderDatums: {
-      bruikbaar: exactRijen.length + ambiguRijen.length + onmogelijkRijen.length,
-      exact: exactRijen.length,
-      ambigu: ambiguRijen.length,
-      onmogelijk: onmogelijkRijen.length,
-      exactRijen,
-      ambiguRijen,
-      onmogelijkRijen,
+      bruikbaar: metDatumRijen.length + boekingsniveauRijen.length,
+      importeerbaar: metDatumRijen.length + boekingsniveauRijen.length,
+      metDatum: metDatumRijen.length,
+      boekingsniveau: boekingsniveauRijen.length,
+      metDatumRijen,
+      boekingsniveauRijen,
     },
     blokkades: blokTelling,
     gastheerEenOpEen,

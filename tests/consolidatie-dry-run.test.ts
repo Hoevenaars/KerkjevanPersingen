@@ -92,9 +92,9 @@ describe('dry-run zonder database', () => {
     const boeking = eerste.beeld.find((rij) => rij.externalId === 'BKG-1');
     assert.equal(boeking?.velden.status, 'migratie_vastgelegd');
     assert.equal(boeking?.velden.aanbetaling_ontvangen, undefined);
-    assert.equal(eerste.rapport.betalingen.importeerbaar, 1);
+    assert.equal(eerste.rapport.betalingen.importeerbaar, 2);
     assert.equal(eerste.rapport.betalingen.review, 1);
-    assert.equal(eerste.rapport.betalingen.schema_wacht, 1);
+    assert.equal(eerste.rapport.betalingen.schema_wacht, 0);
     assert.equal(eerste.rapport.gastbegeleider.genegeerdeX, 1);
     assert.equal(eerste.rapport.gastbegeleider.dienst, 1);
     assert.equal(eerste.rapport.gastbegeleider.review_blocked, 1);
@@ -109,9 +109,9 @@ describe('dry-run zonder database', () => {
     assert.equal(tweede.rapport.blokkades.insert, 0);
     assert.equal(tweede.rapport.gastbegeleider.dienst, 0);
     assert.equal(tweede.rapport.schemaWacht.length, 0);
-    assert.equal(eerste.rapport.gastbegeleiderDatums.exact, 0);
-    assert.equal(eerste.rapport.gastbegeleiderDatums.ambigu, 1);
-    assert.equal(eerste.rapport.gastbegeleiderDatums.onmogelijk, 0);
+    assert.equal(eerste.rapport.gastbegeleiderDatums.importeerbaar, 1);
+    assert.equal(eerste.rapport.gastbegeleiderDatums.metDatum, 0);
+    assert.equal(eerste.rapport.gastbegeleiderDatums.boekingsniveau, 1);
   });
 
   test('gastbegeleiderdatum alleen bij precies één high-confidence dag', () => {
@@ -130,12 +130,15 @@ describe('dry-run zonder database', () => {
     );
     const rapport = consolidatieDryRun(pakket).rapport;
     assert.equal(rapport.gastbegeleider.genegeerdeX, 1);
+    assert.equal(rapport.gastbegeleider.dienst, 2);
+    assert.equal(rapport.gastbegeleider.review_blocked, 0);
     assert.equal(rapport.gastbegeleiderDatums.bruikbaar, 2);
-    assert.equal(rapport.gastbegeleiderDatums.exact, 1);
-    assert.equal(rapport.gastbegeleiderDatums.exactRijen[0]?.datum, '2026-07-03');
-    assert.equal(rapport.gastbegeleiderDatums.ambigu, 1);
-    assert.equal(rapport.gastbegeleiderDatums.ambiguRijen[0]?.toewijzingId, 'ASN-AMBIGU');
-    assert.equal(rapport.gastbegeleiderDatums.onmogelijk, 0);
+    assert.equal(rapport.gastbegeleiderDatums.importeerbaar, 2);
+    assert.equal(rapport.gastbegeleiderDatums.metDatum, 1);
+    assert.equal(rapport.gastbegeleiderDatums.metDatumRijen[0]?.datum, '2026-07-03');
+    assert.equal(rapport.gastbegeleiderDatums.boekingsniveau, 1);
+    assert.equal(rapport.gastbegeleiderDatums.boekingsniveauRijen[0]?.toewijzingId, 'ASN-AMBIGU');
+    assert.equal(rapport.gastbegeleiderDatums.boekingsniveauRijen[0]?.datum, undefined);
   });
 
   test('matcht op e-mail of telefoon+naam en nooit op alleen naam', () => {
