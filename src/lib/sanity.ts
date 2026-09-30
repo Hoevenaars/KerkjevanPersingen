@@ -5,6 +5,7 @@ import { eerstvolgendeVrijeWeekenden, maandagVanWeekIso, type VrijWeekend } from
 import { bezetteKalenderDagen } from './datum';
 import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
 import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
+import { noteerSanityOproep } from '../platform/sanity-registratie.ts';
 
 export { maandagVanWeekIso };
 export { formatDatum, formatDatumBereik } from './datum';
@@ -26,6 +27,14 @@ const client: SanityClient | null = sanityConfigured
       token,
     })
   : null;
+
+if (client) {
+  const origineel = client.fetch.bind(client);
+  client.fetch = ((...args: Parameters<SanityClient['fetch']>) => {
+    noteerSanityOproep('sanity.fetch');
+    return origineel(...args);
+  }) as SanityClient['fetch'];
+}
 
 const builder = client ? imageUrlBuilder(client) : null;
 

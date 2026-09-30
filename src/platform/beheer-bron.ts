@@ -7,6 +7,8 @@
 import { supabaseLoginUitOmgeving, STANDAARD_SUPER_ADMIN_EMAIL, STANDAARD_SUPABASE_PUBLISHABLE_KEY, STANDAARD_SUPABASE_URL } from '../lib/supabase-project.ts';
 import { huidigeContentBron } from './bron.ts';
 import { ymdInAmsterdam } from './datum.ts';
+import { leesSupabaseBeheer, supabaseFoutSnapshot, type SupabaseLeesClient } from './beheer-supabase-lees.ts';
+import { bewaarRequestSnapshot, gekoppeldeSupabaseClient, leesRequestSnapshot } from './sanity-registratie.ts';
 import {
   DEMO_AANVRAGEN,
   DEMO_AGENDA,
@@ -55,6 +57,11 @@ export interface BeheerSnapshot {
   communicatie: { id: string; boekingId: string; template: string; status: string; wanneer: string; ontvanger: string }[];
   documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string }[];
   migratie: MigratieResultaat | null;
+  betalingen?: import('./beheer-supabase-lees.ts').BeheerBetaling[];
+  toewijzingen?: import('./beheer-supabase-lees.ts').BeheerToewijzing[];
+  fout?: string | null;
+  alleenLezen?: boolean;
+  instellingenHerkomst?: 'supabase' | 'demo' | 'leeg';
   incidenten?: { id: string; boekingId: string; omschrijving: string; status: string }[];
   signalen?: {
     boekingId: string;
@@ -156,23 +163,51 @@ export async function laadBeheerSnapshot(opties: {
   url?: URL;
   env?: Record<string, unknown>;
   forceDemo?: boolean;
+  client?: SupabaseLeesClient | null;
 } = {}): Promise<BeheerSnapshot> {
   const env = opties.env ?? omgevingsRecord();
-  const forceDemo =
-    opties.forceDemo === true || opties.url?.searchParams.get('bron') === 'demo';
-  const key = `${forceDemo ? 'demo' : huidigeContentBron(env)}:${String(env.SANITY_PROJECT_ID ?? '')}`;
+  const gekozen = opties.url?.searchParams.get('bron');
+  const forceDemo = opties.forceDemo === true || gekozen === 'demo';
+  const forceSupabase = gekozen === 'supabase';
+  const sleutel = forceDemo ? 'demo' : forceSupabase ? 'supabase-test' : huidigeContentBron(env);
+  const key = `${sleutel}:${String(env.SANITY_PROJECT_ID ?? '')}`;
   const nu = Date.now();
-  if (cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
+  if (!forceSupabase && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
 
-  const waarde = laadBeheerSnapshotOngecached({ env, forceDemo });
-  cache = { key, at: nu, waarde };
+  const client = opties.client ?? gekoppeldeSupabaseClient();
+  if (forceSupabase) {
+    const bestaand = leesRequestSnapshot<BeheerSnapshot>();
+    if (bestaand) return bestaand;
+  }
+  const waarde = laadBeheerSnapshotOngecached({ env, forceDemo, forceSupabase, client });
+  if (forceSupabase) bewaarRequestSnapshot(waarde);
+  else cache = { key, at: nu, waarde };
   return waarde;
+}
+
+async function supabaseTestSnapshot(env: Record<string, unknown>, client: SupabaseLeesClient | null): Promise<BeheerSnapshot> {
+  const { maakBeheerAdminClient } = await import('../lib/supabase.ts');
+  const lezer = (client ?? maakBeheerAdminClient(env)) as SupabaseLeesClient | null;
+  if (!lezer) {
+    throw new Error('Geen Supabase-client. Log in voor de testmodus, of zet de service-role alleen op de server.');
+  }
+  return leesSupabaseBeheer(lezer, { vandaag: ymdInAmsterdam(new Date()), testmodus: true });
 }
 
 async function laadBeheerSnapshotOngecached(opties: {
   env: Record<string, unknown>;
   forceDemo: boolean;
+  forceSupabase: boolean;
+  client: SupabaseLeesClient | null;
 }): Promise<BeheerSnapshot> {
+  if (opties.forceSupabase) {
+    try {
+      return await supabaseTestSnapshot(opties.env, opties.client);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'onbekende fout';
+      return supabaseFoutSnapshot(detail);
+    }
+  }
   if (opties.forceDemo) {
     return demoSnapshot('Voorbeelddata — bewust gekozen via ?bron=demo.');
   }
@@ -182,18 +217,7 @@ async function laadBeheerSnapshotOngecached(opties: {
       return await beheerSnapshotUitSupabase(opties.env);
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'onbekende fout';
-      const leeg = await demoSnapshot(`Supabase is de bron, maar laden mislukte: ${detail}`);
-      return {
-        ...leeg,
-        bron: 'supabase',
-        banner: `Supabase-staging is niet geladen (${detail}). Er wordt geen voorbeelddata als dossier getoond.`,
-        aanvragen: [],
-        boekingen: [],
-        agenda: [],
-        relaties: [],
-        gastheren: [],
-        communicatie: [],
-      };
+      return supabaseFoutSnapshot(detail);
     }
   }
   if (!magLiveSanityLezen(opties.env)) {

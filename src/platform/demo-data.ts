@@ -52,6 +52,7 @@ export interface DemoBoeking {
   aanvraagId?: string;
   relatieId: string;
   gastheerId?: string;
+  periode?: 'verleden' | 'lopend' | 'komend';
 }
 
 export interface DemoActiviteit {

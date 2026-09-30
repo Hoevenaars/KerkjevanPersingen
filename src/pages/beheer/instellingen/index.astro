@@ -29,7 +29,7 @@ const inst = snapshot.instellingen;
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
 
   <section class="bh-kaart">
-    <h2>Openingstijden (voorbeeld)</h2>
+    <h2>{snapshot.instellingenHerkomst === 'supabase' ? 'Openingstijden uit Supabase' : 'Openingstijden (voorbeeld)'}</h2>
     <form method="post" class="bh-form">
       <label for="van">Open vanaf</label>
       <input id="van" name="openingVan" value={inst.openingVan} />
@@ -45,9 +45,11 @@ const inst = snapshot.instellingen;
           </>
         ) : null
       }
-      <div class="bh-acties">
-        <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
-      </div>
+      {!snapshot.alleenLezen && (
+        <div class="bh-acties">
+          <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
+        </div>
+      )}
     </form>
   </section>
 

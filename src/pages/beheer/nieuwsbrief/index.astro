@@ -13,7 +13,7 @@ const snapshot = await laadBeheerSnapshot({ url: Astro.url });
     <div>
       <h1>Nieuwsbrief</h1>
       <p class="bh-hint">
-        Weken uit {snapshot.bron === 'sanity' ? 'Sanity' : 'de voorbeelddata'}. Openen, bewerken en
+        Weken uit {snapshot.bron === 'sanity' ? 'Sanity' : snapshot.bron === 'supabase' ? 'Supabase' : 'de voorbeelddata'}. Openen, bewerken en
         “verzenden” raakt de echte vriendenmail niet.
       </p>
     </div>

@@ -71,7 +71,11 @@ const tarieven = INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= 
       </tbody>
     </table>
     {
-      snapshot.bron === 'supabase'
+      snapshot.alleenLezen ? (
+        <p class="bh-muted">
+          Alleen lezen. {(snapshot.betalingen ?? []).length} betaalregels uit Supabase. De vlag aanbetaling_ontvangen blijft zoals geïmporteerd.
+        </p>
+      ) : snapshot.bron === 'supabase'
         ? openstaand.map((b) => (
             <form method="post" class="bh-acties">
               <input type="hidden" name="boekingId" value={b.id} />

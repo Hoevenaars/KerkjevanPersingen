@@ -14,6 +14,7 @@ import {
 import { VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
 import { bouwSessie } from './lib/beheer-auth.ts';
 import { beheerWeigering, loginRedirect, zelfdeOorsprong } from './lib/beheer-http.ts';
+import { koppelSupabaseClient, metSanityRegistratie } from './platform/sanity-registratie.ts';
 import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
 import { volgPubliekePageview } from './analytics/volg.ts';
 import { analyticsTeVaak } from './analytics/rate-limit.ts';
@@ -117,6 +118,10 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
     cookies: context.cookies,
     responseHeaders: cookieHeaders,
   });
+  if (supabase) {
+    context.locals.supabase = supabase;
+    koppelSupabaseClient(supabase);
+  }
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   const user = data.user;
 
@@ -182,6 +187,9 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   }
 
   if (isBeheerPad(pad)) {
+    if (context.url.searchParams.get('bron') === 'supabase') {
+      return metSanityRegistratie(() => beheerMiddleware(context, next));
+    }
     return await beheerMiddleware(context, next);
   }
 

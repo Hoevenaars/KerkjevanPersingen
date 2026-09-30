@@ -1,4 +1,13 @@
 (function () {
+  const bron = new URLSearchParams(location.search).get('bron');
+  if (bron === 'supabase' || bron === 'demo') {
+    document.querySelectorAll('a[href^="/beheer"]').forEach((link) => {
+      const doel = new URL(link.getAttribute('href'), location.origin);
+      if (!doel.searchParams.get('bron')) doel.searchParams.set('bron', bron);
+      link.setAttribute('href', doel.pathname + doel.search);
+    });
+  }
+
   const detail = document.getElementById('bh-detail');
   const detailInhoud = document.getElementById('bh-detail-inhoud');
   const detailSluit = document.getElementById('bh-detail-sluit');
