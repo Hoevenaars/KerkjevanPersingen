@@ -3,11 +3,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { isoNaarYmd, transformSanityDump, type SanityDump } from '../src/platform/migratie-transform.ts';
 import { magLiveSanityLezen } from '../src/platform/beheer-bron.ts';
-import {
-  beheerAuthOk,
-  beheerHeeftWachtwoord,
-  beheerWachtwoord,
-} from '../src/platform/beheer-gate.ts';
 
 const fixture = JSON.parse(
   await readFile(new URL('./fixtures/sanity-dump.json', import.meta.url), 'utf8'),
@@ -81,52 +76,41 @@ describe('Sanity-dump transformeert naar beheerrecords', () => {
   });
 });
 
-describe('live Sanity in /beheer is achter een wachtwoord gezet', () => {
-  test('zonder project of login blijft demo', () => {
+describe('live Sanity in /beheer volgt Supabase-login', () => {
+  test('zonder project of supabase-login blijft demo', () => {
     assert.equal(magLiveSanityLezen({}), false);
     assert.equal(magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc' }), false);
+    assert.equal(magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc', SITE_PASSWORD: 'geheim' }), false);
+    assert.equal(magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc', BEHEER_PASSWORD: 'beheer' }), false);
   });
 
-  test('met project én Supabase-url mag live (individuele login)', () => {
+  test('met project én supabase-login mag live', () => {
     assert.equal(
-      magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc', SUPABASE_URL: 'https://example.supabase.co' }),
+      magLiveSanityLezen({
+        SANITY_PROJECT_ID: 'abc',
+        SUPABASE_URL: 'https://example.supabase.co',
+        SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
+      }),
       true,
     );
   });
 
-  test('met project én SITE_PASSWORD mag live', () => {
-    assert.equal(magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc', SITE_PASSWORD: 'geheim' }), true);
-  });
-
-  test('BEHEER_LIVE_SANITY=false forceert demo', () => {
+  test('alleen een supabase-url is nog geen login', () => {
     assert.equal(
-      magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc', SITE_PASSWORD: 'geheim', BEHEER_LIVE_SANITY: 'false' }),
+      magLiveSanityLezen({ SANITY_PROJECT_ID: 'abc', SUPABASE_URL: 'https://example.supabase.co' }),
       false,
     );
   });
 
-  test('zonder wachtwoord is /beheer dicht (fail-closed)', () => {
-    assert.equal(beheerHeeftWachtwoord({}), false);
-    assert.equal(beheerAuthOk(null, {}), false);
-    assert.equal(beheerAuthOk('x', {}), false);
-    assert.equal(beheerAuthOk('Basic ' + Buffer.from('kerkje:').toString('base64'), {}), false);
-  });
-
-  test('SITE_PASSWORD sluit /beheer ook als de site live is', () => {
-    const header = 'Basic ' + Buffer.from('kerkje:site').toString('base64');
-    assert.equal(beheerHeeftWachtwoord({ SITE_PASSWORD: 'site' }), true);
-    assert.equal(beheerAuthOk(null, { SITE_PASSWORD: 'site' }), false);
-    assert.equal(beheerAuthOk(header, { SITE_PASSWORD: 'site' }), true);
-    assert.equal(beheerAuthOk(header, { SITE_PASSWORD: 'ander' }), false);
-  });
-
-  test('BEHEER_PASSWORD gaat voor SITE_PASSWORD', () => {
-    assert.equal(beheerHeeftWachtwoord({ BEHEER_PASSWORD: 'beheer' }), true);
-    assert.equal(beheerWachtwoord({ BEHEER_PASSWORD: 'beheer', SITE_PASSWORD: 'site' }), 'beheer');
-    assert.equal(beheerAuthOk(null, { BEHEER_PASSWORD: 'beheer' }), false);
-    const beheer = 'Basic ' + Buffer.from('kerkje:beheer').toString('base64');
-    const site = 'Basic ' + Buffer.from('kerkje:site').toString('base64');
-    assert.equal(beheerAuthOk(beheer, { BEHEER_PASSWORD: 'beheer', SITE_PASSWORD: 'site' }), true);
-    assert.equal(beheerAuthOk(site, { BEHEER_PASSWORD: 'beheer', SITE_PASSWORD: 'site' }), false);
+  test('BEHEER_LIVE_SANITY=false forceert demo', () => {
+    assert.equal(
+      magLiveSanityLezen({
+        SANITY_PROJECT_ID: 'abc',
+        SUPABASE_URL: 'https://example.supabase.co',
+        SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
+        BEHEER_LIVE_SANITY: 'false',
+      }),
+      false,
+    );
   });
 });

@@ -67,8 +67,8 @@ blokkade. Nieuw (nog niet op het formulier): harde za+zo / ma–vr-regels in
 
 ## Environment
 
-Zie README. Nieuwe vlaggen (`BEHEER_ENABLED`, `BEHEER_PASSWORD`, `CONTENT_BRON`,
+Zie README. Nieuwe vlaggen (`BEHEER_ENABLED`, `CONTENT_BRON`,
 `ALLOW_SUPABASE_CONTENT`) doen de publieke website niets zolang de contentvlaggen
-leeg blijven. `/beheer` is altijd achter wachtwoord (`BEHEER_PASSWORD` of
-`SITE_PASSWORD`); `LIVE_VANAF` zet die deur niet open. Live Sanity alleen ná
-inloggen; zonder wachtwoord 401. Schrijven niet.
+leeg blijven. `/beheer` gaat via Supabase-login op `/beheer/login`. `LIVE_VANAF`
+en `SITE_PASSWORD` zetten die deur niet open. Live Sanity alleen ná inloggen.
+Schrijven niet.

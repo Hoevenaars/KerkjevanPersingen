@@ -34,7 +34,7 @@ export interface BeheerSessie {
   rechten: GebruikerRechten;
   effectieveRechten: GebruikerRechten;
   viewAs: BeheerProfiel | null;
-  bron: 'supabase' | 'basic';
+  bron: 'supabase';
 }
 
 export function rechtenVanRijen(

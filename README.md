@@ -89,7 +89,10 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
 | `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Staat aan in `vercel.json`. Preview en lokaal tonen `/beheer` altijd. Website wijzigt niet. |
-| `BEHEER_PASSWORD` | ja voor `/beheer` | Wachtwoord op `/beheer` (gebruiker `kerkje`). Altijd verplicht, ook als de site live is. Anders `SITE_PASSWORD`. Zonder beide: 401, geen data. |
+| `SUPABASE_URL` | nee | Standaard het project Kerkje van Persingen. Override alleen voor een ander project. |
+| `SUPABASE_PUBLISHABLE_KEY` | nee | Publieke sleutel voor de login. Staat in `vercel.json`. Geen service-role. |
+| `SUPABASE_SERVICE_ROLE_KEY` | voor uitnodigen | Alleen server-side, in het Vercel-dashboard. Zonder deze sleutel kun je wel inloggen, niet uitnodigen. |
+| `SUPER_ADMIN_EMAIL` | nee | Standaard `nhoevenaars@gmail.com`. Wordt bij login Super Admin zodra de service-role key er is. |
 | `BEHEER_LIVE_SANITY` | nee | `false` houdt `/beheer` op voorbeelddata, ook als Sanity-tokens aanwezig zijn. |
 | `CONTENT_BRON` | nee | Alleen samen met `ALLOW_SUPABASE_CONTENT`. Standaard blijft Sanity leidend. |
 | `ALLOW_SUPABASE_CONTENT` | nee | Tweede slot. Zonder `true` leest de website nooit Supabase. |
@@ -286,15 +289,14 @@ later `/beheer` + Supabase, zonder cutover:
 | Productie | https://kerkjepersingen.nl/beheer/ |
 | Sanity Studio (agenda/content) | `/admin` → Sanity Studio |
 
-`/beheer` gebruikt individuele Supabase-accounts (`/beheer/login`) zodra
-`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` en `SUPABASE_SERVICE_ROLE_KEY` staan.
-De eerste Super Admin wordt `SUPER_ADMIN_EMAIL`. Uitnodigen gaat vanuit
-`/beheer/instellingen/gebruikers/`. `LIVE_VANAF` opent `/beheer` niet.
+`/beheer` gebruikt individuele Supabase-accounts (`/beheer/login`). Er is geen
+gedeeld wachtwoord meer. `LIVE_VANAF` opent `/beheer` niet.
 
-Zonder die Supabase-keys blijft tijdelijk de oude Basic Auth staan (gebruiker
-`kerkje`, wachtwoord `BEHEER_PASSWORD` of `SITE_PASSWORD`), zodat bestaande
-omgevingen niet op slot gaan. Zonder login: 401, geen data. Na inloggen: Sanity
-alleen-lezen. Schrijven van content gaat nog via Studio (`/admin`).
+De eerste Super Admin is `SUPER_ADMIN_EMAIL` (standaard `nhoevenaars@gmail.com`).
+Uitnodigen gaat vanuit `/beheer/instellingen/gebruikers/` en heeft
+`SUPABASE_SERVICE_ROLE_KEY` in Vercel nodig. Zonder login: redirect naar
+`/beheer/login`, geen data. Na inloggen: Sanity alleen-lezen. Schrijven van
+content gaat nog via Studio (`/admin`).
 Migratiecontrole: `/beheer/migratie/` en `npm run migratie:dry-run`.
 
 Documentatie: `docs/beheer/`.

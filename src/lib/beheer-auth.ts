@@ -15,26 +15,14 @@ import {
 } from './beheer-gebruikers.ts';
 import { laadRollen, vindRol } from './rollen-opslag.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
+import { STANDAARD_SUPER_ADMIN_EMAIL } from './supabase-project.ts';
 
-export function basisSessie(): BeheerSessie {
-  const gebruiker: BeheerProfiel = {
-    id: 'shared',
-    email: '',
-    naam: 'Beheerder',
-    functie: null,
-    status: 'active',
-    isSuperAdmin: true,
-    actief: true,
-    lastActiveAt: null,
-  };
-  const rechten: GebruikerRechten = { isSuperAdmin: true, perModule: {} };
-  return {
-    gebruiker,
-    rechten,
-    effectieveRechten: rechten,
-    viewAs: null,
-    bron: 'basic',
-  };
+function superAdminEmail(env: Record<string, unknown> | undefined): string {
+  const bron = env ?? (typeof process !== 'undefined' ? process.env : {});
+  const uitEnv = String(bron.SUPER_ADMIN_EMAIL ?? '').trim();
+  if (uitEnv) return uitEnv;
+  if (env) return '';
+  return STANDAARD_SUPER_ADMIN_EMAIL;
 }
 
 export async function bouwSessie(opties: {
@@ -50,8 +38,7 @@ export async function bouwSessie(opties: {
   let gebruiker = geladen.profiel;
   let rechten = geladen.rechten;
   if (admin) {
-    const superEmail = String(opties.env?.SUPER_ADMIN_EMAIL ?? '').trim();
-    gebruiker = await waarborgSuperAdmin(admin, gebruiker, superEmail);
+    gebruiker = await waarborgSuperAdmin(admin, gebruiker, superAdminEmail(opties.env));
     rechten = { ...rechten, isSuperAdmin: gebruiker.isSuperAdmin };
     if (gebruiker.status === 'invited') {
       await markeerGebruikerActief(admin, gebruiker.id);

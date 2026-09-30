@@ -1,7 +1,7 @@
-# Supabase — beheerplatform (nog niet live)
+# Supabase — beheerplatform
 
-Dit is de databasestructuur voor `/beheer`. De publieke website leest en schrijft
-nog **Sanity**. Niets hier is gekoppeld tot beide vlaggen bewust aan staan:
+`/beheer` logt in via Supabase Auth. De publieke website leest en schrijft
+nog **Sanity**. Content uit Supabase komt pas als beide vlaggen bewust aan staan:
 
 ```text
 CONTENT_BRON=supabase
@@ -15,10 +15,20 @@ Zie `docs/beheer/ARCHITECTUUR.md`.
 Supabase-project **Kerkje van Persingen**, ref `xskqpefeumylrticrphp`, regio
 `eu-central-1`. API: `https://xskqpefeumylrticrphp.supabase.co`.
 
+`/beheer/login` gebruikt de publishable key. `SUPABASE_SERVICE_ROLE_KEY` blijft
+in het Vercel-dashboard en is nodig om gebruikers uit te nodigen.
+
 De kern (profielen, modules, rechten) staat erin. Rollen zijn een naam met een
 rechtenmatrix (`beheer_rollen`), los van een account. Hans, Nelleke en Paul zijn
 de start. De overige migraties in deze map zijn nog niet volledig toegepast.
 Fluweel en Kopvast zijn andere projecten en horen hier niet bij.
+
+Redirect-URL voor uitnodigingen en wachtwoordherstel, in Authentication → URL
+Configuration:
+
+```text
+https://kerkjepersingen.nl/beheer/auth/callback
+```
 
 ```bash
 npx supabase link --project-ref xskqpefeumylrticrphp

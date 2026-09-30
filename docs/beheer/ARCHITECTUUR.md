@@ -10,10 +10,10 @@ cutover. De publieke website en Sanity blijven werken zoals nu.
 ```text
 PUBLIEKE WEBSITE  ──leest/schrijft──►  SANITY
 /admin            ──redirect────────►  Sanity Studio
-/beheer           ──404, tenzij BEHEER_ENABLED=true
+/beheer           ──Supabase-login, tenzij BEHEER_ENABLED=false
 ```
 
-Supabase is voorbereid (schema, RLS, seed) maar nog niet gekoppeld.
+Supabase Auth is gekoppeld aan `/beheer`. De publieke website leest nog Sanity.
 
 ## Doelarchitectuur (ná gecontroleerde migratie)
 
@@ -37,7 +37,7 @@ de website Supabase mogen lezen. De website gebruikt deze functie nog nergens.
 | `CONTENT_BRON` | (leeg) | `supabase` alleen samen met de vlag hieronder |
 | `ALLOW_SUPABASE_CONTENT` | (leeg) | moet `true` zijn |
 | `BEHEER_ENABLED` | (leeg) | `/beheer` is 404 op Production tot dit `true` is. Vercel Preview toont `/beheer` altijd. |
-| `BEHEER_PASSWORD` | (leeg) | Basic-auth op `/beheer` (gebruiker `kerkje`). Altijd verplicht, ook als de site live is. Anders `SITE_PASSWORD`. Zonder beide: 401. |
+| `SUPABASE_URL` | project-URL | Login op `/beheer` via Supabase Auth. Geen gedeeld wachtwoord. |
 | `BEHEER_LIVE_SANITY` | (leeg) | `false` = /beheer blijft voorbeelddata, ook met token. |
 
 Per datatype houdt tabel `bronnen` bij wie mag schrijven. Seed: alles `sanity`.

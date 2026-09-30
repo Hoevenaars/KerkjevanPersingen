@@ -7,6 +7,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient, parseCookieHeader } from '@supabase/ssr';
 import type { AstroCookies } from 'astro';
 import type { Database } from './database.types.ts';
+import { supabaseLoginUitOmgeving } from './supabase-project.ts';
 
 export interface SupabaseOmgeving {
   url: string;
@@ -14,31 +15,21 @@ export interface SupabaseOmgeving {
   serviceRoleKey: string;
 }
 
-export function leesSupabaseOmgeving(
-  env: Record<string, unknown> = typeof process !== 'undefined' ? process.env : {},
-): SupabaseOmgeving | null {
-  const url = String(env.SUPABASE_URL ?? env.PUBLIC_SUPABASE_URL ?? '').trim();
-  const publishableKey = String(
-    env.SUPABASE_PUBLISHABLE_KEY ??
-      env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-      env.SUPABASE_ANON_KEY ??
-      env.PUBLIC_SUPABASE_ANON_KEY ??
-      '',
-  ).trim();
-  const serviceRoleKey = String(env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
-  if (!url || !publishableKey) return null;
-  return { url, publishableKey, serviceRoleKey };
+export function leesSupabaseOmgeving(env?: Record<string, unknown>): SupabaseOmgeving | null {
+  const bron = env ?? (typeof process !== 'undefined' ? process.env : {});
+  // Ontbrekende url/key vallen terug op het project Kerkje van Persingen.
+  // Een expliciet gezet adres of sleutel blijft leidend.
+  const login = supabaseLoginUitOmgeving(bron, true);
+  if (!login) return null;
+  const serviceRoleKey = String(bron.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
+  return { url: login.url, publishableKey: login.publishableKey, serviceRoleKey };
 }
 
-export function supabaseGeconfigureerd(
-  env: Record<string, unknown> = typeof process !== 'undefined' ? process.env : {},
-): boolean {
+export function supabaseGeconfigureerd(env?: Record<string, unknown>): boolean {
   return leesSupabaseOmgeving(env) !== null;
 }
 
-export function supabaseAdminBeschikbaar(
-  env: Record<string, unknown> = typeof process !== 'undefined' ? process.env : {},
-): boolean {
+export function supabaseAdminBeschikbaar(env?: Record<string, unknown>): boolean {
   const cfg = leesSupabaseOmgeving(env);
   return Boolean(cfg?.serviceRoleKey);
 }
@@ -72,9 +63,7 @@ export function maakBeheerServerClient(opties: {
   });
 }
 
-export function maakBeheerAdminClient(
-  env: Record<string, unknown> = typeof process !== 'undefined' ? process.env : {},
-): SupabaseClient<Database> | null {
+export function maakBeheerAdminClient(env?: Record<string, unknown>): SupabaseClient<Database> | null {
   const cfg = leesSupabaseOmgeving(env);
   if (!cfg?.serviceRoleKey) return null;
   return createClient<Database>(cfg.url, cfg.serviceRoleKey, {

@@ -2,9 +2,6 @@ import type { MiddlewareHandler } from 'astro';
 import {
   isBeheerEnabled,
   beheerUitResponse,
-  beheerAuthOk,
-  beheerAuthResponse,
-  beheerGateEnv,
 } from './platform/beheer-gate';
 import {
   beheerToegang,
@@ -14,10 +11,8 @@ import {
   isViewAsWisselPad,
   moduleVoorPad,
 } from './platform/autorisatie.ts';
-import { pasRolWeergaveToe, VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
-import { rolUitWeergave } from './platform/rollen.ts';
-import { basisSessie, bouwSessie } from './lib/beheer-auth.ts';
-import { laadRollen, vindRol } from './lib/rollen-opslag.ts';
+import { VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
+import { bouwSessie } from './lib/beheer-auth.ts';
 import { beheerWeigering, loginRedirect, zelfdeOorsprong } from './lib/beheer-http.ts';
 import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
 import { volgPubliekePageview } from './analytics/volg.ts';
@@ -33,9 +28,8 @@ import { kerkjeAnalytics } from './platform/analytics-config.ts';
  *   SITE_PASSWORD gezet, LIVE_VANAF bereikt of gepasseerd        -> automatisch open
  *   SITE_PASSWORD leeg                                          -> altijd open
  *
- * /beheer volgt LIVE_VANAF niet. Met Supabase-auth: individuele login.
- * Zonder Supabase-configuratie blijft de oude Basic Auth staan, zodat bestaande
- * omgevingen niet op slot gaan voordat de projectkeys er zijn.
+ * /beheer volgt LIVE_VANAF niet en gebruikt geen gedeeld wachtwoord.
+ * Elke beheerder logt in met een eigen Supabase-account op /beheer/login.
  */
 
 const USER = 'kerkje';
@@ -111,98 +105,72 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
 
   const cookieHeaders = new Headers();
   context.locals.supabaseCookies = cookieHeaders;
+  const authPad = isBeheerAuthPad(pad);
 
-  if (supabaseGeconfigureerd()) {
-    const supabase = maakBeheerServerClient({
-      request: context.request,
-      cookies: context.cookies,
-      responseHeaders: cookieHeaders,
-    });
-    const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-    const user = data.user;
-    const authPad = isBeheerAuthPad(pad);
+  if (!supabaseGeconfigureerd()) {
+    if (authPad) return plakBeheerHeaders(await next());
+    return plakBeheerHeaders(alsJson ? beheerWeigering('login', true) : loginRedirect(context));
+  }
 
-    if (!user) {
-      if (authPad) {
-        return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
-      }
-      return plakBeheerHeaders(alsJson ? beheerWeigering('login', true) : loginRedirect(context), cookieHeaders);
-    }
+  const supabase = maakBeheerServerClient({
+    request: context.request,
+    cookies: context.cookies,
+    responseHeaders: cookieHeaders,
+  });
+  const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  const user = data.user;
 
-    if (!supabase) {
-      return plakBeheerHeaders(beheerWeigering('login', alsJson), cookieHeaders);
-    }
-
-    const sessie = await bouwSessie({
-      client: supabase,
-      userId: user.id,
-      viewAsId: context.cookies.get(VIEW_AS_COOKIE)?.value ?? null,
-    });
-
-    if ('fout' in sessie) {
-      await supabase.auth.signOut();
-      if (authPad) return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
-      const doel = new URL('/beheer/login', context.url);
-      doel.searchParams.set('fout', sessie.fout);
-      return plakBeheerHeaders(alsJson ? beheerWeigering('disabled', true) : context.redirect(doel.pathname + doel.search), cookieHeaders);
-    }
-
-    context.locals.beheer = sessie;
-
+  if (!user) {
     if (authPad) {
-      if (pad.replace(/\/+$/, '') === '/beheer/login' && context.request.method === 'GET') {
-        return plakBeheerHeaders(context.redirect('/beheer/'), cookieHeaders);
-      }
       return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
     }
+    return plakBeheerHeaders(alsJson ? beheerWeigering('login', true) : loginRedirect(context), cookieHeaders);
+  }
 
-    const wissel = isViewAsWisselPad(pad);
-    const uitkomst = beheerToegang({
-      methode: context.request.method,
-      module: moduleVoorPad(pad),
-      ingelogd: true,
-      actief: sessie.gebruiker.status !== 'disabled',
-      rechten: wissel ? sessie.rechten : sessie.effectieveRechten,
-      viewAsActief: wissel ? false : Boolean(sessie.viewAs),
-    });
-    if (uitkomst !== 'ok') {
-      return plakBeheerHeaders(
-        beheerWeigering(uitkomst, alsJson, { previewStop: Boolean(sessie.viewAs) && !alsJson }),
-        cookieHeaders,
-      );
+  if (!supabase) {
+    return plakBeheerHeaders(beheerWeigering('login', alsJson), cookieHeaders);
+  }
+
+  const sessie = await bouwSessie({
+    client: supabase,
+    userId: user.id,
+    viewAsId: context.cookies.get(VIEW_AS_COOKIE)?.value ?? null,
+  });
+
+  if ('fout' in sessie) {
+    await supabase.auth.signOut();
+    if (authPad) return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
+    const doel = new URL('/beheer/login', context.url);
+    doel.searchParams.set('fout', sessie.fout);
+    return plakBeheerHeaders(alsJson ? beheerWeigering('disabled', true) : context.redirect(doel.pathname + doel.search), cookieHeaders);
+  }
+
+  context.locals.beheer = sessie;
+
+  if (authPad) {
+    if (pad.replace(/\/+$/, '') === '/beheer/login' && context.request.method === 'GET') {
+      return plakBeheerHeaders(context.redirect('/beheer/'), cookieHeaders);
     }
-
     return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
   }
 
-  if (isBeheerAuthPad(pad)) {
-    return plakBeheerHeaders(metAnalytics(context, await next()));
+  const wissel = isViewAsWisselPad(pad);
+  const uitkomst = beheerToegang({
+    methode: context.request.method,
+    module: moduleVoorPad(pad),
+    ingelogd: true,
+    actief: sessie.gebruiker.status !== 'disabled',
+    rechten: wissel ? sessie.rechten : sessie.effectieveRechten,
+    viewAsActief: wissel ? false : Boolean(sessie.viewAs),
+  });
+  if (uitkomst !== 'ok') {
+    return plakBeheerHeaders(
+      beheerWeigering(uitkomst, alsJson, { previewStop: Boolean(sessie.viewAs) && !alsJson }),
+      cookieHeaders,
+    );
   }
 
-  const header = context.request.headers.get('authorization');
-  if (!beheerAuthOk(header, beheerGateEnv())) {
-    return beheerAuthResponse();
-  }
-  const viewAsCookie = context.cookies.get(VIEW_AS_COOKIE)?.value ?? null;
-  const rolSlug = rolUitWeergave(viewAsCookie);
-  const catalogus = rolSlug ? vindRol(await laadRollen(null), rolSlug) : undefined;
-  const sessie = pasRolWeergaveToe(basisSessie(), viewAsCookie, catalogus);
-  context.locals.beheer = sessie;
-  if (sessie.viewAs && !isBeheerAuthPad(pad)) {
-    const wissel = isViewAsWisselPad(pad);
-    const uitkomst = beheerToegang({
-      methode: context.request.method,
-      module: moduleVoorPad(pad),
-      ingelogd: true,
-      actief: true,
-      rechten: wissel ? sessie.rechten : sessie.effectieveRechten,
-      viewAsActief: wissel ? false : true,
-    });
-    if (uitkomst !== 'ok') {
-      return plakBeheerHeaders(beheerWeigering(uitkomst, alsJson, { previewStop: !alsJson }));
-    }
-  }
-  return plakBeheerHeaders(metAnalytics(context, await next()));
+  return plakBeheerHeaders(metAnalytics(context, await next()), cookieHeaders);
 };
 
 export const onRequest: MiddlewareHandler = async (context, next) => {

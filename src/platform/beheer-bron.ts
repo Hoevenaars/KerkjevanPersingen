@@ -1,13 +1,12 @@
 /**
  * Databron voor /beheer: live Sanity (alleen lezen) of voorbeelddata.
  *
- * Live data alleen als Sanity geconfigureerd is én /beheer al achter een
- * login zit (Supabase-sessie of, zonder keys, de oude Basic Auth).
+ * Live data alleen als Sanity geconfigureerd is én Supabase-login aan staat.
  */
 
+import { supabaseLoginUitOmgeving, STANDAARD_SUPER_ADMIN_EMAIL, STANDAARD_SUPABASE_PUBLISHABLE_KEY, STANDAARD_SUPABASE_URL } from '../lib/supabase-project.ts';
 import { huidigeContentBron } from './bron.ts';
 import { ymdInAmsterdam } from './datum.ts';
-import { beheerWachtwoord } from './beheer-gate.ts';
 import {
   DEMO_AANVRAGEN,
   DEMO_AGENDA,
@@ -73,20 +72,26 @@ const LIVE_BANNER =
 export function omgevingsRecord(): Record<string, unknown> {
   const runtime = typeof process !== 'undefined' ? process.env : {};
   const meta = (typeof import.meta !== 'undefined' ? import.meta.env : {}) as Record<string, unknown>;
-  return { ...runtime, ...meta };
+  const samen: Record<string, unknown> = { ...runtime, ...meta };
+  if (!supabaseLoginUitOmgeving(samen)) {
+    samen.SUPABASE_URL = STANDAARD_SUPABASE_URL;
+    samen.SUPABASE_PUBLISHABLE_KEY = STANDAARD_SUPABASE_PUBLISHABLE_KEY;
+  }
+  if (!String(samen.SUPER_ADMIN_EMAIL ?? '').trim()) {
+    samen.SUPER_ADMIN_EMAIL = STANDAARD_SUPER_ADMIN_EMAIL;
+  }
+  return samen;
 }
 
 /**
- * Live Sanity in /beheer mag alleen als er al een wachtwoord op /beheer staat.
- * BEHEER_LIVE_SANITY=false forceert voorbeelddata.
+ * Live Sanity in /beheer mag alleen als individuele Supabase-login aan staat.
+ * BEHEER_LIVE_SANITY=false forceert voorbeelddata. Een gedeeld sitewachtwoord telt niet.
  */
 export function magLiveSanityLezen(env: Record<string, unknown> = omgevingsRecord()): boolean {
   if (env.BEHEER_LIVE_SANITY === false || env.BEHEER_LIVE_SANITY === 'false') return false;
   const projectId = String(env.SANITY_PROJECT_ID ?? '').trim();
   if (!projectId) return false;
-  const supabaseUrl = String(env.SUPABASE_URL ?? env.PUBLIC_SUPABASE_URL ?? '').trim();
-  if (supabaseUrl) return true;
-  return beheerWachtwoord(env).length > 0;
+  return supabaseLoginUitOmgeving(env) !== null;
 }
 
 export async function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan Sanity of de live site.'): Promise<BeheerSnapshot> {
@@ -194,7 +199,7 @@ async function laadBeheerSnapshotOngecached(opties: {
   if (!magLiveSanityLezen(opties.env)) {
     const heeftProject = String(opties.env.SANITY_PROJECT_ID ?? '').trim().length > 0;
     const reden = heeftProject
-      ? 'Sanity is geconfigureerd, maar /beheer heeft geen login. Voorbeelddata blijft staan tot Supabase Auth of een beheerwachtwoord is gezet.'
+      ? 'Sanity is geconfigureerd, maar Supabase-login staat nog niet aan. Voorbeelddata blijft staan.'
       : 'Geen Sanity-project in deze omgeving — voorbeelddata.';
     return demoSnapshot(reden);
   }

@@ -66,60 +66,6 @@ const NIET_GEVONDEN_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-export function beheerGateEnv(): Record<string, unknown> {
-  const runtime = typeof process !== 'undefined' ? process.env : {};
-  const meta = import.meta.env as Record<string, unknown>;
-  // Bracket-notatie: Vite mag process.env.X niet op build-time naar undefined inlinen.
-  return {
-    ...runtime,
-    BEHEER_ENABLED: runtime['BEHEER_ENABLED'] ?? meta.BEHEER_ENABLED,
-    BEHEER_PASSWORD: runtime['BEHEER_PASSWORD'] ?? meta.BEHEER_PASSWORD,
-    SITE_PASSWORD: runtime['SITE_PASSWORD'] ?? meta.SITE_PASSWORD,
-    VERCEL_ENV: runtime['VERCEL_ENV'] ?? meta.VERCEL_ENV,
-    DEV: meta.DEV,
-  };
-}
-
-export function beheerWachtwoord(env: Record<string, unknown> = {}): string {
-  const beheer = String(env.BEHEER_PASSWORD ?? '').trim();
-  if (beheer) return beheer;
-  return String(env.SITE_PASSWORD ?? '').trim();
-}
-
-export function beheerHeeftWachtwoord(env: Record<string, unknown> = {}): boolean {
-  return beheerWachtwoord(env).length > 0;
-}
-
-export function beheerAuthResponse(): Response {
-  return new Response('Beheer is afgeschermd.', {
-    status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="Beheer Kerkje van Persingen", charset="UTF-8"',
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Robots-Tag': 'noindex, nofollow',
-      'Cache-Control': 'no-store',
-    },
-  });
-}
-
-function basicVerwacht(gebruiker: string, wachtwoord: string): string {
-  return 'Basic ' + btoa(`${gebruiker}:${wachtwoord}`);
-}
-
-/**
- * /beheer is altijd dicht zonder geldige basic-auth.
- * Wachtwoord: BEHEER_PASSWORD, anders SITE_PASSWORD.
- * Geen van beide gezet → niemand erdoor (fail-closed). LIVE_VANAF telt niet.
- */
-export function beheerAuthOk(
-  header: string | null,
-  env: Record<string, unknown> = {},
-): boolean {
-  const wachtwoord = beheerWachtwoord(env);
-  if (!wachtwoord) return false;
-  return header === basicVerwacht('kerkje', wachtwoord);
-}
-
 export function beheerUitResponse(): Response {
   return new Response(NIET_GEVONDEN_HTML, {
     status: 404,
