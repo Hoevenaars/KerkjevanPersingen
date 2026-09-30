@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "env": {
     "BEHEER_ENABLED": "true",
+    "CONTENT_BRON": "supabase",
+    "ALLOW_SUPABASE_CONTENT": "true",
+    "BEHEER_LIVE_SANITY": "false",
     "SUPABASE_URL": "https://xskqpefeumylrticrphp.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_Xygy4sCKoWc7WJc3Wh1PWQ_io5qJrph",
     "SUPER_ADMIN_EMAIL": "nhoevenaars@gmail.com"

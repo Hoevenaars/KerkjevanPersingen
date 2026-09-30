@@ -1,9 +1,9 @@
 /**
  * Schrijvende en lezende bron per datatype.
  *
- * Tot de gecontroleerde omschakeling blijft Sanity leidend. Twee sloten
- * voorkomen dat een per ongeluk gezette omgevingsvariabele de website
- * al op Supabase zet (FO §73: één schrijvende bron, geen stille cutover).
+ * Na de cutover is Supabase de enige runtimebron wanneer beide vlaggen aan staan.
+ * `beheer` in public.bronnen is die schrijvende bron. Sanity blijft alleen
+ * bereikbaar als de vlaggen teruggezet worden.
  */
 
 import type { ContentBron, Datatype, SchrijvendeBron } from './types.ts';
@@ -14,8 +14,9 @@ export const STANDAARD_CONTENT_BRON: ContentBron = 'sanity';
 
 export type BronnenTabel = Record<Datatype, SchrijvendeBron>;
 
-export function standaardBronnen(): BronnenTabel {
-  return Object.fromEntries(DATATYPEN.map((type) => [type, STANDAARD_SCHRIJVENDE_BRON])) as BronnenTabel;
+export function standaardBronnen(env: NodeJS.ProcessEnv | Record<string, unknown> = process.env): BronnenTabel {
+  const bron: SchrijvendeBron = huidigeContentBron(env) === 'supabase' ? 'beheer' : STANDAARD_SCHRIJVENDE_BRON;
+  return Object.fromEntries(DATATYPEN.map((type) => [type, bron])) as BronnenTabel;
 }
 
 export function vlagAan(waarde: unknown): boolean {
@@ -23,11 +24,9 @@ export function vlagAan(waarde: unknown): boolean {
 }
 
 /**
- * Publieke website leest Sanity, tenzij beide vlaggen bewust aan staan.
- * De website gebruikt deze functie nog niet: eerst parallel controleren.
- *
  * Astro kan `import.meta.env.X=true` naar boolean `true` omzetten; daarom
- * accepteren we zowel de string als de boolean.
+ * accepteren we zowel de string als de boolean. Zonder beide vlaggen blijft
+ * de rollbackbron Sanity.
  */
 export function huidigeContentBron(env: NodeJS.ProcessEnv | Record<string, unknown> = process.env): ContentBron {
   const toegestaan = vlagAan(env.ALLOW_SUPABASE_CONTENT);

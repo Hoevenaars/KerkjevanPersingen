@@ -1,9 +1,10 @@
 /**
- * Databron voor /beheer: Supabase. CONTENT_BRON blijft sanity.
- * Voorbeelddata alleen via ?bron=demo. Geen Sanity-fallback.
+ * Databron voor /beheer: Supabase. Geen Sanity-fallback.
+ * Voorbeelddata alleen via ?bron=demo.
  */
 
 import { supabaseLoginUitOmgeving, STANDAARD_SUPER_ADMIN_EMAIL, STANDAARD_SUPABASE_PUBLISHABLE_KEY, STANDAARD_SUPABASE_URL } from '../lib/supabase-project.ts';
+import { huidigeContentBron } from './bron.ts';
 import { ymdInAmsterdam } from './datum.ts';
 import { leesSupabaseBeheer, supabaseFoutSnapshot, type SupabaseLeesClient } from './beheer-supabase-lees.ts';
 import { bewaarRequestSnapshot, gekoppeldeSupabaseClient, leesRequestSnapshot } from './sanity-registratie.ts';
@@ -197,7 +198,10 @@ async function supabaseTestSnapshot(env: Record<string, unknown>, client: Supaba
   if (!lezer) {
     throw new Error('Geen Supabase-client. Log in voor de testmodus, of zet de service-role alleen op de server.');
   }
-  return leesSupabaseBeheer(lezer, { vandaag: ymdInAmsterdam(new Date()), testmodus: true });
+  return leesSupabaseBeheer(lezer, {
+    vandaag: ymdInAmsterdam(new Date()),
+    testmodus: huidigeContentBron(env) !== 'supabase',
+  });
 }
 
 async function laadBeheerSnapshotOngecached(opties: {

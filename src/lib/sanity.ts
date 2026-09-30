@@ -1,19 +1,21 @@
 import { createRequire } from 'node:module';
 import { createClient, type SanityClient } from '@sanity/client';
-import { SOORTEN, type Aanvraag } from './validatie';
-import { maandagVanWeekIso, type VrijWeekend } from './week';
-import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
+import { SOORTEN, type Aanvraag } from './validatie.ts';
+import { maandagVanWeekIso, type VrijWeekend } from './week.ts';
+import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie.ts';
 import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import { noteerSanityOproep } from '../platform/sanity-registratie.ts';
+import { huidigeContentBron } from '../platform/bron.ts';
 
 export { maandagVanWeekIso };
-export { formatDatum, formatDatumBereik } from './datum';
+export { formatDatum, formatDatumBereik } from './datum.ts';
 export type { VrijWeekend };
 export type { VriendFrequentie };
 
-const projectId = process.env.SANITY_PROJECT_ID ?? import.meta.env.SANITY_PROJECT_ID;
-const dataset = process.env.SANITY_DATASET ?? import.meta.env.SANITY_DATASET ?? 'production';
-const token = process.env.SANITY_API_TOKEN ?? import.meta.env.SANITY_API_TOKEN;
+const metaEnv = ((import.meta as { env?: Record<string, string | undefined> }).env ?? {}) as Record<string, string | undefined>;
+const projectId = process.env.SANITY_PROJECT_ID ?? metaEnv.SANITY_PROJECT_ID;
+const dataset = process.env.SANITY_DATASET ?? metaEnv.SANITY_DATASET ?? 'production';
+const token = process.env.SANITY_API_TOKEN ?? metaEnv.SANITY_API_TOKEN;
 
 export const sanityConfigured = Boolean(projectId);
 
@@ -130,7 +132,14 @@ function genereerToken(): string {
  * Wie zich eerder uitschreef en opnieuw aanmeldt, wordt weer geactiveerd (nieuw
  * uitschrijftoken, zodat een oude afmeldlink niet alsnog deactiveren kan).
  */
+function blokkeerSanityNaCutover(): void {
+  if (huidigeContentBron() === 'supabase') {
+    throw new Error('Sanity is geen runtimebron. Deze flow leest en schrijft alleen Supabase.');
+  }
+}
+
 export async function maakVriendAan(input: { naam: string; email: string }): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) {
     throw new Error('Sanity is niet geconfigureerd; aanmelding kan niet worden opgeslagen.');
   }
@@ -167,6 +176,7 @@ export async function maakVriendAan(input: { naam: string; email: string }): Pro
 }
 
 export async function getActieveVrienden(): Promise<Vriend[]> {
+  blokkeerSanityNaCutover();
   if (!client) return [];
   try {
     return await client.fetch<Vriend[]>(
@@ -180,11 +190,13 @@ export async function getActieveVrienden(): Promise<Vriend[]> {
 
 /** Actieve vrienden die volgens hun frequentie deze verzendronde mail moeten krijgen. */
 export async function getVriendenVoorVerzending(datum = new Date()): Promise<Vriend[]> {
+  blokkeerSanityNaCutover();
   const vrienden = await getActieveVrienden();
   return vrienden.filter((vriend) => ontvangtDezeVerzending(vriend.frequentie, datum));
 }
 
 export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
   try {
     // Groq-parameter mag niet `token` heten: @sanity/client typt dat veld als `never`
@@ -200,11 +212,13 @@ export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend 
 }
 
 export async function deactiveerVriend(id: string): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) return;
   await client.patch(id).set({ actief: false }).commit();
 }
 
 export async function updateVriendFrequentie(id: string, frequentie: VriendFrequentie): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) return;
   await client.patch(id).set({ frequentie, actief: true }).commit();
 }
@@ -215,6 +229,7 @@ export async function updateVriendFrequentie(id: string, frequentie: VriendFrequ
  * Komt nooit in de publieke agenda-query.
  */
 export async function getHuurderEmail(activiteitId: string): Promise<string | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
   try {
     const rij = await client.fetch<{
@@ -252,6 +267,7 @@ export interface NieuwsbriefContent {
 
 /** Vindt het nieuwsbrief-document voor de week waarin `datum` valt (maandag t/m zondag). */
 export async function getNieuwsbriefVoorWeek(datum: Date): Promise<NieuwsbriefContent | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
   const isoMaandag = maandagVanWeekIso(datum);
 
@@ -269,6 +285,7 @@ export async function getNieuwsbriefVoorWeek(datum: Date): Promise<NieuwsbriefCo
 }
 
 export async function markeerNieuwsbriefVerstuurd(id: string): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) return;
   await client.patch(id).set({ verstuurd: true }).commit();
 }
@@ -280,6 +297,7 @@ export async function markeerNieuwsbriefVerstuurd(id: string): Promise<void> {
  * per ongeluk twee keer kunnen versturen.
  */
 export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
 
   const bestaand = await getNieuwsbriefVoorWeek(datum);
@@ -309,6 +327,7 @@ export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string
  * verandert dus niet vanzelf.
  */
 export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) {
     console.warn('[sanity] geen client, aanvraag niet opgeslagen in CMS');
     return;
@@ -370,7 +389,7 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
   }
 }
 
-export { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
+export { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten.ts';
 
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
@@ -471,6 +490,7 @@ export async function getEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWe
  * typefout in het CMS nooit stilzwijgend alle aanvragen laat verdwijnen.
  */
 export async function getOntvangstAdres(): Promise<string> {
+  blokkeerSanityNaCutover();
   const fallback =
     process.env.CONTACT_FALLBACK_EMAIL ?? import.meta.env.CONTACT_FALLBACK_EMAIL ?? '';
 
@@ -496,6 +516,7 @@ export async function getOntvangstAdres(): Promise<string> {
  * de BCC-noodoplossing is. Leeg als het veld niet is ingesteld.
  */
 export async function getExtraOntvangstAdres(): Promise<string> {
+  blokkeerSanityNaCutover();
   if (!client) return '';
   try {
     const instellingen = await client.fetch<{ extraOntvangstAdres?: string } | null>(

@@ -7,7 +7,7 @@ import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-
 import { bewaarInstellingen } from '../../../platform/beheer-supabase-schrijf.ts';
 import { gekoppeldeSupabaseClient } from '../../../platform/sanity-registratie.ts';
 import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
-import { standaardBronnen } from '../../../platform/bron.ts';
+import { huidigeContentBron, standaardBronnen } from '../../../platform/bron.ts';
 
 const supabaseTest = Astro.url.searchParams.get('bron') !== 'demo';
 let schrijfFout = '';
@@ -40,6 +40,7 @@ if (Astro.request.method === 'POST') {
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const flash = Astro.url.searchParams.get('demo') === '1' || Astro.url.searchParams.get('bewaard') === '1';
 const bronnen = standaardBronnen();
+const cutover = huidigeContentBron() === 'supabase';
 const inst = snapshot.instellingen;
 ---
 
@@ -50,8 +51,8 @@ const inst = snapshot.instellingen;
       <p class="bh-hint">
         {
           supabaseTest
-            ? 'Testmodus leest en schrijft deze instellingen in Supabase. Sanity blijft de runtimebron van de website.'
-            : 'Sanity blijft de schrijvende bron. Bewaren slaat niets op.'
+            ? 'Instellingen worden gelezen en geschreven in Supabase. Een fout valt niet terug op Sanity.'
+            : 'Voorbeelddata. Bewaren slaat niets op.'
         }
       </p>
     </div>
@@ -95,7 +96,13 @@ const inst = snapshot.instellingen;
 
   <section class="bh-kaart">
     <h2>Schrijvende bron (nu)</h2>
-    <p class="bh-muted">Alles staat op Sanity tot een bewuste cutover. Dit scherm wijzigt dat niet.</p>
+    <p class="bh-muted">
+      {
+        cutover
+          ? 'Supabase is de enige schrijvende bron. De databasewaarde heet beheer. Er is geen dual-write naar Sanity.'
+          : 'De vlaggen staan nog op de rollbackbron Sanity.'
+      }
+    </p>
     <table class="bh-tabel">
       <thead>
         <tr>
@@ -108,7 +115,7 @@ const inst = snapshot.instellingen;
           Object.entries(bronnen).map(([type, bron]) => (
             <tr>
               <td>{type}</td>
-              <td>{bron}</td>
+              <td>{bron === 'beheer' ? 'supabase' : bron}</td>
             </tr>
           ))
         }
