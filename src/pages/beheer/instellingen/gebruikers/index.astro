@@ -3,18 +3,20 @@ export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
 import { MODULES, BEHEER_MODULES } from '../../../../platform/modules.ts';
-import { FUNCTIE_LABELS, GEBRUIKER_FUNCTIES, rechtenVoorFunctie } from '../../../../platform/referentie-gebruikers.ts';
+import { legeMatrix } from '../../../../platform/rollen.ts';
 import { loginFoutmelding } from '../../../../lib/beheer-auth.ts';
 import {
   functieLabel,
   laadAlleGebruikers,
   statusLabel,
 } from '../../../../lib/beheer-gebruikers.ts';
+import { laadRollen } from '../../../../lib/rollen-opslag.ts';
 import { maakBeheerAdminClient, supabaseGeconfigureerd } from '../../../../lib/supabase.ts';
 import type { Rechtniveau } from '../../../../platform/types.ts';
 
 const sessie = Astro.locals.beheer;
 const gekozenId = Astro.url.searchParams.get('id') ?? '';
+const gekozenRolSlug = Astro.url.searchParams.get('rol') ?? '';
 const fout = Astro.url.searchParams.get('fout');
 const ok = Astro.url.searchParams.get('ok');
 const meldingParam = Astro.url.searchParams.get('melding');
@@ -37,12 +39,29 @@ if (supabaseGeconfigureerd()) {
 }
 
 const gekozen = gebruikers.find((g) => g.id === gekozenId) ?? null;
+
+let rollen: Awaited<ReturnType<typeof laadRollen>> = [];
+let rolFout = '';
+try {
+  rollen = await laadRollen();
+} catch (error) {
+  rolFout = error instanceof Error ? error.message : 'Rollen konden niet worden geladen.';
+}
+const gekozenRol = rollen.find((rol) => rol.slug === gekozenRolSlug) ?? rollen[0] ?? null;
+const rolMatrices = Object.fromEntries(rollen.map((rol) => [rol.slug, rol.rechten]));
+
 const flash =
   ok === 'uitgenodigd'
     ? 'Uitnodiging verstuurd. De gebruiker activeert het account zelf via de mail.'
     : ok === 'bewaard'
       ? 'Rechten opgeslagen.'
-      : ok === 'disable'
+      : ok === 'rol'
+        ? 'Rol opgeslagen. Via het oogje bovenaan zie je wat deze rol ziet.'
+        : ok === 'rol-nieuw'
+          ? 'Rol toegevoegd. Stel de rechten in en kies Opslaan.'
+          : ok === 'rol-weg'
+            ? 'Rol verwijderd.'
+            : ok === 'disable'
         ? 'Account gedeactiveerd. De rechten blijven bewaard.'
         : ok === 'reactivate'
           ? 'Account weer geactiveerd.'
@@ -56,7 +75,7 @@ function niveauVoor(rechten: Record<string, Rechtniveau | undefined>, module: st
   return rechten[module] ?? 'verborgen';
 }
 
-const nieuweRechten = rechtenVoorFunctie('hans');
+const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
 ---
 
 <Beheer titel="Gebruikers">
@@ -64,15 +83,103 @@ const nieuweRechten = rechtenVoorFunctie('hans');
     <div>
       <h1>Gebruikers</h1>
       <p class="bh-hint">
-        Rollen op naam: Hans, Nelleke en Paul. Rechten per module richt je hier zelf in
-        (verborgen, lezen of schrijven). Super Admin ziet en schrijft alles, en kan via het oogje
-        bovenaan kijken wat een rol ziet.
+        Een rol is een naam met rechten. Die richt je hier in en bekijk je via het oogje,
+        ook voordat er een persoon aan gekoppeld is. Een nieuwe naam voeg je toe of verwijder je hieronder.
       </p>
     </div>
   </header>
 
   {flash && <p class={`bh-flash${fout ? ' bh-flash--fout' : ''}`} role="status">{flash}</p>}
+  {rolFout && <p class="bh-flash bh-flash--fout">{rolFout}</p>}
   {laadFout && <p class="bh-flash bh-flash--fout">{laadFout}</p>}
+
+  <section class="bh-kaart" id="rollen">
+    <h2>Rollen</h2>
+    {
+      rollen.length === 0 ? (
+        <p class="bh-leeg">Nog geen rollen. Voeg hieronder een naam toe.</p>
+      ) : (
+        <ul class="bh-rol-lijst">
+          {
+            rollen.map((rol) => (
+              <li>
+                <a href={`/beheer/instellingen/gebruikers/?rol=${rol.slug}#rol`} class={rol.slug === gekozenRol?.slug ? 'is-gekozen' : undefined}>
+                  {rol.naam}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      )
+    }
+    <form method="post" action="/api/beheer/rollen" class="bh-rol-nieuw bh-acties">
+      <input type="hidden" name="actie" value="nieuw" />
+      <label>
+        Nieuwe rol
+        <input type="text" name="naam" maxlength="40" required placeholder="Naam" />
+      </label>
+      <button class="bh-btn bh-btn--sec" type="submit">Rol toevoegen</button>
+    </form>
+  </section>
+
+  {
+    gekozenRol && (
+      <section class="bh-kaart" id="rol">
+        <h2>Rechten van {gekozenRol.naam}</h2>
+        <p class="bh-hint">Opslaan bewaart deze rol. Er hoeft nog geen persoon aan gekoppeld te zijn.</p>
+        <form method="post" action="/api/beheer/rollen" class="bh-gebruiker-form">
+          <input type="hidden" name="actie" value="opslaan" />
+          <input type="hidden" name="slug" value={gekozenRol.slug} />
+          <div class="bh-form-rij">
+            <label>
+              Naam
+              <input type="text" name="naam" required maxlength="40" value={gekozenRol.naam} />
+            </label>
+          </div>
+          <table class="bh-rechten bh-rechten-editor">
+            <thead>
+              <tr>
+                <th>Module</th>
+                <th>Verborgen</th>
+                <th>Lezen</th>
+                <th>Schrijven</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                MODULES.map((module) => (
+                  <tr>
+                    <th>{BEHEER_MODULES[module].label}</th>
+                    {(['verborgen', 'lezen', 'schrijven'] as const).map((niveau) => (
+                      <td>
+                        <label class="bh-radio">
+                          <input
+                            type="radio"
+                            name={`recht_${module}`}
+                            value={niveau}
+                            checked={niveauVoor(gekozenRol.rechten, module) === niveau}
+                          />
+                          <span class="visually-hidden">{niveau}</span>
+                        </label>
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+          <div class="bh-acties">
+            <button class="bh-btn" type="submit">Opslaan</button>
+          </div>
+        </form>
+        <form method="post" action="/api/beheer/rollen" class="bh-rol-weg bh-acties" onsubmit="return confirm('Deze rol verwijderen?');">
+          <input type="hidden" name="actie" value="verwijder" />
+          <input type="hidden" name="slug" value={gekozenRol.slug} />
+          <button class="bh-link" type="submit">Verwijderen</button>
+        </form>
+      </section>
+    )
+  }
 
   <section class="bh-kaart">
     <table class="bh-tabel bh-gebruikers">
@@ -103,7 +210,7 @@ const nieuweRechten = rechtenVoorFunctie('hans');
                 <td>
                   <span class={`bh-badge bh-badge--${g.status}`}>{statusLabel(g.status)}</span>
                 </td>
-                <td>{functieLabel(g.functie, g.isSuperAdmin)}</td>
+                <td>{functieLabel(g.functie, g.isSuperAdmin, rollen.find((rol) => rol.slug === g.functie)?.naam)}</td>
                 <td>{g.lastActiveAt ? new Date(g.lastActiveAt).toLocaleString('nl-NL') : '—'}</td>
                 <td>
                   <div class="bh-acties-inline">
@@ -160,7 +267,7 @@ const nieuweRechten = rechtenVoorFunctie('hans');
 
   <section class="bh-kaart" id="bewerken">
     <h2>{gekozen ? `Rechten van ${gekozen.naam}` : 'Gebruiker toevoegen'}</h2>
-    <form method="post" action="/api/beheer/gebruikers" class="bh-gebruiker-form">
+    <form method="post" action="/api/beheer/gebruikers" class="bh-gebruiker-form" id="bh-uitnodiging">
       <input type="hidden" name="actie" value={gekozen ? 'bewaar' : 'invite'} />
       {gekozen && <input type="hidden" name="id" value={gekozen.id} />}
       <div class="bh-form-rij">
@@ -183,16 +290,18 @@ const nieuweRechten = rechtenVoorFunctie('hans');
           <select name="functie" id="bh-rol">
             <option value="">Geen rol</option>
             {
-              GEBRUIKER_FUNCTIES.map((functie) => (
-                <option value={functie} selected={gekozen?.functie === functie}>
-                  {FUNCTIE_LABELS[functie]}
+              rollen.map((rol) => (
+                <option value={rol.slug} selected={gekozen ? gekozen.functie === rol.slug : gekozenRol?.slug === rol.slug}>
+                  {rol.naam}
                 </option>
               ))
             }
           </select>
         </label>
       </div>
-      <p class="bh-hint">Kies de rol op naam. De rechten hieronder bepaal je zelf; die bepalen wat deze persoon ziet.</p>
+      <p class="bh-hint">
+        Koppel hier pas een persoon. De rechten starten met de rol die je hierboven hebt opgeslagen.
+      </p>
       <table class="bh-rechten bh-rechten-editor">
         <thead>
           <tr>
@@ -251,4 +360,20 @@ const nieuweRechten = rechtenVoorFunctie('hans');
       }
     </form>
   </section>
+  {
+    !gekozen && (
+      <script is:inline define:vars={{ rolMatrices }}>
+        const select = document.getElementById('bh-rol');
+        const formulier = document.getElementById('bh-uitnodiging');
+        select?.addEventListener('change', () => {
+          const matrix = rolMatrices[select.value];
+          if (!matrix || !formulier) return;
+          for (const [module, niveau] of Object.entries(matrix)) {
+            const input = formulier.querySelector(`input[name="recht_${module}"][value="${niveau}"]`);
+            if (input) input.checked = true;
+          }
+        });
+      </script>
+    )
+  }
 </Beheer>

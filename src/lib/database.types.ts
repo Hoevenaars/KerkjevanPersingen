@@ -438,6 +438,19 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"page_views": {
+                  Row: {
+                    "created_at": string,"device_type": string,"id": number,"locale": string,"page_key": string,"path": string,"referrer_host": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"device_type": string,"id"?: never,"locale": string,"page_key": string,"path": string,"referrer_host"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"device_type"?: string,"id"?: never,"locale"?: string,"page_key"?: string,"path"?: string,"referrer_host"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"profielen": {
                   Row: {
                     "aangemaakt_op": string,"actief": boolean,"bijgewerkt_op": string,"email": string,"functie": string | null,"id": string,"is_super_admin": boolean,"last_active_at": string | null,"naam": string,"status": Database["public"]['Enums']["account_status"]

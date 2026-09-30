@@ -5,8 +5,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { MODULES } from '../platform/modules.ts';
 import {
-  FUNCTIE_LABELS,
   isGebruikerFunctie,
+  labelVoorFunctie,
   rechtenVoorFunctie,
   type AccountStatus,
   type AuditActie,
@@ -58,7 +58,7 @@ export function valideerInvite(invoer: InviteInvoer): string | null {
     return 'E-mailadres is ongeldig.';
   }
   if (invoer.functie && invoer.functie !== '' && !isGebruikerFunctie(invoer.functie)) {
-    return 'Onbekende functie.';
+    return 'Ongeldige rol.';
   }
   return null;
 }
@@ -104,10 +104,10 @@ export function profielUitRij(rij: {
   };
 }
 
-export function functieLabel(functie: GebruikerFunctie | null, isSuperAdmin: boolean): string {
+export function functieLabel(functie: GebruikerFunctie | null, isSuperAdmin: boolean, rolNaam?: string | null): string {
   if (isSuperAdmin) return 'Super Admin';
-  if (functie) return FUNCTIE_LABELS[functie];
-  return 'Geen rol';
+  if (rolNaam) return rolNaam;
+  return labelVoorFunctie(functie);
 }
 
 export async function laadProfielVoorRol(

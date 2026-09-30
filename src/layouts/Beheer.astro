@@ -6,7 +6,8 @@ import { BEHEER_MODULES, INSTELLINGEN_PAGINAS, SNEL_NIEUW } from '../platform/mo
 import { magZien } from '../platform/rechten.ts';
 import { beheerModus } from '../platform/beheer-sessie.ts';
 import { moduleVoorPad } from '../platform/autorisatie.ts';
-import { FUNCTIE_LABELS, GEBRUIKER_FUNCTIES, rolWeergaveId } from '../platform/referentie-gebruikers.ts';
+import { rolWeergaveId } from '../platform/rollen.ts';
+import { laadRollen } from '../lib/rollen-opslag.ts';
 
 interface Props {
   titel: string;
@@ -42,6 +43,14 @@ const instellingen = INSTELLINGEN_PAGINAS.filter((item) => magZien(rechten, item
 }));
 
 const snelNieuw = SNEL_NIEUW.filter((item) => magZien(rechten, item.module));
+let kijkRollen: Awaited<ReturnType<typeof laadRollen>> = [];
+if (sessie?.rechten.isSuperAdmin) {
+  try {
+    kijkRollen = await laadRollen();
+  } catch {
+    kijkRollen = [];
+  }
+}
 
 function actief(href: string): boolean {
   if (href === '/beheer/') return pad === '/beheer' || pad === '/beheer/';
@@ -80,7 +89,7 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
             <span>
               {
                 sessie.viewAs.id.startsWith('rol:')
-                  ? 'Deze rol is nog leeg: alleen het dashboard, tot je de rechten instelt. Wijzigingen zijn uitgeschakeld.'
+                  ? 'Je ziet wat deze rol ziet. Wijzigingen zijn uitgeschakeld.'
                   : 'Previewmodus – wijzigingen zijn uitgeschakeld'
               }
             </span>
@@ -176,13 +185,13 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
                       <button type="submit" aria-current={!sessie.viewAs ? 'true' : undefined}>Super Admin</button>
                     </form>
                     {
-                      GEBRUIKER_FUNCTIES.map((rol) => (
+                      kijkRollen.map((rol) => (
                         <form method="post" action="/api/beheer/view-as">
                           <input type="hidden" name="actie" value="start" />
-                          <input type="hidden" name="id" value={rolWeergaveId(rol)} />
+                          <input type="hidden" name="id" value={rolWeergaveId(rol.slug)} />
                           <input type="hidden" name="next" value="/beheer/" />
-                          <button type="submit" aria-current={sessie.viewAs?.functie === rol ? 'true' : undefined}>
-                            {FUNCTIE_LABELS[rol]}
+                          <button type="submit" aria-current={sessie.viewAs?.functie === rol.slug ? 'true' : undefined}>
+                            {rol.naam}
                           </button>
                         </form>
                       ))

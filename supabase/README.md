@@ -12,9 +12,16 @@ Zie `docs/beheer/ARCHITECTUUR.md`.
 
 ## Remote project
 
-Project **Kerkje van Persingen** (`xskqpefeumylrticrphp`, eu-central-1).
+Supabase-project **Kerkje van Persingen**, ref `xskqpefeumylrticrphp`, regio
+`eu-central-1`. API: `https://xskqpefeumylrticrphp.supabase.co`.
+
 `/beheer/login` gebruikt de publishable key. `SUPABASE_SERVICE_ROLE_KEY` blijft
 in het Vercel-dashboard en is nodig om gebruikers uit te nodigen.
+
+De kern (profielen, modules, rechten) staat erin. Rollen zijn een naam met een
+rechtenmatrix (`beheer_rollen`), los van een account. Hans, Nelleke en Paul zijn
+de start. De overige migraties in deze map zijn nog niet volledig toegepast.
+Fluweel en Kopvast zijn andere projecten en horen hier niet bij.
 
 Redirect-URL voor uitnodigingen en wachtwoordherstel, in Authentication → URL
 Configuration:
@@ -24,13 +31,13 @@ https://kerkjepersingen.nl/beheer/auth/callback
 ```
 
 ```bash
-npx supabase init          # alleen als config.toml ontbreekt
-npx supabase link --project-ref <project-id>
+npx supabase link --project-ref xskqpefeumylrticrphp
 npx supabase db push
 ```
 
-Daarna migraties pushen, inclusief `20260921120000_beheer_gebruikersaccounts.sql`.
-Zet `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` en
-`SUPER_ADMIN_EMAIL`. Die laatste wordt bij eerste login Super Admin. Nodig de
-overige beheerders uit via `/beheer/instellingen/gebruikers/`. Het veld
+Zet daarna op de host `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY` en `SUPER_ADMIN_EMAIL`. Die laatste wordt bij de
+eerste login Super Admin. Hans, Nelleke en Paul nodig je uit via
+`/beheer/instellingen/gebruikers/` zodra hun e-mailadres bekend is. De rol zelf
+richt je daar al in en bekijk je via het oogje, zonder iemand te koppelen. Het veld
 `is_super_admin` kan niet door andere gebruikers worden gezet.
