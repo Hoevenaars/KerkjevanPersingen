@@ -8,6 +8,8 @@ sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f supabase/migrations/2
 sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f supabase/migrations/20260929143000_continuiteit_schema.sql >/dev/null
 sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f supabase/migrations/20260929143100_continuiteit_mutaties.sql >/dev/null
 sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f supabase/migrations/20260929150000_sanity_import.sql >/dev/null
+sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f supabase/migrations/20260929160000_website_analytics.sql >/dev/null
 sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f tests/sql/continuiteit.sql >/dev/null
 sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f tests/sql/import.sql >/dev/null
+sudo -u postgres psql -d kerkje_test -v ON_ERROR_STOP=1 -f tests/sql/analytics.sql >/dev/null
 echo sql-ok

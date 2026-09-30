@@ -1114,6 +1114,116 @@
   .bh-board {
     grid-template-columns: 1fr;
   }
+
+  .bh-verdeling li {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+  }
+
+  .bh-verdeling li span:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.bh-analytics-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 16rem));
+  gap: var(--s-3);
+  margin: 0 0 var(--s-8);
+  padding: 0;
+  list-style: none;
+}
+
+.bh-analytics-kpi li {
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--s-4);
+  box-shadow: var(--shadow);
+}
+
+.bh-analytics-kpi strong {
+  display: block;
+  font-size: var(--t-2xl);
+  font-family: var(--font-display);
+  color: var(--pine);
+}
+
+.bh-analytics-kpi span {
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+}
+
+.bh-reeks {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10rem;
+  overflow-x: auto;
+  padding-bottom: var(--s-2);
+}
+
+.bh-reeks-dag {
+  flex: 1 0 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  min-width: 6px;
+}
+
+.bh-reeks-track {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  min-height: 0;
+}
+
+.bh-reeks-staaf {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  background: var(--pine);
+  border-radius: 2px 2px 0 0;
+}
+
+.bh-reeks-label {
+  margin-top: var(--s-2);
+  color: var(--ink-mute);
+  font-size: var(--t-xs, 0.75rem);
+  white-space: nowrap;
+}
+
+.bh-verdeling {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.bh-verdeling li {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+  font-size: var(--t-sm);
+}
+
+.bh-verdeling-balk {
+  display: block;
+  height: 0.55rem;
+  background: var(--cream-deep);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bh-verdeling-balk span {
+  display: block;
+  height: 100%;
+  background: var(--pine);
 }
 
 .bh-viewas {
