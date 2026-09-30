@@ -3,8 +3,28 @@ export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
 import { laadMailtemplates } from '../../../../platform/mailtemplates/store.ts';
+import { laadMailtemplatesUitSupabase } from '../../../../platform/mailtemplates/supabase-bron.ts';
+import { gekoppeldeSupabaseClient } from '../../../../platform/sanity-registratie.ts';
 
-const templates = await laadMailtemplates();
+const supabaseTest = Astro.url.searchParams.get('bron') === 'supabase';
+let templates;
+let supabaseFout = '';
+if (supabaseTest) {
+  const client = gekoppeldeSupabaseClient();
+  if (!client) {
+    templates = [];
+    supabaseFout = 'Geen Supabase-sessie. De code-catalogus wordt niet getoond.';
+  } else {
+    try {
+      templates = await laadMailtemplatesUitSupabase(client);
+    } catch (error) {
+      templates = [];
+      supabaseFout = error instanceof Error ? error.message : 'Supabase-templates niet gelezen.';
+    }
+  }
+} else {
+  templates = await laadMailtemplates();
+}
 const gesorteerd = [...templates].sort((a, b) => a.categorie.localeCompare(b.categorie, 'nl') || a.naam.localeCompare(b.naam, 'nl'));
 
 function verzendLabel(w: string): string {
@@ -25,10 +45,16 @@ function termijn(t: (typeof templates)[0]): string {
     <div>
       <h1>Mailtemplates</h1>
       <p class="bh-hint">
-        Procesmails voor aanvraag, betaling, content, planning en nazorg. Teksten zijn volledig bewerkbaar; template-ID's blijven vast.
+        {
+          supabaseTest
+            ? 'Teksten komen uit Supabase. Opslaan schrijft een nieuwe versie. Er wordt geen mail verstuurd.'
+            : "Procesmails voor aanvraag, betaling, content, planning en nazorg. Teksten zijn volledig bewerkbaar; template-ID's blijven vast."
+        }
       </p>
     </div>
   </header>
+
+  {supabaseFout && <p class="bh-flash bh-flash--fout" role="alert">{supabaseFout}</p>}
 
   <table class="bh-tabel">
     <thead>

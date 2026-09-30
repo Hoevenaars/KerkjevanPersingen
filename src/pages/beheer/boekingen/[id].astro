@@ -13,6 +13,8 @@ import {
 import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
+import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
+import { gekoppeldeSupabaseClient } from '../../../platform/sanity-registratie.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
 
@@ -39,8 +41,14 @@ const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
 const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
 const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id);
 const demoMails = snapshot.communicatie.filter((c) => c.boekingId === boeking.id);
-const opgeslagen = await laadCommunicatieVoorBoeking(boeking.id);
-const templates = await laadMailtemplates();
+const opgeslagen = snapshot.bron === 'supabase' ? [] : await laadCommunicatieVoorBoeking(boeking.id);
+const templates =
+  snapshot.bron === 'supabase'
+    ? await (async () => {
+        const client = gekoppeldeSupabaseClient();
+        return client ? laadMailtemplatesUitSupabase(client) : [];
+      })()
+    : await laadMailtemplates();
 const gepland = geplandeMailsVoorBoeking(boeking, templates, opgeslagen);
 const mails: {
   id: string;

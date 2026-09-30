@@ -11,7 +11,7 @@ import { huidigeContentBron } from '../../platform/bron.ts';
 import type { BeheerSnapshot } from '../../platform/beheer-bron.ts';
 import type { InhoudStatus } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
-import { DEMO_INSTELLINGEN } from '../../platform/demo-data.ts';
+import { laadMailtemplatesUitSupabase } from '../../platform/mailtemplates/supabase-bron.ts';
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
 import type { Json } from '../database.types.ts';
 import {
@@ -209,6 +209,7 @@ async function laadWereld(): Promise<Wereld> {
     ...wereld.incidenten,
   ].map((rij) => Number(rij.id) || 0);
   wereld.seq = Math.max(0, ...ids);
+  wereld.mailtemplates = await laadMailtemplatesUitSupabase(client);
   return wereld;
 }
 

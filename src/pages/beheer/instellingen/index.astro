@@ -4,14 +4,40 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import { demoNaActie } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { bewaarInstellingen } from '../../../platform/beheer-supabase-schrijf.ts';
+import { gekoppeldeSupabaseClient } from '../../../platform/sanity-registratie.ts';
 import { standaardBronnen } from '../../../platform/bron.ts';
 
+const supabaseTest = Astro.url.searchParams.get('bron') === 'supabase';
+let schrijfFout = '';
+
 if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+  if (!supabaseTest) {
+    return Astro.redirect(demoNaActie(Astro.url));
+  }
+  const form = await Astro.request.formData();
+  const client = gekoppeldeSupabaseClient();
+  if (!client) {
+    schrijfFout = 'Geen Supabase-sessie. Instellingen zijn niet opgeslagen en er is niet teruggeschreven naar Sanity.';
+  } else {
+    try {
+      await bewaarInstellingen(client as never, {
+        openingVan: String(form.get('openingVan') ?? ''),
+        openingTot: String(form.get('openingTot') ?? ''),
+        contractbeheerder: String(form.get('contractbeheerder') ?? ''),
+        ontvangstAdres: String(form.get('ontvangstAdres') ?? ''),
+        extraOntvangstAdres: String(form.get('extraOntvangstAdres') ?? ''),
+        penningmeesterAdres: String(form.get('penningmeesterAdres') ?? ''),
+      });
+      return Astro.redirect('/beheer/instellingen/?bron=supabase&bewaard=1');
+    } catch (error) {
+      schrijfFout = error instanceof Error ? error.message : 'Opslaan in Supabase mislukt.';
+    }
+  }
 }
 
 const snapshot = await laadBeheerSnapshot({ url: Astro.url });
-const flash = Astro.url.searchParams.get('demo') === '1';
+const flash = Astro.url.searchParams.get('demo') === '1' || Astro.url.searchParams.get('bewaard') === '1';
 const bronnen = standaardBronnen();
 const inst = snapshot.instellingen;
 ---
@@ -21,15 +47,20 @@ const inst = snapshot.instellingen;
     <div>
       <h1>Algemeen</h1>
       <p class="bh-hint">
-        Sanity blijft de schrijvende bron. Bewaren slaat niets op.
+        {
+          supabaseTest
+            ? 'Testmodus leest en schrijft deze instellingen in Supabase. Sanity blijft de runtimebron van de website.'
+            : 'Sanity blijft de schrijvende bron. Bewaren slaat niets op.'
+        }
       </p>
     </div>
   </header>
 
-  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {flash && !schrijfFout && <p class="bh-flash">{supabaseTest && Astro.url.searchParams.get('bewaard') === '1' ? 'Opgeslagen in Supabase.' : schrijfActieFlash(snapshot.bron)}</p>}
+  {schrijfFout && <p class="bh-flash bh-flash--fout" role="alert">{schrijfFout}</p>}
 
   <section class="bh-kaart">
-    <h2>{snapshot.instellingenHerkomst === 'supabase' ? 'Openingstijden uit Supabase' : 'Openingstijden (voorbeeld)'}</h2>
+    <h2>{snapshot.instellingenHerkomst === 'supabase' ? 'Instellingen uit Supabase' : 'Openingstijden (voorbeeld)'}</h2>
     <form method="post" class="bh-form">
       <label for="van">Open vanaf</label>
       <input id="van" name="openingVan" value={inst.openingVan} />
@@ -38,18 +69,26 @@ const inst = snapshot.instellingen;
       <label for="beheerder">Contractbeheerder</label>
       <input id="beheerder" name="contractbeheerder" value={inst.contractbeheerder} />
       {
-        inst.ontvangstAdres ? (
+        supabaseTest || inst.ontvangstAdres ? (
           <>
-            <label for="ontvangst">Ontvangstadres aanvragen (Sanity)</label>
-            <input id="ontvangst" name="ontvangstAdres" value={inst.ontvangstAdres} readonly />
+            <label for="ontvangst">Ontvangstadres aanvragen</label>
+            <input id="ontvangst" name="ontvangstAdres" value={inst.ontvangstAdres} readonly={!supabaseTest} />
+            <label for="extra">Extra ontvangstadres</label>
+            <input id="extra" name="extraOntvangstAdres" value={inst.extraOntvangstAdres} readonly={!supabaseTest} />
+            <label for="penningmeester">Penningmeester</label>
+            <input id="penningmeester" name="penningmeesterAdres" value={inst.penningmeesterAdres} readonly={!supabaseTest} />
           </>
         ) : null
       }
-      {!snapshot.alleenLezen && (
+      {supabaseTest ? (
+        <div class="bh-acties">
+          <button class="bh-btn" type="submit">Bewaar in Supabase</button>
+        </div>
+      ) : !snapshot.alleenLezen ? (
         <div class="bh-acties">
           <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
         </div>
-      )}
+      ) : null}
     </form>
   </section>
 

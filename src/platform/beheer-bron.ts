@@ -62,6 +62,14 @@ export interface BeheerSnapshot {
   fout?: string | null;
   alleenLezen?: boolean;
   instellingenHerkomst?: 'supabase' | 'demo' | 'leeg';
+  tarieven?: {
+    verhuurtype: string;
+    prijstype: string;
+    bedrag: number | null;
+    geldigVanaf: string;
+    geldigTot: string | null;
+    toelichting: string;
+  }[];
   incidenten?: { id: string; boekingId: string; omschrijving: string; status: string }[];
   signalen?: {
     boekingId: string;
