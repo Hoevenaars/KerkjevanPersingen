@@ -544,7 +544,7 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
     const hoogViaBron = [...refs].flatMap((sleutel) => (hoogOpBron.get(sleutel) ?? []).filter((regel) => regel.entity_type === 'relatie'));
     const hoogDirect = hoogOpId.get(bron.relatie_id) ?? [];
     const medium = mediumVelden.get(bron.relatie_id) ?? new Set<string>();
-    const schema = bron.geboortedatum && iso(bron.geboortedatum) ? ['relaties_geboortedatum'] : [];
+    const schema: string[] = [];
     let actie: Actie | null = null;
     let reden = '';
     if (bron.review_status !== 'OK') {
@@ -1030,6 +1030,7 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
       'pasen en pinksteren worden geen verhuurtype',
       'contract_datum heeft geen kolom op boekingen',
       'x in de indeling wordt geen dienst',
+      'geboortedatum wordt niet opgeslagen; 23 juli 195. wordt niet gecorrigeerd',
     ],
   };
 
