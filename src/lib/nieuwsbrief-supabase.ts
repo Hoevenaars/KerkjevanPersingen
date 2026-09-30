@@ -3,7 +3,7 @@
  * Dry-run bepaalt ontvangers, kiest de template en legt testverzendingen vast.
  */
 
-import type { Activiteit, AgendaOverzicht } from './sanity';
+import type { Activiteit, AgendaOverzicht } from './sanity.ts';
 import { maandagVanWeekIso } from './week.ts';
 import { mailMeta } from './nieuwsbrief-frequentie.ts';
 import { bouwNieuwsbriefHtml } from './nieuwsbrief-html.ts';

@@ -5,6 +5,11 @@ export async function verstuurTestMail(input: {
   onderwerp: string;
   html: string;
 }): Promise<{ verzonden: boolean; detail: string }> {
+  const { besluitVoor } = await import('./automatisering-register.ts');
+  const besluit = await besluitVoor('mailtemplate_test');
+  if (!besluit.provider) {
+    return { verzonden: false, detail: besluit.reden };
+  }
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.CONTACT_FALLBACK_EMAIL?.trim() ?? 'Kerkje van Persingen <noreply@kerkjepersingen.nl>';
   if (!apiKey) {

@@ -231,6 +231,10 @@ export async function nodigGebruikerUit(
   const validatie = valideerInvite(invoer);
   if (validatie) return { fout: 'ongeldig', melding: validatie };
 
+  const { besluitVoor } = await import('./automatisering-register.ts');
+  if (!(await besluitVoor('gebruiker_uitnodiging')).provider) {
+    return { fout: 'ongeldig', melding: 'Uitnodigingsmail staat uit in Automatiseringen.' };
+  }
   const email = normaliseerEmail(invoer.email);
   const functie = invoer.functie && isGebruikerFunctie(invoer.functie) ? invoer.functie : null;
   const rechten = inviteRechten({ ...invoer, email });
@@ -375,6 +379,10 @@ export async function verstuurUitnodigingOpnieuw(
 ): Promise<{ ok: true } | { fout: GebruikerFout; melding: string }> {
   if (!magGebruikersBeheren(actor.rechten)) {
     return { fout: 'geen_recht', melding: 'Geen recht om uitnodigingen te versturen.' };
+  }
+  const { besluitVoor } = await import('./automatisering-register.ts');
+  if (!(await besluitVoor('gebruiker_uitnodiging')).provider) {
+    return { fout: 'ongeldig', melding: 'Uitnodigingsmail staat uit in Automatiseringen.' };
   }
   const geladen = await laadProfiel(admin, doelId);
   if (!geladen) return { fout: 'niet_gevonden', melding: 'Gebruiker niet gevonden.' };

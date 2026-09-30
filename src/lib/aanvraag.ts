@@ -81,7 +81,7 @@ function mailOmlijsting(titel: string, inhoud: string, metLogo = false): string 
     </div>`;
 }
 
-function bestuurMail(a: Aanvraag): string {
+export function bestuurMailTekst(a: Aanvraag): string {
   const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
   const isExpositie = a.soort === 'expositie';
 

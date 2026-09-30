@@ -22,6 +22,7 @@ import {
 } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam, voegDagenToe, periodesOverlappen } from '../../platform/datum.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
+import { MailGeblokkeerd } from '../../platform/automatisering.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { hashToegangstoken, nieuwToegangstoken, tokenIsVerlopen } from '../../platform/magictoken.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
@@ -221,7 +222,7 @@ export interface Resultaat {
 }
 
 export interface MailTransport {
-  verstuur(input: { naar: string; onderwerp: string; tekst: string }): Promise<void>;
+  verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string }): Promise<void>;
 }
 
 export interface DienstContext {
@@ -1365,6 +1366,7 @@ export async function voerOpdrachtUit(
           naar: guard.naar,
           onderwerp: `${guard.onderwerpPrefix}${mail.onderwerp}`,
           tekst: mail.tekst,
+          templateSleutel: mail.dedup.split(':').at(-1) ?? '',
         });
         mutaties.push({
           soort: 'upsert_job',
@@ -1394,6 +1396,24 @@ export async function voerOpdrachtUit(
           },
         });
       } catch (error) {
+        if (error instanceof MailGeblokkeerd) {
+          mutaties.push({
+            soort: 'upsert_job',
+            ref: mail.jobRef,
+            velden: {
+              dedup_sleutel: mail.dedup,
+              template_sleutel: mail.dedup.split(':').at(-1) ?? '',
+              status: 'geannuleerd',
+              modus: 'automatisch',
+              gepland_op: ctx.nu.toISOString(),
+              ontvanger_email: mail.naar,
+              onderwerp: mail.onderwerp,
+              pogingen: mail.pogingen,
+              foutmelding: error.message,
+            },
+          });
+          continue;
+        }
         const pogingen = mail.pogingen + 1;
         const fout = mailFoutNaPoging(pogingen);
         mutaties.push({

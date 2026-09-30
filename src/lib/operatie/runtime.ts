@@ -4,7 +4,8 @@
  * Zonder die twee vlaggen blijft Sanity de productiebron.
  */
 
-import { Resend } from 'resend';
+import { automatiseringVoorTemplate } from '../../platform/automatisering.ts';
+import { eisProviderToegestaan } from '../mail-transport.ts';
 import type { Activiteit } from '../sanity.ts';
 import { maakBeheerAdminClient } from '../supabase.ts';
 import { huidigeContentBron } from '../../platform/bron.ts';
@@ -14,7 +15,7 @@ import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { laadMailtemplatesUitSupabase } from '../../platform/mailtemplates/supabase-bron.ts';
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
 import type { Json } from '../database.types.ts';
-import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from './agenda-zichtbaarheid.ts';
+import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from '../agenda-zichtbaarheid.ts';
 import {
   legeWereld,
   readinessVanBoeking,
@@ -221,8 +222,11 @@ async function laadWereld(): Promise<Wereld> {
 function mailTransport(env: Record<string, unknown>) {
   const sleutel = String(env.RESEND_API_KEY ?? '');
   return {
-    async verstuur(input: { naar: string; onderwerp: string; tekst: string }) {
+    async verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string }) {
+      const automatisering = input.templateSleutel ? automatiseringVoorTemplate(input.templateSleutel) : null;
+      await eisProviderToegestaan(automatisering ?? 'workflow', undefined, env);
       if (!sleutel) throw new Error('RESEND_API_KEY ontbreekt');
+      const { Resend } = await import('resend');
       const resend = new Resend(sleutel);
       const { error } = await resend.emails.send({
         from: VAN,
@@ -258,6 +262,9 @@ export async function voerOperationeel(
 
 export async function draaiWorkflow(env: Record<string, unknown> = process.env, basisUrl = 'https://kerkjepersingen.nl'): Promise<{ ok: boolean; melding: string }> {
   if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: productie blijft op Sanity.' };
+  const { besluitVoor } = await import('../automatisering-register.ts');
+  const besluit = await besluitVoor('workflow', undefined, env);
+  if (!besluit.provider) return { ok: true, melding: `Workflowmail geblokkeerd: ${besluit.reden}` };
   return voerOperationeel({ soort: 'scheduler' }, {
     env,
     actor: { type: 'systeem', naam: 'planner' },

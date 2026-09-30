@@ -99,6 +99,17 @@ if (Astro.request.method === 'POST') {
       if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {
         const uitkomst = await bewaarTestAanvraag(waarden, false);
         if (uitkomst.ok) {
+          const { verstuurGecontroleerd } = await import('../../../lib/mail-transport.ts');
+          const { bestuurMailTekst } = await import('../../../lib/aanvraag.ts');
+          await verstuurGecontroleerd({
+            sleutel: 'aanvraag_bestuur',
+            naar: process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'contractbeheer.kvp@gmail.com',
+            onderwerp: 'Nieuwe verhuuraanvraag',
+            tekst: `${waarden.naam} vraagt ${waarden.soort} aan op ${waarden.datum}.`,
+            html: bestuurMailTekst(waarden),
+          }).catch((error) => {
+            console.error('[aanvraag] bestuursnotificatie niet verzonden', error);
+          });
           return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
         }
         fouten = uitkomst.fouten ?? {};
