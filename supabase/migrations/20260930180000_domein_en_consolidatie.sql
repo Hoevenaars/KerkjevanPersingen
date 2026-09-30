@@ -15,7 +15,7 @@ do $$ begin
   create type public.aanvraag_status as enum (
     'nieuw', 'in_behandeling', 'wacht_op_aanvrager', 'goedgekeurd', 'afgewezen', 'gesloten'
   );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
@@ -23,46 +23,46 @@ do $$ begin
     'optie', 'optie_verlopen', 'definitief', 'afgewezen', 'geannuleerd', 'afgerond', 'gearchiveerd',
     'migratie_aanvraag', 'migratie_vastgelegd'
   );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create type public.dagregel as enum ('expositie_weekend', 'doordeweeks', 'elke_dag');
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create type public.prijstype as enum ('vast', 'vanaf', 'op_aanvraag');
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create type public.publicatie_trigger as enum (
     'zodra_content_compleet', 'uiterlijk_1_maand', 'uiterlijk_2_maanden', 'uiterlijk_3_maanden', 'niet_publiceren'
   );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create type public.verzendwijze as enum ('automatisch', 'concept', 'handmatig');
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create type public.nieuwe_ontvanger_actie as enum ('direct_alsnog', 'als_concept', 'niet_meer');
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create type public.communicatie_status as enum ('gepland', 'concept', 'wachtrij', 'verzonden', 'fout', 'geannuleerd');
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create type public.inhoud_status as enum (
     'niet_vereist', 'niet_gestart', 'gevraagd', 'ingediend', 'wijziging_gevraagd', 'goedgekeurd'
   );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -102,6 +102,20 @@ create table if not exists public.relaties (
   constraint relaties_migratie_herkomst_uniek unique (migration_source, migration_external_id)
 );
 
+-- Bestaat de tabel al uit een eerdere migratie, dan slaat CREATE TABLE de nieuwe kolommen over.
+alter table public.relaties
+  add column if not exists migration_source text,
+  add column if not exists migration_external_id text,
+  add column if not exists migration_source_file text,
+  add column if not exists migration_source_row text,
+  add column if not exists migration_batch_id text;
+
+do $$ begin
+  alter table public.relaties
+    add constraint relaties_migratie_herkomst_uniek unique (migration_source, migration_external_id);
+exception when duplicate_object or duplicate_table then null;
+end $$;
+
 create unique index if not exists relaties_legacy_id_unique
   on public.relaties (legacy_id) where legacy_id is not null;
 create index if not exists relaties_email_idx on public.relaties (lower(email));
@@ -127,6 +141,19 @@ create table if not exists public.relatie_rollen (
   primary key (relatie_id, rol),
   constraint relatie_rollen_migratie_herkomst_uniek unique (migration_source, migration_external_id)
 );
+
+alter table public.relatie_rollen
+  add column if not exists migration_source text,
+  add column if not exists migration_external_id text,
+  add column if not exists migration_source_file text,
+  add column if not exists migration_source_row text,
+  add column if not exists migration_batch_id text;
+
+do $$ begin
+  alter table public.relatie_rollen
+    add constraint relatie_rollen_migratie_herkomst_uniek unique (migration_source, migration_external_id);
+exception when duplicate_object or duplicate_table then null;
+end $$;
 
 create index if not exists relatie_rollen_migration_external_id_idx
   on public.relatie_rollen (migration_external_id) where migration_external_id is not null;
@@ -226,6 +253,19 @@ create table if not exists public.boekingen (
   constraint boekingen_migratie_herkomst_uniek unique (migration_source, migration_external_id)
 );
 
+alter table public.boekingen
+  add column if not exists migration_source text,
+  add column if not exists migration_external_id text,
+  add column if not exists migration_source_file text,
+  add column if not exists migration_source_row text,
+  add column if not exists migration_batch_id text;
+
+do $$ begin
+  alter table public.boekingen
+    add constraint boekingen_migratie_herkomst_uniek unique (migration_source, migration_external_id);
+exception when duplicate_object or duplicate_table then null;
+end $$;
+
 create unique index if not exists boekingen_legacy_id_unique
   on public.boekingen (legacy_id) where legacy_id is not null;
 create index if not exists boekingen_status_idx on public.boekingen (status);
@@ -250,7 +290,7 @@ do $$ begin
   alter table public.aanvragen
     add constraint aanvragen_boeking_id_fkey
     foreign key (boeking_id) references public.boekingen (id);
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 create index if not exists aanvragen_boeking_id_idx on public.aanvragen (boeking_id);
@@ -329,6 +369,19 @@ create table if not exists public.interne_activiteiten (
   constraint interne_periode_ok check (eind_datum >= start_datum),
   constraint interne_activiteiten_migratie_herkomst_uniek unique (migration_source, migration_external_id)
 );
+
+alter table public.interne_activiteiten
+  add column if not exists migration_source text,
+  add column if not exists migration_external_id text,
+  add column if not exists migration_source_file text,
+  add column if not exists migration_source_row text,
+  add column if not exists migration_batch_id text;
+
+do $$ begin
+  alter table public.interne_activiteiten
+    add constraint interne_activiteiten_migratie_herkomst_uniek unique (migration_source, migration_external_id);
+exception when duplicate_object or duplicate_table then null;
+end $$;
 
 create index if not exists interne_activiteiten_periode_idx
   on public.interne_activiteiten (start_datum, eind_datum);
@@ -480,6 +533,25 @@ create table if not exists public.betalingen (
   constraint betalingen_migratie_herkomst_uniek unique (migration_source, migration_external_id)
 );
 
+alter table public.betalingen
+  add column if not exists migration_source text,
+  add column if not exists migration_external_id text,
+  add column if not exists migration_source_file text,
+  add column if not exists migration_source_row text,
+  add column if not exists migration_batch_id text;
+
+alter table public.betalingen drop constraint if exists betalingen_soort_bekend;
+alter table public.betalingen
+  add constraint betalingen_soort_bekend check (
+    soort in ('aanbetaling', 'restant', 'correctie', 'restitutie', 'historisch')
+  );
+
+do $$ begin
+  alter table public.betalingen
+    add constraint betalingen_migratie_herkomst_uniek unique (migration_source, migration_external_id);
+exception when duplicate_object or duplicate_table then null;
+end $$;
+
 create unique index if not exists betalingen_aanbetaling_uniek
   on public.betalingen (boeking_id) where soort = 'aanbetaling';
 create index if not exists betalingen_boeking_idx on public.betalingen (boeking_id, status);
@@ -557,6 +629,21 @@ create table if not exists public.gastbegeleider_toewijzingen (
   constraint gastbegeleider_slot_uniek unique (boeking_id, relatie_id, datum, type),
   constraint gastbegeleider_migratie_herkomst_uniek unique (migration_source, migration_external_id)
 );
+
+alter table public.gastbegeleider_toewijzingen
+  add column if not exists datum date,
+  add column if not exists type text,
+  add column if not exists migration_source text,
+  add column if not exists migration_external_id text,
+  add column if not exists migration_source_file text,
+  add column if not exists migration_source_row text,
+  add column if not exists migration_batch_id text;
+
+do $$ begin
+  alter table public.gastbegeleider_toewijzingen
+    add constraint gastbegeleider_migratie_herkomst_uniek unique (migration_source, migration_external_id);
+exception when duplicate_object or duplicate_table then null;
+end $$;
 
 create index if not exists gastbegeleider_boeking_datum_idx
   on public.gastbegeleider_toewijzingen (boeking_id, datum);
@@ -743,135 +830,135 @@ do $$ begin
       or (select app.heeft_recht('boekingen', 'lezen'))
       or (select app.heeft_recht('aanvragen', 'lezen'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy verhuurtypen_schrijven on public.verhuurtypen
     for all to authenticated
     using ((select app.heeft_recht('instellingen', 'schrijven')))
     with check ((select app.heeft_recht('instellingen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy relaties_select on public.relaties
     for select to authenticated using ((select app.heeft_recht('relaties', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy relaties_insert on public.relaties
     for insert to authenticated with check ((select app.heeft_recht('relaties', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy relaties_update on public.relaties
     for update to authenticated
     using ((select app.heeft_recht('relaties', 'schrijven')))
     with check ((select app.heeft_recht('relaties', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy relaties_delete on public.relaties
     for delete to authenticated using ((select app.is_super_admin()));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy relatie_rollen_select on public.relatie_rollen
     for select to authenticated using ((select app.heeft_recht('relaties', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy relatie_rollen_schrijven on public.relatie_rollen
     for all to authenticated
     using ((select app.heeft_recht('relaties', 'schrijven')))
     with check ((select app.heeft_recht('relaties', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy aanvragen_select on public.aanvragen
     for select to authenticated using ((select app.heeft_recht('aanvragen', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy aanvragen_insert on public.aanvragen
     for insert to authenticated with check ((select app.heeft_recht('aanvragen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy aanvragen_update on public.aanvragen
     for update to authenticated
     using ((select app.heeft_recht('aanvragen', 'schrijven')))
     with check ((select app.heeft_recht('aanvragen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy aanvragen_delete on public.aanvragen
     for delete to authenticated using ((select app.is_super_admin()));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy boekingen_select on public.boekingen
     for select to authenticated using ((select app.heeft_recht('boekingen', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy boekingen_insert on public.boekingen
     for insert to authenticated with check ((select app.heeft_recht('boekingen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy boekingen_update on public.boekingen
     for update to authenticated
     using ((select app.heeft_recht('boekingen', 'schrijven')))
     with check ((select app.heeft_recht('boekingen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy boekingen_delete on public.boekingen
     for delete to authenticated using ((select app.is_super_admin()));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy publieke_activiteiten_select on public.publieke_activiteiten
     for select to authenticated using ((select app.heeft_recht('agenda', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy publieke_activiteiten_schrijven on public.publieke_activiteiten
     for all to authenticated
     using ((select app.heeft_recht('agenda', 'schrijven')))
     with check ((select app.heeft_recht('agenda', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy interne_activiteiten_select on public.interne_activiteiten
     for select to authenticated using ((select app.heeft_recht('kalender', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy interne_activiteiten_schrijven on public.interne_activiteiten
     for all to authenticated
     using ((select app.heeft_recht('kalender', 'schrijven')))
     with check ((select app.heeft_recht('kalender', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy templates_select on public.communicatie_templates
     for select to authenticated using ((select app.heeft_recht('templates', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy templates_schrijven on public.communicatie_templates
     for all to authenticated
     using ((select app.heeft_recht('templates', 'schrijven')))
     with check ((select app.heeft_recht('templates', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
@@ -880,7 +967,7 @@ do $$ begin
       (select app.heeft_recht('templates', 'lezen'))
       or (select app.heeft_recht('boekingen', 'lezen'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy jobs_schrijven on public.communicatie_jobs
@@ -893,7 +980,7 @@ do $$ begin
       (select app.heeft_recht('templates', 'schrijven'))
       or (select app.heeft_recht('boekingen', 'schrijven'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
@@ -902,7 +989,7 @@ do $$ begin
       (select app.heeft_recht('templates', 'lezen'))
       or (select app.heeft_recht('boekingen', 'lezen'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy pogingen_insert on public.communicatie_pogingen
@@ -910,7 +997,7 @@ do $$ begin
       (select app.heeft_recht('templates', 'schrijven'))
       or (select app.heeft_recht('boekingen', 'schrijven'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
@@ -919,7 +1006,7 @@ do $$ begin
       (select app.heeft_recht('templates', 'lezen'))
       or (select app.heeft_recht('boekingen', 'lezen'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy verzendingen_insert on public.communicatie_verzendingen
@@ -927,7 +1014,7 @@ do $$ begin
       (select app.heeft_recht('templates', 'schrijven'))
       or (select app.heeft_recht('boekingen', 'schrijven'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
@@ -936,7 +1023,7 @@ do $$ begin
       (select app.heeft_recht('boekingen', 'lezen'))
       or (select app.heeft_recht('aanvragen', 'lezen'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy workflow_taken_schrijven on public.workflow_taken
@@ -949,76 +1036,76 @@ do $$ begin
       (select app.heeft_recht('boekingen', 'schrijven'))
       or (select app.heeft_recht('aanvragen', 'schrijven'))
     );
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy toegangstokens_select on public.toegangstokens
     for select to authenticated using ((select app.heeft_recht('boekingen', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy toegangstokens_schrijven on public.toegangstokens
     for all to authenticated
     using ((select app.heeft_recht('boekingen', 'schrijven')))
     with check ((select app.heeft_recht('boekingen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy betalingen_select on public.betalingen
     for select to authenticated using ((select app.heeft_recht('finance', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy betalingen_schrijven on public.betalingen
     for all to authenticated
     using ((select app.heeft_recht('finance', 'schrijven')))
     with check ((select app.heeft_recht('finance', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy incidenten_select on public.incidenten
     for select to authenticated using ((select app.heeft_recht('boekingen', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy incidenten_schrijven on public.incidenten
     for all to authenticated
     using ((select app.heeft_recht('boekingen', 'schrijven')))
     with check ((select app.heeft_recht('boekingen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy auditlog_select on public.auditlog
     for select to authenticated using ((select app.is_super_admin()));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy auditlog_insert on public.auditlog
     for insert to authenticated with check ((select auth.uid()) is not null);
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy gastbegeleider_select on public.gastbegeleider_toewijzingen
     for select to authenticated using ((select app.heeft_recht('boekingen', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   create policy gastbegeleider_schrijven on public.gastbegeleider_toewijzingen
     for all to authenticated
     using ((select app.heeft_recht('boekingen', 'schrijven')))
     with check ((select app.heeft_recht('boekingen', 'schrijven')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 do $$ begin
   create policy page_views_lezen on public.page_views
     for select to authenticated using ((select app.heeft_recht('analytics', 'lezen')));
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 -- Runtime-RPC pas_continuiteit_mutaties. Alleen service_role.
