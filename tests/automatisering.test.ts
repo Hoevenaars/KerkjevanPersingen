@@ -14,6 +14,8 @@ import { eisProviderToegestaan, verstuurGecontroleerd } from '../src/lib/mail-tr
 import { verstuurWekelijkseNieuwsbrief } from '../src/lib/nieuwsbrief.ts';
 import { draaiWorkflow } from '../src/lib/operatie/runtime.ts';
 import { legeWereld, voerOpdrachtUit, type DienstContext } from '../src/lib/operatie/kern.ts';
+import { nodigGebruikerUit, verstuurUitnodigingOpnieuw } from '../src/lib/beheer-gebruikers.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const bericht = {
   naar: 'bestuur@example.nl',
@@ -185,8 +187,133 @@ test('een geblokkeerde verzending wordt niet als verzonden gemarkeerd', async ()
       },
     },
   );
-  const verzonden = uit.mutaties.filter((mutatie) => mutatie.soort === 'upsert_job' && mutatie.velden.status === 'verzonden');
-  const geannuleerd = uit.mutaties.filter((mutatie) => mutatie.soort === 'upsert_job' && mutatie.velden.status === 'geannuleerd');
-  assert.equal(verzonden.length, 0);
-  assert.ok(geannuleerd.length > 0);
+  const jobs = uit.wereld.jobs;
+  assert.ok(jobs.length > 0);
+  assert.ok(jobs.every((job) => job.status === 'geblokkeerd'));
+  assert.ok(jobs.every((job) => job.status !== 'verzonden' && job.status !== 'geannuleerd'));
+  assert.ok(jobs.every((job) => (job.foutmelding ?? '').includes('geen provider-call')));
+  const audit = uit.mutaties.filter((mutatie) => mutatie.soort === 'insert_audit' && mutatie.velden.actie === 'verzonden');
+  assert.equal(audit.length, 0);
+});
+
+const MET_CALLER = [
+  ['booking_request_received', 'dien_aanvraag in src/lib/operatie/kern.ts'],
+  ['internal_booking_review_required', 'dien_aanvraag in src/lib/operatie/kern.ts'],
+  ['booking_request_rejected', 'beoordeel afwijzen in src/lib/operatie/kern.ts'],
+  ['booking_more_information_requested', 'beoordeel meer informatie in src/lib/operatie/kern.ts'],
+  ['booking_approved_payment_required', 'beoordeel goedkeuren in src/lib/operatie/kern.ts'],
+  ['booking_confirmed', 'betaling in src/lib/operatie/kern.ts'],
+  ['booking_payment_reminder', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['booking_payment_final_reminder', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['internal_payment_overdue', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['booking_content_request', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['booking_content_reminder', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['internal_content_overdue', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['booking_practical_information', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['booking_final_instructions', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['booking_review_request', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['internal_host_required', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['host_practical_information', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['host_final_instructions', 'communicatieStappen in src/platform/continuiteit.ts'],
+  ['host_post_event_check', 'communicatieStappen in src/platform/continuiteit.ts'],
+] as const;
+
+const ALLEEN_CATALOGUS = [
+  'booking_cancelled',
+  'host_availability_request',
+  'host_assignment_confirmed',
+  'internal_booking_information_received',
+  'internal_content_review_required',
+  'booking_content_changes_requested',
+  'booking_content_approved',
+  'exhibition_weekend_available',
+] as const;
+
+const LEGACY = [
+  'afwijzing',
+  'content_verzoek',
+  'content_ter_beoordeling',
+  'praktisch_4w',
+  'praktisch_gastheer',
+  'herinnering_1d',
+  'herinnering_gastheer',
+  'review_verzoek',
+  'reservelijst',
+  'aanbetaling_check_paul',
+  'contract_begeleiding',
+  'volgende_stappen',
+  'optie_verlopen_contractbeheerder',
+] as const;
+
+test('de 40 templates vallen sluitend in caller, catalogus of legacy', () => {
+  const alles = [...MET_CALLER.map(([id]) => id), ...ALLEEN_CATALOGUS, ...LEGACY];
+  assert.equal(MET_CALLER.length, 19);
+  assert.equal(ALLEEN_CATALOGUS.length, 8);
+  assert.equal(LEGACY.length, 13);
+  assert.equal(alles.length, 40);
+  assert.equal(new Set(alles).size, 40);
+  assert.deepEqual([...alles].sort(), Object.keys(TEMPLATE_AUTOMATISERING).sort());
+});
+
+function authAdmin(): SupabaseClient {
+  return {
+    auth: {
+      admin: {
+        inviteUserByEmail() {
+          throw new Error('Supabase Auth invite aangeroepen');
+        },
+      },
+    },
+    from() {
+      throw new Error('database aangeroepen');
+    },
+  } as unknown as SupabaseClient;
+}
+
+const actor = { id: '11111111-1111-1111-1111-111111111111', naam: 'tester', rechten: { isSuperAdmin: true, perModule: {} } };
+
+test('uitnodigen en opnieuw uitnodigen raken Supabase Auth niet bij Uit of Test', async () => {
+  const uit = await nodigGebruikerUit(authAdmin(), actor, {
+    naam: 'Test',
+    email: 'test@example.nl',
+    redirectTo: 'https://kerkjepersingen.nl/beheer/',
+  }, STANDAARD_AUTOMATISERINGEN);
+  assert.equal('fout' in uit && uit.fout, 'ongeldig');
+
+  const opnieuw = await verstuurUitnodigingOpnieuw(
+    authAdmin(),
+    actor,
+    '22222222-2222-2222-2222-222222222222',
+    'https://kerkjepersingen.nl/beheer/',
+    STANDAARD_AUTOMATISERINGEN,
+  );
+  assert.equal('fout' in opnieuw && opnieuw.fout, 'ongeldig');
+
+  const teststand = STANDAARD_AUTOMATISERINGEN.map((item) =>
+    item.sleutel === 'gebruiker_uitnodiging' ? { ...item, status: 'test' as const } : item,
+  );
+  const testInvite = await nodigGebruikerUit(authAdmin(), actor, {
+    naam: 'Test',
+    email: 'test@example.nl',
+    redirectTo: 'https://kerkjepersingen.nl/beheer/',
+  }, teststand);
+  const testOpnieuw = await verstuurUitnodigingOpnieuw(
+    authAdmin(),
+    actor,
+    '22222222-2222-2222-2222-222222222222',
+    'https://kerkjepersingen.nl/beheer/',
+    teststand,
+  );
+  assert.equal('fout' in testInvite && testInvite.melding.includes('testmodus'), true);
+  assert.equal('fout' in testOpnieuw && testOpnieuw.melding.includes('testmodus'), true);
+  assert.equal(magAutomatiseringUitvoeren('gebruiker_uitnodiging', teststand).provider, false);
+});
+
+test('contact heeft geen actieve trigger', () => {
+  const contact = STANDAARD_AUTOMATISERINGEN.find((item) => item.sleutel === 'contact_bestuur');
+  assert.ok(contact);
+  assert.equal(contact.status, 'actief');
+  assert.equal(contact.actieveTrigger, false);
+  const aanvraag = STANDAARD_AUTOMATISERINGEN.find((item) => item.sleutel === 'aanvraag_bestuur');
+  assert.equal(aanvraag?.actieveTrigger, true);
 });

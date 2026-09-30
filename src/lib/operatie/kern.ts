@@ -124,7 +124,7 @@ export interface JobRij {
   aanvraagId: string | null;
   relatieId: string | null;
   templateSleutel: string;
-  status: 'gepland' | 'concept' | 'wachtrij' | 'verzonden' | 'fout' | 'geannuleerd';
+  status: 'gepland' | 'concept' | 'wachtrij' | 'verzonden' | 'fout' | 'geannuleerd' | 'geblokkeerd';
   modus: 'automatisch' | 'concept' | 'handmatig';
   geplandOp: string;
   dedup: string;
@@ -596,7 +596,7 @@ function communicatieMutaties(
       .filter(
         (job) =>
           job.boekingId === boeking.id &&
-          (job.status === 'gepland' || job.status === 'wachtrij' || job.status === 'concept'),
+          (job.status === 'gepland' || job.status === 'wachtrij' || job.status === 'concept' || job.status === 'geblokkeerd'),
       )
       .map((job) => job.templateSleutel);
     for (const templateId of geplandeJobsTeAnnuleren(comm, openTemplates)) {
@@ -1403,13 +1403,26 @@ export async function voerOpdrachtUit(
             velden: {
               dedup_sleutel: mail.dedup,
               template_sleutel: mail.dedup.split(':').at(-1) ?? '',
-              status: 'geannuleerd',
+              status: 'geblokkeerd',
               modus: 'automatisch',
               gepland_op: ctx.nu.toISOString(),
               ontvanger_email: mail.naar,
               onderwerp: mail.onderwerp,
               pogingen: mail.pogingen,
-              foutmelding: error.message,
+              foutmelding: 'geblokkeerd door automatisering; niet verzonden; geen provider-call',
+            },
+          });
+          mutaties.push({
+            soort: 'insert_audit',
+            velden: {
+              dedup_sleutel: `mail-geblokkeerd:${mail.dedup}`,
+              actie: 'geblokkeerd',
+              onderwerp_type: 'communicatie',
+              onderwerp_id: mail.dedup,
+              naar: 'geen provider-call',
+              reden: error.message,
+              actor_type: 'systeem',
+              actor_naam: 'automatisering',
             },
           });
           continue;

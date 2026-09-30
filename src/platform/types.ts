@@ -75,6 +75,7 @@ export const COMMUNICATIE_STATUSSEN = [
   'verzonden',
   'fout',
   'geannuleerd',
+  'geblokkeerd',
 ] as const;
 export type CommunicatieStatus = (typeof COMMUNICATIE_STATUSSEN)[number];
 

@@ -19,6 +19,7 @@ type Rij = {
   status: Automatisering['status'];
   mailcategorie: string;
   trigger_tekst: string;
+  actieve_trigger: boolean;
   ontvangerstype: string;
   risicovol: boolean;
   laatste_run: string | null;
@@ -36,6 +37,7 @@ function vanRij(rij: Rij): Automatisering {
     status: rij.status,
     mailcategorie: rij.mailcategorie,
     trigger: rij.trigger_tekst,
+    actieveTrigger: rij.actieve_trigger,
     ontvangerstype: rij.ontvangerstype,
     risicovol: rij.risicovol,
     laatsteRun: rij.laatste_run,
@@ -59,7 +61,7 @@ export async function laadAutomatiseringsregister(
     };
     const { data, error } = await db
       .from('automatiseringen')
-      .select('sleutel,naam,omschrijving,categorie,status,mailcategorie,trigger_tekst,ontvangerstype,risicovol,laatste_run,laatste_resultaat,gewijzigd_door,gewijzigd_op');
+      .select('sleutel,naam,omschrijving,categorie,status,mailcategorie,trigger_tekst,actieve_trigger,ontvangerstype,risicovol,laatste_run,laatste_resultaat,gewijzigd_door,gewijzigd_op');
     if (error || !Array.isArray(data) || data.length === 0) return STANDAARD_AUTOMATISERINGEN;
     return (data as unknown as Rij[]).map(vanRij);
   } catch {

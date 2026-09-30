@@ -20,6 +20,7 @@ type Rij = {
   status: Automatisering['status'];
   mailcategorie: string;
   trigger_tekst: string;
+  actieve_trigger: boolean;
   ontvangerstype: string;
   risicovol: boolean;
   laatste_run: string | null;
@@ -37,6 +38,7 @@ function vanRij(rij: Rij): Automatisering {
     status: rij.status,
     mailcategorie: rij.mailcategorie,
     trigger: rij.trigger_tekst,
+    actieveTrigger: rij.actieve_trigger !== false,
     ontvangerstype: rij.ontvangerstype,
     risicovol: rij.risicovol,
     laatsteRun: rij.laatste_run,
@@ -65,7 +67,7 @@ let bevestiging: { sleutel: string; status: 'actief' } | null = null;
 
 async function lees(): Promise<Automatisering[]> {
   if (!db) return STANDAARD_AUTOMATISERINGEN;
-  const { data, error } = await db.from('automatiseringen').select('sleutel,naam,omschrijving,categorie,status,mailcategorie,trigger_tekst,ontvangerstype,risicovol,laatste_run,laatste_resultaat,gewijzigd_door,gewijzigd_op').order('categorie').order('naam');
+  const { data, error } = await db.from('automatiseringen').select('sleutel,naam,omschrijving,categorie,status,mailcategorie,trigger_tekst,actieve_trigger,ontvangerstype,risicovol,laatste_run,laatste_resultaat,gewijzigd_door,gewijzigd_op').order('categorie').order('naam');
   if (error) throw new Error(error.message);
   const rijen = (data ?? []) as Rij[];
   return rijen.length > 0 ? rijen.map(vanRij) : STANDAARD_AUTOMATISERINGEN;
@@ -123,7 +125,7 @@ const groepen = [
     <div>
       <h1>Automatiseringen</h1>
       <p class="bh-hint">
-        Alleen contact naar bestuur en een nieuwe verhuuraanvraag naar bestuur staan aan. Overige mail blijft dicht tot je die hier aanzet.
+        Alleen een nieuwe verhuuraanvraag naar het bestuur kan nu mail versturen. Contact staat op Aan, maar er is geen formulier en dus geen trigger. Overige mail blijft dicht tot je die hier aanzet.
       </p>
     </div>
   </header>
@@ -150,7 +152,7 @@ const groepen = [
           <thead>
             <tr>
               <th>Naam</th>
-              <th>Trigger</th>
+              <th>Trigger aanwezig</th>
               <th>Ontvanger</th>
               <th>Status</th>
               <th>Laatste run</th>
@@ -164,7 +166,10 @@ const groepen = [
                   <strong>{item.naam}</strong>
                   <div class="bh-muted">{item.omschrijving}</div>
                 </td>
-                <td>{item.trigger}</td>
+                <td>
+                  {item.actieveTrigger ? 'Ja' : 'Nee'}
+                  <div class="bh-muted">{item.actieveTrigger ? item.trigger : 'Geen actieve trigger'}</div>
+                </td>
                 <td>{item.ontvangerstype}</td>
                 <td>{statusLabel(item.status)}</td>
                 <td>
