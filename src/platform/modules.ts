@@ -97,6 +97,7 @@ export const INSTELLINGEN_PAGINAS = [
   { module: 'instellingen', href: '/beheer/instellingen/finance/', label: 'Finance' },
   { module: 'instellingen', href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },
   { module: 'instellingen', href: '/beheer/instellingen/automatiseringen/', label: 'Automatiseringen' },
+  { module: 'instellingen', href: '/beheer/instellingen/sanity-bridge/', label: 'Sanity bridge' },
   { module: 'templates', href: '/beheer/instellingen/mailtemplates/', label: 'Mailtemplates' },
   { module: 'gebruikers', href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
 ] as const;

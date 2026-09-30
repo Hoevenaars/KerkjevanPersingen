@@ -1,0 +1,148 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { controleerSanitySynchronisatie, sanityLezenGeconfigureerd, verwerkAfwijkendeDocumenten, type ControleRij } from '../../../../lib/sanity-bridge-sync.ts';
+import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
+
+type LogRij = {
+  sanity_document_id: string;
+  document_type: string;
+  action: string;
+  received_at: string;
+  status: string;
+  target_table: string | null;
+  target_id: string | null;
+  error: string | null;
+};
+
+const client = maakBeheerAdminClient();
+let logs: LogRij[] = [];
+let fout = '';
+let melding = '';
+let controle: ControleRij[] = [];
+let bridgeActief = Boolean(process.env.SANITY_BRIDGE_SECRET?.trim());
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actie = String(form.get('actie') ?? '');
+  if (!client) {
+    fout = 'Supabase service-role ontbreekt';
+  } else if (!sanityLezenGeconfigureerd()) {
+    melding = 'Sanity-lezen niet geconfigureerd';
+  } else if (actie === 'controle') {
+    const rijen = await controleerSanitySynchronisatie(client);
+    if (!rijen) melding = 'Sanity-lezen niet geconfigureerd';
+    else controle = rijen;
+  } else if (actie === 'verwerk' && form.get('bevestig') === 'ja') {
+    const uitkomst = await verwerkAfwijkendeDocumenten(client);
+    melding = uitkomst.fout
+      ? uitkomst.fout
+      : `Verwerkt ${uitkomst.verwerkt}, overgeslagen ${uitkomst.overgeslagen}. Niets teruggeschreven naar Sanity.`;
+  }
+}
+
+if (client) {
+  const db = client as unknown as {
+    from: (tabel: string) => {
+      select: (kolommen: string) => {
+        order: (kolom: string, opties: { ascending: boolean }) => {
+          limit: (n: number) => Promise<{ data: LogRij[] | null; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+  const { data, error } = await db.from('bridge_sync_log').select('sanity_document_id,document_type,action,received_at,status,target_table,target_id,error').order('received_at', { ascending: false }).limit(30);
+  if (error) fout = error.message;
+  else logs = data ?? [];
+}
+
+const succes = logs.filter((rij) => rij.status === 'success').length;
+const overgeslagen = logs.filter((rij) => rij.status === 'skipped').length;
+const fouten = logs.filter((rij) => rij.status === 'error' || rij.status === 'review').length;
+const laatste = logs[0];
+const laatsteSucces = logs.find((rij) => rij.status === 'success');
+
+function label(status: string): string {
+  if (status === 'success') return 'Gesynchroniseerd';
+  if (status === 'skipped') return 'Overgeslagen';
+  if (status === 'review') return 'Nakijken';
+  return 'Fout';
+}
+---
+
+<Beheer titel="Sanity bridge">
+  <header class="bh-top">
+    <div>
+      <h1>Sanity bridge</h1>
+      <p class="bh-hint">
+        Sanity blijft een invoerkanaal. Wijzigingen lopen alleen naar Supabase. Er gaat niets terug en er wordt geen mail verstuurd.
+      </p>
+    </div>
+  </header>
+  {fout && <p class="bh-flash" role="alert">{fout}</p>}
+  <section class="bh-kaart">
+    <p>Bridge actief: {bridgeActief ? 'Ja' : 'Nee, geheim ontbreekt'}</p>
+    <p>Laatste succes: {laatsteSucces ? laatsteSucces.received_at.slice(0, 16).replace('T', ' ') : '—'}</p>
+    <p>Laatste event: {laatste ? `${laatste.document_type} · ${label(laatste.status)}` : '—'}</p>
+    <p>Succes {succes} · overgeslagen {overgeslagen} · nakijken of fout {fouten}</p>
+    <p class="bh-muted">Een controle leest Sanity en vergelijkt sanity-id en hash. Zonder nieuw document blijft de bezetting gelijk. Er wordt niet teruggeschreven naar Sanity.</p>
+    <form method="post" class="bh-acties">
+      <button class="bh-btn" type="submit" name="actie" value="controle">Controleer Sanity synchronisatie</button>
+    </form>
+    {melding && <p>{melding}</p>}
+    {controle.length > 0 && (
+      <table class="bh-tabel">
+        <thead>
+          <tr><th>Type</th><th>Sanity-id</th><th>Oordeel</th><th>Toelichting</th></tr>
+        </thead>
+        <tbody>
+          {controle.map((rij) => (
+            <tr>
+              <td>{rij.documentType}</td>
+              <td>{rij.sanityId}</td>
+              <td>{rij.oordeel}</td>
+              <td>{rij.toelichting ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+    <form method="post" class="bh-acties">
+      <input type="hidden" name="actie" value="verwerk" />
+      <label><input type="checkbox" name="bevestig" value="ja" /> Alleen ontbrekende of hash-afwijkende records naar Supabase schrijven</label>
+      <button class="bh-btn" type="submit">Verwerk afwijkingen</button>
+    </form>
+  </section>
+  <section class="bh-kaart">
+    <h2>Recente syncs</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Actie</th>
+          <th>Tijd</th>
+          <th>Resultaat</th>
+          <th>Doel</th>
+          <th>Fout</th>
+        </tr>
+      </thead>
+      <tbody>
+        {logs.length === 0 && <tr><td colspan="6">Nog geen bridge-events.</td></tr>}
+        {logs.map((rij) => (
+          <tr>
+            <td>{rij.document_type}</td>
+            <td>{rij.action}</td>
+            <td>{rij.received_at.slice(0, 16).replace('T', ' ')}</td>
+            <td>
+              {label(rij.status)}
+              {rij.document_type === 'activiteit' && rij.target_table === 'sanity_bridge_agenda' ? <div class="bh-muted">Bron: Sanity · Alleen bezetting</div> : null}
+            </td>
+            <td>{rij.target_table ? `${rij.target_table} ${rij.target_id ?? ''}` : '—'}</td>
+            <td>{rij.error ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+</Beheer>
