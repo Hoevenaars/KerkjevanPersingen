@@ -20,6 +20,19 @@ export interface Planrij {
   toegevoegd?: string[];
   behouden?: string[];
   conflictVelden?: string[];
+  afgeleideDatum?: string;
+}
+
+export interface DatumAfleidingRij {
+  toewijzingId: string;
+  boekingId: string;
+  type: string;
+  kolom: string;
+  label: string;
+  start: string;
+  eind: string;
+  reden: string;
+  datum?: string;
 }
 
 export interface ReviewRegel {
@@ -78,6 +91,15 @@ export interface DryRunRapport {
     genegeerdeX: number;
     review_blocked: number;
     schema_wacht: number;
+  };
+  gastbegeleiderDatums: {
+    bruikbaar: number;
+    exact: number;
+    ambigu: number;
+    onmogelijk: number;
+    exactRijen: DatumAfleidingRij[];
+    ambiguRijen: DatumAfleidingRij[];
+    onmogelijkRijen: DatumAfleidingRij[];
   };
   blokkades: Telling;
   gastheerEenOpEen: number;
@@ -382,6 +404,10 @@ export function telefoonSleutel(waarde: string | undefined): string {
   else if (cijfers.startsWith('31') && cijfers.length >= 11) cijfers = cijfers;
   else if (cijfers.startsWith('0')) cijfers = `31${cijfers.slice(1)}`;
   return cijfers;
+}
+
+function labelNoemtTweeDagen(label: string): boolean {
+  return /\d\s*\/\s*(?:\d|[a-z])/i.test(label);
 }
 
 function iso(waarde: string | undefined): boolean {
@@ -777,6 +803,45 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
   }
   const gastheerOpenGelaten = [...dienstPerBoeking.entries()].filter(([, relaties]) => new Set(relaties).size !== 1).map(([id]) => id);
   const gastheerEenOpEen = [...dienstPerBoeking.values()].filter((relaties) => new Set(relaties).size === 1).length;
+  const boekingOpId = new Map(pakket.boekingen.map((rij) => [rij.boeking_id, rij]));
+  const exactRijen: DatumAfleidingRij[] = [];
+  const ambiguRijen: DatumAfleidingRij[] = [];
+  const onmogelijkRijen: DatumAfleidingRij[] = [];
+  for (const plan of toewijzingplannen) {
+    if (plan.actie !== 'schema_wacht') continue;
+    const bron = pakket.toewijzingen.find((rij) => rij.toewijzing_id === plan.externalId);
+    if (!bron || (bron.type !== 'dienst' && bron.type !== 'assist')) continue;
+    const boeking = boekingOpId.get(bron.boeking_id);
+    const label = bron.datum_label_raw.trim();
+    const start = boeking?.datum_start ?? '';
+    const eind = boeking?.datum_eind ?? '';
+    const basis: DatumAfleidingRij = {
+      toewijzingId: bron.toewijzing_id,
+      boekingId: bron.boeking_id,
+      type: bron.type,
+      kolom: bron.gastbegeleider_kolom,
+      label,
+      start,
+      eind,
+      reden: '',
+    };
+    const betrouwbaar = Boolean(boeking) && boeking?.date_parse_status === 'high' && iso(start) && iso(eind) && eind >= start;
+    if (!betrouwbaar) {
+      onmogelijkRijen.push({ ...basis, reden: boeking ? 'boekingsdatum is niet high-confidence' : 'geen gekoppelde boeking' });
+      continue;
+    }
+    if (labelNoemtTweeDagen(label) || start !== eind) {
+      ambiguRijen.push({
+        ...basis,
+        reden: start !== eind
+          ? `boeking loopt van ${start} tot ${eind}; de broncel wijst geen dag aan`
+          : 'label noemt twee dagen',
+      });
+      continue;
+    }
+    plan.afgeleideDatum = start;
+    exactRijen.push({ ...basis, datum: start, reden: 'gekoppelde boeking is precies één high-confidence dag' });
+  }
 
   const blokkadeplannen: Planrij[] = pakket.blokkades.map((bron) => {
     if (bron.review_status !== 'OK' || hoogOpId.has(bron.blokkade_id)) {
@@ -958,7 +1023,7 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
   }
   for (const toe of toewijzingplannen) {
     if (toe.actie !== 'insert' && toe.actie !== 'schema_wacht') continue;
-    zet({ tabel: 'gastbegeleider_toewijzingen', externalId: toe.externalId, velden: {} });
+    zet({ tabel: 'gastbegeleider_toewijzingen', externalId: toe.externalId, velden: toe.afgeleideDatum ? { datum: toe.afgeleideDatum } : {} });
   }
   for (const blok of blokkadeplannen) {
     if (blok.actie !== 'insert') continue;
@@ -1003,6 +1068,15 @@ export function consolidatieDryRun(pakket: ConsolidatiePakket, bestaand: Bestaan
       genegeerdeX: toewijzingplannen.filter((rij) => rij.actie === 'skip' && rij.reden.includes('bronwaarde x')).length,
       review_blocked: toewijzingplannen.filter((rij) => rij.actie === 'review_blocked').length,
       schema_wacht: toewijzingplannen.filter((rij) => rij.actie === 'schema_wacht').length,
+    },
+    gastbegeleiderDatums: {
+      bruikbaar: exactRijen.length + ambiguRijen.length + onmogelijkRijen.length,
+      exact: exactRijen.length,
+      ambigu: ambiguRijen.length,
+      onmogelijk: onmogelijkRijen.length,
+      exactRijen,
+      ambiguRijen,
+      onmogelijkRijen,
     },
     blokkades: blokTelling,
     gastheerEenOpEen,

@@ -109,6 +109,33 @@ describe('dry-run zonder database', () => {
     assert.equal(tweede.rapport.blokkades.insert, 0);
     assert.equal(tweede.rapport.gastbegeleider.dienst, 0);
     assert.equal(tweede.rapport.schemaWacht.length, 0);
+    assert.equal(eerste.rapport.gastbegeleiderDatums.exact, 0);
+    assert.equal(eerste.rapport.gastbegeleiderDatums.ambigu, 1);
+    assert.equal(eerste.rapport.gastbegeleiderDatums.onmogelijk, 0);
+  });
+
+  test('gastbegeleiderdatum alleen bij precies één high-confidence dag', () => {
+    const pakket = leegPakket();
+    pakket.relaties.push(
+      { relatie_id: 'REL-1', naam: 'Betty', email: 'betty@example.test', telefoon: '0611111111', adres_raw: '', geboortedatum: '', geboortedatum_raw: '', naam_bronwaarden: '', email_bronwaarden: '', telefoon_bronwaarden: '', bronreferenties: '', review_status: 'OK' },
+    );
+    pakket.boekingen.push(
+      { boeking_id: 'BKG-EEN', jaar: '2026', datum_label_raw: 'Juli 3. huwelijk', datum_start: '2026-07-03', datum_eind: '2026-07-03', datum_suggestie: '', date_parse_status: 'high', status: 'actief', type: 'huwelijk', huurder_naam_raw: 'Betty', huurder_primair_naam: 'Betty', relatie_id: 'REL-1', telefoon_raw: '', email_raw: 'betty@example.test', cont_raw: '', totaal_raw: '', totaal_eur: '', termijn_1_raw: '', termijn_2_raw: '', bijzonderheden_raw: '', contract_datum: '', bronbestand: '2026.xlsx', bronregel: '2', review_status: 'OK' },
+      { boeking_id: 'BKG-TWEE', jaar: '2026', datum_label_raw: 'Juli 4/5', datum_start: '2026-07-04', datum_eind: '2026-07-05', datum_suggestie: '', date_parse_status: 'high', status: 'actief', type: '', huurder_naam_raw: 'Betty', huurder_primair_naam: 'Betty', relatie_id: 'REL-1', telefoon_raw: '', email_raw: '', cont_raw: '', totaal_raw: '', totaal_eur: '', termijn_1_raw: '', termijn_2_raw: '', bijzonderheden_raw: '', contract_datum: '', bronbestand: '2026.xlsx', bronregel: '3', review_status: 'OK' },
+    );
+    pakket.toewijzingen.push(
+      { toewijzing_id: 'ASN-EXACT', boeking_id: 'BKG-EEN', gastbegeleider_relatie_id: 'REL-1', gastbegeleider_kolom: 'BETTY', bronwaarde: 'dienst', type: 'dienst', import_advies: 'IMPORT', match_methode: 'email', match_confidence: 'high', exposant_raw: '', datum_label_raw: 'Juli 3. huwelijk', bronbestand: 'indeling.xlsx', bronregel: '2' },
+      { toewijzing_id: 'ASN-AMBIGU', boeking_id: 'BKG-TWEE', gastbegeleider_relatie_id: 'REL-1', gastbegeleider_kolom: 'HANS', bronwaarde: 'dienst', type: 'dienst', import_advies: 'IMPORT', match_methode: 'email', match_confidence: 'high', exposant_raw: '', datum_label_raw: 'Juli 4/5', bronbestand: 'indeling.xlsx', bronregel: '3' },
+      { toewijzing_id: 'ASN-X', boeking_id: 'BKG-EEN', gastbegeleider_relatie_id: 'REL-1', gastbegeleider_kolom: 'RON', bronwaarde: 'x', type: 'x_onbekende_betekenis', import_advies: 'NIET_IMPORTEREN_ZONDER_BEVESTIGING', match_methode: 'email', match_confidence: 'high', exposant_raw: '', datum_label_raw: 'Juli 3. huwelijk', bronbestand: 'indeling.xlsx', bronregel: '2' },
+    );
+    const rapport = consolidatieDryRun(pakket).rapport;
+    assert.equal(rapport.gastbegeleider.genegeerdeX, 1);
+    assert.equal(rapport.gastbegeleiderDatums.bruikbaar, 2);
+    assert.equal(rapport.gastbegeleiderDatums.exact, 1);
+    assert.equal(rapport.gastbegeleiderDatums.exactRijen[0]?.datum, '2026-07-03');
+    assert.equal(rapport.gastbegeleiderDatums.ambigu, 1);
+    assert.equal(rapport.gastbegeleiderDatums.ambiguRijen[0]?.toewijzingId, 'ASN-AMBIGU');
+    assert.equal(rapport.gastbegeleiderDatums.onmogelijk, 0);
   });
 
   test('matcht op e-mail of telefoon+naam en nooit op alleen naam', () => {

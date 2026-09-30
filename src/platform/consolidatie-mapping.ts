@@ -75,7 +75,8 @@ export const CONSOLIDATIE_VELDEN: readonly ConsolidatieVeld[] = [
   { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'type', doelTabel: 'gastbegeleider_toewijzingen', doelVeld: 'type', regel: 'Alleen dienst of assist. x wordt niet opgeslagen.' },
   { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'bronwaarde', doelTabel: '(niet)', doelVeld: '(geen)', regel: 'x wordt nergens als dienst bewaard. dienst en assist staan in type.' },
   { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'match_confidence', doelTabel: '(poort)', doelVeld: '(geen)', regel: 'low blokkeert, ook als import_advies IMPORT is.' },
-  { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'gastbegeleider_kolom', doelTabel: 'gastbegeleider_toewijzingen', doelVeld: 'datum', regel: 'Het slot is een datum. De kolom zelf is geen ISO-datum en wordt niet als dienst opgeslagen.' },
+  { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'gastbegeleider_kolom', doelTabel: '(niet)', doelVeld: '(geen)', regel: 'Persoonskolom (BETTY, HANS, …), geen datum en geen dienst. Volgorde van kolommen wijst geen dag aan.' },
+  { bronBestand: 'gastbegeleider_toewijzingen.csv', bronVeld: 'datum_label_raw', doelTabel: '(poort)', doelVeld: '(geen)', regel: 'Alleen een controle. Een datum wordt uitsluitend gezet als de gekoppelde boeking precies één high-confidence dag is en het label geen tweede dag noemt.' },
 
   { bronBestand: 'kalender_blokkades.csv', bronVeld: 'blokkade_id', doelTabel: 'domeinrij', doelVeld: 'migration_external_id', regel: 'Ook interne_activiteiten.legacy_id met legacy_source=consolidatie.' },
   { bronBestand: 'kalender_blokkades.csv', bronVeld: 'datum_start', doelTabel: 'interne_activiteiten', doelVeld: 'start_datum', regel: 'Alleen bij date_parse_status=high.' },
