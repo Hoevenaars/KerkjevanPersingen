@@ -297,3 +297,11 @@ test('O publicatie- en contentwijziging auditen en starten geen mail', () => {
   assert.match(lezen, /grant select on table public\.activiteit_bron to authenticated/);
   assert.equal(lezen.includes('to anon'), false);
 });
+
+test('planningpagina declareert vandaag voordat de lijst die gebruikt', () => {
+  const bron = readFileSync(new URL('../src/pages/beheer/planning/index.astro', import.meta.url), 'utf8');
+  const frontmatter = bron.slice(bron.indexOf('---') + 3, bron.indexOf('\n---', 3));
+  const declaratie = frontmatter.indexOf('const vandaag');
+  assert.equal(frontmatter.indexOf('vandaag'), declaratie + 'const '.length);
+  assert.ok(declaratie < frontmatter.indexOf('b.eind >= vandaag'));
+});

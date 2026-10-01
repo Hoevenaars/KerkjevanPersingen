@@ -23,11 +23,11 @@ if (Astro.request.method === 'POST') {
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
+const vandaag = ymdInAmsterdam(new Date());
 const exposities = snapshot.boekingen
   .filter((b) => b.eind >= vandaag && b.status !== 'geannuleerd' && b.status !== 'afgewezen')
   .sort((a, b) => a.start.localeCompare(b.start) || a.interneTitel.localeCompare(b.interneTitel));
 const actief = snapshot.gastheren.filter((g) => g.actief);
-const vandaag = ymdInAmsterdam(new Date());
 const gekozenFilter = PLANNING_FILTERS.includes(Astro.url.searchParams.get('filter') as PlanningFilter)
   ? (Astro.url.searchParams.get('filter') as PlanningFilter)
   : 'alles';
