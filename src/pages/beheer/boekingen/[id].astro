@@ -28,6 +28,7 @@ if (Astro.request.method === 'POST') {
     url: Astro.url,
     env: omgevingsRecord(),
     actor: actorVanSessie(Astro.locals.beheer),
+    sessie: sessieSupabaseUitAstro(Astro),
   });
   if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
@@ -91,6 +92,8 @@ const mails: {
 const gastheer = gastheerVan(boeking.gastheerId, snapshot.gastheren);
 const actieveGastheren = snapshot.gastheren.filter((g) => g.actief);
 const flash = Astro.url.searchParams.get('demo') === '1';
+const melding = Astro.url.searchParams.get('melding');
+const fout = Astro.url.searchParams.get('fout');
 const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
 ---
 
@@ -108,6 +111,8 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {melding && <p class="bh-flash">{melding}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <nav class="bh-tabs" aria-label="Boekingonderdelen">
     <a href={basis} aria-current={tab === 'gegevens' ? 'page' : undefined}>Gegevens</a>
@@ -233,9 +238,11 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
               <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
                 Verleng optie
               </button>
-              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
-                Annuleer
-              </button>
+              {boeking.status !== 'geannuleerd' && (
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
+                  Annuleer
+                </button>
+              )}
             </form>
           )}
           {snapshot.bron === 'supabase' && !snapshot.alleenLezen && (
