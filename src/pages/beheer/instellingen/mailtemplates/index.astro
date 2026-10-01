@@ -4,14 +4,13 @@ export const prerender = false;
 import Beheer from '../../../../layouts/Beheer.astro';
 import { laadMailtemplates } from '../../../../platform/mailtemplates/store.ts';
 import { laadMailtemplatesUitSupabase } from '../../../../platform/mailtemplates/supabase-bron.ts';
-import { gekoppeldeSupabaseClient } from '../../../../platform/sanity-registratie.ts';
-import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
+import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
 
 const supabaseTest = Astro.url.searchParams.get('bron') !== 'demo';
 let templates;
 let supabaseFout = '';
 if (supabaseTest) {
-  const client = gekoppeldeSupabaseClient() ?? maakBeheerAdminClient();
+  const client = sessieSupabaseUitAstro(Astro);
   if (!client) {
     templates = [];
     supabaseFout = 'Geen Supabase-sessie. De code-catalogus wordt niet getoond.';

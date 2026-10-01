@@ -3,14 +3,14 @@ export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
 import { demoNaActie } from '../../../../platform/demo-data';
-import { laadBeheerSnapshot, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 import { STANDAARD_VERHUURTYPEN } from '../../../../platform/types.ts';
 
 if (Astro.request.method === 'POST') {
   return Astro.redirect(demoNaActie(Astro.url));
 }
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
 ---
 

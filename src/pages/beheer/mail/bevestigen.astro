@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 import { actieBevestigingsTitel, leesActieToken, type MailActieSoort } from '../../../platform/mailtemplates/actie.ts';
 import { voegCommunicatieToe } from '../../../platform/mailtemplates/store.ts';
 
@@ -39,7 +39,7 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const boeking = payload ? snapshot.boekingen.find((b) => b.id === payload.boekingId) : null;
 const aanvraag = payload?.aanvraagId
   ? snapshot.aanvragen.find((a) => a.id === payload.aanvraagId)
