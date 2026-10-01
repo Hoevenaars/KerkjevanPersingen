@@ -63,6 +63,25 @@ export function maakBeheerServerClient(opties: {
   });
 }
 
+/** Ingelogde beheerclient. Nooit de service-role: die sleutel hoort niet bij het overzicht. */
+export function sessieSupabaseUitAstro(astro: {
+  request: Request;
+  cookies: AstroCookies;
+  locals: { supabase?: unknown; supabaseCookies?: Headers };
+  env?: Record<string, unknown>;
+}): SupabaseClient | null {
+  const bestaand = astro.locals.supabase;
+  if (bestaand && typeof bestaand === 'object' && 'from' in bestaand) {
+    return bestaand as SupabaseClient;
+  }
+  return maakBeheerServerClient({
+    request: astro.request,
+    cookies: astro.cookies,
+    env: astro.env,
+    responseHeaders: astro.locals.supabaseCookies,
+  });
+}
+
 export function maakBeheerAdminClient(env?: Record<string, unknown>): SupabaseClient<Database> | null {
   const cfg = leesSupabaseOmgeving(env);
   if (!cfg?.serviceRoleKey) return null;

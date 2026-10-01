@@ -1,7 +1,7 @@
 ---
 import '../styles/global.css';
 import '../styles/beheer.css';
-import { laadBeheerSnapshot } from '../platform/beheer-bron';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../platform/beheer-bron';
 import { leesSanityOproepen } from '../platform/sanity-registratie';
 import { BEHEER_MODULES, INSTELLINGEN_PAGINAS, SNEL_NIEUW } from '../platform/modules.ts';
 import { magZien } from '../platform/rechten.ts';
@@ -17,7 +17,7 @@ interface Props {
 const { titel } = Astro.props;
 const pad = Astro.url.pathname;
 const zoekterm = Astro.url.searchParams.get('q') ?? '';
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const sessie = Astro.locals.beheer;
 const rechten = sessie?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const module = moduleVoorPad(pad);

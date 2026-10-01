@@ -3,9 +3,9 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { formatNl } from '../../../platform/demo-data';
-import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 ---
 
 <Beheer titel="Nieuwsbrief">

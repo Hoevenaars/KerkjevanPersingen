@@ -3,9 +3,9 @@ export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
 import { demoNaActie, formatNl } from '../../../../platform/demo-data';
-import { beheerId, laadBeheerSnapshot, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
+import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
 const gastheer = snapshot.gastheren.find((g) => g.id === id);
 
