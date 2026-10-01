@@ -1,0 +1,205 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import {
+  STANDAARD_AUTOMATISERINGEN,
+  auditregel,
+  isStatus,
+  gekoppeldeFlow,
+  kanExternVersturen,
+  magAutomatiseringUitvoeren,
+  planStatuswijziging,
+  statusLabel,
+  type Automatisering,
+} from '../../../../platform/automatisering.ts';
+import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
+
+type Rij = {
+  sleutel: string;
+  naam: string;
+  omschrijving: string;
+  categorie: Automatisering['categorie'];
+  status: Automatisering['status'];
+  mailcategorie: string;
+  trigger_tekst: string;
+  actieve_trigger: boolean;
+  ontvangerstype: string;
+  risicovol: boolean;
+  laatste_run: string | null;
+  laatste_resultaat: string | null;
+  gewijzigd_door: string | null;
+  gewijzigd_op: string | null;
+};
+
+function vanRij(rij: Rij): Automatisering {
+  return {
+    sleutel: rij.sleutel,
+    naam: rij.naam,
+    omschrijving: rij.omschrijving,
+    categorie: rij.categorie,
+    status: rij.status,
+    mailcategorie: rij.mailcategorie,
+    trigger: rij.trigger_tekst,
+    actieveTrigger: rij.actieve_trigger !== false,
+    ontvangerstype: rij.ontvangerstype,
+    risicovol: rij.risicovol,
+    laatsteRun: rij.laatste_run,
+    laatsteResultaat: rij.laatste_resultaat,
+    gewijzigdDoor: rij.gewijzigd_door,
+    gewijzigdOp: rij.gewijzigd_op,
+  };
+}
+
+const client = maakBeheerAdminClient();
+type Ongetypeerd = {
+  from: (tabel: string) => {
+    select: (kolommen: string) => {
+      order: (kolom: string) => {
+        order: (kolom: string) => Promise<{ data: Rij[] | null; error: { message: string } | null }>;
+      };
+    };
+  };
+  rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+};
+const db = client as unknown as Ongetypeerd | null;
+let lijst = STANDAARD_AUTOMATISERINGEN;
+let fout = '';
+let melding = '';
+let bevestiging: { sleutel: string; status: 'actief' } | null = null;
+
+async function lees(): Promise<Automatisering[]> {
+  if (!db) return STANDAARD_AUTOMATISERINGEN;
+  const { data, error } = await db.from('automatiseringen').select('sleutel,naam,omschrijving,categorie,status,mailcategorie,trigger_tekst,actieve_trigger,ontvangerstype,risicovol,laatste_run,laatste_resultaat,gewijzigd_door,gewijzigd_op').order('categorie').order('naam');
+  if (error) throw new Error(error.message);
+  const rijen = (data ?? []) as Rij[];
+  return rijen.length > 0 ? rijen.map(vanRij) : STANDAARD_AUTOMATISERINGEN;
+}
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const sleutel = String(form.get('sleutel') ?? '');
+  const status = String(form.get('status') ?? '');
+  const bevestigd = String(form.get('bevestig') ?? '') === 'ja';
+  const gebruiker = Astro.locals.beheer?.gebruiker.naam || 'beheer';
+  try {
+    const huidig = (await lees()).find((item) => item.sleutel === sleutel);
+    if (!huidig) fout = 'Automatisering niet gevonden.';
+    else {
+      const plan = planStatuswijziging(huidig, status, bevestigd);
+      if (plan.soort === 'bevestiging' && isStatus(status)) {
+        bevestiging = { sleutel, status };
+      } else if (plan.soort === 'weigering') {
+        fout = plan.reden ?? 'Status niet gewijzigd.';
+      } else if (plan.soort === 'wijziging' && isStatus(status) && db) {
+        const regel = auditregel(huidig, status, gebruiker);
+        const opgeslagen = await db.rpc('zet_automatisering_status', {
+          p_sleutel: regel.automatisering,
+          p_status: regel.nieuweStatus,
+          p_gebruiker: regel.gebruiker,
+        });
+        if (opgeslagen.error) throw new Error(opgeslagen.error.message);
+        melding = `${huidig.naam} staat op ${statusLabel(status)}.`;
+      } else if (plan.soort === 'wijziging' && !db) {
+        fout = 'Geen Supabase-client. De status is niet opgeslagen.';
+      }
+    }
+  } catch (error) {
+    fout = error instanceof Error ? error.message : 'Opslaan mislukt.';
+  }
+}
+
+try {
+  lijst = await lees();
+} catch (error) {
+  fout = fout || (error instanceof Error ? error.message : 'Laden mislukt.');
+  lijst = STANDAARD_AUTOMATISERINGEN;
+}
+
+const groepen = [
+  ['transactioneel', 'Transactioneel'],
+  ['automatisering', 'Automatiseringen'],
+  ['handmatig', 'Handmatig'],
+] as const;
+---
+
+<Beheer titel="Automatiseringen">
+  <header class="bh-top">
+    <div>
+      <h1>Automatiseringen</h1>
+      <p class="bh-hint">
+        Alleen een nieuwe verhuuraanvraag naar het bestuur kan nu mail versturen. Contact staat op Aan, maar er is geen formulier en dus geen trigger. Overige mail blijft dicht tot je die hier aanzet.
+      </p>
+    </div>
+  </header>
+
+  {melding && <p class="bh-flash">{melding}</p>}
+  {fout && <p class="bh-flash" role="alert">{fout}</p>}
+  {
+    bevestiging && (
+      <form method="post" class="bh-kaart">
+        <p>Deze automatisering activeren? Hierdoor kan automatische mail naar ontvangers worden verstuurd.</p>
+        <input type="hidden" name="sleutel" value={bevestiging.sleutel} />
+        <input type="hidden" name="status" value={bevestiging.status} />
+        <input type="hidden" name="bevestig" value="ja" />
+        <button class="bh-btn" type="submit">Ja, activeren</button>
+      </form>
+    )
+  }
+
+  {
+    groepen.map(([categorie, titel]) => (
+      <section class="bh-kaart">
+        <h2>{titel}</h2>
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Naam</th>
+              <th>Status</th>
+              <th>Trigger</th>
+              <th>Flow</th>
+              <th>Provider</th>
+              <th>Extern</th>
+              <th>Laatste run</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {lijst.filter((item) => item.categorie === categorie).map((item) => (
+              <tr>
+                <td>
+                  <strong>{item.naam}</strong>
+                  <div class="bh-muted">{item.sleutel}</div>
+                  <div class="bh-muted">{item.omschrijving}</div>
+                </td>
+                <td>{statusLabel(item.status)}</td>
+                <td>
+                  {item.actieveTrigger ? 'Ja' : 'Nee'}
+                  <div class="bh-muted">{item.actieveTrigger ? item.trigger : 'Geen actieve trigger'}</div>
+                </td>
+                <td>{gekoppeldeFlow(item.sleutel)}</td>
+                <td>{magAutomatiseringUitvoeren(item.sleutel, lijst).provider ? 'Ja' : 'Nee'}</td>
+                <td>{kanExternVersturen(item, lijst) ? 'Ja' : 'Nee'}</td>
+                <td>
+                  {item.laatsteRun ? item.laatsteRun.slice(0, 16).replace('T', ' ') : '—'}
+                  {item.laatsteResultaat ? <div class="bh-muted">{item.laatsteResultaat}</div> : null}
+                </td>
+                <td>
+                  <form method="post" class="bh-acties">
+                    <input type="hidden" name="sleutel" value={item.sleutel} />
+                    <select name="status" aria-label={`Status van ${item.naam}`}>
+                      <option value="actief" selected={item.status === 'actief'}>Aan</option>
+                      <option value="test" selected={item.status === 'test'}>Test</option>
+                      <option value="uit" selected={item.status === 'uit'}>Uit</option>
+                    </select>
+                    <button class="bh-btn" type="submit">Instellen</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    ))
+  }
+</Beheer>

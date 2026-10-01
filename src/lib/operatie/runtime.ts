@@ -4,16 +4,18 @@
  * Zonder die twee vlaggen blijft Sanity de productiebron.
  */
 
-import { Resend } from 'resend';
+import { automatiseringVoorTemplate } from '../../platform/automatisering.ts';
+import { eisProviderToegestaan } from '../mail-transport.ts';
 import type { Activiteit } from '../sanity.ts';
 import { maakBeheerAdminClient } from '../supabase.ts';
 import { huidigeContentBron } from '../../platform/bron.ts';
 import type { BeheerSnapshot } from '../../platform/beheer-bron.ts';
 import type { InhoudStatus } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
-import { DEMO_INSTELLINGEN } from '../../platform/demo-data.ts';
+import { laadMailtemplatesUitSupabase } from '../../platform/mailtemplates/supabase-bron.ts';
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
 import type { Json } from '../database.types.ts';
+import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from '../agenda-zichtbaarheid.ts';
 import {
   legeWereld,
   readinessVanBoeking,
@@ -65,7 +67,7 @@ async function laadWereld(): Promise<Wereld> {
     client.from('relaties').select('id,naam,email,telefoon,adres'),
     client.from('aanvragen').select('id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,toelichting,website,aantal_personen,relatie_id,boeking_id,beoordeling_deadline,informatievraag'),
     client.from('boekingen').select('id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,aanvraag_id,huurder_naam_snapshot,huurder_email_snapshot,huurder_telefoon_snapshot,huurder_adres_snapshot,aanbetaling_bedrag,aanbetaling_ontvangen,optie_aangemaakt_op,optie_einddatum'),
-    client.from('publieke_activiteiten').select('id,boeking_id,titel,slug,omschrijving,start_datum,eind_datum,publicatie_trigger,gepubliceerd,inhoud_status,praktische_informatie,inhoud_versie,foto_pad,beoordeling_toelichting'),
+    client.from('publieke_activiteiten').select('id,boeking_id,titel,slug,omschrijving,start_datum,eind_datum,publicatie_trigger,zichtbaarheid,gepubliceerd,inhoud_status,praktische_informatie,inhoud_versie,foto_pad,beoordeling_toelichting'),
     client.from('workflow_taken').select('id,boeking_id,aanvraag_id,taak_type,status,eigenaar_type,deadline,dedup_sleutel,toelichting'),
     client.from('communicatie_jobs').select('id,boeking_id,aanvraag_id,relatie_id,template_sleutel,status,modus,gepland_op,dedup_sleutel,ontvanger_email,onderwerp,pogingen,foutmelding'),
     client.from('toegangstokens').select('id,boeking_id,aanvraag_id,doel,token_hash,verloopt_op,ingetrokken_op'),
@@ -131,7 +133,11 @@ async function laadWereld(): Promise<Wereld> {
     omschrijving: tekst(rij.omschrijving),
     start: tekst(rij.start_datum),
     eind: tekst(rij.eind_datum),
-    trigger: (rij.publicatie_trigger ?? 'zodra_content_compleet') as PublicatieTrigger,
+    trigger: triggerIsBekend(tekst(rij.publicatie_trigger)) ? (rij.publicatie_trigger as PublicatieTrigger) : 'zodra_content_compleet',
+    zichtbaarheid:
+      rij.zichtbaarheid === 'publiek' || rij.zichtbaarheid === 'bezet' || rij.zichtbaarheid === 'verborgen'
+        ? rij.zichtbaarheid
+        : null,
     gepubliceerd: Boolean(rij.gepubliceerd),
     inhoudStatus: (rij.inhoud_status ?? 'niet_gestart') as InhoudStatus,
     praktisch: tekst(rij.praktische_informatie),
@@ -209,14 +215,18 @@ async function laadWereld(): Promise<Wereld> {
     ...wereld.incidenten,
   ].map((rij) => Number(rij.id) || 0);
   wereld.seq = Math.max(0, ...ids);
+  wereld.mailtemplates = await laadMailtemplatesUitSupabase(client);
   return wereld;
 }
 
 function mailTransport(env: Record<string, unknown>) {
   const sleutel = String(env.RESEND_API_KEY ?? '');
   return {
-    async verstuur(input: { naar: string; onderwerp: string; tekst: string }) {
+    async verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string }) {
+      const automatisering = input.templateSleutel ? automatiseringVoorTemplate(input.templateSleutel) : null;
+      await eisProviderToegestaan(automatisering ?? 'workflow', undefined, env);
       if (!sleutel) throw new Error('RESEND_API_KEY ontbreekt');
+      const { Resend } = await import('resend');
       const resend = new Resend(sleutel);
       const { error } = await resend.emails.send({
         from: VAN,
@@ -252,6 +262,9 @@ export async function voerOperationeel(
 
 export async function draaiWorkflow(env: Record<string, unknown> = process.env, basisUrl = 'https://kerkjepersingen.nl'): Promise<{ ok: boolean; melding: string }> {
   if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: productie blijft op Sanity.' };
+  const { besluitVoor } = await import('../automatisering-register.ts');
+  const besluit = await besluitVoor('workflow', undefined, env);
+  if (!besluit.provider) return { ok: true, melding: `Workflowmail geblokkeerd: ${besluit.reden}` };
   return voerOperationeel({ soort: 'scheduler' }, {
     env,
     actor: { type: 'systeem', naam: 'planner' },
@@ -260,8 +273,9 @@ export async function draaiWorkflow(env: Record<string, unknown> = process.env, 
 }
 
 function fotoUrl(pad: string, env: Record<string, unknown>): string {
+  const direct = directeFotoUrl(pad);
+  if (direct) return direct;
   if (!pad) return '';
-  if (pad.startsWith('http')) return pad;
   const basis = String(env.SUPABASE_URL ?? env.PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
   return basis ? `${basis}/storage/v1/object/public/public-media/${pad}` : pad;
 }
@@ -276,11 +290,12 @@ export function activiteitVanPubliek(rij: PubliekRij, soort: string, env: Record
     start: rij.start,
     eind: rij.eind,
     soort,
-    zichtbaarheid: 'publiek',
+    zichtbaarheid: rij.zichtbaarheid === 'publiek' ? 'publiek' : 'bezet',
     omschrijving: rij.omschrijving,
     foto: foto || undefined,
     fotoAlt: rij.titel,
-    contentStatus: 'goedgekeurd',
+    toonVanafMaanden: maandenVanTrigger(rij.trigger),
+    contentStatus: contentStatusVanInhoud(rij.inhoudStatus),
     aangeleverdeTekst: rij.omschrijving,
   };
 }
@@ -289,7 +304,7 @@ export async function publiekeActiviteiten(env: Record<string, unknown> = proces
   const wereld = await laadWereld();
   const vandaag = ymdInAmsterdam(new Date());
   return wereld.publiek
-    .filter((rij) => rij.gepubliceerd && rij.inhoudStatus === 'goedgekeurd' && rij.eind >= vandaag)
+    .filter((rij) => hoortOpPubliekeAgenda(rij, vandaag))
     .map((rij) => activiteitVanPubliek(rij, wereld.boekingen.find((boeking) => boeking.id === rij.boekingId)?.verhuurtype ?? 'expositie', env))
     .sort((a, b) => a.start.localeCompare(b.start));
 }

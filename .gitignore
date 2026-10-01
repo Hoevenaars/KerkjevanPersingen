@@ -6,3 +6,6 @@ dist/
 .DS_Store
 data/mailtemplates-state.json
 data/beheer-rollen.json
+
+# Bronmigratie bevat persoonsgegevens. Niet committen.
+migratie/

@@ -1,12 +1,13 @@
 /**
- * Databron voor /beheer: live Sanity (alleen lezen) of voorbeelddata.
- *
- * Live data alleen als Sanity geconfigureerd is én Supabase-login aan staat.
+ * Databron voor /beheer: Supabase. Geen Sanity-fallback.
+ * Voorbeelddata alleen via ?bron=demo.
  */
 
 import { supabaseLoginUitOmgeving, STANDAARD_SUPER_ADMIN_EMAIL, STANDAARD_SUPABASE_PUBLISHABLE_KEY, STANDAARD_SUPABASE_URL } from '../lib/supabase-project.ts';
 import { huidigeContentBron } from './bron.ts';
 import { ymdInAmsterdam } from './datum.ts';
+import { leesSupabaseBeheer, supabaseFoutSnapshot, type SupabaseLeesClient } from './beheer-supabase-lees.ts';
+import { bewaarRequestSnapshot, gekoppeldeSupabaseClient, leesRequestSnapshot } from './sanity-registratie.ts';
 import {
   DEMO_AANVRAGEN,
   DEMO_AGENDA,
@@ -33,7 +34,7 @@ import {
   type DemoTemplate,
   type DemoVriend,
 } from './demo-data.ts';
-import { transformSanityDump, type MigratieResultaat } from './migratie-transform.ts';
+import type { MigratieResultaat } from './migratie-transform.ts';
 import { laadMailtemplates, mailtemplatesNaarDemo } from './mailtemplates/index.ts';
 
 export type BeheerBronSoort = 'demo' | 'sanity' | 'supabase';
@@ -55,6 +56,19 @@ export interface BeheerSnapshot {
   communicatie: { id: string; boekingId: string; template: string; status: string; wanneer: string; ontvanger: string }[];
   documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string }[];
   migratie: MigratieResultaat | null;
+  betalingen?: import('./beheer-supabase-lees.ts').BeheerBetaling[];
+  toewijzingen?: import('./beheer-supabase-lees.ts').BeheerToewijzing[];
+  fout?: string | null;
+  alleenLezen?: boolean;
+  instellingenHerkomst?: 'supabase' | 'demo' | 'leeg';
+  tarieven?: {
+    verhuurtype: string;
+    prijstype: string;
+    bedrag: number | null;
+    geldigVanaf: string;
+    geldigTot: string | null;
+    toelichting: string;
+  }[];
   incidenten?: { id: string; boekingId: string; omschrijving: string; status: string }[];
   signalen?: {
     boekingId: string;
@@ -156,62 +170,54 @@ export async function laadBeheerSnapshot(opties: {
   url?: URL;
   env?: Record<string, unknown>;
   forceDemo?: boolean;
+  client?: SupabaseLeesClient | null;
 } = {}): Promise<BeheerSnapshot> {
   const env = opties.env ?? omgevingsRecord();
-  const forceDemo =
-    opties.forceDemo === true || opties.url?.searchParams.get('bron') === 'demo';
-  const key = `${forceDemo ? 'demo' : huidigeContentBron(env)}:${String(env.SANITY_PROJECT_ID ?? '')}`;
+  const gekozen = opties.url?.searchParams.get('bron');
+  const forceDemo = opties.forceDemo === true || gekozen === 'demo';
+  const forceSupabase = gekozen === 'supabase';
+  const sleutel = forceDemo ? 'demo' : 'supabase';
+  const key = sleutel;
   const nu = Date.now();
-  if (cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
+  if (!forceDemo && !forceSupabase && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
 
-  const waarde = laadBeheerSnapshotOngecached({ env, forceDemo });
-  cache = { key, at: nu, waarde };
+  const client = opties.client ?? gekoppeldeSupabaseClient();
+  if (forceSupabase) {
+    const bestaand = leesRequestSnapshot<BeheerSnapshot>();
+    if (bestaand) return bestaand;
+  }
+  const waarde = laadBeheerSnapshotOngecached({ env, forceDemo, forceSupabase, client });
+  if (forceSupabase) bewaarRequestSnapshot(waarde);
+  else cache = { key, at: nu, waarde };
   return waarde;
+}
+
+async function supabaseTestSnapshot(env: Record<string, unknown>, client: SupabaseLeesClient | null): Promise<BeheerSnapshot> {
+  const { maakBeheerAdminClient } = await import('../lib/supabase.ts');
+  const lezer = (client ?? maakBeheerAdminClient(env)) as SupabaseLeesClient | null;
+  if (!lezer) {
+    throw new Error('Geen Supabase-client. Log in voor de testmodus, of zet de service-role alleen op de server.');
+  }
+  return leesSupabaseBeheer(lezer, {
+    vandaag: ymdInAmsterdam(new Date()),
+    testmodus: huidigeContentBron(env) !== 'supabase',
+  });
 }
 
 async function laadBeheerSnapshotOngecached(opties: {
   env: Record<string, unknown>;
   forceDemo: boolean;
+  forceSupabase: boolean;
+  client: SupabaseLeesClient | null;
 }): Promise<BeheerSnapshot> {
   if (opties.forceDemo) {
     return demoSnapshot('Voorbeelddata — bewust gekozen via ?bron=demo.');
   }
-  if (huidigeContentBron(opties.env) === 'supabase') {
-    try {
-      const { beheerSnapshotUitSupabase } = await import('../lib/operatie/runtime.ts');
-      return await beheerSnapshotUitSupabase(opties.env);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : 'onbekende fout';
-      const leeg = await demoSnapshot(`Supabase is de bron, maar laden mislukte: ${detail}`);
-      return {
-        ...leeg,
-        bron: 'supabase',
-        banner: `Supabase-staging is niet geladen (${detail}). Er wordt geen voorbeelddata als dossier getoond.`,
-        aanvragen: [],
-        boekingen: [],
-        agenda: [],
-        relaties: [],
-        gastheren: [],
-        communicatie: [],
-      };
-    }
-  }
-  if (!magLiveSanityLezen(opties.env)) {
-    const heeftProject = String(opties.env.SANITY_PROJECT_ID ?? '').trim().length > 0;
-    const reden = heeftProject
-      ? 'Sanity is geconfigureerd, maar Supabase-login staat nog niet aan. Voorbeelddata blijft staan.'
-      : 'Geen Sanity-project in deze omgeving — voorbeelddata.';
-    return demoSnapshot(reden);
-  }
-
   try {
-    const { haalSanityDump } = await import('../lib/sanity-beheer.ts');
-    const dump = await haalSanityDump(opties.env);
-    return snapshotVanMigratie(transformSanityDump(dump));
+    return await supabaseTestSnapshot(opties.env, opties.client);
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'onbekende fout';
-    console.error('[beheer] Sanity-dump mislukt, val terug op voorbeelddata', error);
-    return demoSnapshot(`Sanity kon niet worden gelezen (${detail}). Voorbeelddata als vangnet.`);
+    return supabaseFoutSnapshot(detail);
   }
 }
 

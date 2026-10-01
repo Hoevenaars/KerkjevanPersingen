@@ -13,6 +13,9 @@ import {
 import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
+import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
+import { gekoppeldeSupabaseClient } from '../../../platform/sanity-registratie.ts';
+import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
 
@@ -39,8 +42,14 @@ const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
 const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
 const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id);
 const demoMails = snapshot.communicatie.filter((c) => c.boekingId === boeking.id);
-const opgeslagen = await laadCommunicatieVoorBoeking(boeking.id);
-const templates = await laadMailtemplates();
+const opgeslagen = snapshot.bron === 'supabase' ? [] : await laadCommunicatieVoorBoeking(boeking.id);
+const templates =
+  snapshot.bron === 'supabase'
+    ? await (async () => {
+        const client = gekoppeldeSupabaseClient() ?? maakBeheerAdminClient();
+        return client ? laadMailtemplatesUitSupabase(client) : [];
+      })()
+    : await laadMailtemplates();
 const gepland = geplandeMailsVoorBoeking(boeking, templates, opgeslagen);
 const mails: {
   id: string;
@@ -138,6 +147,41 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
             )}
             <dt>Notities</dt>
             <dd>{boeking.notities}</dd>
+            <dt>Status</dt>
+            <dd>{BOEKING_LABEL[boeking.status] ?? boeking.status}{boeking.periode ? ` · ${boeking.periode}` : ''}</dd>
+            {(snapshot.toewijzingen ?? []).filter((item) => item.boekingId === boeking.id).length > 0 && (
+              <>
+                <dt>Gastbegeleiders</dt>
+                <dd>
+                  <ul>
+                    {(snapshot.toewijzingen ?? [])
+                      .filter((item) => item.boekingId === boeking.id)
+                      .map((item) => (
+                        <li>
+                          {item.relatieNaam} · {item.type} · {item.datum ? formatNl(item.datum) : 'boekingsniveau'}
+                        </li>
+                      ))}
+                  </ul>
+                </dd>
+              </>
+            )}
+            {(snapshot.betalingen ?? []).filter((item) => item.boekingId === boeking.id).length > 0 && (
+              <>
+                <dt>Betalingen</dt>
+                <dd>
+                  <ul>
+                    {(snapshot.betalingen ?? [])
+                      .filter((item) => item.boekingId === boeking.id)
+                      .map((item) => (
+                        <li>
+                          {item.soort} · {item.bedrag.toFixed(2)} · {item.status}
+                          {item.ontvangenOp ? ` · ontvangen ${formatNl(item.ontvangenOp)}` : ''}
+                        </li>
+                      ))}
+                  </ul>
+                </dd>
+              </>
+            )}
             {boeking.soort === 'expositie' && (
               <>
                 <dt>Gastheer</dt>
@@ -147,7 +191,7 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
               </>
             )}
           </dl>
-          {boeking.soort === 'expositie' && (
+          {boeking.soort === 'expositie' && !snapshot.alleenLezen && (
             <form method="post" class="bh-form">
               <label for="gastheer">Gastheer of gastvrouw</label>
               <select id="gastheer" name="gastheerId">
@@ -174,24 +218,28 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
           )}
         </section>
         <section class="bh-kaart">
-          <h2>{snapshot.bron === 'supabase' ? 'Dossieracties' : 'Acties (voorbeeld)'}</h2>
+          <h2>{snapshot.alleenLezen ? 'Alleen lezen' : snapshot.bron === 'supabase' ? 'Dossieracties' : 'Acties (voorbeeld)'}</h2>
           <p class="bh-muted">
-            {snapshot.bron === 'supabase'
+            {snapshot.alleenLezen
+              ? 'Supabase-testmodus schrijft niets en verstuurt geen mail. Sanity blijft de runtimebron.'
+              : snapshot.bron === 'supabase'
               ? 'Deze acties schrijven het Supabase-dossier. Sanity en productie blijven onaangeroerd.'
               : 'Geen contractgeneratie, geen echte mail, geen wijziging in Sanity.'}
           </p>
-          <form method="post" class="bh-acties">
-            <button class="bh-btn" type="submit" name="actie" value="definitief">
-              Zet definitief
-            </button>
-            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
-              Verleng optie
-            </button>
-            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
-              Annuleer
-            </button>
-          </form>
-          {snapshot.bron === 'supabase' && (
+          {!snapshot.alleenLezen && (
+            <form method="post" class="bh-acties">
+              <button class="bh-btn" type="submit" name="actie" value="definitief">
+                Zet definitief
+              </button>
+              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
+                Verleng optie
+              </button>
+              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
+                Annuleer
+              </button>
+            </form>
+          )}
+          {snapshot.bron === 'supabase' && !snapshot.alleenLezen && (
             <>
               <form method="post" class="bh-form">
                 <label for="incident">Incident</label>

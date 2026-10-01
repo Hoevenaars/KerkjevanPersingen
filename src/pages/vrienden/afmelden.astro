@@ -5,8 +5,8 @@ import {
   deactiveerVriend,
   updateVriendFrequentie,
   type Vriend,
-  type VriendFrequentie,
-} from '../../lib/sanity';
+} from '../../lib/vrienden-supabase.ts';
+import { type VriendFrequentie } from '../../lib/nieuwsbrief-frequentie';
 import { FREQUENTIE_LABELS, isGeldigeFrequentie } from '../../lib/nieuwsbrief-frequentie';
 
 export const prerender = false;

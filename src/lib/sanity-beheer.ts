@@ -5,6 +5,8 @@
 
 import { createClient, type SanityClient } from '@sanity/client';
 import type { SanityDump } from '../platform/migratie-transform.ts';
+import { noteerSanityOproep } from '../platform/sanity-registratie.ts';
+import { huidigeContentBron } from '../platform/bron.ts';
 
 const DUMP_QUERY = `{
   "aanvragen": *[_type == "aanvraag" && !(_id in path("drafts.**")) && !(_id in path("versions.**"))]
@@ -63,6 +65,10 @@ function clientVoor(env: Record<string, unknown> = {}): SanityClient | null {
 }
 
 export async function haalSanityDump(env: Record<string, unknown> = {}): Promise<SanityDump> {
+  if (huidigeContentBron(env) === 'supabase' || huidigeContentBron() === 'supabase') {
+    throw new Error('Sanity is geen runtimebron. De migratiedump hoort niet in een productieflow.');
+  }
+  noteerSanityOproep('beheer.sanity-dump');
   const client = clientVoor(env);
   if (!client) {
     throw new Error('Sanity is niet geconfigureerd.');

@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import '../styles/beheer.css';
 import { laadBeheerSnapshot } from '../platform/beheer-bron';
+import { leesSanityOproepen } from '../platform/sanity-registratie';
 import { BEHEER_MODULES, INSTELLINGEN_PAGINAS, SNEL_NIEUW } from '../platform/modules.ts';
 import { magZien } from '../platform/rechten.ts';
 import { beheerModus } from '../platform/beheer-sessie.ts';
@@ -24,10 +25,15 @@ const modus = sessie ? beheerModus(sessie, module === 'auth' || module === 'onbe
 
 const demoLink = new URL(Astro.url);
 demoLink.searchParams.set('bron', 'demo');
+const supabaseLink = new URL(Astro.url);
+supabaseLink.searchParams.set('bron', 'supabase');
 const liveLink = new URL(Astro.url);
 liveLink.searchParams.delete('bron');
 const demoHref = demoLink.pathname + demoLink.search;
+const supabaseHref = supabaseLink.pathname + supabaseLink.search;
 const liveHref = liveLink.pathname + liveLink.search;
+const sanityOproepen = leesSanityOproepen();
+const rolAantal = snapshot.relaties.reduce((som, relatie) => som + relatie.rollen.length, 0);
 
 const hoofd = (Object.keys(BEHEER_MODULES) as Array<keyof typeof BEHEER_MODULES>)
   .filter((sleutel) => BEHEER_MODULES[sleutel].groep === 'hoofd' && magZien(rechten, sleutel))
@@ -227,12 +233,14 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
         </header>
 
         <div class="bh-main">
-          <p class="bh-demo">
+          <p class="bh-demo" role={snapshot.fout ? 'alert' : 'status'} data-beheer-bron={snapshot.bron}>
             {snapshot.banner}
             {
               snapshot.bron === 'sanity' && (
                 <>
                   {' '}
+                  <a href={supabaseHref}>Toon Supabase-testdata</a>
+                  {' · '}
                   <a href={demoHref}>Toon voorbeelddata</a>
                 </>
               )
@@ -245,7 +253,28 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
                 </>
               )
             }
+            {
+              snapshot.bron === 'supabase' && (
+                <>
+                  {' '}
+                  <a href={liveHref}>Terug naar Sanity-weergave</a>
+                </>
+              )
+            }
           </p>
+          {
+            snapshot.bron === 'supabase' && (
+              <p class="bh-demo" data-supabase-telling>
+                Relaties {snapshot.relaties.length} · rollen {rolAantal} · boekingen {snapshot.boekingen.length} ·
+                betalingen {(snapshot.betalingen ?? []).length} · blokkades {snapshot.intern.length} ·
+                gastbegeleiders {(snapshot.toewijzingen ?? []).length}
+                {snapshot.fout ? ` · fout: ${snapshot.fout}` : ''}
+                {' · '}
+                Sanity-calls in dit request: <span data-sanity-oproepen={sanityOproepen.length}>{sanityOproepen.length}</span>
+                {sanityOproepen.length > 0 ? ` (${sanityOproepen.map((oproep) => oproep.plek).join(', ')})` : ''}
+              </p>
+            )
+          }
           <slot />
         </div>
       </div>

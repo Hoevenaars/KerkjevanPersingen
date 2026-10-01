@@ -51,6 +51,7 @@ const tabs = [
         <th>Titel</th>
         <th>Huurder</th>
         <th>Datum</th>
+        <th>Periode</th>
         <th>Tarief</th>
         <th>Status</th>
       </tr>
@@ -59,7 +60,7 @@ const tabs = [
       {
         lijst.length === 0 ? (
           <tr>
-            <td colspan="6" class="bh-leeg">Geen boekingen in deze filter.</td>
+            <td colspan="7" class="bh-leeg">Geen boekingen in deze filter.</td>
           </tr>
         ) : (
           lijst.map((b) => (
@@ -72,7 +73,9 @@ const tabs = [
               <td>
                 {formatNl(b.start)}
                 {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
+                {b.eind !== b.start ? ' · meerdaags' : ''}
               </td>
+              <td>{b.periode === 'verleden' ? 'Verleden' : b.periode === 'komend' ? 'Komend' : b.periode === 'lopend' ? 'Lopend' : ''}</td>
               <td>{b.tarief}</td>
               <td>
                 <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status] ?? b.status}</span>

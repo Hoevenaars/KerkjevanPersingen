@@ -21,6 +21,8 @@ export interface DemoAanvraag {
   binnengekomen: string;
   website?: string;
   boekingId?: string;
+  afwijsreden?: string;
+  relatieId?: string;
 }
 
 export interface DemoBoeking {
@@ -52,6 +54,7 @@ export interface DemoBoeking {
   aanvraagId?: string;
   relatieId: string;
   gastheerId?: string;
+  periode?: 'verleden' | 'lopend' | 'komend';
 }
 
 export interface DemoActiviteit {

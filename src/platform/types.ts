@@ -51,6 +51,9 @@ export const PUBLICATIE_TRIGGERS = [
   'uiterlijk_1_maand',
   'uiterlijk_2_maanden',
   'uiterlijk_3_maanden',
+  'uiterlijk_6_maanden',
+  'uiterlijk_9_maanden',
+  'uiterlijk_12_maanden',
   'niet_publiceren',
 ] as const;
 export type PublicatieTrigger = (typeof PUBLICATIE_TRIGGERS)[number];
@@ -72,6 +75,7 @@ export const COMMUNICATIE_STATUSSEN = [
   'verzonden',
   'fout',
   'geannuleerd',
+  'geblokkeerd',
 ] as const;
 export type CommunicatieStatus = (typeof COMMUNICATIE_STATUSSEN)[number];
 

@@ -224,6 +224,7 @@ export async function nodigGebruikerUit(
   admin: SupabaseClient,
   actor: { id: string; naam: string; rechten: GebruikerRechten },
   invoer: InviteInvoer,
+  register?: readonly import('../platform/automatisering.ts').Automatisering[],
 ): Promise<{ id: string } | { fout: GebruikerFout; melding: string }> {
   if (!magGebruikersBeheren(actor.rechten)) {
     return { fout: 'geen_recht', melding: 'Alleen Super Admin mag gebruikers uitnodigen.' };
@@ -231,6 +232,11 @@ export async function nodigGebruikerUit(
   const validatie = valideerInvite(invoer);
   if (validatie) return { fout: 'ongeldig', melding: validatie };
 
+  const { besluitVoor } = await import('./automatisering-register.ts');
+  const uitnodiging = await besluitVoor('gebruiker_uitnodiging', register);
+  if (!uitnodiging.provider) {
+    return { fout: 'ongeldig', melding: `Geen Supabase Auth-uitnodiging: ${uitnodiging.reden}.` };
+  }
   const email = normaliseerEmail(invoer.email);
   const functie = invoer.functie && isGebruikerFunctie(invoer.functie) ? invoer.functie : null;
   const rechten = inviteRechten({ ...invoer, email });
@@ -372,9 +378,15 @@ export async function verstuurUitnodigingOpnieuw(
   actor: { id: string; naam: string; rechten: GebruikerRechten },
   doelId: string,
   redirectTo: string,
+  register?: readonly import('../platform/automatisering.ts').Automatisering[],
 ): Promise<{ ok: true } | { fout: GebruikerFout; melding: string }> {
   if (!magGebruikersBeheren(actor.rechten)) {
     return { fout: 'geen_recht', melding: 'Geen recht om uitnodigingen te versturen.' };
+  }
+  const { besluitVoor } = await import('./automatisering-register.ts');
+  const uitnodiging = await besluitVoor('gebruiker_uitnodiging', register);
+  if (!uitnodiging.provider) {
+    return { fout: 'ongeldig', melding: `Geen Supabase Auth-uitnodiging: ${uitnodiging.reden}.` };
   }
   const geladen = await laadProfiel(admin, doelId);
   if (!geladen) return { fout: 'niet_gevonden', melding: 'Gebruiker niet gevonden.' };

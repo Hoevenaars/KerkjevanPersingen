@@ -23,7 +23,20 @@ const snapshot = await laadBeheerSnapshot({ url: Astro.url });
 const flash = Astro.url.searchParams.get('demo') === '1';
 const openstaand = snapshot.boekingen.filter((b) => !b.aanbetalingBinnen && b.status !== 'afgewezen');
 const vanaf = ymdInAmsterdam(new Date());
-const tarieven = INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= vanaf);
+const tarieven =
+  snapshot.bron === 'supabase'
+    ? (snapshot.tarieven ?? []).map((t) => ({
+        verhuurtype: t.verhuurtype,
+        prijstype: t.prijstype,
+        bedrag: t.bedrag,
+        geldigVanaf: t.geldigVanaf,
+        geldigTot: t.geldigTot,
+        toelichting: t.toelichting,
+      }))
+    : INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= vanaf).map((t) => ({
+        ...t,
+        toelichting: '',
+      }));
 ---
 
 <Beheer titel="Finance">
@@ -71,7 +84,11 @@ const tarieven = INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= 
       </tbody>
     </table>
     {
-      snapshot.bron === 'supabase'
+      snapshot.alleenLezen ? (
+        <p class="bh-muted">
+          Alleen lezen. {(snapshot.betalingen ?? []).length} betaalregels uit Supabase. De vlag aanbetaling_ontvangen blijft zoals geïmporteerd.
+        </p>
+      ) : snapshot.bron === 'supabase'
         ? openstaand.map((b) => (
             <form method="post" class="bh-acties">
               <input type="hidden" name="boekingId" value={b.id} />
@@ -91,13 +108,14 @@ const tarieven = INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= 
   </section>
 
   <section class="bh-kaart">
-    <h2>Tarieven (huidige regels)</h2>
+    <h2>{snapshot.bron === 'supabase' ? 'Tarieven uit Supabase' : 'Tarieven (huidige regels)'}</h2>
     <table class="bh-tabel">
       <thead>
         <tr>
           <th>Type</th>
           <th>Prijs</th>
           <th>Geldig vanaf</th>
+          <th>Geldig tot</th>
         </tr>
       </thead>
       <tbody>
@@ -111,8 +129,10 @@ const tarieven = INITIELE_TARIEVEN.filter((t) => !t.geldigTot || t.geldigTot >= 
                   : t.prijstype === 'vanaf'
                     ? `Vanaf € ${t.bedrag}`
                     : `€ ${t.bedrag}`}
+                {t.toelichting ? ` · ${t.toelichting}` : ''}
               </td>
               <td>{formatNl(t.geldigVanaf)}</td>
+              <td>{t.geldigTot ? formatNl(t.geldigTot) : '—'}</td>
             </tr>
           ))
         }

@@ -22,6 +22,7 @@ import {
 } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam, voegDagenToe, periodesOverlappen } from '../../platform/datum.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
+import { MailGeblokkeerd } from '../../platform/automatisering.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { hashToegangstoken, nieuwToegangstoken, tokenIsVerlopen } from '../../platform/magictoken.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
@@ -95,6 +96,7 @@ export interface PubliekRij {
   start: string;
   eind: string;
   trigger: PublicatieTrigger;
+  zichtbaarheid?: 'publiek' | 'bezet' | 'verborgen' | null;
   gepubliceerd: boolean;
   inhoudStatus: InhoudStatus;
   praktisch: string;
@@ -122,7 +124,7 @@ export interface JobRij {
   aanvraagId: string | null;
   relatieId: string | null;
   templateSleutel: string;
-  status: 'gepland' | 'concept' | 'wachtrij' | 'verzonden' | 'fout' | 'geannuleerd';
+  status: 'gepland' | 'concept' | 'wachtrij' | 'verzonden' | 'fout' | 'geannuleerd' | 'geblokkeerd';
   modus: 'automatisch' | 'concept' | 'handmatig';
   geplandOp: string;
   dedup: string;
@@ -179,6 +181,8 @@ export interface Wereld {
   incidenten: IncidentRij[];
   audits: AuditRij[];
   seq: number;
+  /** Gezet door de Supabase-runtime. Ontbreekt die lijst, dan geldt de code-catalogus alleen voor unit-tests. */
+  mailtemplates?: import('../../platform/mailtemplates/types.ts').MailTemplateDef[];
 }
 
 export interface Mutatie {
@@ -218,7 +222,7 @@ export interface Resultaat {
 }
 
 export interface MailTransport {
-  verstuur(input: { naar: string; onderwerp: string; tekst: string }): Promise<void>;
+  verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string }): Promise<void>;
 }
 
 export interface DienstContext {
@@ -547,8 +551,13 @@ function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string): Commu
   };
 }
 
-function mailTekst(stapItem: CommunicatieStap, boeking: BoekingRij, link?: string): { onderwerp: string; tekst: string } {
-  const template = standaardTemplate(stapItem.templateId);
+function templateVoor(wereld: Wereld, id: string): import('../../platform/mailtemplates/types.ts').MailTemplateDef | undefined {
+  if (wereld.mailtemplates) return wereld.mailtemplates.find((item) => item.id === id);
+  return standaardTemplate(id);
+}
+
+function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingRij, link?: string): { onderwerp: string; tekst: string } {
+  const template = templateVoor(wereld, stapItem.templateId);
   const vars = {
     voornaam: boeking.naam.split(' ')[0] || boeking.naam,
     naam: boeking.naam,
@@ -587,7 +596,7 @@ function communicatieMutaties(
       .filter(
         (job) =>
           job.boekingId === boeking.id &&
-          (job.status === 'gepland' || job.status === 'wachtrij' || job.status === 'concept'),
+          (job.status === 'gepland' || job.status === 'wachtrij' || job.status === 'concept' || job.status === 'geblokkeerd'),
       )
       .map((job) => job.templateSleutel);
     for (const templateId of geplandeJobsTeAnnuleren(comm, openTemplates)) {
@@ -619,7 +628,7 @@ function communicatieMutaties(
         link = `${ctx.basisUrl}/klant/aanleveren/?token=${token.plain}`;
         links.push({ doel: 'content', url: link });
       }
-      const bericht = mailTekst(stapItem, boeking, link);
+      const bericht = mailTekst(wereld, stapItem, boeking, link);
       const naar = ontvangerVoor(stapItem, wereld, boeking, ctx.internEmail);
       const status = stapItem.modus === 'automatisch' ? 'gepland' : 'concept';
       mutaties.push({
@@ -801,8 +810,8 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
     const geprojecteerd = pasToe(wereld, mutaties);
     const aanvraag = geprojecteerd.aanvragen.at(-1);
     if (!aanvraag) return mislukt('Aanvraag kon niet worden opgebouwd.');
-    const jobs = conceptJob(aanvraag, 'booking_request_received', 'automatisch', ctx);
-    const intern = conceptJob(aanvraag, 'internal_booking_review_required', 'automatisch', ctx, ctx.internEmail);
+    const jobs = conceptJob(wereld,aanvraag, 'booking_request_received', 'automatisch', ctx);
+    const intern = conceptJob(wereld,aanvraag, 'internal_booking_review_required', 'automatisch', ctx, ctx.internEmail);
     for (const mail of [jobs, intern]) {
       mail.mutatie.aanvraag_ref = 'aan';
       if (mail.mutatie.velden) delete mail.mutatie.velden.aanvraag_id;
@@ -849,7 +858,7 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
       if (aanvraag.boekingId) {
         mutaties.push({ soort: 'update_boeking', id: aanvraag.boekingId, velden: { status: 'afgewezen' } });
       }
-      const mail = conceptJob(aanvraag, 'booking_request_rejected', 'concept', ctx);
+      const mail = conceptJob(wereld,aanvraag, 'booking_request_rejected', 'concept', ctx);
       mutaties.push(mail.mutatie);
       return gelukt('Aanvraag afgewezen. Conceptmail staat klaar.', { aanvraagId: aanvraag.id }, mutaties);
     }
@@ -871,7 +880,7 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
           },
         },
         audit({ dedup: `aanvraag:${aanvraag.id}:meer_informatie:${hashToegangstoken(opdracht.vraag).slice(0, 12)}`, actie: 'meer_informatie', type: 'aanvraag', id: aanvraag.id, van: aanvraag.status, naar: 'wacht_op_aanvrager', reden: opdracht.vraag.trim(), actor: ctx.actor }),
-        conceptJob(aanvraag, 'booking_more_information_requested', 'concept', ctx).mutatie,
+        conceptJob(wereld,aanvraag, 'booking_more_information_requested', 'concept', ctx).mutatie,
       ];
       return gelukt('Wacht op de aanvrager.', { aanvraagId: aanvraag.id, links: [{ doel: 'meer_informatie', url }] }, mutaties);
     }
@@ -938,7 +947,7 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
     }
     const geprojecteerd = pasToe(wereld, mutaties);
     const boeking = geprojecteerd.boekingen.find((item) => item.aanvraagId === aanvraag.id);
-    const mail = conceptJob(aanvraag, 'booking_approved_payment_required', 'concept', ctx);
+    const mail = conceptJob(wereld,aanvraag, 'booking_approved_payment_required', 'concept', ctx);
     mutaties.push(mail.mutatie);
     const planComm = boeking ? communicatieMutaties(geprojecteerd, ctx, boeking.id) : { mutaties: [], teVersturen: [], links: [] };
     return gelukt('Optie vastgelegd. Voorbereiding start pas na definitief.', { aanvraagId: aanvraag.id, boekingId: boeking?.id }, [...mutaties, ...planComm.mutaties], planComm.teVersturen);
@@ -1015,7 +1024,7 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
         personen: '',
         website: '',
       };
-      const mail = conceptJob(aanvraag as AanvraagRij, 'booking_confirmed', 'automatisch', ctx);
+      const mail = conceptJob(wereld,aanvraag as AanvraagRij, 'booking_confirmed', 'automatisch', ctx);
       mail.mutatie.velden = { ...(mail.mutatie.velden ?? {}), boeking_id: boeking.id };
       if (mail.verzend) comm.teVersturen.push(mail.verzend);
       comm.mutaties.push(mail.mutatie);
@@ -1288,13 +1297,14 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
 }
 
 function conceptJob(
+  wereld: Wereld,
   aanvraag: AanvraagRij,
   templateId: string,
   modus: 'automatisch' | 'concept',
   ctx: DienstContext,
   naar = aanvraag.email,
 ): { mutatie: Mutatie; verzend: VerzendOpdracht | null } {
-  const template = standaardTemplate(templateId);
+  const template = templateVoor(wereld, templateId);
   const vars = { voornaam: aanvraag.naam.split(' ')[0] || aanvraag.naam, naam: aanvraag.naam, datum: aanvraag.start, activiteitstype: aanvraag.verhuurtype };
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : templateId;
   const tekst = template ? plainTekstUitTemplate(template, vars) : templateId;
@@ -1356,6 +1366,7 @@ export async function voerOpdrachtUit(
           naar: guard.naar,
           onderwerp: `${guard.onderwerpPrefix}${mail.onderwerp}`,
           tekst: mail.tekst,
+          templateSleutel: mail.dedup.split(':').at(-1) ?? '',
         });
         mutaties.push({
           soort: 'upsert_job',
@@ -1385,6 +1396,37 @@ export async function voerOpdrachtUit(
           },
         });
       } catch (error) {
+        if (error instanceof MailGeblokkeerd) {
+          mutaties.push({
+            soort: 'upsert_job',
+            ref: mail.jobRef,
+            velden: {
+              dedup_sleutel: mail.dedup,
+              template_sleutel: mail.dedup.split(':').at(-1) ?? '',
+              status: 'geblokkeerd',
+              modus: 'automatisch',
+              gepland_op: ctx.nu.toISOString(),
+              ontvanger_email: mail.naar,
+              onderwerp: mail.onderwerp,
+              pogingen: mail.pogingen,
+              foutmelding: 'geblokkeerd door automatisering; niet verzonden; geen provider-call',
+            },
+          });
+          mutaties.push({
+            soort: 'insert_audit',
+            velden: {
+              dedup_sleutel: `mail-geblokkeerd:${mail.dedup}`,
+              actie: 'geblokkeerd',
+              onderwerp_type: 'communicatie',
+              onderwerp_id: mail.dedup,
+              naar: 'geen provider-call',
+              reden: error.message,
+              actor_type: 'systeem',
+              actor_naam: 'automatisering',
+            },
+          });
+          continue;
+        }
         const pogingen = mail.pogingen + 1;
         const fout = mailFoutNaPoging(pogingen);
         mutaties.push({

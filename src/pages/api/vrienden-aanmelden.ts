@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { maakVriendAan } from '../../lib/sanity';
+import { maakVriendAan } from '../../lib/vrienden-supabase';
 import { teVaak } from '../../lib/validatie';
 
 export const prerender = false;
