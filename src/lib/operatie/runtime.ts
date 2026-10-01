@@ -17,8 +17,7 @@ import { laadMailtemplatesUitSupabase } from '../../platform/mailtemplates/supab
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
 import type { Json } from '../database.types.ts';
 import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from '../agenda-zichtbaarheid.ts';
-import { annuleerBoekingViaSessie, type AnnuleerSessie } from './annuleer-boeking.ts';
-import { koppelGastheerViaSessie, type GastheerSessie } from './gastheer-koppelen.ts';
+import { leesbareAuthFout, voerDossierViaSessie, type DossierSessie } from './dossier-sessie.ts';
 import {
   legeWereld,
   readinessVanBoeking,
@@ -42,7 +41,7 @@ export function actorVanSessie(sessie: {
   effectieveRechten: GebruikerRechten;
 } | undefined): Actor {
   if (!sessie) {
-    return { type: 'gebruiker', naam: 'Beheer', rechten: { isSuperAdmin: true, perModule: {} } };
+    return { type: 'gebruiker', naam: 'Beheer', rechten: { isSuperAdmin: false, perModule: {} } };
   }
   return {
     type: 'gebruiker',
@@ -52,9 +51,11 @@ export function actorVanSessie(sessie: {
   };
 }
 
-function isAnnuleerSessie(waarde: unknown): waarde is AnnuleerSessie {
-  return Boolean(waarde && typeof waarde === 'object' && 'from' in waarde && typeof waarde.from === 'function');
+function isDossierSessie(waarde: unknown): waarde is DossierSessie {
+  return Boolean(waarde && typeof waarde === 'object' && 'from' in waarde && typeof (waarde as { from?: unknown }).from === 'function');
 }
+
+const NIET_BESCHIKBAAR = new Set(['mail', 'concept', 'upload']);
 
 function schoon(mutaties: Mutatie[]): Mutatie[] {
   return mutaties.map((mutatie) => {
@@ -514,40 +515,25 @@ export async function postAlsSupabase(input: {
   const doel = new URL(input.url.pathname, input.url.origin);
   try {
     const data = await input.request.formData();
+    const actie = String(data.get('actie') ?? '');
+    if (NIET_BESCHIKBAAR.has(actie)) {
+      doel.searchParams.set('fout', 'Nog niet beschikbaar. Er is niets opgeslagen en er is geen mail verstuurd.');
+      return Response.redirect(doel, 303);
+    }
     const opdracht = opdrachtUitFormulier(input.url, data);
-    if (!opdracht) {
-      doel.searchParams.set('fout', 'Deze actie hoort niet bij de operationele keten.');
+    if (!opdracht || opdracht.soort === 'scheduler') {
+      doel.searchParams.set('fout', 'Deze actie is niet beschikbaar. Er is niets gewijzigd.');
       return Response.redirect(doel, 303);
     }
-    if (opdracht.soort === 'annuleer' && isAnnuleerSessie(input.sessie)) {
-      const uit = await annuleerBoekingViaSessie(
-        input.sessie,
-        Number(opdracht.boekingId),
-        opdracht.reden ?? '',
-        input.actor,
-      );
-      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    if (!isDossierSessie(input.sessie)) {
+      doel.searchParams.set('fout', 'Geen ingelogde sessie. Er is niets gewijzigd. De service-role is niet gebruikt.');
       return Response.redirect(doel, 303);
     }
-    if (opdracht.soort === 'gastheer' && isAnnuleerSessie(input.sessie)) {
-      const uit = await koppelGastheerViaSessie(
-        input.sessie as GastheerSessie,
-        Number(opdracht.boekingId),
-        opdracht.gastheerId,
-        input.actor,
-      );
-      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
-      return Response.redirect(doel, 303);
-    }
-    const uit = await voerOperationeel(opdracht, {
-      env: input.env,
-      actor: input.actor,
-      basisUrl: input.url.origin,
-    });
-    const tekst = uit.links?.[0] ? `${uit.melding} Link: ${uit.links[0].url}` : uit.melding;
-    doel.searchParams.set(uit.ok ? 'melding' : 'fout', tekst);
+    const uit = await voerDossierViaSessie(input.sessie, opdracht, input.actor);
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
   } catch (error) {
-    doel.searchParams.set('fout', error instanceof Error ? error.message : 'Opslaan mislukt.');
+    const tekst = error instanceof Error ? error.message : 'Opslaan mislukt.';
+    doel.searchParams.set('fout', leesbareAuthFout(tekst));
   }
   return Response.redirect(doel, 303);
 }

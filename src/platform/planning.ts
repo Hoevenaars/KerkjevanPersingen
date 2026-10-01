@@ -151,7 +151,7 @@ export function stelPlanning(
     .filter((item) => (filter === 'geannuleerd' ? Boolean(item.geannuleerd) : !item.geannuleerd))
     .filter((item) => item.eind >= opties.vandaag)
     .filter((item) => pastFilter(item, filter, opties.vandaag))
-    .filter((item) => !type || item.type === type)
+    .filter((item) => !type || (type === 'onbekend' ? !item.type : item.type === type))
     .sort((a, b) => a.start.localeCompare(b.start) || a.titel.localeCompare(b.titel))
     .map((item) => ({
       ...item,

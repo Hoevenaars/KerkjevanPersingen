@@ -2,16 +2,16 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { demoNaActie } from '../../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 import { STANDAARD_VERHUURTYPEN } from '../../../../platform/types.ts';
 
 if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+  return Astro.redirect('/beheer/instellingen/verhuur/?fout=nog-niet-beschikbaar');
 }
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
+const fout = Astro.url.searchParams.get('fout');
 ---
 
 <Beheer titel="Verhuurinstellingen">
@@ -23,6 +23,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">Verhuurinstellingen bewaren is nog niet beschikbaar. Er is niets opgeslagen.</p>}
 
   <section class="bh-kaart">
     <h2>Verhuurtypen</h2>
@@ -52,7 +53,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
       <label for="optie">Optietermijn (dagen)</label>
       <input id="optie" name="optietermijn" type="number" value={snapshot.instellingen.optietermijn} />
       <div class="bh-acties">
-        <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
+        <button class="bh-btn" type="button" disabled>Verhuurinstellingen bewaren — nog niet beschikbaar</button>
       </div>
     </form>
   </section>

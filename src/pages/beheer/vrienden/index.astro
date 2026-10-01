@@ -2,7 +2,6 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { demoNaActie } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { magVriendenExporteren } from '../../../platform/rechten.ts';
 
@@ -27,10 +26,13 @@ if (Astro.request.method === 'POST') {
       },
     });
   }
-  return Astro.redirect(demoNaActie(Astro.url));
+  const doel = new URL(Astro.url.pathname, Astro.url.origin);
+  doel.searchParams.set('fout', 'Vriend toevoegen is nog niet beschikbaar. Er is niets opgeslagen.');
+  return Astro.redirect(doel.toString());
 }
 
 const flash = Astro.url.searchParams.get('demo') === '1';
+const fout = Astro.url.searchParams.get('fout');
 ---
 
 <Beheer titel="Vrienden">
@@ -50,6 +52,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <table class="bh-tabel">
     <thead>
@@ -86,8 +89,8 @@ const flash = Astro.url.searchParams.get('demo') === '1';
         </button>
       )
     }
-    <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="nieuw">
-      Voeg vriend toe (voorbeeld)
+    <button class="bh-btn bh-btn--sec" type="button" disabled>
+      Vriend toevoegen — nog niet beschikbaar
     </button>
   </form>
 </Beheer>

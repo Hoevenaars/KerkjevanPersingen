@@ -5,6 +5,7 @@ import Beheer from '../../../layouts/Beheer.astro';
 import { BOEKING_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { INITIELE_TARIEVEN } from '../../../platform/finance.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 
@@ -14,6 +15,7 @@ if (Astro.request.method === 'POST') {
     url: Astro.url,
     env: omgevingsRecord(),
     actor: actorVanSessie(Astro.locals.beheer),
+    sessie: sessieSupabaseUitAstro(Astro),
   });
   if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
@@ -21,9 +23,6 @@ if (Astro.request.method === 'POST') {
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
-const openstaand = snapshot.boekingen.filter(
-  (b) => !b.aanbetalingBinnen && b.status !== 'afgewezen' && b.status !== 'geannuleerd',
-);
 const vanaf = ymdInAmsterdam(new Date());
 const tarieven =
   snapshot.bron === 'supabase'
@@ -46,7 +45,7 @@ const tarieven =
     <div>
       <h1>Finance</h1>
       <p class="bh-hint">
-        Aanbetalingen en tarieven. Geen bankkoppeling, geen automatische herinnering, geen facturatie.
+        Informatief. Aanbetaling stuurt geen status, planning of publicatie. Geen bankkoppeling en geen herinnering.
       </p>
     </div>
   </header>
@@ -75,7 +74,7 @@ const tarieven =
               <td>{b.huurder}</td>
               <td>{b.tarief}</td>
               <td>
-                {b.aanbetaling} {b.aanbetalingBinnen ? '· binnen' : '· open'}
+                {b.aanbetalingBinnen ? 'vlag: ja' : 'vlag: nee, niet leidend'}
               </td>
               <td>
                 <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
@@ -85,28 +84,9 @@ const tarieven =
         }
       </tbody>
     </table>
-    {
-      snapshot.alleenLezen ? (
-        <p class="bh-muted">
-          Alleen lezen. {(snapshot.betalingen ?? []).length} betaalregels uit Supabase. De vlag aanbetaling_ontvangen blijft zoals geïmporteerd.
-        </p>
-      ) : snapshot.bron === 'supabase'
-        ? openstaand.map((b) => (
-            <form method="post" class="bh-acties">
-              <input type="hidden" name="boekingId" value={b.id} />
-              <button class="bh-btn" type="submit" name="actie" value="betaling">
-                Aanbetaling binnen voor {b.nummer}
-              </button>
-            </form>
-          ))
-        : openstaand.length > 0 && (
-            <form method="post" class="bh-acties">
-              <button class="bh-btn" type="submit" name="actie" value="check">
-                Markeer aanbetaling binnen (voorbeeld)
-              </button>
-            </form>
-          )
-    }
+    <p class="bh-muted">
+      {(snapshot.betalingen ?? []).length} betaalregels blijven bewaard. De vlag aanbetaling_ontvangen is niet beslissend en levert geen openstaande actie. Registreren als “binnen” is nog niet beschikbaar.
+    </p>
   </section>
 
   <section class="bh-kaart">

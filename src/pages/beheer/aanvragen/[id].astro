@@ -5,6 +5,7 @@ import Beheer from '../../../layouts/Beheer.astro';
 import { AANVRAAG_LABEL, SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -16,6 +17,7 @@ if (Astro.request.method === 'POST') {
     url: Astro.url,
     env: omgevingsRecord(),
     actor: actorVanSessie(Astro.locals.beheer),
+    sessie: sessieSupabaseUitAstro(Astro),
   });
   if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
@@ -100,8 +102,8 @@ const flash = Astro.url.searchParams.get('demo') === '1';
       <p class="bh-muted">
         {
           snapshot.bron === 'supabase'
-            ? 'Goedkeuren maakt een echte optie. Meer informatie zet de aanvraag op wacht op aanvrager.'
-            : 'Deze knoppen slaan niets op en sturen geen mail. Beoordelen blijft in Sanity Studio tot de cutover.'
+            ? 'Goedkeuren en afwijzen gebruiken je sessie en sturen geen mail. Meer informatie is nog niet beschikbaar.'
+            : 'Deze knoppen slaan niets op en sturen geen mail.'
         }
       </p>
       <form method="post" class="bh-acties">
@@ -113,7 +115,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
             <>
               <label for="vraag">Vraag aan de aanvrager</label>
               <input id="vraag" name="vraag" type="text" />
-              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="meer">Meer informatie</button>
+              <button class="bh-btn bh-btn--sec" type="button" disabled>Meer informatie — nog niet beschikbaar</button>
             </>
           )
         }
