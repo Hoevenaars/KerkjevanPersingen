@@ -3,9 +3,9 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { BOEKING_LABEL, SOORT_LABEL, formatNl } from '../../../platform/demo-data';
-import { laadBeheerSnapshot } from '../../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const filter = Astro.url.searchParams.get('status') ?? 'alle';
 const lijst =
   filter === 'alle' ? snapshot.boekingen : snapshot.boekingen.filter((b) => b.status === filter);
