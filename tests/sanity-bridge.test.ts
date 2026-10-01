@@ -13,6 +13,7 @@ import {
   type SchaduwRij,
 } from '../src/platform/sanity-bridge.ts';
 import { kanExternVersturen, STANDAARD_AUTOMATISERINGEN } from '../src/platform/automatisering.ts';
+import { RECONCILIATIE_ZONDER_TOKEN, bridgeLeesfout, sanityLezenGeconfigureerd } from '../src/lib/sanity-bridge-sync.ts';
 
 function pasToe(schaduw: SchaduwRij[], plan: BridgePlan): { schaduw: SchaduwRij[]; mail: number; jobs: number; boekingen: number } {
   assert.equal(plan.mail, false);
@@ -142,6 +143,14 @@ test('reconciliatie schrijft een bestaand legacy-record zonder hash niet', () =>
 
 test('zonder event blijft de bridge-bezetting leeg', () => {
   assert.equal(bridgeBezetting([]).length, 0);
+});
+
+test('reconciliation vraagt SANITY_API_TOKEN en de logfout is de service-role', () => {
+  assert.equal(sanityLezenGeconfigureerd({ SANITY_PROJECT_ID: '8le5jso9' }), false);
+  assert.equal(sanityLezenGeconfigureerd({ SANITY_PROJECT_ID: '8le5jso9', SANITY_AUTH_TOKEN: 'cli' }), false);
+  assert.equal(sanityLezenGeconfigureerd({ SANITY_PROJECT_ID: '8le5jso9', SANITY_API_TOKEN: 'lezen' }), true);
+  assert.match(RECONCILIATIE_ZONDER_TOKEN, /SANITY_API_TOKEN ontbreekt/);
+  assert.match(bridgeLeesfout('Invalid API key'), /SUPABASE_SERVICE_ROLE_KEY/);
 });
 
 test('webhookgeheim en testmodus blijven dicht', () => {

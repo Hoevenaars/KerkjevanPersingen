@@ -1,3 +1,5 @@
+// Webhook: payload van Sanity plus SANITY_BRIDGE_SECRET.
+// SANITY_API_TOKEN wordt hier niet gelezen en niet gebruikt.
 import type { APIRoute } from 'astro';
 import { leesBridgeSnapshot, pasBridgePlan } from '../../../lib/sanity-bridge-sync.ts';
 import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
