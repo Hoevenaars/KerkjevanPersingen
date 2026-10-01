@@ -6,7 +6,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Activiteit } from './sanity';
 import { supabaseLoginUitOmgeving } from './supabase-project.ts';
-import { contentStatusVanInhoud, maandenVanTrigger } from './agenda-zichtbaarheid.ts';
+import { contentStatusVanInhoud, magOpWebsiteZonderTiming, maandenVanTrigger } from './agenda-zichtbaarheid.ts';
 import { eerstvolgendeVrijeWeekenden, type VrijWeekend } from './week.ts';
 import { bezetteKalenderDagen } from './datum.ts';
 
@@ -23,6 +23,13 @@ export interface AgendaRij {
   zichtbaarheid: string | null;
   inhoud_status: string | null;
   soort: string | null;
+  contentstatus?: string | null;
+  korte_omschrijving?: string | null;
+  volledige_omschrijving?: string | null;
+  exposanten?: string | null;
+  praktische_informatie?: string | null;
+  aanvullende_afbeeldingen?: unknown;
+  levenscyclus?: string | null;
 }
 
 export interface BezetRij {
@@ -56,12 +63,24 @@ export function activiteitVanAgendaRij(rij: AgendaRij): Activiteit {
     start: dag(rij.start_datum),
     eind: dag(rij.eind_datum),
     soort: rij.soort || 'expositie',
-    zichtbaarheid: 'publiek',
     omschrijving: rij.omschrijving ?? undefined,
+    korteOmschrijving: rij.korte_omschrijving ?? undefined,
+    volledigeOmschrijving: rij.volledige_omschrijving ?? undefined,
+    praktischeInformatie: rij.praktische_informatie ?? undefined,
+    kunstenaars: rij.exposanten ?? undefined,
     foto: rij.foto_pad ?? undefined,
     fotoAlt: rij.foto_alt ?? rij.titel ?? undefined,
+    aanvullendeAfbeeldingen: Array.isArray(rij.aanvullende_afbeeldingen)
+      ? rij.aanvullende_afbeeldingen.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      : undefined,
     toonVanafMaanden: maandenVanTrigger(trigger),
     contentStatus: contentStatusVanInhoud(inhoud),
+    contentstatus: rij.contentstatus ?? null,
+    geannuleerd: rij.levenscyclus === 'geannuleerd',
+    zichtbaarheid:
+      rij.zichtbaarheid === 'bezet' || rij.zichtbaarheid === 'verborgen' || rij.zichtbaarheid === 'publiek'
+        ? rij.zichtbaarheid
+        : 'publiek',
   };
 }
 
@@ -78,7 +97,19 @@ export function activiteitVanBezetRij(rij: BezetRij, index: number): Activiteit 
 }
 
 export function stelPubliekeAgenda(rijen: AgendaRij[], nu = new Date(), limit = 30): Activiteit[] {
-  const lijst = rijen.map(activiteitVanAgendaRij).filter((item) => magAlGetoondWorden(item, nu));
+  const lijst = rijen
+    .map(activiteitVanAgendaRij)
+    .filter((item) => magAlGetoondWorden(item, nu))
+    .filter((item) => magOpWebsiteZonderTiming({
+      zichtbaarheid: item.zichtbaarheid,
+      geannuleerd: item.geannuleerd,
+      contentstatus: item.contentstatus,
+      soort: item.soort,
+      titel: item.publiekeTitel,
+      korteOmschrijving: item.korteOmschrijving,
+      volledigeOmschrijving: item.volledigeOmschrijving,
+      hoofdafbeelding: typeof item.foto === 'string' ? item.foto : null,
+    }));
   return lijst.slice(0, limit);
 }
 

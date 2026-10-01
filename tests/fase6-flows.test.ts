@@ -160,6 +160,7 @@ test('beheer zonder queryparameter leest de meegegeven Supabase-client', async (
       communicatie_templates: [{ id: 3, sleutel: 'afwijzing', naam: 'Afwijzing', verhuurtype_sleutel: null, trigger_soort: 'handmatig', termijn_waarde: null, termijn_eenheid: null, verzendwijze: 'handmatig', ontvanger_rol: 'huurder' }],
       instellingen: [{ sleutel: 'ontvangst_adres', waarde: 'contractbeheer.kvp@gmail.com' }],
       publieke_activiteiten: [],
+      activiteit_bron: [],
       aanvragen: [{ id: 4, status: 'afgewezen', naam: 'Piet', email: 'piet@example.test', telefoon: '1', adres: 'Straat', verhuurtype_sleutel: 'bruiloft', start_datum: '2027-01-01', eind_datum: '2027-01-02', aantal_personen: '20', toelichting: '', binnengekomen_op: '2026-01-01', website: '', boeking_id: null, afwijsreden: 'datum bezet', relatie_id: 9 }],
       communicatie_jobs: [],
       tarieven: [{ id: 1, verhuurtype_sleutel: 'bruiloft', prijstype: 'vast', bedrag: 550, geldig_vanaf: '2020-01-01', geldig_tot: '2028-12-31', toelichting: '' }],

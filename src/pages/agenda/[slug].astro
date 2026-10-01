@@ -41,10 +41,12 @@ const jsonLdEvent = eventJsonLd({
     <p class="eyebrow"><MasonMark variant="kruis" size={14} /> Agenda</p>
     <h1>{activiteit.publiekeTitel}</h1>
     <p class="datum">{formatDatumBereik(activiteit)}</p>
-    {isExpositie && (
+    {activiteit.praktischeInformatie ? (
+      <p class="bezoektijden">{activiteit.praktischeInformatie}</p>
+    ) : isExpositie && (
       <p class="bezoektijden">Te bezoeken op zaterdag en zondag, van 11.00 tot 17.00 uur.</p>
     )}
-    {isExpositie && activiteit.kunstenaars && (
+    {(activiteit.kunstenaars) && (
       <p class="kunstenaars">{activiteit.kunstenaars}</p>
     )}
 
@@ -57,6 +59,16 @@ const jsonLdEvent = eventJsonLd({
         <div class="prose">
           {paragrafen.map((alinea) => (
             <p>{alinea}</p>
+          ))}
+        </div>
+      )
+    }
+
+    {
+      activiteit.aanvullendeAfbeeldingen && activiteit.aanvullendeAfbeeldingen.length > 0 && (
+        <div class="prose">
+          {activiteit.aanvullendeAfbeeldingen.map((bron) => (
+            <img src={publiekeFotoUrl(bron, 1200, 800) ?? bron} alt="" />
           ))}
         </div>
       )

@@ -104,6 +104,11 @@ export interface PubliekRij {
   foto: boolean;
   fotoPad: string;
   toelichting: string;
+  contentstatus?: string | null;
+  korteOmschrijving?: string;
+  volledigeOmschrijving?: string;
+  exposanten?: string;
+  geannuleerd?: boolean;
 }
 
 export interface TaakRij {

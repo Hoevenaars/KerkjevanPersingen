@@ -66,6 +66,24 @@ export interface DemoActiviteit {
   eind: string;
   status: 'concept' | 'online' | 'wacht_op_definitief' | 'mist_content';
   omschrijving: string;
+  activiteitId?: string;
+  tabel?: 'publieke_activiteiten' | 'activiteit_bron';
+  soort?: string;
+  publicatiestatus?: 'publiek' | 'bezet' | 'verborgen' | null;
+  contentstatus?: string | null;
+  levenscyclus?: 'actief' | 'geannuleerd';
+  annuleringsreden?: string;
+  geannuleerdOp?: string;
+  geannuleerdDoor?: string;
+  trigger?: string | null;
+  fotoPad?: string;
+  korteOmschrijving?: string;
+  volledigeOmschrijving?: string;
+  exposanten?: string;
+  praktisch?: string;
+  aanvullende?: string[];
+  legacyId?: string;
+  bronLabel?: string;
 }
 
 export interface DemoIntern {
@@ -764,6 +782,7 @@ export const SOORT_LABEL: Record<string, string> = {
   viering: 'Viering of dienst',
   diverse: 'Diverse bijeenkomst',
   blokkade: 'Blokkade',
+  intern: 'Intern',
 };
 
 export const AGENDA_LABEL: Record<DemoActiviteit['status'], string> = {

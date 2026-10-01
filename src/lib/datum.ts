@@ -37,10 +37,12 @@ export function bezetteKalenderDagen(
     eind?: string;
     soort?: string;
     zichtbaarheid?: string;
+    geannuleerd?: boolean;
   }[],
 ): Set<string> {
   const dagen = new Set<string>();
   for (const item of activiteiten) {
+    if (item.geannuleerd) continue;
     if (item.zichtbaarheid === 'verborgen') continue;
     if (!item.start || Number.isNaN(Date.parse(item.start))) continue;
 

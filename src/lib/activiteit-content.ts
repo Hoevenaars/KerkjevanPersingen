@@ -2,6 +2,8 @@ export type ContentStatus = 'ontbreekt' | 'gevraagd' | 'ontvangen' | 'goedgekeur
 
 export interface ActiviteitContentBron {
   omschrijving?: string;
+  korteOmschrijving?: string;
+  volledigeOmschrijving?: string;
   contentStatus?: ContentStatus;
   aangeleverdeTekst?: string;
   foto?: unknown;
@@ -18,10 +20,20 @@ export function contentIsGoedgekeurd(status?: ContentStatus | null): boolean {
  * omschrijving. Lijstweergaves blijven omschrijving gebruiken.
  */
 export function detailTekst(activiteit: ActiviteitContentBron): string | undefined {
+  if (activiteit.volledigeOmschrijving?.trim()) return activiteit.volledigeOmschrijving.trim();
   if (contentIsGoedgekeurd(activiteit.contentStatus) && activiteit.aangeleverdeTekst?.trim()) {
     return activiteit.aangeleverdeTekst.trim();
   }
   return activiteit.omschrijving?.trim() || undefined;
+}
+
+/** Kaarttekst. Een ingevulde korte omschrijving wordt niet uit de volledige tekst afgeleid. */
+export function kaartTekst(activiteit: ActiviteitContentBron): { tekst?: string; letterlijk: boolean } {
+  if (activiteit.korteOmschrijving?.trim()) {
+    return { tekst: activiteit.korteOmschrijving.trim(), letterlijk: true };
+  }
+  const omschrijving = activiteit.omschrijving?.trim();
+  return { tekst: omschrijving || undefined, letterlijk: false };
 }
 
 /** Knip platte tekst op lege regels tot losse alinea's voor inline weergave. */

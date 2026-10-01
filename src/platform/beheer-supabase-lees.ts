@@ -3,8 +3,9 @@
  * Lege queryresultaten blijven leeg. Een fout wordt niet aangevuld met voorbeelddata of Sanity.
  */
 
+import { contentstatusVanSanity, type Publicatiestatus } from '../lib/agenda-zichtbaarheid.ts';
 import type { BeheerSnapshot } from './beheer-bron.ts';
-import type { DemoInstellingen, DemoTemplate } from './demo-data.ts';
+import type { DemoActiviteit, DemoInstellingen, DemoTemplate } from './demo-data.ts';
 
 export interface SupabaseLeesClient {
   from(tabel: string): {
@@ -81,6 +82,16 @@ function tekst(waarde: unknown): string {
   return waarde == null ? '' : String(waarde);
 }
 
+function publicatiestatusVan(waarde: unknown): Publicatiestatus | null {
+  const status = tekst(waarde);
+  if (status === 'publiek' || status === 'bezet' || status === 'verborgen') return status;
+  return null;
+}
+
+function tekstlijst(waarde: unknown): string[] {
+  return Array.isArray(waarde) ? waarde.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
+}
+
 function rijen(data: unknown[] | null): Record<string, unknown>[] {
   return (data ?? []) as Record<string, unknown>[];
 }
@@ -148,7 +159,7 @@ export async function leesSupabaseBeheer(
   client: SupabaseLeesClient,
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
-  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen, tariefRijen] = await Promise.all([
+  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen, tariefRijen, bronRijen] = await Promise.all([
     lees(client, 'relaties', 'id,naam,email,telefoon,adres,op_reservelijst'),
     lees(client, 'relatie_rollen', 'relatie_id,rol'),
     lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities'),
@@ -160,10 +171,11 @@ export async function leesSupabaseBeheer(
     lees(client, 'documenten', 'id,boeking_id,bestandsnaam,type,geupload_op'),
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
-    lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving'),
+    lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
     lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
     lees(client, 'tarieven', 'id,verhuurtype_sleutel,prijstype,bedrag,geldig_vanaf,geldig_tot,toelichting'),
+    lees(client, 'activiteit_bron', 'id,legacy_id,zichtbaarheid,soort,titel,interne_titel,slug,start_datum,eind_datum,publicatie_trigger,content_status,contentstatus,levenscyclus'),
   ]);
 
   const rollenPerRelatie = new Map<string, string[]>();
@@ -274,16 +286,56 @@ export async function leesSupabaseBeheer(
       relatieId: rij.relatie_id == null ? undefined : tekst(rij.relatie_id),
     })),
     boekingen,
-    agenda: agendaRijen.map((rij) => ({
-      id: tekst(rij.boeking_id || rij.id),
-      boekingId: tekst(rij.boeking_id) || undefined,
-      titel: tekst(rij.titel),
-      slug: tekst(rij.slug),
-      start: tekst(rij.start_datum),
-      eind: tekst(rij.eind_datum),
-      status: rij.gepubliceerd ? 'online' as const : 'mist_content' as const,
-      omschrijving: tekst(rij.omschrijving),
-    })),
+    agenda: [
+      ...agendaRijen.map((rij) => ({
+        id: tekst(rij.boeking_id || rij.id),
+        activiteitId: tekst(rij.id),
+        tabel: 'publieke_activiteiten' as const,
+        boekingId: tekst(rij.boeking_id) || undefined,
+        titel: tekst(rij.titel),
+        slug: tekst(rij.slug),
+        start: tekst(rij.start_datum),
+        eind: tekst(rij.eind_datum),
+        status: rij.gepubliceerd ? 'online' as const : 'mist_content' as const,
+        omschrijving: tekst(rij.omschrijving),
+        soort: tekst(boekingen.find((boeking) => boeking.id === tekst(rij.boeking_id))?.soort),
+        publicatiestatus: publicatiestatusVan(rij.zichtbaarheid),
+        contentstatus: tekst(rij.contentstatus) || null,
+        levenscyclus: tekst(rij.levenscyclus) === 'geannuleerd' ? 'geannuleerd' as const : 'actief' as const,
+        annuleringsreden: tekst(rij.annuleringsreden),
+        geannuleerdOp: tekst(rij.geannuleerd_op),
+        geannuleerdDoor: tekst(rij.geannuleerd_door),
+        trigger: tekst(rij.publicatie_trigger) || null,
+        fotoPad: tekst(rij.foto_pad),
+        korteOmschrijving: tekst(rij.korte_omschrijving),
+        volledigeOmschrijving: tekst(rij.volledige_omschrijving),
+        exposanten: tekst(rij.exposanten),
+        praktisch: tekst(rij.praktische_informatie),
+        aanvullende: tekstlijst(rij.aanvullende_afbeeldingen),
+        legacyId: tekst(rij.legacy_id),
+        bronLabel: tekst(rij.legacy_id) ? 'Sanity/bridge' : 'lokaal beheer',
+      })),
+      ...bronRijen
+        .filter((rij) => !agendaRijen.some((publiek) => tekst(publiek.legacy_id) && tekst(publiek.legacy_id) === tekst(rij.legacy_id)))
+        .map((rij): DemoActiviteit => ({
+          id: `bron:${tekst(rij.id)}`,
+          activiteitId: tekst(rij.id),
+          tabel: 'activiteit_bron',
+          titel: tekst(rij.titel || rij.interne_titel),
+          slug: tekst(rij.slug),
+          start: tekst(rij.start_datum),
+          eind: tekst(rij.eind_datum),
+          status: 'concept',
+          omschrijving: '',
+          soort: tekst(rij.soort),
+          publicatiestatus: publicatiestatusVan(rij.zichtbaarheid),
+          contentstatus: tekst(rij.contentstatus) || contentstatusVanSanity(rij.content_status),
+          levenscyclus: tekst(rij.levenscyclus) === 'geannuleerd' ? 'geannuleerd' : 'actief',
+          trigger: tekst(rij.publicatie_trigger) || null,
+          legacyId: tekst(rij.legacy_id),
+          bronLabel: 'Sanity/bridge',
+        })),
+    ],
     intern: internRijen.map((rij) => ({
       id: tekst(rij.id),
       titel: tekst(rij.titel),

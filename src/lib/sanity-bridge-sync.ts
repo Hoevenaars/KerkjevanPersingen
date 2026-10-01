@@ -8,8 +8,10 @@ import { maakBeheerAdminClient } from './supabase.ts';
 import {
   LEGE_SNAPSHOT,
   beoordeelReconciliatie,
+  overrideVanRij,
   type BridgePlan,
   type BridgeSnapshot,
+  type LokaleActiviteitOverride,
   type ReconciliatieOordeel,
   type SanityDocument,
 } from '../platform/sanity-bridge.ts';
@@ -60,6 +62,41 @@ async function bestaat(client: BeheerClient, tabel: string, sanityId: string): P
   return (data ?? []).length > 0;
 }
 
+async function leesLokaleOverride(client: BeheerClient, sanityId: string): Promise<LokaleActiviteitOverride | null> {
+  const db = client as unknown as {
+    from: (naam: string) => {
+      select: (kolommen: string) => {
+        eq: (kolom: string, waarde: string) => {
+          eq: (kolom: string, waarde: string) => {
+            limit: (n: number) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+          };
+        };
+      };
+    };
+  };
+  const lees = async (tabel: string) => {
+    const { data, error } = await db
+      .from(tabel)
+      .select('levenscyclus,lokale_override,zichtbaarheid,contentstatus')
+      .eq('legacy_source', 'sanity')
+      .eq('legacy_id', sanityId)
+      .limit(1);
+    if (error) return { error: error.message, rij: null as Record<string, unknown> | null };
+    return { error: null, rij: data?.[0] ?? null };
+  };
+  const [publiek, bron] = await Promise.all([lees('publieke_activiteiten'), lees('activiteit_bron')]);
+  if (publiek.error || bron.error) return null;
+  const gekozen = overrideVanRij(publiek.rij);
+  const extra = overrideVanRij(bron.rij);
+  return {
+    geannuleerd: gekozen.geannuleerd || extra.geannuleerd,
+    publicatiestatus: gekozen.publicatiestatus ?? extra.publicatiestatus,
+    contentstatus: gekozen.contentstatus ?? extra.contentstatus,
+    publicatietiming: gekozen.publicatietiming || extra.publicatietiming,
+    contentvelden: gekozen.contentvelden || extra.contentvelden,
+  };
+}
+
 export async function leesBridgeSnapshot(client: BeheerClient, sanityId: string): Promise<BridgeSnapshot | null> {
   const tabellen = ['activiteit_bron', 'publieke_activiteiten', 'interne_activiteiten', 'boekingen', 'vrienden', 'nieuwsbrieven', 'aanvragen', 'sanity_bridge_agenda'] as const;
   const gevonden: Record<string, boolean> = {};
@@ -80,8 +117,11 @@ export async function leesBridgeSnapshot(client: BeheerClient, sanityId: string)
     };
   }).from('bridge_sync_log').select('source_hash').eq('sanity_document_id', sanityId).order('received_at', { ascending: false }).limit(1);
   if (hashrij.error) return null;
+  const lokaleOverride = await leesLokaleOverride(client, sanityId);
+  if (!lokaleOverride) return null;
   return {
     ...LEGE_SNAPSHOT,
+    lokaleOverride,
     hash: hashrij.data?.[0]?.source_hash ?? null,
     heeftBron: gevonden.activiteit_bron,
     heeftPubliek: gevonden.publieke_activiteiten,
@@ -133,7 +173,8 @@ export async function verwerkAfwijkendeDocumenten(client: BeheerClient): Promise
     const snapshot = await leesBridgeSnapshot(client, id);
     if (!snapshot) return { verwerkt, overgeslagen, fout: `snapshot mislukt voor ${id}` };
     const beoordeling = beoordeelReconciliatie(document, snapshot);
-    if (beoordeling.oordeel !== 'ontbrekend' && beoordeling.oordeel !== 'afwijkend') {
+    const schrijft = beoordeling.plan.stappen.some((stap) => stap.soort !== 'conflict');
+    if (beoordeling.oordeel !== 'ontbrekend' && beoordeling.oordeel !== 'afwijkend' && !(beoordeling.oordeel === 'review' && schrijft)) {
       overgeslagen += 1;
       continue;
     }

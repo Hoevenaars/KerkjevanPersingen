@@ -9,6 +9,7 @@ import { eisProviderToegestaan } from '../mail-transport.ts';
 import type { Activiteit } from '../sanity.ts';
 import { maakBeheerAdminClient } from '../supabase.ts';
 import { huidigeContentBron } from '../../platform/bron.ts';
+import { DEMO_INSTELLINGEN } from '../../platform/demo-data.ts';
 import type { BeheerSnapshot } from '../../platform/beheer-bron.ts';
 import type { InhoudStatus } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
@@ -67,7 +68,9 @@ async function laadWereld(): Promise<Wereld> {
     client.from('relaties').select('id,naam,email,telefoon,adres'),
     client.from('aanvragen').select('id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,toelichting,website,aantal_personen,relatie_id,boeking_id,beoordeling_deadline,informatievraag'),
     client.from('boekingen').select('id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,aanvraag_id,huurder_naam_snapshot,huurder_email_snapshot,huurder_telefoon_snapshot,huurder_adres_snapshot,aanbetaling_bedrag,aanbetaling_ontvangen,optie_aangemaakt_op,optie_einddatum'),
-    client.from('publieke_activiteiten').select('id,boeking_id,titel,slug,omschrijving,start_datum,eind_datum,publicatie_trigger,zichtbaarheid,gepubliceerd,inhoud_status,praktische_informatie,inhoud_versie,foto_pad,beoordeling_toelichting'),
+    (client.from('publieke_activiteiten') as unknown as {
+      select: (kolommen: string) => PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+    }).select('id,boeking_id,titel,slug,omschrijving,korte_omschrijving,volledige_omschrijving,start_datum,eind_datum,publicatie_trigger,zichtbaarheid,gepubliceerd,inhoud_status,contentstatus,levenscyclus,praktische_informatie,inhoud_versie,foto_pad,beoordeling_toelichting,exposanten'),
     client.from('workflow_taken').select('id,boeking_id,aanvraag_id,taak_type,status,eigenaar_type,deadline,dedup_sleutel,toelichting'),
     client.from('communicatie_jobs').select('id,boeking_id,aanvraag_id,relatie_id,template_sleutel,status,modus,gepland_op,dedup_sleutel,ontvanger_email,onderwerp,pogingen,foutmelding'),
     client.from('toegangstokens').select('id,boeking_id,aanvraag_id,doel,token_hash,verloopt_op,ingetrokken_op'),
@@ -145,6 +148,11 @@ async function laadWereld(): Promise<Wereld> {
     foto: Boolean(rij.foto_pad),
     fotoPad: tekst(rij.foto_pad),
     toelichting: tekst(rij.beoordeling_toelichting),
+    contentstatus: tekst(rij.contentstatus) || null,
+    korteOmschrijving: tekst(rij.korte_omschrijving),
+    volledigeOmschrijving: tekst(rij.volledige_omschrijving),
+    exposanten: tekst(rij.exposanten),
+    geannuleerd: tekst(rij.levenscyclus) === 'geannuleerd',
   }));
   wereld.taken = (taken.data ?? []).map((rij) => ({
     id: tekst(rij.id),
@@ -304,7 +312,14 @@ export async function publiekeActiviteiten(env: Record<string, unknown> = proces
   const wereld = await laadWereld();
   const vandaag = ymdInAmsterdam(new Date());
   return wereld.publiek
-    .filter((rij) => hoortOpPubliekeAgenda(rij, vandaag))
+    .filter((rij) => hoortOpPubliekeAgenda({
+      ...rij,
+      soort: wereld.boekingen.find((boeking) => boeking.id === rij.boekingId)?.verhuurtype ?? 'expositie',
+      titel: rij.titel,
+      korteOmschrijving: rij.korteOmschrijving,
+      volledigeOmschrijving: rij.volledigeOmschrijving,
+      hoofdafbeelding: rij.fotoPad,
+    }, vandaag))
     .map((rij) => activiteitVanPubliek(rij, wereld.boekingen.find((boeking) => boeking.id === rij.boekingId)?.verhuurtype ?? 'expositie', env))
     .sort((a, b) => a.start.localeCompare(b.start));
 }

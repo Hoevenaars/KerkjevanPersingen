@@ -8,6 +8,7 @@
  */
 
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { contentstatusVanSanity, triggerVanToonVanaf, type Publicatiestatus } from '../lib/agenda-zichtbaarheid.ts';
 
 export const BRIDGE_TYPEN = ['activiteit', 'aanvraag', 'vriend', 'nieuwsbrief', 'instellingen'] as const;
 export type BridgeType = (typeof BRIDGE_TYPEN)[number];
@@ -20,6 +21,22 @@ export interface SanityDocument {
   [sleutel: string]: unknown;
 }
 
+export interface LokaleActiviteitOverride {
+  geannuleerd: boolean;
+  publicatiestatus: Publicatiestatus | null;
+  contentstatus: string | null;
+  publicatietiming: boolean;
+  contentvelden: boolean;
+}
+
+export const LEGE_OVERRIDE: LokaleActiviteitOverride = {
+  geannuleerd: false,
+  publicatiestatus: null,
+  contentstatus: null,
+  publicatietiming: false,
+  contentvelden: false,
+};
+
 export interface BridgeSnapshot {
   hash: string | null;
   heeftBron: boolean;
@@ -30,6 +47,7 @@ export interface BridgeSnapshot {
   heeftNieuwsbrief: boolean;
   heeftAanvraag: boolean;
   heeftShadow: boolean;
+  lokaleOverride: LokaleActiviteitOverride;
 }
 
 export const LEGE_SNAPSHOT: BridgeSnapshot = {
@@ -42,6 +60,7 @@ export const LEGE_SNAPSHOT: BridgeSnapshot = {
   heeftNieuwsbrief: false,
   heeftAanvraag: false,
   heeftShadow: false,
+  lokaleOverride: LEGE_OVERRIDE,
 };
 
 export interface BridgeStap {
@@ -67,7 +86,68 @@ export interface BridgePlan {
 }
 
 export function legeSnapshot(): BridgeSnapshot {
-  return { ...LEGE_SNAPSHOT };
+  return { ...LEGE_SNAPSHOT, lokaleOverride: { ...LEGE_OVERRIDE } };
+}
+
+export function overrideVanRij(rij: Record<string, unknown> | null | undefined): LokaleActiviteitOverride {
+  if (!rij) return { ...LEGE_OVERRIDE };
+  const ruw = rij.lokale_override;
+  const override = ruw && typeof ruw === 'object' ? ruw as Record<string, unknown> : {};
+  const status = override.publicatiestatus;
+  return {
+    geannuleerd: rij.levenscyclus === 'geannuleerd' || override.annulering === true,
+    publicatiestatus: status === 'publiek' || status === 'bezet' || status === 'verborgen' ? status : null,
+    contentstatus: typeof override.contentstatus === 'string' ? override.contentstatus : null,
+    publicatietiming: override.publicatietiming === true,
+    contentvelden: override.contentvelden === true,
+  };
+}
+
+function bewaakOverride(
+  stappen: BridgeStap[],
+  override: LokaleActiviteitOverride,
+  document: SanityDocument,
+  hash: string,
+): { stappen: BridgeStap[]; conflicten: BridgeStap[] } {
+  const conflicten: BridgeStap[] = [];
+  const inkomendZicht = zichtbaarheidVan(document.zichtbaarheid);
+  const inkomendContent = contentstatusVanSanity(document.contentStatus);
+  const inkomendTrigger = triggerVanToonVanaf(document.toonVanafMaanden);
+  const sanityId = String(document._id ?? '');
+  const conflict = (veld: string, inkomend: string, lokaal: string) => {
+    conflicten.push({
+      soort: 'conflict',
+      sanityId,
+      velden: { veld, inkomend, lokaal, hash, status: 'review' },
+    });
+  };
+  if (override.geannuleerd && inkomendZicht !== 'verborgen') {
+    conflict('annulering', inkomendZicht, 'geannuleerd');
+  }
+  if (override.publicatiestatus && inkomendZicht !== override.publicatiestatus) {
+    conflict('publicatiestatus', inkomendZicht, override.publicatiestatus);
+  }
+  if (override.contentstatus && inkomendContent && inkomendContent !== override.contentstatus) {
+    conflict('contentstatus', inkomendContent, override.contentstatus);
+  }
+  if (override.publicatietiming && inkomendTrigger) {
+    conflict('publicatietiming', inkomendTrigger, 'lokaal');
+  }
+  const veilig = stappen.map((stap) => {
+    const velden = { ...stap.velden };
+    if (override.geannuleerd) {
+      if ('blokkeert' in velden) velden.blokkeert = false;
+      if ('gepubliceerd' in velden) velden.gepubliceerd = false;
+      delete velden.zichtbaarheid;
+      velden.levenscyclus = 'geannuleerd';
+    }
+    if (override.publicatiestatus) delete velden.zichtbaarheid;
+    if (override.contentstatus) delete velden.contentstatus;
+    if (override.publicatietiming) delete velden.publicatieTrigger;
+    if (override.contentvelden) delete velden.omschrijving;
+    return { ...stap, velden };
+  });
+  return { stappen: veilig, conflicten };
 }
 
 export function bronHash(document: SanityDocument): string {
@@ -210,6 +290,8 @@ function planActiviteit(
         omschrijving: document.omschrijving ?? null,
         hash: plan.sourceHash,
         gepubliceerd: action !== 'delete' && zichtbaarheid === 'publiek',
+        contentstatus: contentstatusVanSanity(document.contentStatus),
+        publicatieTrigger: triggerVanToonVanaf(document.toonVanafMaanden),
       },
     });
   }
@@ -249,8 +331,25 @@ function planActiviteit(
     });
   }
   if (stappen.length === 0) return overslaan(plan, 'geen passende schrijfstap', 'review');
-  const doel = stappen[0]?.soort === 'shadow' ? 'sanity_bridge_agenda' : stappen[0]?.soort === 'publiek' ? 'publieke_activiteiten' : stappen[0]?.soort === 'intern' ? 'interne_activiteiten' : 'activiteit_bron';
-  return { ...plan, stappen, domeinMutaties: stappen.length, targetTable: doel, targetId: plan.sanityId };
+  const bewaakt = bewaakOverride(stappen, snapshot.lokaleOverride ?? LEGE_OVERRIDE, document, plan.sourceHash);
+  const doel = bewaakt.stappen[0]?.soort === 'shadow'
+    ? 'sanity_bridge_agenda'
+    : bewaakt.stappen[0]?.soort === 'publiek'
+      ? 'publieke_activiteiten'
+      : bewaakt.stappen[0]?.soort === 'intern'
+        ? 'interne_activiteiten'
+        : 'activiteit_bron';
+  return {
+    ...plan,
+    status: bewaakt.conflicten.length ? 'review' : 'success',
+    error: bewaakt.conflicten.length ? 'lokale override behouden' : null,
+    stappen: [...bewaakt.stappen, ...bewaakt.conflicten],
+    domeinMutaties: bewaakt.stappen.length,
+    targetTable: doel,
+    targetId: plan.sanityId,
+    mail: false,
+    workflow: false,
+  };
 }
 
 function planVriend(plan: BridgePlan, document: SanityDocument, snapshot: BridgeSnapshot, action: BridgePlan['action']): BridgePlan {
@@ -352,6 +451,7 @@ export function beoordeelReconciliatie(document: SanityDocument, snapshot: Bridg
   const aanwezig = doelAanwezig(type, snapshot);
   if (plan.status === 'skipped' && plan.error === 'zelfde bronhash') return { oordeel: 'gelijk', plan };
   if (plan.status === 'error') return { oordeel: 'error', plan };
+  if (plan.stappen.some((stap) => stap.soort === 'conflict')) return { oordeel: 'review', plan };
   if (plan.status === 'review' || plan.status === 'skipped') {
     return { oordeel: plan.status === 'review' ? 'review' : 'overgeslagen', plan };
   }
