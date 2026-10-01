@@ -58,13 +58,50 @@ function overlapt(a: { start: string; eind: string }, b: { start: string; eind: 
   return a.start <= b.eind && b.start <= a.eind;
 }
 
+function zelfdePeriode(a: { start: string; eind: string }, b: { start: string; eind: string }): boolean {
+  return a.start === b.start && a.eind === b.eind;
+}
+
+/** Excel-titels als "Oktober 3/4" beschrijven de periode, niet de activiteit. */
+export function isPeriodeLabel(titel: string): boolean {
+  const schoon = titel.trim();
+  if (!schoon) return true;
+  if (/expositie|concert|bruiloft|huwelijk|diverse|winterstop/i.test(schoon)) return false;
+  return /januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|pasen|pinksteren/i.test(schoon);
+}
+
+function bezetOfPubliek(item: PlanningInvoer): boolean {
+  return item.publicatiestatus === 'publiek' || item.publicatiestatus === 'bezet';
+}
+
 function zelfdeEvenement(a: PlanningInvoer, b: PlanningInvoer): boolean {
   if (a.boekingId && a.boekingId === b.boekingId) return true;
   if (a.legacyId && a.legacyId === b.legacyId) return true;
-  if (!overlapt(a, b)) return false;
+  if (a.bron === 'intern' || b.bron === 'intern') return false;
   if (a.bron === 'boeking' && b.bron === 'boeking') return false;
-  if (a.bron === 'intern' || b.bron === 'intern') return a.start === b.start && a.eind === b.eind;
-  return true;
+  return zelfdePeriode(a, b);
+}
+
+function verrijk(basis: PlanningInvoer, extra: PlanningInvoer): PlanningInvoer {
+  const extraBenoemt = bezetOfPubliek(extra) && !isPeriodeLabel(extra.titel);
+  const titel = isPeriodeLabel(basis.titel) && extraBenoemt ? extra.titel : basis.titel;
+  const type = basis.type || (extraBenoemt ? extra.type : '');
+  const publicatiestatus = extraBenoemt ? (basis.publicatiestatus ?? extra.publicatiestatus) : basis.publicatiestatus;
+  const zichtbaarOpWebsite = extraBenoemt ? basis.zichtbaarOpWebsite || extra.zichtbaarOpWebsite : basis.zichtbaarOpWebsite;
+  const letop = extra.titel && extra.titel !== titel
+    ? (extra.publicatiestatus === 'verborgen' ? `Verborgen activiteit: ${extra.titel}` : `Ook: ${extra.titel}`)
+    : '';
+  const aandacht = [basis.aandacht, letop].filter(Boolean).join(' · ');
+  return {
+    ...basis,
+    titel,
+    type,
+    publicatiestatus,
+    zichtbaarOpWebsite,
+    huurder: basis.huurder || extra.huurder,
+    gastbegeleiders: basis.gastbegeleiders || extra.gastbegeleiders,
+    aandacht,
+  };
 }
 
 export function dedupliceerPlanning(items: readonly PlanningInvoer[]): PlanningInvoer[] {
@@ -73,8 +110,12 @@ export function dedupliceerPlanning(items: readonly PlanningInvoer[]): PlanningI
   );
   const gehouden: PlanningInvoer[] = [];
   for (const item of gesorteerd) {
-    if (gehouden.some((ander) => zelfdeEvenement(ander, item))) continue;
-    gehouden.push(item);
+    const index = gehouden.findIndex((ander) => zelfdeEvenement(ander, item));
+    if (index === -1) {
+      gehouden.push(item);
+      continue;
+    }
+    gehouden[index] = verrijk(gehouden[index], item);
   }
   return gehouden;
 }
@@ -93,7 +134,7 @@ function pastFilter(item: PlanningInvoer, filter: PlanningFilter, vandaag: strin
     return overlapt(item, { start: maand.van, eind: maand.tot });
   }
   if (filter === 'opties') return item.status === 'optie';
-  if (filter === 'definitief') return item.status === 'definitief';
+  if (filter === 'definitief') return item.status === 'definitief' || item.status === 'migratie_vastgelegd';
   if (filter === 'publiek') return item.publicatiestatus === 'publiek';
   if (filter === 'website') return item.zichtbaarOpWebsite;
   if (filter === 'niet_openbaar') return !item.zichtbaarOpWebsite;

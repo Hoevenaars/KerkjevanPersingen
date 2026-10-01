@@ -23,7 +23,9 @@ if (Astro.request.method === 'POST') {
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
-const exposities = snapshot.boekingen.filter((b) => b.soort === 'expositie');
+const exposities = snapshot.boekingen
+  .filter((b) => b.eind >= vandaag && b.status !== 'geannuleerd' && b.status !== 'afgewezen')
+  .sort((a, b) => a.start.localeCompare(b.start) || a.interneTitel.localeCompare(b.interneTitel));
 const actief = snapshot.gastheren.filter((g) => g.actief);
 const vandaag = ymdInAmsterdam(new Date());
 const gekozenFilter = PLANNING_FILTERS.includes(Astro.url.searchParams.get('filter') as PlanningFilter)
@@ -232,7 +234,8 @@ function filterHref(filter: string, type = gekozenType): string {
     )}
   </section>
 
-  <h2>Gastbegeleider bij exposities</h2>
+  <h2>Gastbegeleider</h2>
+  <p class="bh-hint">Huidige en komende boekingen, ook als het verhuurtype in de migratie leeg is.</p>
   <table class="bh-tabel">
     <thead>
       <tr>

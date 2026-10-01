@@ -782,6 +782,7 @@ export const SOORT_LABEL: Record<string, string> = {
   viering: 'Viering of dienst',
   diverse: 'Diverse bijeenkomst',
   blokkade: 'Blokkade',
+  intern: 'Intern',
 };
 
 export const AGENDA_LABEL: Record<DemoActiviteit['status'], string> = {

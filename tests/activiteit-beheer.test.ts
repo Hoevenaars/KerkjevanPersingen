@@ -162,6 +162,62 @@ test('J boeking en activiteit van hetzelfde evenement vallen samen', () => {
   assert.equal(lijst[0]?.bron, 'boeking');
 });
 
+test('A gemigreerde boeking blijft zichtbaar en een activiteit op andere dagen ook', () => {
+  const boeking: PlanningInvoer = {
+    sleutel: 'boeking:40', href: '/beheer/boekingen/40/', start: '2026-10-03', eind: '2026-10-04',
+    titel: 'Oktober 3/4', type: '', status: 'migratie_vastgelegd', publicatiestatus: null,
+    zichtbaarOpWebsite: false, huurder: 'Monika Loster', bron: 'boeking', boekingId: '40',
+  };
+  const concert: PlanningInvoer = {
+    sleutel: 'sanity:9', href: '/beheer/agenda/bron:9/', start: '2026-12-11', eind: '2026-12-11',
+    titel: 'Concert: Lian van den Berg', type: 'concert', status: 'concept', publicatiestatus: 'verborgen',
+    zichtbaarOpWebsite: false, bron: 'sanity',
+  };
+  const zelfdeDag: PlanningInvoer = {
+    sleutel: 'activiteit:3', href: '/beheer/agenda/3/', start: '2028-02-19', eind: '2028-02-20',
+    titel: 'Expositie Isabelle Hartman', type: 'expositie', status: 'mist_content', publicatiestatus: 'publiek',
+    zichtbaarOpWebsite: false, bron: 'activiteit', legacyId: 'EL8',
+  };
+  const slot: PlanningInvoer = {
+    sleutel: 'boeking:98', href: '/beheer/boekingen/98/', start: '2028-02-19', eind: '2028-02-20',
+    titel: 'Februari 19/20', type: '', status: 'migratie_vastgelegd', publicatiestatus: null,
+    zichtbaarOpWebsite: false, huurder: 'Ingrid Vissers', bron: 'boeking', boekingId: '98',
+  };
+  const winter: PlanningInvoer = {
+    sleutel: 'intern:1', href: '/beheer/agenda/1/', start: '2026-12-19', eind: '2026-12-20',
+    titel: 'Winterstop', type: 'intern', status: 'bezet', publicatiestatus: 'verborgen',
+    zichtbaarOpWebsite: false, bron: 'intern',
+  };
+  const lijst = stelPlanning([boeking, concert, zelfdeDag, slot, winter], { vandaag: '2026-10-01' });
+  assert.deepEqual(lijst.map((item) => item.titel), [
+    'Oktober 3/4',
+    'Concert: Lian van den Berg',
+    'Winterstop',
+    'Expositie Isabelle Hartman',
+  ]);
+  assert.equal(lijst[3]?.huurder, 'Ingrid Vissers');
+  assert.equal(lijst[3]?.publicatiestatus, 'publiek');
+  assert.equal(lijst[3]?.type, 'expositie');
+  assert.equal(stelPlanning([boeking], { vandaag: '2026-10-01', filter: 'definitief' }).length, 1);
+  const verborgen: PlanningInvoer = {
+    sleutel: 'sanity:17', href: '/beheer/agenda/bron:17/', start: '2026-11-07', eind: '2026-11-08',
+    titel: 'expositie Evelien Bannenberg', type: 'expositie', status: 'concept', publicatiestatus: 'verborgen',
+    zichtbaarOpWebsite: false, bron: 'sanity',
+  };
+  const nov: PlanningInvoer = {
+    ...boeking,
+    sleutel: 'boeking:48',
+    start: '2026-11-07',
+    eind: '2026-11-08',
+    titel: 'November 7/8',
+    huurder: 'Jan Rensen',
+  };
+  const samen = dedupliceerPlanning([verborgen, nov]);
+  assert.equal(samen.length, 1);
+  assert.equal(samen[0]?.titel, 'November 7/8');
+  assert.match(samen[0]?.aandacht ?? '', /Evelien Bannenberg/);
+});
+
 test('K een lokale annulering wordt door de bridge niet opnieuw actief', () => {
   const plan = planBridge('update', {
     _id: 'sanity-1',
