@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Button from '../../components/Button.astro';
 import { getPubliekeAgenda, publiekeFotoUrl, formatDatumBereik } from '../../lib/sanity';
+import { kaartTekst } from '../../lib/activiteit-content';
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
 
 const activiteiten = await getPubliekeAgenda(50);
@@ -37,6 +38,8 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
               secondNaturePoster(a) ??
               (a.foto ? publiekeFotoUrl(a.foto, 800, 600) : null) ??
               '/foto/geen-foto.jpg';
+            const kaart = kaartTekst(a);
+            const kaartWeergave = kaart.tekst ? (kaart.letterlijk ? kaart.tekst : kortOpZinnen(kaart.tekst)) : '';
             return (
               <li class="kaart">
                 <div class:list={['frame', 'frame--photo', { 'frame--poster': isSecondNature(a) }]}>
@@ -45,7 +48,7 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
                 <div class="kaart-tekst">
                   <p class="datum">{formatDatumBereik(a)}</p>
                   <h2>{a.publiekeTitel}</h2>
-                  {a.omschrijving && <p>{kortOpZinnen(a.omschrijving)}</p>}
+                  {kaartWeergave && <p>{kaartWeergave}</p>}
                   {a.slug && <a class="meer" href={`/agenda/${a.slug}/`}>Meer over deze activiteit →</a>}
                 </div>
               </li>

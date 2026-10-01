@@ -35,6 +35,7 @@ const basis = {
   documenten: [],
   communicatie_templates: [],
   publieke_activiteiten: [],
+  activiteit_bron: [],
   aanvragen: [],
   communicatie_jobs: [],
   tarieven: [

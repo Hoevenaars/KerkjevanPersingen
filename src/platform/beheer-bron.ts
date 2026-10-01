@@ -78,6 +78,19 @@ export interface BeheerSnapshot {
     issues: { oorzaak: string; eigenaar: string; deadline: string | null; actie: string }[];
   }[];
   technisch?: number;
+  bronActiviteiten?: {
+    id: string;
+    legacyId: string;
+    titel: string;
+    soort: string;
+    start: string;
+    eind: string;
+    publicatiestatus: 'publiek' | 'bezet' | 'verborgen' | null;
+    contentstatus: string | null;
+    levenscyclus: 'actief' | 'geannuleerd';
+    trigger: string | null;
+    slug: string;
+  }[];
 }
 
 const LIVE_BANNER =

@@ -411,8 +411,14 @@ export interface Activiteit {
   fotoAlt?: string;
   toonVanafMaanden?: string;
   contentStatus?: ContentStatus;
+  contentstatus?: string | null;
   aangeleverdeTekst?: string;
   aangeleverdeFoto?: unknown;
+  korteOmschrijving?: string;
+  volledigeOmschrijving?: string;
+  praktischeInformatie?: string;
+  aanvullendeAfbeeldingen?: string[];
+  geannuleerd?: boolean;
 }
 
 function startVanDag(iso: string): number {

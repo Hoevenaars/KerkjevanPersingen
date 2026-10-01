@@ -4,12 +4,23 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import {
   AGENDA_LABEL,
+  BOEKING_LABEL,
+  SOORT_LABEL,
   demoNaActie,
   gastheerVan,
   formatNl,
 } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
+import { voerActiviteitActie } from '../../../lib/activiteit-schrijf.ts';
+import {
+  blokkeertBeschikbaarheid,
+  magOpWebsiteZonderTiming,
+  maandenVanTrigger,
+  CONTENTSTATUSSEN,
+} from '../../../lib/agenda-zichtbaarheid.ts';
+import { magAlGetoondWorden } from '../../../lib/publiek-lezen.ts';
+import { ymdInAmsterdam } from '../../../platform/datum.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -17,8 +28,42 @@ const publiek = snapshot.agenda.find((p) => p.id === id);
 const intern = snapshot.intern.find((i) => i.id === id);
 
 if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  const actie = String(data.get('actie') ?? '');
+  const beheerActie = actie === 'annuleer_activiteit' || actie === 'publicatiestatus' || actie === 'contentstatus' || actie === 'bewaar_activiteit';
+  if (beheerActie && publiek?.activiteitId && publiek.tabel) {
+    const actor = actorVanSessie(Astro.locals.beheer);
+    const payload: Record<string, unknown> = {};
+    if (actie === 'annuleer_activiteit') payload.reden = String(data.get('reden') ?? '');
+    if (actie === 'publicatiestatus' || actie === 'bewaar_activiteit') payload.publicatiestatus = String(data.get('publicatiestatus') ?? '');
+    if (actie === 'contentstatus' || actie === 'bewaar_activiteit') payload.contentstatus = String(data.get('contentstatus') ?? '');
+    if (actie === 'bewaar_activiteit') {
+      payload.titel = String(data.get('titel') ?? '');
+      payload.start = String(data.get('start') ?? '');
+      payload.eind = String(data.get('eind') ?? '');
+      payload.soort = String(data.get('soort') ?? '');
+      payload.exposanten = String(data.get('exposanten') ?? '');
+      payload.korte_omschrijving = String(data.get('korte_omschrijving') ?? '');
+      payload.volledige_omschrijving = String(data.get('volledige_omschrijving') ?? '');
+      payload.praktische_informatie = String(data.get('praktische_informatie') ?? '');
+      payload.foto_pad = String(data.get('foto_pad') ?? '');
+      payload.publicatie_trigger = String(data.get('publicatie_trigger') ?? '');
+    }
+    const opgeslagen = await voerActiviteitActie(omgevingsRecord(), {
+      tabel: publiek.tabel,
+      id: publiek.activiteitId,
+      actie: actie === 'annuleer_activiteit' ? 'annuleer' : actie === 'bewaar_activiteit' ? 'bewaar' : actie === 'publicatiestatus' ? 'publicatiestatus' : 'contentstatus',
+      payload,
+      actorNaam: actor.naam,
+      actorId: actor.id,
+    });
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    doel.searchParams.set(opgeslagen.ok ? 'melding' : 'fout', opgeslagen.melding);
+    return Astro.redirect(doel.toString());
+  }
+  const opnieuw = new Request(Astro.request.url, { method: 'POST', body: data });
   const operationeel = await postAlsSupabase({
-    request: Astro.request,
+    request: opnieuw,
     url: Astro.url,
     env: omgevingsRecord(),
     actor: actorVanSessie(Astro.locals.beheer),
@@ -32,10 +77,59 @@ if (!publiek && !intern) {
 }
 
 const flash = Astro.url.searchParams.get('demo') === '1';
+const melding = Astro.url.searchParams.get('melding');
+const fout = Astro.url.searchParams.get('fout');
 const boeking = publiek?.boekingId ? snapshot.boekingen.find((b) => b.id === publiek.boekingId) : undefined;
 const gastheer = gastheerVan(boeking?.gastheerId, snapshot.gastheren);
 const titel = publiek?.titel ?? intern!.titel;
 const actief = snapshot.gastheren.filter((g) => g.actief);
+const vandaag = ymdInAmsterdam(new Date());
+const geannuleerd = publiek?.levenscyclus === 'geannuleerd';
+const toonVanaf = maandenVanTrigger(publiek?.trigger ?? '');
+const startIso = publiek ? `${publiek.start.slice(0, 10)}T12:00:00+02:00` : '';
+const momentBereikt = publiek
+  ? magAlGetoondWorden({
+      _id: publiek.id,
+      slug: publiek.slug,
+      interneTitel: publiek.titel,
+      start: startIso,
+      soort: publiek.soort || 'expositie',
+      zichtbaarheid: 'publiek',
+      toonVanafMaanden: toonVanaf,
+    }, new Date())
+  : false;
+const zichtbaar = publiek
+  ? publiek.eind >= vandaag && momentBereikt && magOpWebsiteZonderTiming({
+      zichtbaarheid: publiek.publicatiestatus,
+      geannuleerd,
+      contentstatus: publiek.contentstatus,
+      soort: publiek.soort || boeking?.soort || 'expositie',
+      titel: publiek.titel,
+      korteOmschrijving: publiek.korteOmschrijving || undefined,
+      volledigeOmschrijving: publiek.volledigeOmschrijving || undefined,
+      hoofdafbeelding: publiek.fotoPad || undefined,
+    })
+  : false;
+const blokkeert = publiek
+  ? blokkeertBeschikbaarheid({ zichtbaarheid: publiek.publicatiestatus, geannuleerd })
+  : Boolean(intern?.blokkeert);
+const contentLabel: Record<string, string> = {
+  niet_aangeleverd: 'Niet aangeleverd',
+  aangeleverd: 'Aangeleverd',
+  in_beoordeling: 'In beoordeling',
+  goedgekeurd: 'Goedgekeurd',
+  aanpassing_nodig: 'Aanpassing nodig',
+};
+const timingOpties = [
+  { value: 'direct', label: 'Direct, zodra de overige voorwaarden kloppen' },
+  { value: 'uiterlijk_1_maand', label: '1 maand van tevoren' },
+  { value: 'uiterlijk_2_maanden', label: '2 maanden van tevoren' },
+  { value: 'uiterlijk_3_maanden', label: '3 maanden van tevoren' },
+  { value: 'uiterlijk_6_maanden', label: '6 maanden van tevoren' },
+  { value: 'uiterlijk_9_maanden', label: '9 maanden van tevoren' },
+  { value: 'uiterlijk_12_maanden', label: '12 maanden van tevoren' },
+];
+const huidigeTiming = publiek?.trigger && timingOpties.some((optie) => optie.value === publiek.trigger) ? publiek.trigger : 'direct';
 ---
 
 <Beheer titel={titel}>
@@ -52,42 +146,111 @@ const actief = snapshot.gastheren.filter((g) => g.actief);
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {melding && <p class="bh-flash">{melding}</p>}
+  {fout && <p class="bh-fout">{fout}</p>}
 
   {
     publiek && (
       <section class="bh-kaart">
-        <h2>Publieke activiteit</h2>
-        <dl class="bh-dl">
-          <dt>Slug</dt>
-          <dd>{publiek.slug}</dd>
-          <dt>Status</dt>
-          <dd>
-            <span class={`bh-badge bh-badge--${publiek.status}`}>{AGENDA_LABEL[publiek.status]}</span>
-          </dd>
-          <dt>Omschrijving</dt>
-          <dd>{publiek.omschrijving || 'Nog geen tekst.'}</dd>
-          {boeking && (
-            <>
-              <dt>Boeking</dt>
-              <dd>
-                <a href={`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`}>
-                  {boeking.nummer} {boeking.interneTitel}
-                </a>
-              </dd>
-              <dt>Gastheer</dt>
-              <dd>{gastheer ? `${gastheer.naam} · ${gastheer.telefoon}` : 'Nog niet ingepland'}</dd>
-            </>
+        <h2>Algemeen</h2>
+        <form method="post" class="bh-form">
+          <label for="titel">Titel</label>
+          <input id="titel" name="titel" value={publiek.titel} />
+          <div class="bh-form-rij">
+            <label for="start">Start<input id="start" name="start" type="date" value={publiek.start.slice(0, 10)} /></label>
+            <label for="eind">Einde<input id="eind" name="eind" type="date" value={publiek.eind.slice(0, 10)} /></label>
+          </div>
+          <label for="soort">Type</label>
+          <select id="soort" name="soort">
+            {Object.entries(SOORT_LABEL).map(([waarde, label]) => (
+              <option value={waarde} selected={(publiek.soort || boeking?.soort) === waarde}>{label}</option>
+            ))}
+          </select>
+          <label for="exposanten">Exposant of organisatie</label>
+          <input id="exposanten" name="exposanten" value={publiek.exposanten || boeking?.huurder || ''} />
+          <p class="bh-muted">Slug: {publiek.slug || 'nog geen webadres'}</p>
+
+          <h2>Content</h2>
+          <label for="foto_pad">Hoofdafbeelding of flyer</label>
+          <input id="foto_pad" name="foto_pad" value={publiek.fotoPad || ''} placeholder="Pad of url van de hoofdafbeelding" />
+          {publiek.aanvullende && publiek.aanvullende.length > 0 && (
+            <p class="bh-muted">Aanvullende afbeeldingen: {publiek.aanvullende.join(', ')}</p>
           )}
-        </dl>
+          <label for="korte_omschrijving">Korte omschrijving</label>
+          <textarea id="korte_omschrijving" name="korte_omschrijving" rows="3">{publiek.korteOmschrijving || ''}</textarea>
+          <label for="volledige_omschrijving">Volledige omschrijving</label>
+          <textarea id="volledige_omschrijving" name="volledige_omschrijving" rows="8">{publiek.volledigeOmschrijving || ''}</textarea>
+          {!publiek.volledigeOmschrijving && publiek.omschrijving && (
+            <p class="bh-muted">De website gebruikt nog de bestaande omschrijving zolang hier niets is ingevuld.</p>
+          )}
+          <label for="praktische_informatie">Praktische informatie</label>
+          <textarea id="praktische_informatie" name="praktische_informatie" rows="3">{publiek.praktisch || ''}</textarea>
+          <label for="contentstatus">Contentstatus</label>
+          <select id="contentstatus" name="contentstatus">
+            <option value="">Nog niet gezet</option>
+            {CONTENTSTATUSSEN.map((status) => (
+              <option value={status} selected={publiek.contentstatus === status}>{contentLabel[status]}</option>
+            ))}
+          </select>
+
+          <h2>Publicatie</h2>
+          <label for="publicatiestatus">Publicatiestatus</label>
+          <select id="publicatiestatus" name="publicatiestatus">
+            <option value="publiek" selected={publiek.publicatiestatus === 'publiek'}>Publiek</option>
+            <option value="bezet" selected={publiek.publicatiestatus === 'bezet' || !publiek.publicatiestatus}>Bezet</option>
+            <option value="verborgen" selected={publiek.publicatiestatus === 'verborgen'}>Verborgen</option>
+          </select>
+          <label for="publicatie_trigger">Publicatietiming</label>
+          <select id="publicatie_trigger" name="publicatie_trigger">
+            {timingOpties.map((optie) => (
+              <option value={optie.value} selected={huidigeTiming === optie.value}>{optie.label}</option>
+            ))}
+          </select>
+          <p>Nu zichtbaar op website: <strong>{zichtbaar ? 'ja' : 'nee'}</strong></p>
+
+          <h2>Beschikbaarheid</h2>
+          <p>Blokkeert beschikbaarheid: <strong>{blokkeert ? 'ja' : 'nee'}</strong></p>
+
+          <h2>Status</h2>
+          <p>
+            {geannuleerd ? 'Geannuleerd' : 'Actief'}
+            {publiek.status && <span class={`bh-badge bh-badge--${publiek.status}`}>{AGENDA_LABEL[publiek.status]}</span>}
+          </p>
+          {geannuleerd && publiek.annuleringsreden && <p>Reden: {publiek.annuleringsreden}</p>}
+          {geannuleerd && publiek.geannuleerdDoor && (
+            <p class="bh-muted">Geannuleerd door {publiek.geannuleerdDoor}{publiek.geannuleerdOp ? ` op ${publiek.geannuleerdOp}` : ''}.</p>
+          )}
+
+          <h2>Bron</h2>
+          <p>{publiek.bronLabel || (publiek.legacyId ? 'Sanity/bridge' : 'Lokaal beheer')}</p>
+
+          {publiek.activiteitId && (
+            <div class="bh-acties">
+              <button class="bh-btn" type="submit" name="actie" value="bewaar_activiteit">Bewaar activiteit</button>
+            </div>
+          )}
+        </form>
+        {boeking && (
+          <dl class="bh-dl">
+            <dt>Boeking</dt>
+            <dd>
+              <a href={`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`}>
+                {boeking.nummer} {boeking.interneTitel}
+              </a>
+              {' '}
+              <span class="bh-badge">{BOEKING_LABEL[boeking.status] ?? boeking.status}</span>
+            </dd>
+            <dt>Gastbegeleider</dt>
+            <dd>{gastheer ? `${gastheer.naam} · ${gastheer.telefoon}` : 'Nog niet ingepland'}</dd>
+          </dl>
+        )}
         {boeking && (
           <form method="post" class="bh-form">
             <label for="gastheer">Gastheer of gastvrouw</label>
             <select id="gastheer" name="gastheerId">
               <option value="">Nog niet ingepland</option>
               {actief.map((g) => (
-                <option value={g.id} selected={g.id === boeking.gastheerId}>
-                  {g.naam}
-                </option>
+                <option value={g.id} selected={g.id === boeking.gastheerId}>{g.naam}</option>
               ))}
             </select>
             <p class="bh-muted">
@@ -95,23 +258,27 @@ const actief = snapshot.gastheren.filter((g) => g.actief);
               Hans kan hetzelfde doen onder Planning.
             </p>
             <div class="bh-acties">
-              <button class="bh-btn" type="submit" name="actie" value="gastheer">
-                Koppel gastheer
-              </button>
-              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mail">
-                Concept 2-wekenmail
-              </button>
+              <button class="bh-btn" type="submit" name="actie" value="gastheer">Koppel gastheer</button>
             </div>
           </form>
         )}
-        <p class="bh-muted">Publiceren zou later pas de website raken. Nu gebeurt er niets.</p>
-        <form method="post" class="bh-acties">
-          <button class="bh-btn" type="submit" name="actie" value="publiceren">
-            Zet online
-          </button>
-          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="content">
-            Vraag tekst/foto
-          </button>
+      </section>
+    )
+  }
+
+  {
+    publiek && !geannuleerd && publiek.activiteitId && (
+      <section class="bh-kaart">
+        <h2>Activiteit annuleren</h2>
+        <form method="post" class="bh-form">
+          <p><strong>Activiteit annuleren?</strong></p>
+          <p>
+            De activiteit verdwijnt uit de publieke agenda en blokkeert deze periode daarna niet meer.
+            De activiteit blijft bewaard in de administratie.
+          </p>
+          <label for="reden">Reden annulering</label>
+          <textarea id="reden" name="reden" rows="3" placeholder="Optioneel"></textarea>
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer_activiteit">Activiteit annuleren</button>
         </form>
       </section>
     )
@@ -130,11 +297,6 @@ const actief = snapshot.gastheren.filter((g) => g.actief);
           <dt>Blokkeert verhuur</dt>
           <dd>{intern.blokkeert ? 'Ja — publieke kalender toont bezet' : 'Nee'}</dd>
         </dl>
-        <form method="post" class="bh-acties">
-          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewerk">
-            Bewaar (voorbeeld)
-          </button>
-        </form>
       </section>
     )
   }

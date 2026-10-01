@@ -888,6 +888,21 @@
   margin: 0;
 }
 
+.bh-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  margin: 0 0 0.75rem;
+}
+.bh-filters a {
+  text-decoration: none;
+  color: var(--olive-dark, #3d4a32);
+}
+.bh-filters a.is-actief {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .bh-form label {
   display: block;
   font-size: var(--t-sm);
