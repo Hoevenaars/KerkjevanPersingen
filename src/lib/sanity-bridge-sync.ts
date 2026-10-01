@@ -18,23 +18,41 @@ const BRIDGE_QUERY = `*[_type in ["activiteit","aanvraag","vriend","nieuwsbrief"
 
 type BeheerClient = NonNullable<ReturnType<typeof maakBeheerAdminClient>>;
 
-export function sanityLezenGeconfigureerd(): boolean {
-  return Boolean(process.env.SANITY_PROJECT_ID?.trim());
+export const WEBHOOK_ENDPOINT = 'https://kerkjepersingen.nl/api/bridge/sanity';
+export const RECONCILIATIE_ZONDER_TOKEN =
+  'Handmatige controle met Sanity is niet beschikbaar: SANITY_API_TOKEN ontbreekt.';
+
+/** Alleen reconciliation. De webhook gebruikt SANITY_BRIDGE_SECRET, niet deze token. */
+export function sanityLezenGeconfigureerd(env: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(String(env.SANITY_PROJECT_ID ?? '').trim() && String(env.SANITY_API_TOKEN ?? '').trim());
+}
+
+export function bridgeLeesfout(message: string): string {
+  if (/invalid api key/i.test(message)) {
+    return 'Supabase weigert de sleutel bij het lezen van de bridgelog (Invalid API key). Controleer SUPABASE_SERVICE_ROLE_KEY. Dit is niet SANITY_API_TOKEN.';
+  }
+  return message;
 }
 
 export async function leesRelevanteSanityDocumenten(): Promise<SanityDocument[] | null> {
   const projectId = process.env.SANITY_PROJECT_ID?.trim();
-  if (!projectId) return null;
+  const token = process.env.SANITY_API_TOKEN?.trim();
+  if (!projectId || !token) return null;
   const client = createClient({
     projectId,
     dataset: process.env.SANITY_DATASET?.trim() || 'production',
     apiVersion: '2024-10-01',
     useCdn: false,
-    token: process.env.SANITY_API_TOKEN?.trim() || undefined,
+    token,
     perspective: 'published',
   });
-  const documenten = await client.fetch<SanityDocument[]>(BRIDGE_QUERY);
-  return documenten ?? [];
+  try {
+    const documenten = await client.fetch<SanityDocument[]>(BRIDGE_QUERY);
+    return documenten ?? [];
+  } catch (error) {
+    const tekst = error instanceof Error ? error.message : 'Sanity-lezen mislukt';
+    throw new Error(`Sanity-controle mislukt: ${tekst}`);
+  }
 }
 
 async function bestaat(client: BeheerClient, tabel: string, sanityId: string): Promise<boolean | null> {

@@ -2,7 +2,15 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { controleerSanitySynchronisatie, sanityLezenGeconfigureerd, verwerkAfwijkendeDocumenten, type ControleRij } from '../../../../lib/sanity-bridge-sync.ts';
+import {
+  RECONCILIATIE_ZONDER_TOKEN,
+  WEBHOOK_ENDPOINT,
+  bridgeLeesfout,
+  controleerSanitySynchronisatie,
+  sanityLezenGeconfigureerd,
+  verwerkAfwijkendeDocumenten,
+  type ControleRij,
+} from '../../../../lib/sanity-bridge-sync.ts';
 import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
 
 type LogRij = {
@@ -16,50 +24,78 @@ type LogRij = {
   error: string | null;
 };
 
+type SchaduwRij = { sanity_id: string; datum_start: string | null; datum_eind: string | null };
+
 const client = maakBeheerAdminClient();
 let logs: LogRij[] = [];
+let schaduw: SchaduwRij[] = [];
 let fout = '';
 let melding = '';
 let controle: ControleRij[] = [];
-let bridgeActief = Boolean(process.env.SANITY_BRIDGE_SECRET?.trim());
+const bridgeGeconfigureerd = Boolean(process.env.SANITY_BRIDGE_SECRET?.trim());
+const reconciliatieBeschikbaar = sanityLezenGeconfigureerd();
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const actie = String(form.get('actie') ?? '');
-  if (!client) {
-    fout = 'Supabase service-role ontbreekt';
-  } else if (!sanityLezenGeconfigureerd()) {
-    melding = 'Sanity-lezen niet geconfigureerd';
-  } else if (actie === 'controle') {
-    const rijen = await controleerSanitySynchronisatie(client);
-    if (!rijen) melding = 'Sanity-lezen niet geconfigureerd';
-    else controle = rijen;
-  } else if (actie === 'verwerk' && form.get('bevestig') === 'ja') {
-    const uitkomst = await verwerkAfwijkendeDocumenten(client);
-    melding = uitkomst.fout
-      ? uitkomst.fout
-      : `Verwerkt ${uitkomst.verwerkt}, overgeslagen ${uitkomst.overgeslagen}. Niets teruggeschreven naar Sanity.`;
+  if (!reconciliatieBeschikbaar) {
+    melding = RECONCILIATIE_ZONDER_TOKEN;
+  } else if (!client) {
+    fout = 'SUPABASE_SERVICE_ROLE_KEY ontbreekt. De controle kan niet schrijven.';
+  } else if (actie === 'controle' || (actie === 'verwerk' && form.get('bevestig') === 'ja')) {
+    try {
+      if (actie === 'controle') {
+        const rijen = await controleerSanitySynchronisatie(client);
+        if (!rijen) melding = RECONCILIATIE_ZONDER_TOKEN;
+        else controle = rijen;
+      } else {
+        const uitkomst = await verwerkAfwijkendeDocumenten(client);
+        melding = uitkomst.fout
+          ? uitkomst.fout
+          : `Verwerkt ${uitkomst.verwerkt}, overgeslagen ${uitkomst.overgeslagen}. Niets teruggeschreven naar Sanity.`;
+      }
+    } catch (error) {
+      fout = error instanceof Error ? error.message : 'Sanity-controle mislukt.';
+    }
   }
 }
 
-if (client) {
+if (!client) {
+  fout = fout || 'SUPABASE_SERVICE_ROLE_KEY ontbreekt. De bridgelog kan niet worden gelezen.';
+} else {
   const db = client as unknown as {
     from: (tabel: string) => {
       select: (kolommen: string) => {
         order: (kolom: string, opties: { ascending: boolean }) => {
           limit: (n: number) => Promise<{ data: LogRij[] | null; error: { message: string } | null }>;
         };
+        eq: (kolom: string, waarde: boolean) => {
+          limit: (n: number) => Promise<{ data: SchaduwRij[] | null; error: { message: string } | null }>;
+        };
       };
     };
   };
-  const { data, error } = await db.from('bridge_sync_log').select('sanity_document_id,document_type,action,received_at,status,target_table,target_id,error').order('received_at', { ascending: false }).limit(30);
-  if (error) fout = error.message;
-  else logs = data ?? [];
+  const logantwoord = await db
+    .from('bridge_sync_log')
+    .select('sanity_document_id,document_type,action,received_at,status,target_table,target_id,error')
+    .order('received_at', { ascending: false })
+    .limit(30);
+  if (logantwoord.error) fout = bridgeLeesfout(logantwoord.error.message);
+  else logs = logantwoord.data ?? [];
+
+  const schaduwantwoord = await db
+    .from('sanity_bridge_agenda')
+    .select('sanity_id,datum_start,datum_eind')
+    .eq('actief', true)
+    .limit(30);
+  if (schaduwantwoord.error) fout = fout || bridgeLeesfout(schaduwantwoord.error.message);
+  else schaduw = schaduwantwoord.data ?? [];
 }
 
 const succes = logs.filter((rij) => rij.status === 'success').length;
 const overgeslagen = logs.filter((rij) => rij.status === 'skipped').length;
-const fouten = logs.filter((rij) => rij.status === 'error' || rij.status === 'review').length;
+const review = logs.filter((rij) => rij.status === 'review').length;
+const fouten = logs.filter((rij) => rij.status === 'error').length;
 const laatste = logs[0];
 const laatsteSucces = logs.find((rij) => rij.status === 'success');
 
@@ -68,6 +104,10 @@ function label(status: string): string {
   if (status === 'skipped') return 'Overgeslagen';
   if (status === 'review') return 'Nakijken';
   return 'Fout';
+}
+
+function tijd(waarde: string | null | undefined): string {
+  return waarde ? waarde.slice(0, 16).replace('T', ' ') : '—';
 }
 ---
 
@@ -82,13 +122,15 @@ function label(status: string): string {
   </header>
   {fout && <p class="bh-flash" role="alert">{fout}</p>}
   <section class="bh-kaart">
-    <p>Bridge actief: {bridgeActief ? 'Ja' : 'Nee, geheim ontbreekt'}</p>
-    <p>Laatste succes: {laatsteSucces ? laatsteSucces.received_at.slice(0, 16).replace('T', ' ') : '—'}</p>
-    <p>Laatste event: {laatste ? `${laatste.document_type} · ${label(laatste.status)}` : '—'}</p>
-    <p>Succes {succes} · overgeslagen {overgeslagen} · nakijken of fout {fouten}</p>
-    <p class="bh-muted">Een controle leest Sanity en vergelijkt sanity-id en hash. Zonder nieuw document blijft de bezetting gelijk. Er wordt niet teruggeschreven naar Sanity.</p>
+    <p>Bridge geconfigureerd: {bridgeGeconfigureerd ? 'Ja' : 'Nee, SANITY_BRIDGE_SECRET ontbreekt'}</p>
+    <p>Webhook: POST {WEBHOOK_ENDPOINT}</p>
+    <p>Status: {logs.length === 0 ? 'Wacht op eerste synchronisatie' : `${laatste.document_type} · ${label(laatste.status)}`}</p>
+    <p>Laatste succesvolle sync: {tijd(laatsteSucces?.received_at)}</p>
+    <p>Succes {succes} · overgeslagen {overgeslagen} · nakijken {review} · fout {fouten}</p>
+    <p>Actieve shadow-records: {schaduw.length}</p>
+    {!reconciliatieBeschikbaar && <p>{RECONCILIATIE_ZONDER_TOKEN}</p>}
     <form method="post" class="bh-acties">
-      <button class="bh-btn" type="submit" name="actie" value="controle">Controleer Sanity synchronisatie</button>
+      <button class="bh-btn" type="submit" name="actie" value="controle" disabled={!reconciliatieBeschikbaar}>Controleer Sanity synchronisatie</button>
     </form>
     {melding && <p>{melding}</p>}
     {controle.length > 0 && (
@@ -110,12 +152,12 @@ function label(status: string): string {
     )}
     <form method="post" class="bh-acties">
       <input type="hidden" name="actie" value="verwerk" />
-      <label><input type="checkbox" name="bevestig" value="ja" /> Alleen ontbrekende of hash-afwijkende records naar Supabase schrijven</label>
-      <button class="bh-btn" type="submit">Verwerk afwijkingen</button>
+      <label><input type="checkbox" name="bevestig" value="ja" disabled={!reconciliatieBeschikbaar} /> Alleen ontbrekende of hash-afwijkende records naar Supabase schrijven</label>
+      <button class="bh-btn" type="submit" disabled={!reconciliatieBeschikbaar}>Verwerk afwijkingen</button>
     </form>
   </section>
   <section class="bh-kaart">
-    <h2>Recente syncs</h2>
+    <h2>Recente bridge-events</h2>
     <table class="bh-tabel">
       <thead>
         <tr>
@@ -128,12 +170,12 @@ function label(status: string): string {
         </tr>
       </thead>
       <tbody>
-        {logs.length === 0 && <tr><td colspan="6">Nog geen bridge-events.</td></tr>}
+        {logs.length === 0 && <tr><td colspan="6">Wacht op eerste synchronisatie</td></tr>}
         {logs.map((rij) => (
           <tr>
             <td>{rij.document_type}</td>
             <td>{rij.action}</td>
-            <td>{rij.received_at.slice(0, 16).replace('T', ' ')}</td>
+            <td>{tijd(rij.received_at)}</td>
             <td>
               {label(rij.status)}
               {rij.document_type === 'activiteit' && rij.target_table === 'sanity_bridge_agenda' ? <div class="bh-muted">Bron: Sanity · Alleen bezetting</div> : null}
