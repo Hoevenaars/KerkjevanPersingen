@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { demoNaActie, formatNl } from '../../../platform/demo-data';
+import { formatNl } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { bouwNieuwsbriefHtml, SFEER_URL } from '../../../lib/nieuwsbrief-html';
 
@@ -11,14 +11,9 @@ const id = beheerId(Astro.params.id);
 const brief = snapshot.nieuwsbrieven.find((n) => n.id === id);
 
 if (Astro.request.method === 'POST') {
-  const form = await Astro.request.formData();
-  const extra: Record<string, string> = {};
-  extra.kort = String(form.get('kortNieuws') ?? '');
-  extra.donatie = String(form.get('donatieUpdate') ?? '');
-  extra.extraTitel = String(form.get('extraTitel') ?? '');
-  extra.extraTekst = String(form.get('extraTekst') ?? '');
-  extra.donatieAan = form.get('donatieAan') ? '1' : '0';
-  return Astro.redirect(demoNaActie(Astro.url, extra));
+  const doel = new URL(Astro.url.pathname, Astro.url.origin);
+  doel.searchParams.set('fout', 'Nieuwsbrief bewaren en verzenden zijn nog niet beschikbaar. Er is geen mail verstuurd.');
+  return Astro.redirect(doel.toString());
 }
 
 if (!brief) {
@@ -26,6 +21,7 @@ if (!brief) {
 }
 
 const flash = Astro.url.searchParams.get('demo') === '1';
+const fout = Astro.url.searchParams.get('fout');
 const kortNieuws = Astro.url.searchParams.has('kort')
   ? (Astro.url.searchParams.get('kort') ?? '')
   : brief.kortNieuws;
@@ -72,11 +68,12 @@ const html = bouwNieuwsbriefHtml(
   <header class="bh-top">
     <div>
       <h1>Week van {formatNl(brief.week)}</h1>
-      <p class="bh-hint">Bewerken en verzenden is een voorbeeld. Resend en Sanity worden niet aangeroepen.</p>
+      <p class="bh-hint">Voorbeeld op dit scherm. Bewaren en verzenden zijn niet beschikbaar. Er gaat geen nieuwsbrief uit.</p>
     </div>
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <div class="bh-split">
     <section class="bh-kaart">
@@ -99,18 +96,8 @@ const html = bouwNieuwsbriefHtml(
         <textarea id="extraTekst" name="extraTekst" class="kort">{extraTekst}</textarea>
 
         <div class="bh-acties">
-          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
-            Bewaar concept
-          </button>
-          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="test">
-            Test naar mezelf
-          </button>
-          <button class="bh-btn" type="submit" name="actie" value="verzend">
-            Verzend (voorbeeld)
-          </button>
-          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="overslaan">
-            Deze keer niet
-          </button>
+          <button class="bh-btn bh-btn--sec" type="button" disabled>Nieuwsbrief bewaren — nog niet beschikbaar</button>
+          <button class="bh-btn" type="button" disabled>Nieuwsbrief verzenden — nog niet beschikbaar</button>
         </div>
       </form>
     </section>

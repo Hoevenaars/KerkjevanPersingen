@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { BOEKING_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
+import { BOEKING_LABEL, formatNl } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
@@ -10,7 +10,9 @@ const id = beheerId(Astro.params.id);
 const relatie = snapshot.relaties.find((r) => r.id === id);
 
 if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+  const doel = new URL(Astro.url.pathname, Astro.url.origin);
+  doel.searchParams.set('fout', 'Relatie bewaren is nog niet beschikbaar. Er is niets opgeslagen.');
+  return Astro.redirect(doel.toString());
 }
 
 if (!relatie) {
@@ -20,6 +22,7 @@ if (!relatie) {
 const boekingen = snapshot.boekingen.filter((b) => b.relatieId === relatie.id);
 const aanvragen = snapshot.aanvragen.filter((a) => a.email === relatie.email);
 const flash = Astro.url.searchParams.get('demo') === '1';
+const fout = Astro.url.searchParams.get('fout');
 ---
 
 <Beheer titel={relatie.naam}>
@@ -32,6 +35,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <section class="bh-kaart">
     <h2>Contact</h2>
@@ -43,11 +47,9 @@ const flash = Astro.url.searchParams.get('demo') === '1';
       <dt>Reservelijst exposities</dt>
       <dd>{relatie.reservelijst ? 'Ja — mail bij vrijkomend weekend blijft handmatig' : 'Nee'}</dd>
     </dl>
-    <form method="post" class="bh-acties">
-      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
-        Bewaar (voorbeeld)
-      </button>
-    </form>
+    <p class="bh-acties">
+      <button class="bh-btn bh-btn--sec" type="button" disabled>Relatie bewaren — nog niet beschikbaar</button>
+    </p>
   </section>
 
   <section class="bh-kaart">

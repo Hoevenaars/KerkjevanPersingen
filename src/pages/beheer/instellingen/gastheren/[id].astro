@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { demoNaActie, formatNl } from '../../../../platform/demo-data';
+import { formatNl } from '../../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
@@ -10,7 +10,9 @@ const id = beheerId(Astro.params.id);
 const gastheer = snapshot.gastheren.find((g) => g.id === id);
 
 if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+  const doel = new URL(Astro.url.pathname, Astro.url.origin);
+  doel.searchParams.set('fout', 'Gastheer bewerken is nog niet beschikbaar. Er is niets opgeslagen.');
+  return Astro.redirect(doel.toString());
 }
 
 if (!gastheer) {
@@ -18,6 +20,7 @@ if (!gastheer) {
 }
 
 const flash = Astro.url.searchParams.get('demo') === '1';
+const fout = Astro.url.searchParams.get('fout');
 const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
 ---
 
@@ -33,6 +36,7 @@ const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <section class="bh-kaart">
     <h2>Gegevens</h2>
@@ -44,8 +48,8 @@ const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
       <label for="telefoon">Telefoon</label>
       <input id="telefoon" name="telefoon" value={gastheer.telefoon} />
       <div class="bh-acties">
-        <button class="bh-btn" type="submit" name="actie" value="bewaar">
-          Bewaar (voorbeeld)
+        <button class="bh-btn" type="button" disabled>
+          Gastheer bewerken — nog niet beschikbaar
         </button>
       </div>
     </form>

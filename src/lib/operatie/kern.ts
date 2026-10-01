@@ -21,6 +21,7 @@ import {
   type Readiness,
 } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam, voegDagenToe, periodesOverlappen } from '../../platform/datum.ts';
+import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
 import { MailGeblokkeerd } from '../../platform/automatisering.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
@@ -528,7 +529,7 @@ function periodeVrij(wereld: Wereld, start: string, eind: string, behalveId?: st
   return !wereld.boekingen.some(
     (boeking) =>
       boeking.id !== behalveId &&
-      (boeking.status === 'optie' || boeking.status === 'definitief') &&
+      statusTeltVoorOverlap(boeking.status) &&
       periodesOverlappen({ start: boeking.start, eind: boeking.eind }, { start, eind }),
   );
 }
@@ -1257,7 +1258,9 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
     if (!opdracht.reden.trim()) return mislukt('Een reden is verplicht bij een handmatige override.');
     const boeking = wereld.boekingen.find((item) => item.id === opdracht.boekingId);
     if (!boeking) return mislukt('Boeking niet gevonden.');
-    if (boeking.status === 'definitief') return gelukt('Boeking is al definitief.', { boekingId: boeking.id, alVerwerkt: true });
+    const poort = statusActieToegestaan(boeking.status, 'definitief');
+    if (!poort.ok) return mislukt(poort.melding);
+    if (poort.melding === 'al') return gelukt('Boeking is al definitief.', { boekingId: boeking.id, alVerwerkt: true });
     if (!periodeVrij(wereld, boeking.start, boeking.eind, boeking.id)) return mislukt('De periode is al bezet.');
     const mutaties: Mutatie[] = [
       { soort: 'update_boeking', id: boeking.id, velden: { status: 'definitief' } },
@@ -1286,6 +1289,8 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
     if (!actorMag(ctx.actor, 'boekingen')) return mislukt('Geen recht om een optie te verlengen.');
     const boeking = wereld.boekingen.find((item) => item.id === opdracht.boekingId);
     if (!boeking) return mislukt('Boeking niet gevonden.');
+    const poort = statusActieToegestaan(boeking.status, 'verleng');
+    if (!poort.ok) return mislukt(poort.melding);
     const optie = optieSnapshot(vandaag, STANDAARD_OPTIETERMIJN_DAGEN);
     return gelukt('Optie verlengd.', { boekingId: boeking.id }, [
       { soort: 'update_boeking', id: boeking.id, velden: { status: 'optie', optie_einddatum: optie.optieEinddatum, optietermijn_dagen: optie.optietermijnDagen } },

@@ -166,7 +166,7 @@ export async function snapshotVanMigratie(resultaat: MigratieResultaat): Promise
 }
 
 export function schrijfActieFlash(bron: BeheerBronSoort): string {
-  if (bron === 'supabase') return 'Opgeslagen in Supabase. Sanity en de productiesite zijn niet gewijzigd.';
+  if (bron === 'supabase') return 'Opgeslagen in Supabase. Er is geen mail verstuurd.';
   if (bron === 'sanity') {
     return 'Actie niet uitgevoerd — /beheer schrijft nog niet. Wijzigingen gaan via Sanity Studio.';
   }

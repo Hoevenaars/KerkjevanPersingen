@@ -7,6 +7,8 @@ import { ymdInAmsterdam } from '../../../platform/datum.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const live = snapshot.bron === 'sanity';
+const supabase = snapshot.bron === 'supabase';
+const vastgelegd = snapshot.boekingen.filter((boeking) => boeking.status === 'migratie_vastgelegd').length;
 const migratie = snapshot.migratie;
 const steekproefBoekingen = (migratie?.boekingen ?? snapshot.boekingen).slice(0, 8);
 const steekproefAanvragen = (migratie?.aanvragen ?? snapshot.aanvragen).slice(0, 5);
@@ -20,22 +22,27 @@ const letops = migratie?.issues.filter((i) => i.ernst === 'letop') ?? [];
       <p class="bh-label">Voorbereiding</p>
       <h1>Migratie Sanity → beheer</h1>
       <p class="bh-hint">
-        Controlelijst uit het functioneel ontwerp. De website blijft Sanity lezen tot beide
-        contentvlaggen bewust aan staan. Dit scherm schrijft niets.
+        Dit scherm schrijft niets en start geen import. Geïmporteerde boekingen met status migratie_vastgelegd blijven beschermd.
       </p>
     </div>
   </header>
 
   {
-    !live && (
+    supabase && (
       <section class="bh-kaart">
-        <h2>Nog voorbeelddata</h2>
-        <p class="bh-muted">{snapshot.reden}</p>
-        <ol class="bh-stappen">
-          <li>Log in met je Supabase-account op <code>/beheer/login</code>. Zonder sessie is er geen data.</li>
-          <li>Sanity-project-id en token staan al in Vercel voor de website — die volstaan om te lezen.</li>
-          <li>Daarna toont dit scherm echte aantallen. Snapshot vóór import: <code>npm run sanity:snapshot</code>.</li>
-        </ol>
+        <h2>Data staat in Supabase</h2>
+        <p class="bh-muted">
+          {snapshot.boekingen.length} boekingen, waarvan {vastgelegd} met status migratie_vastgelegd.
+          Dit is geen voorbeeldset. Er wordt vanaf dit scherm niets geschreven.
+        </p>
+      </section>
+    )
+  }
+  {
+    snapshot.bron === 'demo' && (
+      <section class="bh-kaart">
+        <h2>Voorbeelddata</h2>
+        <p class="bh-muted">Deze weergave is bewust voorbeelddata via ?bron=demo. Het is niet de geïmporteerde set.</p>
       </section>
     )
   }

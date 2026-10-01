@@ -2,15 +2,15 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { demoNaActie } from '../../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 
 if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+  return Astro.redirect('/beheer/instellingen/finance/?fout=nog-niet-beschikbaar');
 }
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
+const fout = Astro.url.searchParams.get('fout');
 ---
 
 <Beheer titel="Finance-instellingen">
@@ -22,6 +22,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">Finance-instellingen bewaren is nog niet beschikbaar. Er is niets opgeslagen.</p>}
 
   <section class="bh-kaart">
     <form method="post" class="bh-form">
@@ -30,7 +31,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
       <label for="termijn">Betaaltermijn (dagen)</label>
       <input id="termijn" name="betaaltermijn" type="number" value={snapshot.instellingen.betaaltermijn} />
       <div class="bh-acties">
-        <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
+        <button class="bh-btn" type="button" disabled>Finance-instellingen bewaren — nog niet beschikbaar</button>
       </div>
     </form>
   </section>

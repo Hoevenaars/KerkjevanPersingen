@@ -632,9 +632,7 @@ export function dashboardBronVan(
     nieuweAanvragen: data.aanvragen.filter((a) => a.status === 'nieuw').length,
     optiesBijnaVerlopen: data.boekingen.filter((b) => b.status === 'optie').length,
     optiesVerlopen: data.boekingen.filter((b) => b.status === 'optie_verlopen').length,
-    aanbetalingenControleren: data.boekingen.filter(
-      (b) => !b.aanbetalingBinnen && (b.status === 'optie' || b.status === 'definitief'),
-    ).length,
+    aanbetalingenControleren: 0,
     activiteitMistContent: data.agenda.filter((a) => a.status === 'mist_content').length,
     communicatieKlaar: data.communicatie.filter((c) => c.status === 'concept').length,
     nieuwsbriefVoorbereiden: data.nieuwsbrieven.filter((n) => !n.verstuurd && !n.overgeslagen).length,

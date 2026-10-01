@@ -15,6 +15,7 @@ import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.t
 import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+import { statusActieToegestaan } from '../../../platform/status-overgang.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
 
@@ -91,6 +92,10 @@ const mails: {
 ].sort((a, b) => (a.wanneer || '').localeCompare(b.wanneer || ''));
 const gastheer = gastheerVan(boeking.gastheerId, snapshot.gastheren);
 const actieveGastheren = snapshot.gastheren.filter((g) => g.actief);
+const verleng = statusActieToegestaan(boeking.status, 'verleng');
+const definitief = statusActieToegestaan(boeking.status, 'definitief');
+const afronden = statusActieToegestaan(boeking.status, 'afronden');
+const toonGastheer = boeking.soort === 'expositie' || Boolean(boeking.gastheerId);
 const flash = Astro.url.searchParams.get('demo') === '1';
 const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
@@ -141,7 +146,7 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
             <dd>{boeking.tarief}</dd>
             <dt>Aanbetaling</dt>
             <dd>
-              {boeking.aanbetaling} {boeking.aanbetalingBinnen ? '(binnen)' : '(nog niet)'}
+              {boeking.aanbetalingBinnen ? 'vlag: ja' : 'vlag: nee'}. Niet leidend voor status, planning of publicatie.
             </dd>
             {boeking.optieEind && (
               <>
@@ -186,7 +191,7 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
                 </dd>
               </>
             )}
-            {boeking.soort === 'expositie' && (
+            {toonGastheer && (
               <>
                 <dt>Gastheer</dt>
                 <dd>
@@ -195,7 +200,7 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
               </>
             )}
           </dl>
-          {boeking.soort === 'expositie' && !snapshot.alleenLezen && (
+          {toonGastheer && !snapshot.alleenLezen && (
             <form method="post" class="bh-form">
               <label for="gastheer">Gastheer of gastvrouw</label>
               <select id="gastheer" name="gastheerId">
@@ -207,15 +212,15 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
                 ))}
               </select>
               <p class="bh-muted">
-                Twee weken van tevoren krijgt deze persoon een mail met de gegevens van de exposant.
+                Koppelen schrijft alleen de gastheer. De 2-wekenmail is niet actief.
                 Hans plant hetzelfde onder <a href="/beheer/planning/">Planning</a>.
               </p>
               <div class="bh-acties">
                 <button class="bh-btn" type="submit" name="actie" value="gastheer">
                   Koppel gastheer
                 </button>
-                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mail">
-                  Concept 2-wekenmail
+                <button class="bh-btn bh-btn--sec" type="button" disabled>
+                  Concept 2-wekenmail — nog niet beschikbaar
                 </button>
               </div>
             </form>
@@ -227,19 +232,28 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
             {snapshot.alleenLezen
               ? 'Supabase-testmodus schrijft niets en verstuurt geen mail. Sanity blijft de runtimebron.'
               : snapshot.bron === 'supabase'
-              ? 'Deze acties schrijven het Supabase-dossier. Sanity en productie blijven onaangeroerd.'
+              ? 'Deze acties gebruiken je ingelogde sessie. Er gaat geen mail uit. Annuleren start geen annuleringsmail.'
               : 'Geen contractgeneratie, geen echte mail, geen wijziging in Sanity.'}
           </p>
           {!snapshot.alleenLezen && (
             <form method="post" class="bh-acties">
-              <label for="reden">Reden bij definitief zetten</label>
-              <input id="reden" name="reden" type="text" />
-              <button class="bh-btn" type="submit" name="actie" value="definitief">
-                Zet definitief
-              </button>
-              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
-                Verleng optie
-              </button>
+              {definitief.ok && definitief.melding !== 'al' && (
+                <>
+                  <label for="reden">Reden bij definitief zetten</label>
+                  <input id="reden" name="reden" type="text" />
+                  <button class="bh-btn" type="submit" name="actie" value="definitief">
+                    Zet definitief
+                  </button>
+                </>
+              )}
+              {verleng.ok && (
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
+                  Verleng optie
+                </button>
+              )}
+              {!verleng.ok && <p class="bh-muted">{verleng.melding}</p>}
+              {!definitief.ok && <p class="bh-muted">{definitief.melding}</p>}
+              <p class="bh-muted">Annuleren verstuurt geen mail. Die automation staat uit.</p>
               {boeking.status !== 'geannuleerd' && (
                 <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
                   Annuleer
@@ -267,11 +281,13 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
                     </button>
                   </form>
                 ))}
-              <form method="post" class="bh-acties">
-                <button class="bh-btn" type="submit" name="actie" value="sluit">
-                  Dossier afronden
-                </button>
-              </form>
+              {afronden.ok && afronden.melding !== 'al' && (
+                <form method="post" class="bh-acties">
+                  <button class="bh-btn" type="submit" name="actie" value="sluit">
+                    Dossier afronden
+                  </button>
+                </form>
+              )}
             </>
           )}
         </section>
@@ -306,11 +322,9 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
             </tbody>
           </table>
         )}
-        <form method="post" class="bh-acties">
-          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="upload">
-            Document toevoegen
-          </button>
-        </form>
+        <p class="bh-acties">
+          <button class="bh-btn bh-btn--sec" type="button" disabled>Document toevoegen — nog niet beschikbaar</button>
+        </p>
       </section>
     )
   }
@@ -352,11 +366,9 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
             </tbody>
           </table>
         )}
-        <form method="post" class="bh-acties">
-          <button class="bh-btn" type="submit" name="actie" value="concept">
-            Maak mailconcept
-          </button>
-        </form>
+        <p class="bh-acties">
+          <button class="bh-btn" type="button" disabled>Maak mailconcept — nog niet beschikbaar</button>
+        </p>
       </section>
     )
   }

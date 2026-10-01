@@ -2,15 +2,15 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { demoNaActie } from '../../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 
 if (Astro.request.method === 'POST') {
-  return Astro.redirect(demoNaActie(Astro.url));
+  return Astro.redirect('/beheer/instellingen/gastheren/?fout=nog-niet-beschikbaar');
 }
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
+const fout = Astro.url.searchParams.get('fout');
 ---
 
 <Beheer titel="Gastheren">
@@ -19,12 +19,13 @@ const flash = Astro.url.searchParams.get('demo') === '1';
       <h1>Gastheren</h1>
       <p class="bh-hint">
         Administratie van gastheren en gastvrouwen. Hans gebruikt deze lijst in Planning.
-        Twee weken voor een expositie krijgt de ingeplande gastheer de gegevens van de exposant.
+        De 2-wekenmail naar de gastheer is niet actief.
       </p>
     </div>
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">Gastheer toevoegen is nog niet beschikbaar. Er is niets opgeslagen.</p>}
 
   <table class="bh-tabel">
     <thead>
@@ -65,8 +66,8 @@ const flash = Astro.url.searchParams.get('demo') === '1';
       <label for="telefoon">Telefoon</label>
       <input id="telefoon" name="telefoon" />
       <div class="bh-acties">
-        <button class="bh-btn" type="submit" name="actie" value="nieuw">
-          Voeg toe (voorbeeld)
+        <button class="bh-btn" type="button" disabled>
+          Gastheer toevoegen — nog niet beschikbaar
         </button>
       </div>
     </form>
