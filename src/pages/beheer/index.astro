@@ -10,12 +10,12 @@ import {
   dashboardHref,
   formatNl,
 } from '../../platform/demo-data';
-import { laadBeheerSnapshot, snapshotDashboard } from '../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties, snapshotDashboard } from '../../platform/beheer-bron.ts';
 import { dashboardVoor } from '../../platform/dashboard.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { magZien } from '../../platform/rechten.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const kaarten = dashboardVoor(rechten, snapshotDashboard(snapshot, vandaag));

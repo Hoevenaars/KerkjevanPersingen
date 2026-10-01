@@ -166,39 +166,118 @@ export function resetBeheerBronCache(): void {
   cache = null;
 }
 
+interface BeheerCookieBron {
+  set: (name: string, value: string, options?: Record<string, unknown>) => void;
+}
+
+/**
+ * Welke client het beheeroverzicht leest.
+ * Een meegegeven of uit het verzoek opgebouwde sessie wint.
+ * De service-role is alleen de terugval voor scripts zonder verzoek.
+ * Een expliciet lege client zonder verzoek blijft leeg, zodat een
+ * afgekeurde service-role geen "Invalid API key" op de banner zet.
+ */
+export function kiesBeheerLezer(input: {
+  meegegeven: SupabaseLeesClient | null;
+  clientMeegegeven: boolean;
+  sessieUitVerzoek: SupabaseLeesClient | null;
+  heeftVerzoek: boolean;
+  admin: SupabaseLeesClient | null;
+}): SupabaseLeesClient | null {
+  if (input.meegegeven) return input.meegegeven;
+  if (input.heeftVerzoek) return input.sessieUitVerzoek;
+  if (!input.clientMeegegeven) return input.admin;
+  return null;
+}
+
+export function beheerSnapshotOpties(astro: {
+  url: URL;
+  request: Request;
+  cookies: BeheerCookieBron;
+  locals: { supabase?: SupabaseLeesClient | null; supabaseCookies?: Headers };
+}) {
+  return {
+    url: astro.url,
+    client: astro.locals.supabase ?? null,
+    request: astro.request,
+    cookies: astro.cookies,
+    responseHeaders: astro.locals.supabaseCookies,
+  };
+}
+
 export async function laadBeheerSnapshot(opties: {
   url?: URL;
   env?: Record<string, unknown>;
   forceDemo?: boolean;
   client?: SupabaseLeesClient | null;
+  request?: Request;
+  cookies?: BeheerCookieBron;
+  responseHeaders?: Headers;
 } = {}): Promise<BeheerSnapshot> {
   const env = opties.env ?? omgevingsRecord();
   const gekozen = opties.url?.searchParams.get('bron');
   const forceDemo = opties.forceDemo === true || gekozen === 'demo';
   const forceSupabase = gekozen === 'supabase';
-  const sleutel = forceDemo ? 'demo' : 'supabase';
-  const key = sleutel;
+  const key = forceDemo ? 'demo' : 'supabase';
   const nu = Date.now();
-  if (!forceDemo && !forceSupabase && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
-
-  const client = opties.client ?? gekoppeldeSupabaseClient();
   if (forceSupabase) {
     const bestaand = leesRequestSnapshot<BeheerSnapshot>();
     if (bestaand) return bestaand;
   }
-  const waarde = laadBeheerSnapshotOngecached({ env, forceDemo, forceSupabase, client });
+  const clientMeegegeven = Object.prototype.hasOwnProperty.call(opties, 'client');
+  const meegegeven = clientMeegegeven ? (opties.client ?? null) : gekoppeldeSupabaseClient();
+  const heeftVerzoek = Boolean(opties.request && opties.cookies);
+  const client = await losBeheerLezerOp({ env, meegegeven, clientMeegegeven, heeftVerzoek, opties });
+  const gedeeldeCache = !client && !forceDemo && !forceSupabase;
+  if (gedeeldeCache && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
+  const waarde = laadBeheerSnapshotOngecached({ env, forceDemo, client });
   if (forceSupabase) bewaarRequestSnapshot(waarde);
-  else cache = { key, at: nu, waarde };
+  else if (!client) cache = { key, at: nu, waarde };
   return waarde;
 }
 
-async function supabaseTestSnapshot(env: Record<string, unknown>, client: SupabaseLeesClient | null): Promise<BeheerSnapshot> {
-  const { maakBeheerAdminClient } = await import('../lib/supabase.ts');
-  const lezer = (client ?? maakBeheerAdminClient(env)) as SupabaseLeesClient | null;
-  if (!lezer) {
-    throw new Error('Geen Supabase-client. Log in voor de testmodus, of zet de service-role alleen op de server.');
+async function losBeheerLezerOp(input: {
+  env: Record<string, unknown>;
+  meegegeven: SupabaseLeesClient | null;
+  clientMeegegeven: boolean;
+  heeftVerzoek: boolean;
+  opties: {
+    request?: Request;
+    cookies?: BeheerCookieBron;
+    responseHeaders?: Headers;
+  };
+}): Promise<SupabaseLeesClient | null> {
+  let sessieUitVerzoek: SupabaseLeesClient | null = null;
+  let admin: SupabaseLeesClient | null = null;
+  if (!input.meegegeven && input.heeftVerzoek && input.opties.request && input.opties.cookies) {
+    const { maakBeheerServerClient } = await import('../lib/supabase.ts');
+    sessieUitVerzoek = maakBeheerServerClient({
+      request: input.opties.request,
+      cookies: input.opties.cookies as import('astro').AstroCookies,
+      env: input.env,
+      responseHeaders: input.opties.responseHeaders,
+    }) as SupabaseLeesClient | null;
+  } else if (!input.meegegeven && !input.clientMeegegeven && !input.heeftVerzoek) {
+    const { maakBeheerAdminClient } = await import('../lib/supabase.ts');
+    admin = maakBeheerAdminClient(input.env) as SupabaseLeesClient | null;
   }
-  return leesSupabaseBeheer(lezer, {
+  return kiesBeheerLezer({
+    meegegeven: input.meegegeven,
+    clientMeegegeven: input.clientMeegegeven,
+    sessieUitVerzoek,
+    heeftVerzoek: input.heeftVerzoek,
+    admin,
+  });
+}
+
+async function supabaseTestSnapshot(
+  env: Record<string, unknown>,
+  client: SupabaseLeesClient | null,
+): Promise<BeheerSnapshot> {
+  if (!client) {
+    throw new Error('Geen ingelogde Supabase-client. De service-role wordt niet gebruikt voor dit overzicht.');
+  }
+  return leesSupabaseBeheer(client, {
     vandaag: ymdInAmsterdam(new Date()),
     testmodus: huidigeContentBron(env) !== 'supabase',
   });
@@ -207,7 +286,6 @@ async function supabaseTestSnapshot(env: Record<string, unknown>, client: Supaba
 async function laadBeheerSnapshotOngecached(opties: {
   env: Record<string, unknown>;
   forceDemo: boolean;
-  forceSupabase: boolean;
   client: SupabaseLeesClient | null;
 }): Promise<BeheerSnapshot> {
   if (opties.forceDemo) {

@@ -8,10 +8,10 @@ import {
   gastheerVan,
   formatNl,
 } from '../../../platform/demo-data';
-import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
 const publiek = snapshot.agenda.find((p) => p.id === id);
 const intern = snapshot.intern.find((i) => i.id === id);

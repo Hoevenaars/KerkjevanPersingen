@@ -10,16 +10,15 @@ import {
   formatNl,
   gastheerVan,
 } from '../../../platform/demo-data';
-import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
-import { gekoppeldeSupabaseClient } from '../../../platform/sanity-registratie.ts';
-import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
 const boeking = snapshot.boekingen.find((b) => b.id === id);
 
@@ -46,7 +45,7 @@ const opgeslagen = snapshot.bron === 'supabase' ? [] : await laadCommunicatieVoo
 const templates =
   snapshot.bron === 'supabase'
     ? await (async () => {
-        const client = gekoppeldeSupabaseClient() ?? maakBeheerAdminClient();
+        const client = sessieSupabaseUitAstro(Astro);
         return client ? laadMailtemplatesUitSupabase(client) : [];
       })()
     : await laadMailtemplates();

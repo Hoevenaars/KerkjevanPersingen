@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { laadBeheerSnapshot, resetBeheerBronCache } from '../src/platform/beheer-bron.ts';
+import { kiesBeheerLezer, laadBeheerSnapshot, resetBeheerBronCache } from '../src/platform/beheer-bron.ts';
 import { leesSupabaseBeheer, periodeKlasse, supabaseFoutSnapshot, type SupabaseLeesClient } from '../src/platform/beheer-supabase-lees.ts';
 import { leesSanityOproepen, metSanityRegistratie, noteerSanityOproep } from '../src/platform/sanity-registratie.ts';
 
@@ -80,6 +80,40 @@ test('supabase-leesmodel houdt relaties, annulering, datum en blokkade uit elkaa
   assert.equal(snapshot.tarieven?.[1].bedrag, null);
   assert.equal(snapshot.tarieven?.[1].prijstype, 'op_aanvraag');
   assert.equal(snapshot.fout, null);
+});
+
+test('een beheerpagina gebruikt de sessie en niet de service-role', () => {
+  const sessie = clientVan(basis);
+  const admin = clientVan(basis);
+  const uitVerzoek = clientVan(basis);
+  assert.equal(kiesBeheerLezer({
+    meegegeven: sessie,
+    clientMeegegeven: true,
+    sessieUitVerzoek: uitVerzoek,
+    heeftVerzoek: true,
+    admin,
+  }), sessie);
+  assert.equal(kiesBeheerLezer({
+    meegegeven: null,
+    clientMeegegeven: true,
+    sessieUitVerzoek: uitVerzoek,
+    heeftVerzoek: true,
+    admin,
+  }), uitVerzoek);
+  assert.equal(kiesBeheerLezer({
+    meegegeven: null,
+    clientMeegegeven: true,
+    sessieUitVerzoek: null,
+    heeftVerzoek: false,
+    admin,
+  }), null);
+  assert.equal(kiesBeheerLezer({
+    meegegeven: null,
+    clientMeegegeven: false,
+    sessieUitVerzoek: null,
+    heeftVerzoek: false,
+    admin,
+  }), admin);
 });
 
 test('een supabase-fout toont geen voorbeelddata', async () => {

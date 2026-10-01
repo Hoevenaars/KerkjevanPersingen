@@ -3,10 +3,10 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { AANVRAAG_LABEL, SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
-import { beheerId, laadBeheerSnapshot, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
 const aanvraag = snapshot.aanvragen.find((a) => a.id === id);
 

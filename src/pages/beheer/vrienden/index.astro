@@ -3,10 +3,10 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { demoNaActie } from '../../../platform/demo-data';
-import { laadBeheerSnapshot, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { magVriendenExporteren } from '../../../platform/rechten.ts';
 
-const snapshot = await laadBeheerSnapshot({ url: Astro.url });
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const magExport = magVriendenExporteren(rechten);
 const live = snapshot.bron === 'supabase' || snapshot.bron === 'sanity';
