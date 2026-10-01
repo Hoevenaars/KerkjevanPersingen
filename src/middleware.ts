@@ -187,10 +187,9 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   }
 
   if (isBeheerPad(pad)) {
-    if (context.url.searchParams.get('bron') === 'supabase') {
-      return metSanityRegistratie(() => beheerMiddleware(context, next));
-    }
-    return await beheerMiddleware(context, next);
+    // De ingelogde client moet de pagina halen. Zonder deze context valt het lezen
+    // terug op de service-role, en een ongeldige sleutel geeft "Invalid API key".
+    return metSanityRegistratie(() => beheerMiddleware(context, next));
   }
 
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;
