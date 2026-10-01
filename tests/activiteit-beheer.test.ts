@@ -293,4 +293,7 @@ test('O publicatie- en contentwijziging auditen en starten geen mail', () => {
   const sql = readFileSync(new URL('../supabase/migrations/20261001180000_activiteit_beheer.sql', import.meta.url), 'utf8');
   assert.equal(sql.includes('insert into public.communicatie_jobs'), false);
   assert.equal(sql.includes('activiteitbeheer mag geen communicatiejob maken'), true);
+  const lezen = readFileSync(new URL('../supabase/migrations/20261001190000_activiteit_bron_lezen.sql', import.meta.url), 'utf8');
+  assert.match(lezen, /grant select on table public\.activiteit_bron to authenticated/);
+  assert.equal(lezen.includes('to anon'), false);
 });
