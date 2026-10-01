@@ -21,7 +21,9 @@ if (Astro.request.method === 'POST') {
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
-const openstaand = snapshot.boekingen.filter((b) => !b.aanbetalingBinnen && b.status !== 'afgewezen');
+const openstaand = snapshot.boekingen.filter(
+  (b) => !b.aanbetalingBinnen && b.status !== 'afgewezen' && b.status !== 'geannuleerd',
+);
 const vanaf = ymdInAmsterdam(new Date());
 const tarieven =
   snapshot.bron === 'supabase'

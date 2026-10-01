@@ -232,6 +232,8 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
           </p>
           {!snapshot.alleenLezen && (
             <form method="post" class="bh-acties">
+              <label for="reden">Reden bij definitief zetten</label>
+              <input id="reden" name="reden" type="text" />
               <button class="bh-btn" type="submit" name="actie" value="definitief">
                 Zet definitief
               </button>
