@@ -179,16 +179,16 @@ export async function laadBeheerSnapshot(opties: {
   const sleutel = forceDemo ? 'demo' : 'supabase';
   const key = sleutel;
   const nu = Date.now();
-  if (!forceDemo && !forceSupabase && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
-
   const client = opties.client ?? gekoppeldeSupabaseClient();
   if (forceSupabase) {
     const bestaand = leesRequestSnapshot<BeheerSnapshot>();
     if (bestaand) return bestaand;
   }
+  const gedeeldeCache = !client && !forceDemo && !forceSupabase;
+  if (gedeeldeCache && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
   const waarde = laadBeheerSnapshotOngecached({ env, forceDemo, forceSupabase, client });
   if (forceSupabase) bewaarRequestSnapshot(waarde);
-  else cache = { key, at: nu, waarde };
+  else if (!client) cache = { key, at: nu, waarde };
   return waarde;
 }
 

@@ -82,6 +82,14 @@ test('supabase-leesmodel houdt relaties, annulering, datum en blokkade uit elkaa
   assert.equal(snapshot.fout, null);
 });
 
+test('twee sessieclients delen geen beheer-cache', async () => {
+  resetBeheerBronCache();
+  const eerste = await laadBeheerSnapshot({ client: clientVan({ ...basis, relaties: [{ id: 1, naam: 'Eerste', email: 'a@example.test', telefoon: '', adres: '', op_reservelijst: false }] }) });
+  const tweede = await laadBeheerSnapshot({ client: clientVan({ ...basis, relaties: [{ id: 2, naam: 'Tweede', email: 'b@example.test', telefoon: '', adres: '', op_reservelijst: false }] }) });
+  assert.equal(eerste.relaties[0]?.naam, 'Eerste');
+  assert.equal(tweede.relaties[0]?.naam, 'Tweede');
+});
+
 test('een supabase-fout toont geen voorbeelddata', async () => {
   resetBeheerBronCache();
   const fout = supabaseFoutSnapshot('relaties: permission denied');
