@@ -135,12 +135,12 @@ function instellingenUit(rijenIn: Record<string, unknown>[]): DemoInstellingen {
     optietermijn: getal('optietermijn_dagen'),
     betaaltermijn: getal('betaaltermijn_dagen'),
     aanbetaling: getal('aanbetaling_standaard'),
-    contractbeheerder: '',
+    contractbeheerder: jsonTekst(map.get('contractbeheerder')),
     openingVan: van,
     openingTot: tot,
-    ontvangstAdres: '',
-    extraOntvangstAdres: '',
-    penningmeesterAdres: '',
+    ontvangstAdres: jsonTekst(map.get('ontvangst_adres')),
+    extraOntvangstAdres: jsonTekst(map.get('extra_ontvangst_adres')),
+    penningmeesterAdres: jsonTekst(map.get('penningmeester_adres')),
   };
 }
 
@@ -148,7 +148,7 @@ export async function leesSupabaseBeheer(
   client: SupabaseLeesClient,
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
-  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen] = await Promise.all([
+  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen, tariefRijen] = await Promise.all([
     lees(client, 'relaties', 'id,naam,email,telefoon,adres,op_reservelijst'),
     lees(client, 'relatie_rollen', 'relatie_id,rol'),
     lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities'),
@@ -161,8 +161,9 @@ export async function leesSupabaseBeheer(
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
     lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving'),
-    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id'),
+    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
+    lees(client, 'tarieven', 'id,verhuurtype_sleutel,prijstype,bedrag,geldig_vanaf,geldig_tot,toelichting'),
   ]);
 
   const rollenPerRelatie = new Map<string, string[]>();
@@ -245,14 +246,14 @@ export async function leesSupabaseBeheer(
   }));
 
   const banner = opties.testmodus
-    ? 'Supabase-testmodus, alleen lezen. Sanity blijft de runtimebron. Een lege lijst is een leeg Supabase-resultaat.'
+    ? 'Beheer leest Supabase, zonder terugval naar Sanity of voorbeelddata. CONTENT_BRON blijft sanity. Er gaat geen mail uit.'
     : 'Supabase is de operationele bron. Sanity en de productiesite worden niet vanuit deze leesactie beschreven.';
 
   return {
     bron: 'supabase',
     banner,
     reden: opties.testmodus
-      ? 'Expliciete testmodus via ?bron=supabase. CONTENT_BRON is niet gewijzigd.'
+      ? 'Normale /beheer-runtime op Supabase. CONTENT_BRON is niet gewijzigd.'
       : 'CONTENT_BRON is supabase.',
     aanvragen: aanvraagRijen.map((rij) => ({
       id: tekst(rij.id),
@@ -269,6 +270,8 @@ export async function leesSupabaseBeheer(
       binnengekomen: tekst(rij.binnengekomen_op).slice(0, 10),
       website: tekst(rij.website),
       boekingId: rij.boeking_id == null ? undefined : tekst(rij.boeking_id),
+      afwijsreden: tekst(rij.afwijsreden),
+      relatieId: rij.relatie_id == null ? undefined : tekst(rij.relatie_id),
     })),
     boekingen,
     agenda: agendaRijen.map((rij) => ({
@@ -336,5 +339,13 @@ export async function leesSupabaseBeheer(
     fout: null,
     alleenLezen: opties.testmodus,
     instellingenHerkomst: 'supabase',
+    tarieven: tariefRijen.map((rij) => ({
+      verhuurtype: tekst(rij.verhuurtype_sleutel),
+      prijstype: tekst(rij.prijstype),
+      bedrag: rij.bedrag == null || tekst(rij.bedrag) === '' ? null : Number(rij.bedrag),
+      geldigVanaf: tekst(rij.geldig_vanaf),
+      geldigTot: rij.geldig_tot == null || tekst(rij.geldig_tot) === '' ? null : tekst(rij.geldig_tot),
+      toelichting: tekst(rij.toelichting),
+    })),
   };
 }

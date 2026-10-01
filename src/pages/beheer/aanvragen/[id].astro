@@ -25,7 +25,9 @@ if (!aanvraag) {
   return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
 }
 
-const relatie = snapshot.relaties.find((r) => r.email && r.email === aanvraag.email);
+const relatie =
+  snapshot.relaties.find((r) => aanvraag.relatieId && r.id === aanvraag.relatieId) ??
+  snapshot.relaties.find((r) => r.email && r.email === aanvraag.email);
 const flash = Astro.url.searchParams.get('demo') === '1';
 ---
 
@@ -62,6 +64,14 @@ const flash = Astro.url.searchParams.get('demo') === '1';
         <dd>{aanvraag.website ?? '—'}</dd>
         <dt>Toelichting</dt>
         <dd>{aanvraag.toelichting}</dd>
+        {
+          aanvraag.status === 'afgewezen' && (
+            <>
+              <dt>Afwijsreden</dt>
+              <dd>{aanvraag.afwijsreden || '—'}</dd>
+            </>
+          )
+        }
         {
           relatie && (
             <>

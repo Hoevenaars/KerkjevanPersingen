@@ -34,10 +34,19 @@ const basis = {
   nieuwsbrieven: [],
   documenten: [],
   communicatie_templates: [],
-  instellingen: [{ sleutel: 'optietermijn_dagen', waarde: '14' }, { sleutel: 'expositie_openingstijden', waarde: '{"van":"11:00","tot":"17:00"}' }],
   publieke_activiteiten: [],
   aanvragen: [],
   communicatie_jobs: [],
+  tarieven: [
+    { id: 1, verhuurtype_sleutel: 'expositie', prijstype: 'vast', bedrag: 490, geldig_vanaf: '2020-01-01', geldig_tot: '2028-12-31', toelichting: '' },
+    { id: 2, verhuurtype_sleutel: 'concert', prijstype: 'op_aanvraag', bedrag: null, geldig_vanaf: '2020-01-01', geldig_tot: '2028-12-31', toelichting: '' },
+  ],
+  instellingen: [
+    { sleutel: 'optietermijn_dagen', waarde: '14' },
+    { sleutel: 'expositie_openingstijden', waarde: '{"van":"11:00","tot":"17:00"}' },
+    { sleutel: 'ontvangst_adres', waarde: 'aanvraag@example.test' },
+    { sleutel: 'contractbeheerder', waarde: '' },
+  ],
 };
 
 test('periodeklasse scheidt verleden, lopend en komend', () => {
@@ -66,6 +75,10 @@ test('supabase-leesmodel houdt relaties, annulering, datum en blokkade uit elkaa
   assert.equal(snapshot.gastheren[0].naam, 'Gast B');
   assert.equal(snapshot.instellingen.openingVan, '11:00');
   assert.equal(snapshot.instellingen.contractbeheerder, '');
+  assert.equal(snapshot.instellingen.ontvangstAdres, 'aanvraag@example.test');
+  assert.equal(snapshot.tarieven?.length, 2);
+  assert.equal(snapshot.tarieven?.[1].bedrag, null);
+  assert.equal(snapshot.tarieven?.[1].prijstype, 'op_aanvraag');
   assert.equal(snapshot.fout, null);
 });
 

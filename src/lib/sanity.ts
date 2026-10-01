@@ -1,20 +1,21 @@
+import { createRequire } from 'node:module';
 import { createClient, type SanityClient } from '@sanity/client';
-import imageUrlBuilder from '@sanity/image-url';
-import { SOORTEN, type Aanvraag } from './validatie';
-import { eerstvolgendeVrijeWeekenden, maandagVanWeekIso, type VrijWeekend } from './week';
-import { bezetteKalenderDagen } from './datum';
-import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie';
-import { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
+import { SOORTEN, type Aanvraag } from './validatie.ts';
+import { maandagVanWeekIso, type VrijWeekend } from './week.ts';
+import { ontvangtDezeVerzending, type VriendFrequentie } from './nieuwsbrief-frequentie.ts';
+import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import { noteerSanityOproep } from '../platform/sanity-registratie.ts';
+import { huidigeContentBron } from '../platform/bron.ts';
 
 export { maandagVanWeekIso };
-export { formatDatum, formatDatumBereik } from './datum';
+export { formatDatum, formatDatumBereik } from './datum.ts';
 export type { VrijWeekend };
 export type { VriendFrequentie };
 
-const projectId = process.env.SANITY_PROJECT_ID ?? import.meta.env.SANITY_PROJECT_ID;
-const dataset = process.env.SANITY_DATASET ?? import.meta.env.SANITY_DATASET ?? 'production';
-const token = process.env.SANITY_API_TOKEN ?? import.meta.env.SANITY_API_TOKEN;
+const metaEnv = ((import.meta as { env?: Record<string, string | undefined> }).env ?? {}) as Record<string, string | undefined>;
+const projectId = process.env.SANITY_PROJECT_ID ?? metaEnv.SANITY_PROJECT_ID;
+const dataset = process.env.SANITY_DATASET ?? metaEnv.SANITY_DATASET ?? 'production';
+const token = process.env.SANITY_API_TOKEN ?? metaEnv.SANITY_API_TOKEN;
 
 export const sanityConfigured = Boolean(projectId);
 
@@ -36,28 +37,70 @@ if (client) {
   }) as SanityClient['fetch'];
 }
 
-const builder = client ? imageUrlBuilder(client) : null;
+type ImageChain = {
+  width: (n: number) => ImageChain;
+  height: (n: number) => ImageChain;
+  fit: (mode: string) => ImageChain;
+  format: (mode: string) => ImageChain;
+  quality: (n: number) => ImageChain;
+  url: () => string;
+};
+type ImageBuilder = {
+  image: (source: unknown) => ImageChain;
+};
+
+let builder: ImageBuilder | null | undefined;
+
+/** De builder laadt pas als een Sanity-asset echt geresolveerd wordt.
+ *  Een http(s)- of sitepad in de Supabase-testmodus raakt dit niet. */
+function sanityImageBuilder(): ImageBuilder | null {
+  if (builder !== undefined) return builder;
+  if (!client) {
+    builder = null;
+    return builder;
+  }
+  const require = createRequire(import.meta.url);
+  const geladen = require('@sanity/image-url') as { default?: (c: SanityClient) => ImageBuilder } | ((c: SanityClient) => ImageBuilder);
+  const maak = typeof geladen === 'function' ? geladen : geladen.default;
+  if (!maak) {
+    builder = null;
+    return builder;
+  }
+  builder = maak(client);
+  return builder;
+}
+
+function directeUrl(source: unknown): string | null {
+  return directeFotoUrl(source);
+}
 
 /** Beeldverwerking gebeurt bij Sanity, niet bij het bestuur.
  *  Een staande telefoonfoto van 6 MB komt er als bijgesneden WebP uit. */
 /** Sanity-beeld of, in de Supabase-preview, een directe publieke URL. */
 export function publiekeFotoUrl(source: unknown, width = 1200, height?: number): string | null {
-  if (typeof source === 'string' && /^https?:\/\//.test(source)) return source;
+  const direct = directeUrl(source);
+  if (direct) return direct;
   return imageUrl(source, width, height);
 }
 
 export function imageUrl(source: unknown, width = 1200, height?: number): string | null {
-  if (!builder || !source) return null;
-  let url = builder.image(source as never).width(width).format('webp').quality(78);
+  const direct = directeUrl(source);
+  if (direct) return direct;
+  const actief = sanityImageBuilder();
+  if (!actief || !source) return null;
+  let url = actief.image(source).width(width).format('webp').quality(78);
   if (height) url = url.height(height).fit('crop');
   return url.url();
 }
 
 /** JPEG i.p.v. WebP: Outlook en sommige webmail tonen WebP niet. */
 export function mailImageUrl(source: unknown, width = 1120, height = 560): string | null {
-  if (!builder || !source) return null;
-  return builder
-    .image(source as never)
+  const direct = directeUrl(source);
+  if (direct) return direct;
+  const actief = sanityImageBuilder();
+  if (!actief || !source) return null;
+  return actief
+    .image(source)
     .width(width)
     .height(height)
     .fit('crop')
@@ -89,7 +132,14 @@ function genereerToken(): string {
  * Wie zich eerder uitschreef en opnieuw aanmeldt, wordt weer geactiveerd (nieuw
  * uitschrijftoken, zodat een oude afmeldlink niet alsnog deactiveren kan).
  */
+function blokkeerSanityNaCutover(): void {
+  if (huidigeContentBron() === 'supabase') {
+    throw new Error('Sanity is geen runtimebron. Deze flow leest en schrijft alleen Supabase.');
+  }
+}
+
 export async function maakVriendAan(input: { naam: string; email: string }): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) {
     throw new Error('Sanity is niet geconfigureerd; aanmelding kan niet worden opgeslagen.');
   }
@@ -126,6 +176,7 @@ export async function maakVriendAan(input: { naam: string; email: string }): Pro
 }
 
 export async function getActieveVrienden(): Promise<Vriend[]> {
+  blokkeerSanityNaCutover();
   if (!client) return [];
   try {
     return await client.fetch<Vriend[]>(
@@ -139,11 +190,13 @@ export async function getActieveVrienden(): Promise<Vriend[]> {
 
 /** Actieve vrienden die volgens hun frequentie deze verzendronde mail moeten krijgen. */
 export async function getVriendenVoorVerzending(datum = new Date()): Promise<Vriend[]> {
+  blokkeerSanityNaCutover();
   const vrienden = await getActieveVrienden();
   return vrienden.filter((vriend) => ontvangtDezeVerzending(vriend.frequentie, datum));
 }
 
 export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
   try {
     // Groq-parameter mag niet `token` heten: @sanity/client typt dat veld als `never`
@@ -159,11 +212,13 @@ export async function getVriendByToken(uitschrijfToken: string): Promise<Vriend 
 }
 
 export async function deactiveerVriend(id: string): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) return;
   await client.patch(id).set({ actief: false }).commit();
 }
 
 export async function updateVriendFrequentie(id: string, frequentie: VriendFrequentie): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) return;
   await client.patch(id).set({ frequentie, actief: true }).commit();
 }
@@ -174,6 +229,7 @@ export async function updateVriendFrequentie(id: string, frequentie: VriendFrequ
  * Komt nooit in de publieke agenda-query.
  */
 export async function getHuurderEmail(activiteitId: string): Promise<string | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
   try {
     const rij = await client.fetch<{
@@ -211,6 +267,7 @@ export interface NieuwsbriefContent {
 
 /** Vindt het nieuwsbrief-document voor de week waarin `datum` valt (maandag t/m zondag). */
 export async function getNieuwsbriefVoorWeek(datum: Date): Promise<NieuwsbriefContent | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
   const isoMaandag = maandagVanWeekIso(datum);
 
@@ -228,6 +285,7 @@ export async function getNieuwsbriefVoorWeek(datum: Date): Promise<NieuwsbriefCo
 }
 
 export async function markeerNieuwsbriefVerstuurd(id: string): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) return;
   await client.patch(id).set({ verstuurd: true }).commit();
 }
@@ -239,6 +297,7 @@ export async function markeerNieuwsbriefVerstuurd(id: string): Promise<void> {
  * per ongeluk twee keer kunnen versturen.
  */
 export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string | null> {
+  blokkeerSanityNaCutover();
   if (!client) return null;
 
   const bestaand = await getNieuwsbriefVoorWeek(datum);
@@ -268,6 +327,7 @@ export async function maakOfUpdateNieuwsbriefStatus(datum: Date): Promise<string
  * verandert dus niet vanzelf.
  */
 export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
+  blokkeerSanityNaCutover();
   if (!client) {
     console.warn('[sanity] geen client, aanvraag niet opgeslagen in CMS');
     return;
@@ -329,7 +389,7 @@ export async function bewaarAanvraag(a: Aanvraag): Promise<void> {
   }
 }
 
-export { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten';
+export { activiteitenVoorKalender, kiesGepubliceerdeActiviteit, mergeKalenderBronnen } from './sanity-documenten.ts';
 
 export type Zichtbaarheid = 'verborgen' | 'bezet' | 'publiek';
 
@@ -355,60 +415,6 @@ export interface Activiteit {
   aangeleverdeFoto?: unknown;
 }
 
-const ACTIVITEIT_VELDEN = `
-  _id,
-  _originalId,
-  "slug": slug.current,
-  interneTitel,
-  publiekeTitel,
-  start,
-  eind,
-  soort,
-  zichtbaarheid,
-  omschrijving,
-  kunstenaars,
-  foto,
-  fotoAlt,
-  toonVanafMaanden,
-  contentStatus,
-  aangeleverdeTekst,
-  aangeleverdeFoto
-`;
-
-/**
- * 02_CODING_STANDARDS.md §6: nooit silent fail, maar een storing bij Sanity mag de
- * hele pagina niet neerhalen. Bij een fout krijg je een lege agenda plus een log —
- * het leeg-scenario op de landingspagina vangt dat visueel netjes op.
- */
-async function veiligeQuery<T>(
-  query: string,
-  params: Record<string, unknown> = {},
-  opties: { perspective?: 'published' | 'raw' | 'previewDrafts' } = {},
-): Promise<T[]> {
-  if (!client) return [];
-  try {
-    const bron = opties.perspective
-      ? client.withConfig({ perspective: opties.perspective })
-      : client;
-    return await bron.fetch<T[]>(query, params);
-  } catch (error) {
-    console.error('[sanity] query mislukt', { query, error });
-    return [];
-  }
-}
-
-/**
- * Start van vandaag (00:00 UTC), niet het exacte huidige moment.
- *
- * Reden: met `start >= now()` verdween een activiteit uit beeld zodra de klok voorbij
- * de starttijd was, ook al liep hij die dag nog gewoon door. Deze cutoff houdt een
- * activiteit de hele dag zichtbaar, ongeacht hoe laat hij begon.
- */
-function cutoffVandaag(): string {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
-}
-
 function startVanDag(iso: string): number {
   const d = new Date(iso);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -421,60 +427,10 @@ function loopVandaag(a: Activiteit, vandaag: number): boolean {
   return start <= vandaag && vandaag <= eind;
 }
 
-/**
- * Is deze activiteit al "aan de beurt" om getoond te worden, gezien
- * toonVanafMaanden? Zonder die instelling: altijd ja. Rekent in hele maanden
- * vanaf vandaag — geen kalenderprecisie tot op de dag nodig voor dit doel.
- */
-function magAlGetoondWorden(a: Activiteit): boolean {
-  if (!a.toonVanafMaanden) return true;
-  const maanden = Number(a.toonVanafMaanden);
-  if (!maanden) return true;
-
-  const start = new Date(a.start);
-  const drempel = new Date(start);
-  drempel.setUTCMonth(drempel.getUTCMonth() - maanden);
-
-  return new Date() >= drempel;
-}
-
-/**
- * Publieke agenda: alles wat nog relevant is — lopend of toekomstig — én al
- * "aan de beurt" is volgens toonVanafMaanden.
- */
+/** Publieke agenda via Supabase. ToonVanafMaanden filtert in publiek-lezen. */
 export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
-  const { huidigeContentBron } = await import('../platform/bron.ts');
-  if (huidigeContentBron() === 'supabase') {
-    const { publiekeActiviteiten } = await import('./operatie/runtime.ts');
-    const lijst = await publiekeActiviteiten();
-    return lijst.slice(0, limit);
-  }
-  const resultaat = await veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && zichtbaarheid == "publiek"
-       && (
-         (defined(eind) && eind >= $cutoff) ||
-         (!defined(eind) && start >= $cutoff)
-       )
-     ] | order(start asc) [0...$limit] { ${ACTIVITEIT_VELDEN} }`,
-    { cutoff: cutoffVandaag(), limit }
-  );
-  const lijst = kiesGepubliceerdeActiviteit(resultaat).filter(magAlGetoondWorden);
-
-  const { SECOND_NATURE } = await import('./second-nature.ts');
-  const cutoff = cutoffVandaag();
-  const secondNatureRelevant =
-    (SECOND_NATURE.eind && SECOND_NATURE.eind >= cutoff) ||
-    (!SECOND_NATURE.eind && SECOND_NATURE.start >= cutoff);
-  if (
-    secondNatureRelevant &&
-    magAlGetoondWorden(SECOND_NATURE) &&
-    !lijst.some((a) => a.slug === SECOND_NATURE.slug)
-  ) {
-    lijst.push(SECOND_NATURE);
-    lijst.sort((a, b) => a.start.localeCompare(b.start));
-  }
-
-  return lijst.slice(0, limit);
+  const { leesPubliekeAgenda } = await import('./publiek-lezen.ts');
+  return leesPubliekeAgenda(limit);
 }
 
 /** Beschikbaarheidskalender: alleen gepubliceerde bezetting plus de publieke agenda.
@@ -483,30 +439,8 @@ export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
  *  terwijl Studio en de agenda leeg waren. Geen fallback naar raw: dat haalt
  *  dezelfde concepten terug. Publieke concepten blijven bezet via de agenda. */
 export async function getBezetteData(): Promise<Activiteit[]> {
-  const { huidigeContentBron } = await import('../platform/bron.ts');
-  if (huidigeContentBron() === 'supabase') {
-    const { bezetteActiviteiten, publiekeActiviteiten } = await import('./operatie/runtime.ts');
-    const [bezet, agenda] = await Promise.all([bezetteActiviteiten(), publiekeActiviteiten()]);
-    return [...bezet, ...agenda];
-  }
-  const groq = `*[_type == "activiteit" && defined(start) && zichtbaarheid != "verborgen"
-     && !(_id in path("drafts.**")) && !(_id in path("versions.**"))]
-   | order(start asc) { ${ACTIVITEIT_VELDEN} }`;
-  const [gepubliceerd, agenda] = await Promise.all([
-    veiligeQuery<Activiteit>(groq, {}, { perspective: 'published' }),
-    getPubliekeAgenda(50),
-  ]);
-
-  const gekozen = mergeKalenderBronnen(
-    activiteitenVoorKalender(gepubliceerd),
-    agenda,
-  );
-
-  const { SECOND_NATURE } = await import('./second-nature.ts');
-  if (!gekozen.some((item) => item.slug === SECOND_NATURE.slug)) {
-    gekozen.push(SECOND_NATURE);
-  }
-  return gekozen;
+  const { leesBezetteData } = await import('./publiek-lezen.ts');
+  return leesBezetteData();
 }
 
 export interface AgendaOverzicht {
@@ -536,23 +470,8 @@ export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
 }
 
 export async function getActiviteitBySlug(slug: string): Promise<Activiteit | null> {
-  const { huidigeContentBron } = await import('../platform/bron.ts');
-  if (huidigeContentBron() === 'supabase') {
-    const { activiteitOpSlug } = await import('./operatie/runtime.ts');
-    return activiteitOpSlug(slug);
-  }
-  const rij = await veiligeQuery<Activiteit>(
-    `*[_type == "activiteit" && zichtbaarheid == "publiek" && slug.current == $slug][0...1]
-     { ${ACTIVITEIT_VELDEN} }`,
-    { slug }
-  );
-  const gevonden = kiesGepubliceerdeActiviteit(rij)[0] ?? null;
-  // Ook een direct-URL-bezoek respecteert toonVanafMaanden — anders zou een
-  // vroegtijdig ingevoerde activiteit alsnog vindbaar zijn via een geraden link.
-  if (gevonden && magAlGetoondWorden(gevonden)) return gevonden;
-
-  const { secondNatureFallback } = await import('./second-nature.ts');
-  return secondNatureFallback(slug);
+  const { leesActiviteitOpSlug } = await import('./publiek-lezen.ts');
+  return leesActiviteitOpSlug(slug);
 }
 
 /**
@@ -561,8 +480,8 @@ export async function getActiviteitBySlug(slug: string): Promise<Activiteit | nu
  * onverwacht een dag vrijkomt, staat dat weekend meteen weer in de lijst.
  */
 export async function getEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWeekend[]> {
-  const bezet = await getBezetteData();
-  return eerstvolgendeVrijeWeekenden(bezetteKalenderDagen(bezet), aantal);
+  const { leesEerstvolgendeVrijeWeekenden } = await import('./publiek-lezen.ts');
+  return leesEerstvolgendeVrijeWeekenden(aantal);
 }
 
 /**
@@ -571,6 +490,7 @@ export async function getEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWe
  * typefout in het CMS nooit stilzwijgend alle aanvragen laat verdwijnen.
  */
 export async function getOntvangstAdres(): Promise<string> {
+  blokkeerSanityNaCutover();
   const fallback =
     process.env.CONTACT_FALLBACK_EMAIL ?? import.meta.env.CONTACT_FALLBACK_EMAIL ?? '';
 
@@ -596,6 +516,7 @@ export async function getOntvangstAdres(): Promise<string> {
  * de BCC-noodoplossing is. Leeg als het veld niet is ingesteld.
  */
 export async function getExtraOntvangstAdres(): Promise<string> {
+  blokkeerSanityNaCutover();
   if (!client) return '';
   try {
     const instellingen = await client.fetch<{ extraOntvangstAdres?: string } | null>(

@@ -32,6 +32,9 @@ const MAANDEN_VOORAF: Partial<Record<PublicatieTrigger, number>> = {
   uiterlijk_1_maand: 1,
   uiterlijk_2_maanden: 2,
   uiterlijk_3_maanden: 3,
+  uiterlijk_6_maanden: 6,
+  uiterlijk_9_maanden: 9,
+  uiterlijk_12_maanden: 12,
 };
 
 export function publicatieDrempelYmd(startYmd: string, maandenVooraf: number): string {

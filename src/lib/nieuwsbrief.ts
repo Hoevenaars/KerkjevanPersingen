@@ -1,34 +1,14 @@
-import { Resend } from 'resend';
-import {
-  getVriendenVoorVerzending,
-  getNieuwsbriefVoorWeek,
-  markeerNieuwsbriefVerstuurd,
-  maakOfUpdateNieuwsbriefStatus,
-  getAgendaOverzicht,
-  getPubliekeAgenda,
-  mailImageUrl,
-  type NieuwsbriefContent,
-  type Activiteit,
-  type AgendaOverzicht,
-  type VriendFrequentie,
-} from './sanity';
-import { datumVoorPreview } from './week';
-import { mailMeta } from './nieuwsbrief-frequentie';
-import { kiesActiviteitenVoorMail } from './nieuwsbrief-agenda';
-import { bouwNieuwsbriefHtml } from './nieuwsbrief-html';
+/**
+ * Nieuwsbriefcron. Delivery blijft geblokkeerd: dry-run op Supabase, geen Resend.
+ */
+
+import { draaiNieuwsbriefDryRun, supabaseNieuwsbrief } from './nieuwsbrief-supabase.ts';
+import { supabaseVrienden } from './vrienden-supabase.ts';
+import { datumVoorPreview } from './week.ts';
+import { bouwNieuwsbriefHtml } from './nieuwsbrief-html.ts';
+import { kiesActiviteitenVoorMail } from './nieuwsbrief-agenda.ts';
 
 export { datumVoorPreview, bouwNieuwsbriefHtml, kiesActiviteitenVoorMail };
-
-const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
-const BATCH_GROOTTE = 100;
-
-function resendClient(): Resend {
-  const apiKey = process.env.RESEND_API_KEY ?? import.meta.env.RESEND_API_KEY;
-  if (!apiKey) {
-    throw new Error('RESEND_API_KEY ontbreekt — nieuwsbrief niet verstuurd');
-  }
-  return new Resend(apiKey);
-}
 
 /** True als het cron-endpoint de aanroep moet weigeren. */
 export function cronOnbevoegd(request: Request): boolean {
@@ -40,104 +20,19 @@ export function cronOnbevoegd(request: Request): boolean {
   return request.headers.get('authorization') !== `Bearer ${secret}`;
 }
 
-function renderMail(
-  content: NieuwsbriefContent | null,
-  alleActiviteiten: Activiteit[],
-  agenda: AgendaOverzicht,
-  uitschrijfUrl: string,
-  frequentie: VriendFrequentie | undefined,
-  nu = new Date(),
-): string {
-  const keuze = frequentie ?? 'wekelijks';
-  const meta = mailMeta(keuze, nu);
-  const activiteiten = kiesActiviteitenVoorMail(alleActiviteiten, agenda, keuze, nu);
-
-  return bouwNieuwsbriefHtml(
-    {
-      kortNieuws: content?.kortNieuws,
-      kortNieuwsFotoUrl: mailImageUrl(content?.kortNieuwsFoto, 1120, 560) ?? undefined,
-      kortNieuwsFotoAlt: content?.kortNieuwsFotoAlt,
-      donatieUpdate: content?.donatieUpdate,
-    },
-    activiteiten,
-    uitschrijfUrl,
-    meta,
-  );
+export async function verstuurPreview(_previewAdres: string, datum = new Date()): Promise<void> {
+  const { besluitVoor } = await import('./automatisering-register.ts');
+  const besluit = await besluitVoor('nieuwsbrief');
+  if (!besluit.provider) return;
+  await draaiNieuwsbriefDryRun({ datum, vrienden: supabaseVrienden(), bron: supabaseNieuwsbrief() });
 }
 
-export async function verstuurPreview(previewAdres: string, datum = new Date()): Promise<void> {
-  const resend = resendClient();
-  const content = await getNieuwsbriefVoorWeek(datum);
-  const agenda = await getAgendaOverzicht();
-  const alleActiviteiten = await getPubliekeAgenda(50);
-  const html = renderMail(
-    content,
-    alleActiviteiten,
-    agenda,
-    'https://kerkjepersingen.nl/vrienden/afmelden?token=preview',
-    'wekelijks',
-    datum,
-  );
-
-  const { error } = await resend.emails.send({
-    from: VAN,
-    to: previewAdres,
-    subject: 'Concept nieuwsbrief — verstuurt vrijdagochtend tenzij aangepast',
-    html,
-  });
-  if (error) {
-    throw new Error(`Preview versturen mislukt: ${error.message}`);
+export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: number; gepland: number; overgeslagen: string }> {
+  const { besluitVoor } = await import('./automatisering-register.ts');
+  const besluit = await besluitVoor('nieuwsbrief');
+  if (!besluit.provider) {
+    return { verstuurd: 0, gepland: 0, overgeslagen: `geblokkeerd: ${besluit.reden}` };
   }
-}
-
-export async function verstuurWekelijkseNieuwsbrief(): Promise<{ verstuurd: number; overgeslagen: string }> {
-  const nu = new Date();
-  const content = await getNieuwsbriefVoorWeek(nu);
-
-  if (content?.geannuleerd) {
-    return { verstuurd: 0, overgeslagen: 'geannuleerd door bestuur' };
-  }
-  if (content?.verstuurd) {
-    return { verstuurd: 0, overgeslagen: 'al verstuurd deze week' };
-  }
-
-  const nieuwsbriefId = await maakOfUpdateNieuwsbriefStatus(nu);
-  if (!nieuwsbriefId) {
-    return { verstuurd: 0, overgeslagen: 'kon verzendstatus niet vastleggen, verzending afgebroken' };
-  }
-
-  const vrienden = await getVriendenVoorVerzending(nu);
-  if (vrienden.length === 0) {
-    await markeerNieuwsbriefVerstuurd(nieuwsbriefId);
-    return { verstuurd: 0, overgeslagen: 'geen ontvangers deze verzendronde' };
-  }
-
-  const agenda = await getAgendaOverzicht();
-  const alleActiviteiten = await getPubliekeAgenda(50);
-  const resend = resendClient();
-
-  const berichten = vrienden.map((vriend) => {
-    const token = encodeURIComponent(vriend.uitschrijfToken);
-    const uitschrijfUrl = `https://kerkjepersingen.nl/vrienden/afmelden?token=${token}`;
-    const frequentie = vriend.frequentie ?? 'wekelijks';
-    const meta = mailMeta(frequentie, nu);
-    return {
-      from: VAN,
-      to: vriend.email,
-      subject: meta.onderwerp,
-      html: renderMail(content, alleActiviteiten, agenda, uitschrijfUrl, frequentie, nu),
-    };
-  });
-
-  for (let i = 0; i < berichten.length; i += BATCH_GROOTTE) {
-    const chunk = berichten.slice(i, i + BATCH_GROOTTE);
-    const { error } = await resend.batch.send(chunk);
-    if (error) {
-      throw new Error(`Nieuwsbrief versturen mislukt: ${error.message}`);
-    }
-  }
-
-  await markeerNieuwsbriefVerstuurd(nieuwsbriefId);
-
-  return { verstuurd: vrienden.length, overgeslagen: '' };
+  const uit = await draaiNieuwsbriefDryRun({ vrienden: supabaseVrienden(), bron: supabaseNieuwsbrief() });
+  return { verstuurd: uit.verstuurd, gepland: uit.gepland, overgeslagen: uit.overgeslagen };
 }
