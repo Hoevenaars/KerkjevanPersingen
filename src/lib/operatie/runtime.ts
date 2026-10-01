@@ -18,6 +18,7 @@ import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger
 import type { Json } from '../database.types.ts';
 import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from '../agenda-zichtbaarheid.ts';
 import { annuleerBoekingViaSessie, type AnnuleerSessie } from './annuleer-boeking.ts';
+import { koppelGastheerViaSessie, type GastheerSessie } from './gastheer-koppelen.ts';
 import {
   legeWereld,
   readinessVanBoeking,
@@ -486,8 +487,8 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
   if (actie === 'meer' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'meer_informatie', vraag: String(data.get('vraag') ?? '') };
   if (actie === 'behandeling' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'in_behandeling' };
   if ((actie === 'check' || actie === 'betaling') && boekingId) return { soort: 'betaling', boekingId };
-  if ((actie === 'gastheer' || actie === 'bewaar') && boekingId && data.get('gastheerId')) {
-    return { soort: 'gastheer', boekingId, gastheerId: String(data.get('gastheerId')) };
+  if ((actie === 'gastheer' || actie === 'bewaar') && boekingId && data.has('gastheerId')) {
+    return { soort: 'gastheer', boekingId, gastheerId: String(data.get('gastheerId') ?? '') };
   }
   if (actie === 'definitief' && boekingId) return { soort: 'handmatig_definitief', boekingId, reden };
   if (actie === 'annuleer' && boekingId) return { soort: 'annuleer', boekingId, reden };
@@ -523,6 +524,16 @@ export async function postAlsSupabase(input: {
         input.sessie,
         Number(opdracht.boekingId),
         opdracht.reden ?? '',
+        input.actor,
+      );
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+      return Response.redirect(doel, 303);
+    }
+    if (opdracht.soort === 'gastheer' && isAnnuleerSessie(input.sessie)) {
+      const uit = await koppelGastheerViaSessie(
+        input.sessie as GastheerSessie,
+        Number(opdracht.boekingId),
+        opdracht.gastheerId,
         input.actor,
       );
       doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);

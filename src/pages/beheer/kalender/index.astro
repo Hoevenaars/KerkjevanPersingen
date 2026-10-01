@@ -48,7 +48,9 @@ const STATUS_TEKST: Record<string, string> = {
 };
 
 function hrefVoorDag(ymd: string): string | null {
-  const boeking = snapshot.boekingen.find((b) => b.start <= ymd && ymd <= b.eind);
+  const boeking = snapshot.boekingen.find(
+    (b) => b.status !== 'geannuleerd' && b.status !== 'afgewezen' && b.start <= ymd && ymd <= b.eind,
+  );
   if (boeking) return `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
   const aanvraag = snapshot.aanvragen.find((a) => a.start <= ymd && ymd <= a.eind);
   if (aanvraag) return `/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`;

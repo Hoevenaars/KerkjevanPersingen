@@ -5,6 +5,7 @@ import Beheer from '../../../layouts/Beheer.astro';
 import { BOEKING_LABEL, SOORT_LABEL, demoNaActie, formatNl, gastheerVan } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { PLANNING_FILTERS, PLANNING_TYPEN, stelPlanning, type PlanningFilter, type PlanningInvoer } from '../../../platform/planning.ts';
 import { magOpWebsiteZonderTiming, maandenVanTrigger } from '../../../lib/agenda-zichtbaarheid.ts';
 import { magAlGetoondWorden } from '../../../lib/publiek-lezen.ts';
@@ -16,6 +17,7 @@ if (Astro.request.method === 'POST') {
     url: Astro.url,
     env: omgevingsRecord(),
     actor: actorVanSessie(Astro.locals.beheer),
+    sessie: sessieSupabaseUitAstro(Astro),
   });
   if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
@@ -23,6 +25,8 @@ if (Astro.request.method === 'POST') {
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
+const melding = Astro.url.searchParams.get('melding');
+const fout = Astro.url.searchParams.get('fout');
 const vandaag = ymdInAmsterdam(new Date());
 const exposities = snapshot.boekingen
   .filter((b) => b.eind >= vandaag && b.status !== 'geannuleerd' && b.status !== 'afgewezen')
@@ -175,6 +179,8 @@ function filterHref(filter: string, type = gekozenType): string {
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {melding && <p class="bh-flash">{melding}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <section class="bh-kaart">
     <h2>Aankomende evenementen</h2>

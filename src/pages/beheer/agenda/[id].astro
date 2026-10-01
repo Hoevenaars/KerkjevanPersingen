@@ -12,6 +12,7 @@ import {
 } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { voerActiviteitActie } from '../../../lib/activiteit-schrijf.ts';
 import {
   blokkeertBeschikbaarheid,
@@ -67,6 +68,7 @@ if (Astro.request.method === 'POST') {
     url: Astro.url,
     env: omgevingsRecord(),
     actor: actorVanSessie(Astro.locals.beheer),
+    sessie: sessieSupabaseUitAstro(Astro),
   });
   if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
@@ -247,6 +249,7 @@ const huidigeTiming = publiek?.trigger && timingOpties.some((optie) => optie.val
         {boeking && (
           <form method="post" class="bh-form">
             <label for="gastheer">Gastheer of gastvrouw</label>
+            <input type="hidden" name="boekingId" value={boeking.id} />
             <select id="gastheer" name="gastheerId">
               <option value="">Nog niet ingepland</option>
               {actief.map((g) => (
