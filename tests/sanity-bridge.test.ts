@@ -5,6 +5,7 @@ import {
   beoordeelReconciliatie,
   bridgeBezetting,
   legeSnapshot,
+  normaliseerEvent,
   planBridge,
   webhookGeheimGeldig,
   type BridgePlan,
@@ -144,17 +145,70 @@ test('zonder event blijft de bridge-bezetting leeg', () => {
 });
 
 test('webhookgeheim en testmodus blijven dicht', () => {
-  const body = '{"_id":"1","_type":"activiteit"}';
-  const geheim = 'brug-geheim';
-  const tijdstip = Date.now();
-  const handtekening = createHmac('sha256', geheim).update(`${tijdstip}.${body}`).digest('base64');
-  assert.equal(webhookGeheimGeldig(`t=${tijdstip},v1=${handtekening}`, body, geheim, tijdstip), true);
-  assert.equal(webhookGeheimGeldig('Bearer onjuist', body, geheim, tijdstip), false);
-  assert.equal(webhookGeheimGeldig(`t=${tijdstip},v1=${handtekening}`, body, '', tijdstip), false);
   const contact = STANDAARD_AUTOMATISERINGEN.find((item) => item.sleutel === 'contact_bestuur');
   const aanvraag = STANDAARD_AUTOMATISERINGEN.find((item) => item.sleutel === 'aanvraag_bestuur');
   assert.equal(contact && kanExternVersturen(contact), false);
   assert.equal(aanvraag && kanExternVersturen(aanvraag), true);
+});
+
+test('Sanity-handtekening accepteert base64url zonder padding', () => {
+  const body = '{"_id":"1","_type":"activiteit"}';
+  const geheim = 'brug-geheim';
+  const tijdstip = Date.now();
+  const url = createHmac('sha256', geheim).update(`${tijdstip}.${body}`).digest('base64url');
+  const metPadding = createHmac('sha256', geheim).update(`${tijdstip}.${body}`).digest('base64');
+  assert.equal(url.includes('='), false);
+  assert.equal(webhookGeheimGeldig(`t=${tijdstip},v1=${url}`, body, geheim, tijdstip), true);
+  assert.equal(webhookGeheimGeldig(`t=${tijdstip},v1=${metPadding}`, body, geheim, tijdstip), true);
+  assert.equal(webhookGeheimGeldig(`t=${tijdstip},v1=${url.slice(0, -1)}x`, body, geheim, tijdstip), false);
+  assert.equal(webhookGeheimGeldig(`t=${tijdstip},v1=${url}`, body, 'ander-geheim', tijdstip), false);
+  assert.equal(webhookGeheimGeldig(null, body, geheim, tijdstip), false);
+  assert.equal(webhookGeheimGeldig('', body, geheim, tijdstip), false);
+});
+
+test('create, update en delete volgen de Sanity-operatie', () => {
+  const document = { ...activiteit('op', '2028-03-01', '2028-03-02'), zichtbaarheid: 'publiek', publiekeTitel: 'Zichtbaar' };
+  const aangemaakt = normaliseerEvent(document, 'create');
+  const bijgewerkt = normaliseerEvent(document, 'update');
+  const verwijderd = normaliseerEvent(document, 'delete');
+  assert.equal(aangemaakt?.action, 'create');
+  assert.equal(bijgewerkt?.action, 'update');
+  assert.equal(verwijderd?.action, 'delete');
+  const planCreate = planBridge('create', activiteit('op', '2028-03-01', '2028-03-02'));
+  const planUpdate = planBridge('update', activiteit('op', '2028-03-04', '2028-03-05'), { ...legeSnapshot(), heeftShadow: true, hash: 'oud' });
+  assert.equal(planCreate.targetTable, 'sanity_bridge_agenda');
+  assert.equal(planCreate.stappen.find((stap) => stap.soort === 'shadow')?.velden.actief, true);
+  assert.equal(planUpdate.stappen.find((stap) => stap.soort === 'shadow')?.velden.actief, true);
+  assert.equal(planCreate.mail, false);
+  assert.equal(planUpdate.workflow, false);
+});
+
+test('delete en unpublish deactiveren bezetting zonder side effects', () => {
+  const document = { ...activiteit('weg-2', '2028-08-01', '2028-08-02'), zichtbaarheid: 'publiek', publiekeTitel: 'Weg' };
+  const unpublish = normaliseerEvent(document, 'delete');
+  assert.equal(unpublish?.action, 'delete');
+  const gemaakt = planBridge('create', document);
+  const staat = pasToe([], gemaakt);
+  const snapshot = { ...legeSnapshot(), heeftShadow: true, heeftPubliek: true, heeftBron: true };
+  const weg = planBridge('delete', document, snapshot);
+  const uit = pasToe(staat.schaduw, weg);
+  assert.equal(bridgeBezetting(uit.schaduw).length, 0);
+  assert.equal(weg.stappen.find((stap) => stap.soort === 'publiek')?.velden.gepubliceerd, false);
+  assert.equal(weg.stappen.find((stap) => stap.soort === 'publiek')?.velden.zichtbaarheid, 'verborgen');
+  assert.equal(weg.stappen.find((stap) => stap.soort === 'shadow')?.velden.actief, false);
+  assert.equal(weg.mail, false);
+  assert.equal(weg.workflow, false);
+  const nogmaals = planBridge('delete', document, snapshot);
+  const tweede = pasToe(uit.schaduw, nogmaals);
+  assert.equal(tweede.schaduw.length, 1);
+  assert.equal(bridgeBezetting(tweede.schaduw).length, 0);
+  assert.equal(tweede.mail, 0);
+  assert.equal(tweede.boekingen, 0);
+  const onbekend = planBridge('delete', activiteit('nooit-gezien', '2028-01-01', '2028-01-02'));
+  assert.equal(onbekend.stappen.length, 0);
+  assert.equal(onbekend.domeinMutaties, 0);
+  assert.equal(onbekend.mail, false);
+  assert.equal(onbekend.workflow, false);
 });
 
 function activiteit(id: string, start: string, eind: string, hash?: string): SanityDocument {

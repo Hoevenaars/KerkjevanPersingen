@@ -120,17 +120,21 @@ function overslaan(plan: BridgePlan, reden: string, status: BridgeLogStatus = 's
   return { ...plan, status, error: reden, stappen: [], domeinMutaties: 0, mail: false, workflow: false };
 }
 
-export function normaliseerEvent(body: unknown): { action: BridgePlan['action']; document: SanityDocument } | null {
+export function normaliseerEvent(
+  body: unknown,
+  operation?: string | null,
+): { action: BridgePlan['action']; document: SanityDocument } | null {
   if (!body || typeof body !== 'object') return null;
   const ruw = body as Record<string, unknown>;
   const transition = String(ruw.transition ?? ruw.action ?? '');
+  const operatie = String(operation ?? '').trim().toLowerCase();
   const genest = ruw.document && typeof ruw.document === 'object' ? (ruw.document as SanityDocument) : null;
   const document = (genest ?? ruw) as SanityDocument;
   if (!document._id || !document._type) return null;
   const action: BridgePlan['action'] =
-    transition === 'delete' || ruw._deleted === true || document._deleted === true
+    operatie === 'delete' || transition === 'delete' || ruw._deleted === true || document._deleted === true
       ? 'delete'
-      : transition === 'create' || transition === 'appear'
+      : operatie === 'create' || transition === 'create' || transition === 'appear'
         ? 'create'
         : 'update';
   return { action, document };
@@ -226,7 +230,7 @@ function planActiviteit(
   }
   const ongematchteBezetting = !snapshot.heeftBron && !snapshot.heeftBoeking && document.soort !== 'blokkade';
   const ongematchteBlokkade = document.soort === 'blokkade' && !snapshot.heeftIntern && !snapshot.heeftBron;
-  const schaduwNodig = ongematchteBezetting || ongematchteBlokkade;
+  const schaduwNodig = action !== 'delete' && (ongematchteBezetting || ongematchteBlokkade);
   if (schaduwNodig || snapshot.heeftShadow) {
     stappen.push({
       soort: 'shadow',
@@ -372,8 +376,12 @@ export function webhookGeheimGeldig(header: string | null, rawBody: string, gehe
   const handtekening = delen.v1;
   if (!tijdstip || !handtekening) return false;
   if (Math.abs(nu - tijdstip) > 5 * 60 * 1000) return false;
-  const verwacht = createHmac('sha256', geheim).update(`${tijdstip}.${rawBody}`).digest('base64');
-  return veiligGelijk(handtekening, verwacht);
+  const verwacht = createHmac('sha256', geheim).update(`${tijdstip}.${rawBody}`).digest('base64url');
+  return veiligGelijk(naarBase64Url(handtekening), verwacht);
+}
+
+function naarBase64Url(waarde: string): string {
+  return waarde.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function veiligGelijk(links: string, rechts: string): boolean {

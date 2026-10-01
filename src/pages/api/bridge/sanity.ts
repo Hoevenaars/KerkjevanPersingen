@@ -34,7 +34,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   } catch {
     return new Response('Ongeldige JSON', { status: 400 });
   }
-  const event = normaliseerEvent(body);
+  const event = normaliseerEvent(body, request.headers.get('sanity-operation'));
   if (!event || !event.document._id) return new Response('Onvolledig document', { status: 400 });
 
   const client = maakBeheerAdminClient();
