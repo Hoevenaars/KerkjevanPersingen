@@ -17,6 +17,7 @@ import { laadMailtemplatesUitSupabase } from '../../platform/mailtemplates/supab
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
 import type { Json } from '../database.types.ts';
 import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from '../agenda-zichtbaarheid.ts';
+import { annuleerBoekingViaSessie, type AnnuleerSessie } from './annuleer-boeking.ts';
 import {
   legeWereld,
   readinessVanBoeking,
@@ -48,6 +49,10 @@ export function actorVanSessie(sessie: {
     naam: sessie.gebruiker.naam || 'Beheer',
     rechten: sessie.effectieveRechten,
   };
+}
+
+function isAnnuleerSessie(waarde: unknown): waarde is AnnuleerSessie {
+  return Boolean(waarde && typeof waarde === 'object' && 'from' in waarde && typeof waarde.from === 'function');
 }
 
 function schoon(mutaties: Mutatie[]): Mutatie[] {
@@ -502,16 +507,27 @@ export async function postAlsSupabase(input: {
   url: URL;
   env: Record<string, unknown>;
   actor: Actor;
+  sessie?: unknown;
 }): Promise<Response | null> {
   if (!operationeelSupabase(input.env)) return null;
-  const data = await input.request.formData();
-  const opdracht = opdrachtUitFormulier(input.url, data);
   const doel = new URL(input.url.pathname, input.url.origin);
-  if (!opdracht) {
-    doel.searchParams.set('fout', 'Deze actie hoort niet bij de operationele keten.');
-    return Response.redirect(doel, 303);
-  }
   try {
+    const data = await input.request.formData();
+    const opdracht = opdrachtUitFormulier(input.url, data);
+    if (!opdracht) {
+      doel.searchParams.set('fout', 'Deze actie hoort niet bij de operationele keten.');
+      return Response.redirect(doel, 303);
+    }
+    if (opdracht.soort === 'annuleer' && isAnnuleerSessie(input.sessie)) {
+      const uit = await annuleerBoekingViaSessie(
+        input.sessie,
+        Number(opdracht.boekingId),
+        opdracht.reden ?? '',
+        input.actor,
+      );
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+      return Response.redirect(doel, 303);
+    }
     const uit = await voerOperationeel(opdracht, {
       env: input.env,
       actor: input.actor,

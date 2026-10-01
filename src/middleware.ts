@@ -13,7 +13,7 @@ import {
 } from './platform/autorisatie.ts';
 import { VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
 import { bouwSessie } from './lib/beheer-auth.ts';
-import { beheerWeigering, loginRedirect, zelfdeOorsprong } from './lib/beheer-http.ts';
+import { beheerWeigering, loginRedirect, metBeheerHeaders, zelfdeOorsprong } from './lib/beheer-http.ts';
 import { koppelSupabaseClient, metSanityRegistratie } from './platform/sanity-registratie.ts';
 import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
 import { volgPubliekePageview } from './analytics/volg.ts';
@@ -81,13 +81,7 @@ function isLive(): boolean {
 }
 
 function plakBeheerHeaders(response: Response, extra?: Headers): Response {
-  response.headers.set('X-Robots-Tag', 'noindex, nofollow');
-  response.headers.set('Cache-Control', 'no-store');
-  extra?.forEach((value, key) => {
-    if (key.toLowerCase() === 'set-cookie') response.headers.append(key, value);
-    else response.headers.set(key, value);
-  });
-  return response;
+  return metBeheerHeaders(response, extra);
 }
 
 async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]): Promise<Response> {
