@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Button from '../../components/Button.astro';
 import MasonMark from '../../components/MasonMark.astro';
 import { detailTekst, publiekeFotoBron, tekstNaarParagrafen } from '../../lib/activiteit-content';
+import { STANDAARD_AFBEELDING, detailVoorWebsite } from '../../platform/publiceren';
 import { getActiviteitBySlug, publiekeFotoUrl, formatDatumBereik } from '../../lib/sanity';
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
 import { eventJsonLd } from '../../lib/seo';
@@ -18,9 +19,13 @@ const fotoBron = publiekeFotoBron(activiteit);
 const foto =
   secondNaturePoster(activiteit) ??
   (fotoBron ? publiekeFotoUrl(fotoBron, 1200, 800) : null) ??
-  '/foto/geen-foto.jpg';
+  STANDAARD_AFBEELDING;
 const poster = isSecondNature(activiteit);
-const inlineTekst = detailTekst(activiteit);
+const inlineTekst = detailTekst(activiteit) ?? detailVoorWebsite({
+  korteOmschrijving: activiteit.korteOmschrijving,
+  volledigeOmschrijving: activiteit.volledigeOmschrijving,
+  omschrijving: activiteit.omschrijving,
+});
 const paragrafen = inlineTekst ? tekstNaarParagrafen(inlineTekst) : [];
 const beschrijving =
   activiteit.omschrijving?.slice(0, 155) ??

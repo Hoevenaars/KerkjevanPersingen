@@ -1,0 +1,242 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { formatNl } from '../../../platform/demo-data';
+import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord } from '../../../platform/beheer-bron.ts';
+import { actorVanSessie } from '../../../lib/operatie/runtime.ts';
+import { voerPublicatie } from '../../../lib/activiteit-schrijf.ts';
+import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import {
+  WERKSTATUS,
+  contentCompleet,
+  leesVensterStap,
+  publicatieBesluit,
+  publicatieChecks,
+  publicatieWerklijst,
+  slugNaPublicatie,
+  slugUitActiviteit,
+  uniekeSlug,
+  websiteUrl,
+  werkstatus,
+  type PublicatieBron,
+} from '../../../platform/publiceren.ts';
+
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const vandaag = ymdInAmsterdam(new Date());
+const stap = leesVensterStap(Astro.url.searchParams.get('stap'));
+const openId = Astro.url.searchParams.get('open') ?? '';
+const voorstel = Astro.url.searchParams.get('voorstel') ?? '';
+const slugLetOp = Astro.url.searchParams.get('slugletop') ?? '';
+
+const bronnen: PublicatieBron[] = snapshot.agenda.map((activiteit) => ({
+  id: activiteit.id,
+  start: activiteit.start,
+  eind: activiteit.eind,
+  titel: activiteit.titel,
+  exposanten: activiteit.exposanten || '',
+  organisatie: activiteit.exposanten || '',
+  korteOmschrijving: activiteit.korteOmschrijving || '',
+  volledigeOmschrijving: activiteit.volledigeOmschrijving || '',
+  omschrijving: activiteit.omschrijving || '',
+  praktisch: activiteit.praktisch || '',
+  fotoPad: activiteit.fotoPad || '',
+  slug: activiteit.slug || '',
+  publicatiestatus: activiteit.publicatiestatus ?? null,
+  geannuleerd: activiteit.levenscyclus === 'geannuleerd',
+  tabel: activiteit.tabel,
+  legacyId: activiteit.legacyId,
+  trigger: activiteit.trigger,
+}));
+const { venster, items } = publicatieWerklijst(bronnen, vandaag, stap);
+const bezetteSlugs = new Set(snapshot.agenda.map((activiteit) => activiteit.slug).filter((slug): slug is string => Boolean(slug)));
+
+if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  const actie = String(data.get('actie') ?? '');
+  const id = String(data.get('id') ?? '');
+  const item = items.find((kandidaat) => kandidaat.id === id) ?? bronnen.find((kandidaat) => kandidaat.id === id);
+  const terug = new URL(Astro.url.pathname, Astro.url.origin);
+  if (stap) terug.searchParams.set('stap', String(stap));
+  terug.searchParams.set('open', id);
+  if (!item) {
+    terug.searchParams.set('fout', 'Activiteit niet gevonden in deze werklijst.');
+    return Astro.redirect(terug.toString());
+  }
+  const exposanten = String(data.get('exposanten') ?? item.exposanten ?? '');
+  const titel = String(data.get('titel') ?? item.titel);
+  const concept: PublicatieBron = {
+    ...item,
+    titel,
+    exposanten,
+    korteOmschrijving: String(data.get('korte_omschrijving') ?? ''),
+    volledigeOmschrijving: String(data.get('volledige_omschrijving') ?? ''),
+    praktisch: String(data.get('praktische_informatie') ?? ''),
+    fotoPad: String(data.get('foto_pad') ?? ''),
+    slug: String(data.get('slug') ?? item.slug ?? ''),
+  };
+  if (actie === 'genereer') {
+    const basis = slugUitActiviteit(exposanten, titel);
+    const uniek = uniekeSlug(basis, bezetteSlugs, concept.start.slice(0, 4), item.slug ?? '');
+    const besluit = slugNaPublicatie(item, uniek, false);
+    if (besluit.slug !== item.slug) terug.searchParams.set('voorstel', besluit.slug);
+    if (besluit.waarschuwing) terug.searchParams.set('slugletop', besluit.waarschuwing);
+    else terug.searchParams.set('melding', `Voorstel: ${websiteUrl(besluit.slug || uniek)}`);
+    return Astro.redirect(terug.toString());
+  }
+  const checks = publicatieChecks(concept);
+  const publiceren = actie === 'publiceer' || actie === 'toch_publiceren';
+  const besluit = publicatieBesluit(checks, actie === 'toch_publiceren' && data.get('bevestig') === 'ja');
+  if (publiceren && !besluit.mag) {
+    terug.searchParams.set('fout', besluit.melding);
+    return Astro.redirect(terug.toString());
+  }
+  const slugBesluit = slugNaPublicatie(item, concept.slug ?? '', data.get('slug_bewust') === 'ja');
+  if (slugBesluit.waarschuwing && data.get('slug_bewust') !== 'ja' && concept.slug && concept.slug !== item.slug) {
+    terug.searchParams.set('slugletop', slugBesluit.waarschuwing);
+    terug.searchParams.set('fout', slugBesluit.waarschuwing);
+    return Astro.redirect(terug.toString());
+  }
+  const actor = actorVanSessie(Astro.locals.beheer);
+  const rij = snapshot.agenda.find((kandidaat) => kandidaat.id === item.id);
+  const opgeslagen = await voerPublicatie(omgevingsRecord(), {
+    tabel: item.tabel || 'publieke_activiteiten',
+    id: rij?.activiteitId || item.id.replace(/^bron:/, ''),
+    actie: actie === 'verberg' ? 'verberg' : publiceren ? 'publiceer' : 'bewaar',
+    payload: {
+      titel: concept.titel,
+      exposanten: concept.exposanten,
+      korte_omschrijving: concept.korteOmschrijving,
+      volledige_omschrijving: concept.volledigeOmschrijving,
+      praktische_informatie: concept.praktisch,
+      foto_pad: concept.fotoPad,
+      slug: slugBesluit.slug,
+      slug_bewust: data.get('slug_bewust') === 'ja' ? 'true' : 'false',
+      force_publish: besluit.force ? 'true' : 'false',
+      ontbrekend: besluit.ontbrekend,
+    },
+    actorNaam: actor.naam,
+    actorId: actor.id,
+  });
+  terug.searchParams.set(opgeslagen.ok ? 'melding' : 'fout', opgeslagen.melding);
+  return Astro.redirect(terug.toString());
+}
+
+const melding = Astro.url.searchParams.get('melding');
+const fout = Astro.url.searchParams.get('fout');
+function stapHref(volgende: number): string {
+  const params = new URLSearchParams();
+  if (volgende !== 0) params.set('stap', String(volgende));
+  const query = params.toString();
+  return query ? `/beheer/publiceren/?${query}` : '/beheer/publiceren/';
+}
+---
+
+<Beheer titel="Publiceren">
+  <header class="bh-top">
+    <div>
+      <h1>Publiceren</h1>
+      <p class="bh-hint">Te publiceren komende 8 weken. {formatNl(venster.van)} t/m {formatNl(venster.tot)}. Zien, aanvullen, een URL maken en publiceren.</p>
+    </div>
+  </header>
+  {melding && <p class="bh-flash">{melding}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+  <nav class="bh-jaar" aria-label="Periode van 8 weken">
+    <a href={stapHref(stap - 1)}>‹ Vorige 8 weken</a>
+    {stap !== 0 && <a href={stapHref(0)}>Vanaf vandaag</a>}
+    <a href={stapHref(stap + 1)}>Volgende 8 weken ›</a>
+  </nav>
+
+  {items.length === 0 ? (
+    <p class="bh-leeg">Geen activiteiten in deze acht weken.</p>
+  ) : (
+    items.map((item) => {
+      const checks = publicatieChecks({ ...item, slug: openId === item.id && voorstel ? voorstel : item.slug });
+      const status = werkstatus(item, checks);
+      const compleet = contentCompleet(checks);
+      const slugVeld = openId === item.id && voorstel ? voorstel : (item.slug || '');
+      return (
+        <details class="bh-kaart" open={openId === item.id}>
+          <summary>
+            <strong>{formatNl(item.start)}{item.eind !== item.start ? ` – ${formatNl(item.eind)}` : ''}</strong>
+            {' · '}{item.titel || 'Zonder titel'}
+            {' · '}{item.exposanten || item.organisatie || 'Geen exposant'}
+            {' · '}<span class={`bh-badge bh-badge--${status}`}>{WERKSTATUS[status]}</span>
+          </summary>
+          <p class="bh-hint">
+            Content compleet: {compleet ? 'ja' : 'nee'}.
+            Afbeelding: {item.fotoPad ? 'eigen afbeelding' : 'standaardafbeelding wordt gebruikt'}.
+            URL: {item.slug ? 'gereed' : 'nog niet'}.
+            Nu op de website: {status === 'gepubliceerd' && !item.geannuleerd ? 'ja' : 'nee'}.
+          </p>
+          <ul class="bh-checks">
+            {checks.map((check) => (
+              <li>{check.ok ? '✓' : '⚠'} {check.ok ? check.label : check.label.replace('aanwezig', 'ontbreekt').replace('beschikbaar', 'ontbreekt')}</li>
+            ))}
+          </ul>
+          {!compleet && status !== 'geannuleerd' && (
+            <p class="bh-hint">Deze activiteit is nog niet volledig. Je kunt hem wel publiceren.</p>
+          )}
+          {openId === item.id && slugLetOp && <p class="bh-flash bh-flash--fout">{slugLetOp}</p>}
+          <form method="post" class="bh-form">
+            <input type="hidden" name="id" value={item.id} />
+            <label for={`titel-${item.id}`}>Titel</label>
+            <input id={`titel-${item.id}`} name="titel" value={item.titel} />
+            <label for={`exposanten-${item.id}`}>Exposant(en)</label>
+            <input id={`exposanten-${item.id}`} name="exposanten" value={item.exposanten || ''} />
+            <label for={`kort-${item.id}`}>Korte omschrijving</label>
+            <textarea id={`kort-${item.id}`} name="korte_omschrijving" rows="3">{item.korteOmschrijving || ''}</textarea>
+            <label for={`lang-${item.id}`}>Volledige omschrijving</label>
+            <textarea id={`lang-${item.id}`} name="volledige_omschrijving" rows="6">{item.volledigeOmschrijving || ''}</textarea>
+            <label for={`praktisch-${item.id}`}>Openingstijden en praktische informatie</label>
+            <textarea id={`praktisch-${item.id}`} name="praktische_informatie" rows="3">{item.praktisch || ''}</textarea>
+            <label for={`foto-${item.id}`}>Hoofdafbeelding of flyer</label>
+            <input id={`foto-${item.id}`} name="foto_pad" value={item.fotoPad || ''} placeholder="Pad of URL van de eigen afbeelding" />
+            {!item.fotoPad && <p class="bh-muted">Standaardafbeelding wordt gebruikt</p>}
+            <label for={`slug-${item.id}`}>Website-URL</label>
+            <input id={`slug-${item.id}`} name="slug" value={slugVeld} placeholder="evelien-bannenberg" />
+            <p class="bh-muted">
+              Website:{' '}
+              {slugVeld && status === 'gepubliceerd' ? (
+                <a href={websiteUrl(slugVeld)}>{websiteUrl(slugVeld).replace('https://', '')}</a>
+              ) : (
+                slugVeld ? websiteUrl(slugVeld).replace('https://', '') : 'nog geen URL'
+              )}
+            </p>
+            {status === 'gepubliceerd' && (
+              <label class="bh-check">
+                <input type="checkbox" name="slug_bewust" value="ja" />
+                Ik wil de gepubliceerde URL bewust wijzigen
+              </label>
+            )}
+            <p><a href={`/beheer/agenda/${encodeURIComponent(item.id)}/`}>Open het activiteitdossier</a></p>
+            <div class="bh-form-rij">
+              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">Opslaan</button>
+              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="genereer">Genereer URL</button>
+              {status !== 'geannuleerd' && compleet && (
+                <button class="bh-btn" type="submit" name="actie" value="publiceer">{status === 'gepubliceerd' ? 'Wijzigingen publiceren' : 'Publiceer'}</button>
+              )}
+              {status !== 'geannuleerd' && !compleet && (
+                <>
+                  <label class="bh-check">
+                    <input type="checkbox" name="bevestig" value="ja" />
+                    Toch publiceren, ook al is de content niet volledig
+                  </label>
+                  <button class="bh-btn" type="submit" name="actie" value="toch_publiceren">{status === 'gepubliceerd' ? 'Wijzigingen publiceren' : 'Toch publiceren'}</button>
+                </>
+              )}
+              {status === 'gepubliceerd' && (
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verberg">Verbergen</button>
+              )}
+            </div>
+          </form>
+        </details>
+      );
+    })
+  )}
+</Beheer>
+
+<style>
+  .bh-checks { margin: 0.5rem 0 1rem; padding-left: 1.1rem; }
+  details.bh-kaart summary { cursor: pointer; }
+</style>

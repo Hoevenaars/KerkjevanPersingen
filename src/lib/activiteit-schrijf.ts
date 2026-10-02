@@ -38,3 +38,35 @@ export async function voerActiviteitActie(
   }
   return { ok: antwoord.ok !== false, melding: antwoord.melding || (antwoord.ok === false ? 'Opslaan mislukt.' : 'Opgeslagen.') };
 }
+
+export async function voerPublicatie(
+  env: Record<string, unknown>,
+  input: {
+    tabel: string;
+    id: string;
+    actie: 'bewaar' | 'publiceer' | 'verberg';
+    payload: Record<string, unknown>;
+    actorNaam: string;
+    actorId?: string;
+  },
+): Promise<{ ok: boolean; melding: string }> {
+  const client = maakBeheerAdminClient(env);
+  if (!client) return { ok: false, melding: 'Supabase service-role ontbreekt. Er is niets gepubliceerd en er is geen mail verstuurd.' };
+  const id = Number(input.id);
+  if (!Number.isInteger(id) || id <= 0) return { ok: false, melding: 'Deze activiteit heeft nog geen opslagrecord.' };
+  const actorId = input.actorId && UUID.test(input.actorId) ? input.actorId : null;
+  const { data, error } = await client.rpc('beheer_publicatie' as never, {
+    p_tabel: input.tabel,
+    p_id: id,
+    p_actie: input.actie,
+    p_payload: input.payload,
+    p_actor_naam: input.actorNaam,
+    p_actor_id: actorId,
+  } as never);
+  if (error) return { ok: false, melding: error.message };
+  const antwoord = (data ?? {}) as { ok?: boolean; melding?: string; mail?: boolean; jobs?: number };
+  if (antwoord.mail || (antwoord.jobs ?? 0) > 0) {
+    return { ok: false, melding: 'Publiceren probeerde mail of een workflow te starten en is daarom gestopt.' };
+  }
+  return { ok: antwoord.ok !== false, melding: antwoord.melding || (antwoord.ok === false ? 'Publiceren mislukt.' : 'Opgeslagen.') };
+}

@@ -96,7 +96,7 @@ test('C publiek, goedgekeurd en bereikt moment is zichtbaar', () => {
   }, '2026-10-01'), true);
 });
 
-test('D publiek zonder goedgekeurde content blijft van de site', () => {
+test('D publiek met onvolledige content blijft zichtbaar', () => {
   assert.equal(magOpWebsiteZonderTiming({
     zichtbaarheid: 'publiek',
     contentstatus: 'in_beoordeling',
@@ -105,8 +105,9 @@ test('D publiek zonder goedgekeurde content blijft van de site', () => {
     korteOmschrijving: 'Kort',
     volledigeOmschrijving: 'Lang',
     hoofdafbeelding: '/foto.jpg',
-  }), false);
-  assert.equal(hoortOpPubliekeAgenda({ ...agendaBasis, zichtbaarheid: 'publiek', contentstatus: 'aanpassing_nodig' }, '2026-10-01'), false);
+  }), true);
+  assert.equal(hoortOpPubliekeAgenda({ ...agendaBasis, zichtbaarheid: 'publiek', contentstatus: 'aanpassing_nodig' }, '2026-10-01'), true);
+  assert.equal(magOpWebsiteZonderTiming({ zichtbaarheid: 'publiek', geannuleerd: true }), false);
 });
 
 test('E bezet is niet zichtbaar en blokkeert wel', () => {
