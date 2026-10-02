@@ -55,6 +55,8 @@ export interface DemoBoeking {
   relatieId: string;
   gastheerId?: string;
   periode?: 'verleden' | 'lopend' | 'komend';
+  medeExposanten?: string;
+  toelichting?: string;
 }
 
 export interface DemoActiviteit {
@@ -92,6 +94,7 @@ export interface DemoIntern {
   start: string;
   eind: string;
   blokkeert: boolean;
+  notities?: string;
 }
 
 export interface DemoGastheer {

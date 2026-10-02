@@ -903,6 +903,44 @@
   text-decoration: underline;
 }
 
+.bh-planning-nav {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.bh-planning-zoek {
+  max-width: 40rem;
+}
+
+.bh-jaar,
+.bh-periode-form,
+.bh-jaar-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.bh-jaar strong {
+  font-size: 1.25rem;
+}
+
+.bh-jaar-form label,
+.bh-periode-form label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.bh-jaar-form select,
+.bh-periode-form input {
+  font: inherit;
+  padding: 0.2rem 0.4rem;
+}
+
 .bh-form label {
   display: block;
   font-size: var(--t-sm);

@@ -16,6 +16,7 @@ import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platfor
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { statusActieToegestaan } from '../../../platform/status-overgang.ts';
+import { behoudTerug, terugLink } from '../../../platform/planning.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
 
@@ -100,10 +101,16 @@ const flash = Astro.url.searchParams.get('demo') === '1';
 const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
 const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
+const terug = terugLink(Astro.url.searchParams.get('terug'));
+const terugWaarde = Astro.url.searchParams.get('terug');
+function tabHref(tabNaam: string): string {
+  const pad = tabNaam ? `${basis}?tab=${tabNaam}` : basis;
+  return behoudTerug(pad, terugWaarde);
+}
 ---
 
 <Beheer titel={boeking.interneTitel}>
-  <p class="bh-crumb"><a href="/beheer/boekingen/">Boekingen</a> / {boeking.nummer}</p>
+  <p class="bh-crumb"><a href={terug?.href ?? '/beheer/boekingen/'}>{terug?.label ?? 'Boekingen'}</a> / {boeking.nummer}</p>
   <header class="bh-top">
     <div>
       <h1>{boeking.interneTitel}</h1>
@@ -120,9 +127,9 @@ const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <nav class="bh-tabs" aria-label="Boekingonderdelen">
-    <a href={basis} aria-current={tab === 'gegevens' ? 'page' : undefined}>Gegevens</a>
-    <a href={`${basis}?tab=documenten`} aria-current={tab === 'documenten' ? 'page' : undefined}>Documenten</a>
-    <a href={`${basis}?tab=communicatie`} aria-current={tab === 'communicatie' ? 'page' : undefined}>Communicatie</a>
+    <a href={tabHref('')} aria-current={tab === 'gegevens' ? 'page' : undefined}>Gegevens</a>
+    <a href={tabHref('documenten')} aria-current={tab === 'documenten' ? 'page' : undefined}>Documenten</a>
+    <a href={tabHref('communicatie')} aria-current={tab === 'communicatie' ? 'page' : undefined}>Communicatie</a>
   </nav>
 
   {

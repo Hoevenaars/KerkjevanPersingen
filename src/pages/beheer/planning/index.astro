@@ -6,7 +6,18 @@ import { BOEKING_LABEL, SOORT_LABEL, demoNaActie, formatNl, gastheerVan } from '
 import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
-import { PLANNING_FILTERS, PLANNING_TYPEN, stelPlanning, type PlanningFilter, type PlanningInvoer } from '../../../platform/planning.ts';
+import PlanningNavigatie from '../../../components/beheer/PlanningNavigatie.astro';
+import {
+  beschikbareJaren,
+  gastbegeleidersPerBoeking,
+  hoortBijSelectie,
+  leesPlanningSelectie,
+  metTerug,
+  planningHref,
+  selectieToontVerleden,
+  stelPlanning,
+  type PlanningInvoer,
+} from '../../../platform/planning.ts';
 import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, leesbareTitel } from '../../../platform/verhuur-classificatie.ts';
 import { magOpWebsiteZonderTiming, maandenVanTrigger } from '../../../lib/agenda-zichtbaarheid.ts';
 import { magAlGetoondWorden } from '../../../lib/publiek-lezen.ts';
@@ -29,33 +40,55 @@ const flash = Astro.url.searchParams.get('demo') === '1';
 const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
 const vandaag = ymdInAmsterdam(new Date());
+const selectie = leesPlanningSelectie(Astro.url.searchParams, vandaag);
+const bronParam = Astro.url.searchParams.get('bron') ?? '';
+const lijstPad = planningHref('/beheer/planning/', selectie, vandaag, {}, bronParam);
+const gastNamen = gastbegeleidersPerBoeking(
+  snapshot.toewijzingen ?? [],
+  snapshot.boekingen.flatMap((boeking) => {
+    const gekoppeld = gastheerVan(boeking.gastheerId, snapshot.gastheren);
+    return gekoppeld ? [{ boekingId: boeking.id, naam: gekoppeld.naam }] : [];
+  }),
+);
+const agendaPerBoeking = new Map<string, (typeof snapshot.agenda)[number]>();
+for (const activiteit of snapshot.agenda) {
+  if (activiteit.boekingId && !agendaPerBoeking.has(activiteit.boekingId)) agendaPerBoeking.set(activiteit.boekingId, activiteit);
+}
+const relatieNaam = new Map(snapshot.relaties.map((relatie) => [relatie.id, relatie.naam]));
+const gekoppeldeBoekingen = new Set((snapshot.toewijzingen ?? []).map((item) => item.boekingId));
+const boekingPerId = new Map(snapshot.boekingen.map((boeking) => [boeking.id, boeking]));
 function heeftKoppeling(boekingId: string, gastheerId?: string): boolean {
   if (gastheerId) return true;
-  return (snapshot.toewijzingen ?? []).some((item) => item.boekingId === boekingId);
+  return gekoppeldeBoekingen.has(boekingId);
 }
 const exposities = snapshot.boekingen
-  .filter((b) => b.eind >= vandaag && b.status !== 'geannuleerd' && b.status !== 'afgewezen')
+  .filter((b) => (selectieToontVerleden(selectie, vandaag) ? true : b.eind >= vandaag) && b.status !== 'geannuleerd' && b.status !== 'afgewezen')
   .filter((b) => gastbegeleiderRelevant({ soort: b.soort, heeftKoppeling: heeftKoppeling(b.id, b.gastheerId) }))
+  .filter((b) => hoortBijSelectie({
+    sleutel: b.id,
+    href: '/',
+    start: b.start,
+    eind: b.eind,
+    titel: b.interneTitel,
+    type: b.soort,
+    status: b.status,
+    publicatiestatus: null,
+    zichtbaarOpWebsite: false,
+    huurder: b.huurder,
+    gastbegeleiders: gastNamen.get(b.id) ?? '',
+    bron: 'boeking',
+    email: b.email,
+    organisatie: relatieNaam.get(b.relatieId) ?? '',
+    deelnemers: b.medeExposanten ?? '',
+    notitie: b.notities,
+    nummer: b.nummer,
+  }, { ...selectie, vandaag, filter: 'alles' }))
   .sort((a, b) => a.start.localeCompare(b.start) || a.interneTitel.localeCompare(b.interneTitel));
 const actief = snapshot.gastheren.filter((g) => g.actief);
-const gekozenFilter = PLANNING_FILTERS.includes(Astro.url.searchParams.get('filter') as PlanningFilter)
-  ? (Astro.url.searchParams.get('filter') as PlanningFilter)
-  : 'alles';
-const typeParam = Astro.url.searchParams.get('type') ?? '';
-const gekozenType = typeParam === 'onbekend' || PLANNING_TYPEN.includes(typeParam as (typeof PLANNING_TYPEN)[number])
-  ? typeParam
-  : '';
 
 function namenVan(boekingId?: string): string {
   if (!boekingId) return '';
-  const namen = new Set<string>();
-  const boeking = snapshot.boekingen.find((item) => item.id === boekingId);
-  const gekoppeld = gastheerVan(boeking?.gastheerId, snapshot.gastheren);
-  if (gekoppeld) namen.add(gekoppeld.naam);
-  for (const toewijzing of snapshot.toewijzingen ?? []) {
-    if (toewijzing.boekingId === boekingId && toewijzing.relatieNaam) namen.add(toewijzing.relatieNaam);
-  }
-  return [...namen].join(', ');
+  return gastNamen.get(boekingId) ?? '';
 }
 
 function websiteZichtbaar(item: {
@@ -99,12 +132,12 @@ const planningBron: PlanningInvoer[] = [
   ...snapshot.boekingen
     .filter((boeking) => ['optie', 'definitief', 'migratie_vastgelegd', 'afgerond', 'geannuleerd', 'optie_verlopen'].includes(boeking.status))
     .map((boeking) => {
-      const activiteit = snapshot.agenda.find((item) => item.boekingId === boeking.id);
+      const activiteit = agendaPerBoeking.get(boeking.id);
       const geannuleerd = boeking.status === 'geannuleerd' || activiteit?.levenscyclus === 'geannuleerd';
       const zichtbaar = activiteit ? websiteZichtbaar({ ...activiteit, soort: activiteit.soort || boeking.soort, levenscyclus: geannuleerd ? 'geannuleerd' : activiteit.levenscyclus }) : false;
       return {
         sleutel: `boeking:${boeking.id}`,
-        href: `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`,
+        href: metTerug(`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`, lijstPad),
         start: boeking.start,
         eind: boeking.eind,
         titel: boeking.interneTitel,
@@ -118,30 +151,47 @@ const planningBron: PlanningInvoer[] = [
         geannuleerd,
         boekingId: boeking.id,
         legacyId: activiteit?.legacyId,
+        email: boeking.email,
+        exposant: activiteit?.exposanten ?? '',
+        organisatie: relatieNaam.get(boeking.relatieId) ?? '',
+        deelnemers: boeking.medeExposanten ?? '',
+        omschrijving: [activiteit?.korteOmschrijving, activiteit?.volledigeOmschrijving, activiteit?.omschrijving, activiteit?.praktisch, boeking.toelichting].filter(Boolean).join(' '),
+        notitie: boeking.notities,
+        nummer: boeking.nummer,
         aandacht: activiteit?.contentstatus && activiteit.contentstatus !== 'goedgekeurd' ? 'Content niet goedgekeurd' : '',
       };
     }),
-  ...snapshot.agenda.map((activiteit) => ({
-    sleutel: `activiteit:${activiteit.activiteitId || activiteit.id}`,
-    href: `/beheer/agenda/${encodeURIComponent(activiteit.id)}/`,
-    start: activiteit.start,
-    eind: activiteit.eind,
-    titel: activiteit.titel,
-    type: activiteit.soort || 'expositie',
-    status: activiteit.levenscyclus === 'geannuleerd' ? 'geannuleerd' : activiteit.status,
-    publicatiestatus: activiteit.publicatiestatus ?? null,
-    zichtbaarOpWebsite: websiteZichtbaar(activiteit),
-    huurder: activiteit.exposanten || '',
-    gastbegeleiders: namenVan(activiteit.boekingId),
-    bron: activiteit.tabel === 'activiteit_bron' ? 'sanity' as const : 'activiteit' as const,
-    geannuleerd: activiteit.levenscyclus === 'geannuleerd',
-    boekingId: activiteit.boekingId,
-    legacyId: activiteit.legacyId,
-    aandacht: activiteit.contentstatus && activiteit.contentstatus !== 'goedgekeurd' ? 'Content niet goedgekeurd' : '',
-  })),
+  ...snapshot.agenda.map((activiteit) => {
+    const boeking = activiteit.boekingId ? boekingPerId.get(activiteit.boekingId) : undefined;
+    return {
+      sleutel: `activiteit:${activiteit.activiteitId || activiteit.id}`,
+      href: metTerug(`/beheer/agenda/${encodeURIComponent(activiteit.id)}/`, lijstPad),
+      start: activiteit.start,
+      eind: activiteit.eind,
+      titel: activiteit.titel,
+      type: activiteit.soort || 'expositie',
+      status: activiteit.levenscyclus === 'geannuleerd' ? 'geannuleerd' : activiteit.status,
+      publicatiestatus: activiteit.publicatiestatus ?? null,
+      zichtbaarOpWebsite: websiteZichtbaar(activiteit),
+      huurder: activiteit.exposanten || boeking?.huurder || '',
+      gastbegeleiders: namenVan(activiteit.boekingId),
+      bron: activiteit.tabel === 'activiteit_bron' ? 'sanity' as const : 'activiteit' as const,
+      geannuleerd: activiteit.levenscyclus === 'geannuleerd',
+      boekingId: activiteit.boekingId,
+      legacyId: activiteit.legacyId,
+      email: boeking?.email ?? '',
+      exposant: activiteit.exposanten ?? '',
+      organisatie: boeking ? relatieNaam.get(boeking.relatieId) ?? '' : '',
+      deelnemers: boeking?.medeExposanten ?? '',
+      omschrijving: [activiteit.korteOmschrijving, activiteit.volledigeOmschrijving, activiteit.omschrijving, activiteit.praktisch, boeking?.toelichting].filter(Boolean).join(' '),
+      notitie: boeking?.notities ?? '',
+      nummer: boeking?.nummer ?? '',
+      aandacht: activiteit.contentstatus && activiteit.contentstatus !== 'goedgekeurd' ? 'Content niet goedgekeurd' : '',
+    };
+  }),
   ...snapshot.intern.map((item) => ({
     sleutel: `intern:${item.id}`,
-    href: `/beheer/agenda/${encodeURIComponent(item.id)}/`,
+    href: metTerug(`/beheer/agenda/${encodeURIComponent(item.id)}/`, lijstPad),
     start: item.start,
     eind: item.eind,
     titel: item.titel,
@@ -151,12 +201,27 @@ const planningBron: PlanningInvoer[] = [
     zichtbaarOpWebsite: false,
     bron: 'intern' as const,
     geannuleerd: false,
+    notitie: item.notities ?? '',
+    omschrijving: item.notities ?? '',
     aandacht: item.blokkeert ? 'Blokkeert verhuur' : '',
   })),
 ];
-const planning = stelPlanning(planningBron, { vandaag, filter: gekozenFilter, type: gekozenType });
+const planning = stelPlanning(planningBron, { ...selectie, vandaag, emailZoeken: true });
+const jaren = beschikbareJaren(planningBron, vandaag);
 const reviewType = snapshot.boekingen
-  .filter((boeking) => boeking.eind >= vandaag && boeking.status !== 'geannuleerd' && boeking.status !== 'afgewezen' && !boeking.soort)
+  .filter((boeking) => boeking.status !== 'geannuleerd' && boeking.status !== 'afgewezen' && !boeking.soort)
+  .filter((boeking) => hoortBijSelectie({
+    sleutel: boeking.id,
+    href: '/',
+    start: boeking.start,
+    eind: boeking.eind,
+    titel: boeking.interneTitel,
+    type: '',
+    status: boeking.status,
+    publicatiestatus: null,
+    zichtbaarOpWebsite: false,
+    bron: 'boeking',
+  }, { ...selectie, vandaag, filter: 'alles', type: '', q: '' }))
   .sort((a, b) => a.start.localeCompare(b.start));
 function weergave(item: { titel: string; huurder?: string; type: string; status: string; bron: string }) {
   const hoofd = leesbareTitel(item.titel, item.huurder ?? '');
@@ -167,23 +232,6 @@ function weergave(item: { titel: string; huurder?: string; type: string; status:
     bron: item.status.startsWith('migratie_') ? 'Excel-migratie' : item.bron,
     review: classificeerVerhuurtype(item.titel).uitkomst === 'review' && !item.type,
   };
-}
-const filterLabel: Record<PlanningFilter, string> = {
-  alles: 'Alles',
-  deze_maand: 'Deze maand',
-  opties: 'Opties',
-  definitief: 'Definitief',
-  publiek: 'Publieke activiteiten',
-  website: 'Website zichtbaar',
-  niet_openbaar: 'Niet openbaar',
-  geannuleerd: 'Geannuleerd',
-};
-function filterHref(filter: string, type = gekozenType): string {
-  const params = new URLSearchParams();
-  if (filter !== 'alles') params.set('filter', filter);
-  if (type) params.set('type', type);
-  const query = params.toString();
-  return query ? `/beheer/planning/?${query}` : '/beheer/planning/';
 }
 ---
 
@@ -202,20 +250,9 @@ function filterHref(filter: string, type = gekozenType): string {
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <section class="bh-kaart">
-    <h2>Aankomende evenementen</h2>
-    <p class="bh-hint">Huidige en toekomstige bezetting van het kerkje. Een meerdaags evenement staat op één regel. Geannuleerde evenementen staan alleen onder het filter Geannuleerd.</p>
-    <nav class="bh-filters" aria-label="Filters">
-      {PLANNING_FILTERS.map((filter) => (
-        <a href={filterHref(filter)} class:list={{ 'is-actief': gekozenFilter === filter }}>{filterLabel[filter]}</a>
-      ))}
-    </nav>
-    <nav class="bh-filters" aria-label="Verhuurtype">
-      <a href={filterHref(gekozenFilter, '')} class:list={{ 'is-actief': !gekozenType }}>Alle types</a>
-      {PLANNING_TYPEN.map((type) => (
-        <a href={filterHref(gekozenFilter, type)} class:list={{ 'is-actief': gekozenType === type }}>{SOORT_LABEL[type]}</a>
-      ))}
-      <a href={filterHref(gekozenFilter, 'onbekend')} class:list={{ 'is-actief': gekozenType === 'onbekend' }}>Zonder type</a>
-    </nav>
+    <h2>Evenementen</h2>
+    <p class="bh-hint">Een meerdaags evenement staat op één regel. Het eerstvolgende moment staat bovenaan. Geannuleerde evenementen staan alleen onder het filter Geannuleerd.</p>
+    <PlanningNavigatie basis="/beheer/planning/" selectie={selectie} jaren={jaren} vandaag={vandaag} bron={bronParam} />
     {planning.length === 0 ? (
       <p class="bh-leeg">Geen evenementen voor deze selectie.</p>
     ) : (
@@ -265,12 +302,12 @@ function filterHref(filter: string, type = gekozenType): string {
     <section class="bh-kaart">
       <h2>Review: verhuurtype onbekend</h2>
       <p class="bh-hint">
-        {reviewType.length} komende boekingen zonder verhuurtype. Niet automatisch geclassificeerd: een weekend of een gastbegeleider is geen bewijs. Pasen en Pinksteren blijven leeg.
+        {reviewType.length} boekingen zonder verhuurtype in deze selectie. Niet automatisch geclassificeerd: een weekend of een gastbegeleider is geen bewijs. Pasen en Pinksteren blijven leeg.
       </p>
       <ul>
         {reviewType.map((boeking) => (
           <li>
-            <a href={`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`}>{leesbareTitel(boeking.interneTitel, boeking.huurder)}</a>
+              <a href={metTerug(`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`, lijstPad)}>{leesbareTitel(boeking.interneTitel, boeking.huurder)}</a>
             {' '}
             {formatNl(boeking.start)}
             {boeking.eind !== boeking.start ? ` – ${formatNl(boeking.eind)}` : ''}
@@ -300,7 +337,7 @@ function filterHref(filter: string, type = gekozenType): string {
         exposities.map((b) => (
           <tr>
             <td>
-              <a href={`/beheer/boekingen/${encodeURIComponent(b.id)}/`}>{leesbareTitel(b.interneTitel, b.huurder)}</a>
+              <a href={metTerug(`/beheer/boekingen/${encodeURIComponent(b.id)}/`, lijstPad)}>{leesbareTitel(b.interneTitel, b.huurder)}</a>
             </td>
             <td>
               {formatNl(b.start)}
