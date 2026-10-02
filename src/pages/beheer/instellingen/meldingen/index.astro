@@ -1,0 +1,120 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { demoNaActie } from '../../../../platform/demo-data';
+import { bewaarWebsiteMelding } from '../../../../platform/beheer-supabase-schrijf.ts';
+import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
+import {
+  STANDAARD_WEBSITE_MELDING,
+  meldingUitFormulier,
+  meldingZichtbaar,
+  parseWebsiteMelding,
+  type WebsiteMelding,
+} from '../../../../lib/website-melding.ts';
+
+const supabaseTest = Astro.url.searchParams.get('bron') !== 'demo';
+let schrijfFout = '';
+let melding: WebsiteMelding = { ...STANDAARD_WEBSITE_MELDING };
+let gelezen = false;
+
+const client = sessieSupabaseUitAstro(Astro);
+
+if (Astro.request.method === 'POST') {
+  if (!supabaseTest) {
+    return Astro.redirect(demoNaActie(Astro.url));
+  }
+  try {
+    const formulier = meldingUitFormulier(await Astro.request.formData());
+    if (!client) {
+      schrijfFout = 'Geen Supabase-sessie. De melding is niet opgeslagen.';
+      melding = formulier;
+    } else {
+      await bewaarWebsiteMelding(client as never, formulier);
+      return Astro.redirect('/beheer/instellingen/meldingen/?bron=supabase&bewaard=1');
+    }
+  } catch (error) {
+    schrijfFout = error instanceof Error ? error.message : 'Opslaan in Supabase mislukt.';
+  }
+}
+
+if (client && supabaseTest && !schrijfFout) {
+  const { data, error } = await client
+    .from('instellingen')
+    .select('waarde')
+    .eq('sleutel', 'website_melding')
+    .maybeSingle();
+  if (error) {
+    schrijfFout = error.message;
+  } else if (data?.waarde) {
+    const geparsed = parseWebsiteMelding(data.waarde);
+    if (geparsed) {
+      melding = geparsed;
+      gelezen = true;
+    }
+  }
+}
+
+const zichtbaar = meldingZichtbaar(melding);
+const bewaard = Astro.url.searchParams.get('bewaard') === '1';
+const demo = Astro.url.searchParams.get('demo') === '1';
+---
+
+<Beheer titel="Meldingen">
+  <header class="bh-top">
+    <div>
+      <h1>Meldingen</h1>
+      <p class="bh-hint">
+        Tijdelijke tekst boven de inhoud van de homepage. Geen popup. Zet de melding uit
+        zodra hij niet meer nodig is. Na de einddatum verdwijnt hij vanzelf.
+      </p>
+    </div>
+  </header>
+
+  {bewaard && !schrijfFout && <p class="bh-flash">Opgeslagen in Supabase.</p>}
+  {demo && <p class="bh-flash">Voorbeeld. Er is niets opgeslagen.</p>}
+  {schrijfFout && <p class="bh-flash bh-flash--fout" role="alert">{schrijfFout}</p>}
+
+  <section class="bh-kaart">
+    <h2>{gelezen ? 'Homepage-melding' : 'Homepage-melding (nog niet opgeslagen)'}</h2>
+    <p class="bh-muted">
+      {
+        zichtbaar
+          ? 'Deze melding is nu zichtbaar op de homepage.'
+          : 'Deze melding staat nu niet op de homepage.'
+      }
+    </p>
+    <form method="post" class="bh-form">
+      <input type="hidden" name="actief" value="0" />
+      <label class="bh-check">
+        <input type="checkbox" name="actief" value="1" checked={melding.actief} />
+        <span>Melding tonen op de homepage</span>
+      </label>
+
+      <label for="titel">Kop</label>
+      <input id="titel" name="titel" value={melding.titel} maxlength="180" />
+
+      <label for="tekst">Tekst</label>
+      <textarea id="tekst" name="tekst" maxlength="1500" rows="8">{melding.tekst}</textarea>
+      <p class="bh-muted">Een lege regel begint een nieuwe alinea.</p>
+
+      <label for="van">Zichtbaar vanaf</label>
+      <input id="van" name="geldigVan" type="date" value={melding.geldigVan} />
+
+      <label for="tot">Zichtbaar tot en met</label>
+      <input id="tot" name="geldigTot" type="date" value={melding.geldigTot} />
+
+      {
+        supabaseTest ? (
+          <div class="bh-acties">
+            <button class="bh-btn" type="submit">Bewaar melding</button>
+          </div>
+        ) : (
+          <div class="bh-acties">
+            <button class="bh-btn" type="submit">Bewaar (voorbeeld)</button>
+          </div>
+        )
+      }
+    </form>
+  </section>
+</Beheer>

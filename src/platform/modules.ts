@@ -93,6 +93,7 @@ export function modulesInGroep(groep: ModuleGroep): ModuleSleutel[] {
 
 export const INSTELLINGEN_PAGINAS = [
   { module: 'instellingen', href: '/beheer/instellingen/', label: 'Algemeen' },
+  { module: 'instellingen', href: '/beheer/instellingen/meldingen/', label: 'Meldingen' },
   { module: 'instellingen', href: '/beheer/instellingen/verhuur/', label: 'Verhuur' },
   { module: 'instellingen', href: '/beheer/instellingen/finance/', label: 'Finance' },
   { module: 'instellingen', href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },

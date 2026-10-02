@@ -4,6 +4,7 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import FooterBanner from '../components/FooterBanner.astro';
 import VrijgekomenWeekendBanner from '../components/VrijgekomenWeekendBanner.astro';
+import WebsiteMelding from '../components/WebsiteMelding.astro';
 import Analytics from '@vercel/analytics/astro';
 import SpeedInsights from '@vercel/speed-insights/astro';
 import { OG_IMAGE, SITE_URL, venueJsonLd } from '../lib/seo';
@@ -84,6 +85,8 @@ const jsonLd = venueJsonLd();
     <a class="skip-link" href="#main">Naar de inhoud</a>
     <Header />
     <main id="main">
+      <!-- Tijdelijke bereikbaarheidsmelding, te beheren via /beheer/instellingen/meldingen/. -->
+      <WebsiteMelding />
       <!-- Tijdelijke nadruk op het vrijgekomen expositieweekend; schakelaar in VRIJGEKOMEN_WEEKEND_BANNER_AAN. -->
       <VrijgekomenWeekendBanner />
       <slot />

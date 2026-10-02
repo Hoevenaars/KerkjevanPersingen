@@ -3,6 +3,8 @@
  * Geen mail, geen Sanity-fallback, geen wijziging van CONTENT_BRON.
  */
 
+import { websiteMeldingRij, type WebsiteMelding } from '../lib/website-melding.ts';
+
 export interface InstellingenInvoer {
   openingVan: string;
   openingTot: string;
@@ -58,5 +60,10 @@ export function instellingRijen(invoer: InstellingenInvoer): { sleutel: string; 
 
 export async function bewaarInstellingen(client: UpsertClient, invoer: InstellingenInvoer): Promise<void> {
   const antwoord = await client.from('instellingen').upsert(instellingRijen(invoer), { onConflict: 'sleutel' });
+  if (antwoord.error) throw new Error(antwoord.error.message);
+}
+
+export async function bewaarWebsiteMelding(client: UpsertClient, melding: WebsiteMelding): Promise<void> {
+  const antwoord = await client.from('instellingen').upsert(websiteMeldingRij(melding), { onConflict: 'sleutel' });
   if (antwoord.error) throw new Error(antwoord.error.message);
 }
