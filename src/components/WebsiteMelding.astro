@@ -1,0 +1,74 @@
+---
+/**
+ * Informatiebanner voor een tijdelijke homepage-melding.
+ * Geen popup: een balk direct onder de header, alleen op de homepage.
+ */
+import { leesPubliekeWebsiteMelding } from '../lib/website-melding-lezen';
+
+const opHomepage = Astro.url.pathname === '/';
+const melding = opHomepage ? await leesPubliekeWebsiteMelding() : null;
+---
+
+{
+  melding && (
+    <aside class="bereikbaarheid" aria-labelledby="bereikbaarheid-titel">
+      <div class="wrap binnen">
+        {melding.titel && (
+          <p class="titel" id="bereikbaarheid-titel">
+            {melding.titel}
+          </p>
+        )}
+        {melding.alinea.map((alinea) => (
+          <p class="tekst">{alinea}</p>
+        ))}
+      </div>
+    </aside>
+  )
+}
+
+<style>
+  .bereikbaarheid {
+    background: var(--sand);
+    color: var(--ink);
+    border-bottom: 1px solid var(--olive);
+  }
+
+  .binnen {
+    padding-block: var(--s-3);
+  }
+
+  .titel {
+    font-family: var(--font-body);
+    font-size: var(--t-sm);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.35;
+    margin: 0 0 var(--s-2);
+    max-width: 46rem;
+    text-wrap: balance;
+    color: var(--pine);
+  }
+
+  .tekst {
+    margin: 0 0 var(--s-1);
+    max-width: 52rem;
+    font-size: var(--t-sm);
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+
+  .tekst:last-child {
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 640px) {
+    .binnen {
+      padding-block: var(--s-3);
+    }
+
+    .titel,
+    .tekst {
+      font-size: var(--t-sm);
+    }
+  }
+</style>
