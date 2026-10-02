@@ -5,6 +5,7 @@
 
 import { besluitVoor } from './automatisering-register.ts';
 import { MailGeblokkeerd, type Automatisering, type Verzendbesluit } from '../platform/automatisering.ts';
+import { isInterneKerkjeSleutel, toezichtBcc } from './toezicht-bcc.ts';
 
 export interface MailBericht {
   sleutel: string;
@@ -58,12 +59,14 @@ function resendTransport(): MailTransport {
       const { Resend } = await import('resend');
       const resend = new Resend(apiKey);
       const from = process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
+      const bcc = await toezichtBcc(bericht.naar, process.env, isInterneKerkjeSleutel(bericht.sleutel));
       const { error } = await resend.emails.send({
         from,
         to: [bericht.naar],
         subject: bericht.onderwerp,
         text: bericht.tekst,
         html: bericht.html,
+        ...(bcc.length ? { bcc } : {}),
       });
       if (error) throw new Error(error.message);
     },

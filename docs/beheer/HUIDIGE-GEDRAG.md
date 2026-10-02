@@ -1,8 +1,7 @@
 # Huidig gedrag vs. nieuw beheerplatform
 
 Tijdens bouwen mag bestaande functionaliteit niet ongemerkt verdwijnen
-(FO §34, §78). Dit is de checklist van wat de website **nu** doet. Geen van
-deze regels is in deze voorbereiding gewijzigd.
+(FO §34, §78). Dit is de checklist van wat de website **nu** doet.
 
 ## Beschikbaarheidskalender
 
@@ -52,10 +51,13 @@ Alleen webmaster ziet de lijst in Studio.
 
 ## Mailontvangers aanvraag
 
-1. Sanity `ontvangstAdres`
-2. anders `CONTACT_FALLBACK_EMAIL`
-3. optioneel `extraOntvangstAdres`
-4. optioneel `CONTACT_BCC_EMAIL`
+1. `CONTACT_FALLBACK_EMAIL`, anders `contractbeheer.kvp@gmail.com`
+2. BCC naar `nhoevenaars@gmail.com` op mail die naar iemand van het kerkje gaat
+   (bestuur, gastbegeleider, penningmeester, voorzitter, webmaster, contractbeheer).
+   Uit te zetten met een lege `TOEZICHT_BCC_EMAIL`.
+3. optioneel extra adressen in `CONTACT_BCC_EMAIL`, alleen op diezelfde interne mail
+
+Mail naar de aanvrager krijgt die BCC niet.
 
 Van: `noreply@send.kerkjepersingen.nl`.
 

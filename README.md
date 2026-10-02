@@ -82,7 +82,8 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `SITE_PASSWORD` | nee | Gevuld = site afgeschermd én `noindex`. Leeg = openbaar. |
 | `RESEND_API_KEY` | ja | Zonder deze sleutel wordt geen aanvraag verstuurd. |
 | `CONTACT_FALLBACK_EMAIL` | ja | Terugval als het Sanity-veld leeg of ongeldig is. |
-| `CONTACT_BCC_EMAIL` | nee | Vangnet-kopie van elke aanvraag. |
+| `CONTACT_BCC_EMAIL` | nee | Extra BCC, alleen op mail naar mensen van het kerkje. |
+| `TOEZICHT_BCC_EMAIL` | nee | Tijdelijke BCC op diezelfde interne mail. Standaard `nhoevenaars@gmail.com`. Leeg = uit. |
 | `SANITY_PROJECT_ID` | ja | Zonder dit blijft de agenda leeg (site blijft werken). |
 | `SANITY_DATASET` | ja | `production` |
 | `SANITY_API_TOKEN` | ja | **Schrijfrechten (Editor)** — nodig om vrienden aan te maken en verzendstatus te zetten. Alleen lezen is niet genoeg. |
