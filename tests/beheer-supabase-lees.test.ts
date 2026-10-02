@@ -138,6 +138,80 @@ test('een supabase-fout toont geen voorbeelddata', async () => {
   assert.equal(snapshot.relaties.some((relatie) => relatie.naam === 'Marieke Jansen'), false);
 });
 
+test('normale beheer-url laadt de snapshot één keer per request', async () => {
+  resetBeheerBronCache();
+  let selects = 0;
+  const bron = clientVan(basis);
+  const client: SupabaseLeesClient = {
+    from(tabel: string) {
+      return {
+        select(kolommen: string) {
+          selects += 1;
+          return bron.from(tabel).select(kolommen);
+        },
+      };
+    },
+  };
+  const cookies = { set() {} };
+  const opties = {
+    url: new URL('http://localhost/beheer/'),
+    env: { CONTENT_BRON: 'supabase' },
+    client,
+    request: new Request('http://localhost/beheer/'),
+    cookies,
+  };
+
+  await metSanityRegistratie(async () => {
+    const dashboard = await laadBeheerSnapshot(opties);
+    const planning = await laadBeheerSnapshot({ ...opties, url: new URL('http://localhost/beheer/planning/') });
+    const kalender = await laadBeheerSnapshot({ ...opties, url: new URL('http://localhost/beheer/kalender/') });
+    const boeking = await laadBeheerSnapshot({ ...opties, url: new URL('http://localhost/beheer/boekingen/1/') });
+    const activiteit = await laadBeheerSnapshot({ ...opties, url: new URL('http://localhost/beheer/agenda/1/') });
+    assert.equal(dashboard.bron, 'supabase');
+    assert.equal(planning, dashboard);
+    assert.equal(kalender, dashboard);
+    assert.equal(boeking, dashboard);
+    assert.equal(activiteit, dashboard);
+    const expliciet = await laadBeheerSnapshot({
+      ...opties,
+      url: new URL('http://localhost/beheer/?bron=supabase'),
+    });
+    assert.equal(expliciet, dashboard);
+  });
+  assert.equal(selects, 16);
+
+  selects = 0;
+  resetBeheerBronCache();
+  await laadBeheerSnapshot(opties);
+  await laadBeheerSnapshot(opties);
+  assert.equal(selects, 32);
+});
+
+test('voorbeelddata deelt de supabase-snapshot van hetzelfde request niet', async () => {
+  resetBeheerBronCache();
+  const cookies = { set() {} };
+  const client = clientVan(basis);
+  await metSanityRegistratie(async () => {
+    const live = await laadBeheerSnapshot({
+      url: new URL('http://localhost/beheer/'),
+      env: {},
+      client,
+      request: new Request('http://localhost/beheer/'),
+      cookies,
+    });
+    const demo = await laadBeheerSnapshot({
+      url: new URL('http://localhost/beheer/?bron=demo'),
+      env: {},
+      client,
+      request: new Request('http://localhost/beheer/?bron=demo'),
+      cookies,
+    });
+    assert.equal(live.bron, 'supabase');
+    assert.equal(demo.bron, 'demo');
+    assert.notEqual(demo.banner, live.banner);
+  });
+});
+
 test('testmodus registreert een sanity-call en blijft anders op nul', async () => {
   const leeg = await metSanityRegistratie(async () => leesSanityOproepen());
   assert.equal(leeg.length, 0);

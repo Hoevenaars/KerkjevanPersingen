@@ -233,7 +233,9 @@ export async function laadBeheerSnapshot(opties: {
   const forceSupabase = gekozen === 'supabase';
   const key = forceDemo ? 'demo' : 'supabase';
   const nu = Date.now();
-  if (forceSupabase) {
+  // Supabase is de normale bron. Binnen één serververzoek laadt de snapshot
+  // één keer, met of zonder ?bron=supabase. Voorbeelddata blijft een aparte belofte.
+  if (!forceDemo) {
     const bestaand = leesRequestSnapshot<BeheerSnapshot>();
     if (bestaand) return bestaand;
   }
@@ -244,8 +246,8 @@ export async function laadBeheerSnapshot(opties: {
   const gedeeldeCache = !client && !forceDemo && !forceSupabase;
   if (gedeeldeCache && cache && cache.key === key && nu - cache.at < 8_000) return cache.waarde;
   const waarde = laadBeheerSnapshotOngecached({ env, forceDemo, client });
-  if (forceSupabase) bewaarRequestSnapshot(waarde);
-  else if (!client) cache = { key, at: nu, waarde };
+  if (!forceDemo) bewaarRequestSnapshot(waarde);
+  if (!forceSupabase && !client) cache = { key, at: nu, waarde };
   return waarde;
 }
 
