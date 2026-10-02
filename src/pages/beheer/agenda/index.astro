@@ -2,15 +2,89 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
+import PlanningNavigatie from '../../../components/beheer/PlanningNavigatie.astro';
 import { AGENDA_LABEL, formatNl, gastheerVan } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
+import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import {
+  beschikbareJaren,
+  gastbegeleidersPerBoeking,
+  hoortBijSelectie,
+  leesPlanningSelectie,
+  metTerug,
+  planningHref,
+  sorteerEerstvolgende,
+  type PlanningInvoer,
+} from '../../../platform/planning.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const vandaag = ymdInAmsterdam(new Date());
+const selectie = leesPlanningSelectie(Astro.url.searchParams, vandaag);
+const bronParam = Astro.url.searchParams.get('bron') ?? '';
+const lijstPad = planningHref('/beheer/agenda/', selectie, vandaag, {}, bronParam);
+const gastNamen = gastbegeleidersPerBoeking(
+  snapshot.toewijzingen ?? [],
+  snapshot.boekingen.flatMap((boeking) => {
+    const gekoppeld = gastheerVan(boeking.gastheerId, snapshot.gastheren);
+    return gekoppeld ? [{ boekingId: boeking.id, naam: gekoppeld.naam }] : [];
+  }),
+);
+const boekingPerId = new Map(snapshot.boekingen.map((boeking) => [boeking.id, boeking]));
+const relatieNaam = new Map(snapshot.relaties.map((relatie) => [relatie.id, relatie.naam]));
+
+function activiteitItem(activiteit: (typeof snapshot.agenda)[number]): PlanningInvoer {
+  const boeking = activiteit.boekingId ? boekingPerId.get(activiteit.boekingId) : undefined;
+  return {
+    sleutel: activiteit.id,
+    href: metTerug(`/beheer/agenda/${encodeURIComponent(activiteit.id)}/`, lijstPad),
+    start: activiteit.start,
+    eind: activiteit.eind,
+    titel: activiteit.titel,
+    type: activiteit.soort || 'expositie',
+    status: activiteit.levenscyclus === 'geannuleerd' ? 'geannuleerd' : activiteit.status,
+    publicatiestatus: activiteit.publicatiestatus ?? null,
+    zichtbaarOpWebsite: activiteit.publicatiestatus === 'publiek',
+    huurder: activiteit.exposanten || boeking?.huurder || '',
+    gastbegeleiders: activiteit.boekingId ? gastNamen.get(activiteit.boekingId) ?? '' : '',
+    bron: 'activiteit',
+    geannuleerd: activiteit.levenscyclus === 'geannuleerd',
+    email: boeking?.email ?? '',
+    exposant: activiteit.exposanten ?? '',
+    organisatie: boeking ? relatieNaam.get(boeking.relatieId) ?? '' : '',
+    deelnemers: boeking?.medeExposanten ?? '',
+    omschrijving: [activiteit.korteOmschrijving, activiteit.volledigeOmschrijving, activiteit.omschrijving, activiteit.praktisch, boeking?.toelichting].filter(Boolean).join(' '),
+    notitie: boeking?.notities ?? '',
+    nummer: boeking?.nummer ?? '',
+  };
+}
+
+const opties = { ...selectie, vandaag, emailZoeken: true };
+const activiteiten = sorteerEerstvolgende(
+  snapshot.agenda.filter((activiteit) => hoortBijSelectie(activiteitItem(activiteit), opties)),
+  vandaag,
+);
+const intern = sorteerEerstvolgende(snapshot.intern.filter((item) => hoortBijSelectie({
+  sleutel: item.id,
+  href: '/',
+  start: item.start,
+  eind: item.eind,
+  titel: item.titel,
+  type: 'intern',
+  status: item.blokkeert ? 'bezet' : 'intern',
+  publicatiestatus: 'verborgen',
+  zichtbaarOpWebsite: false,
+  bron: 'intern',
+  notitie: item.notities ?? '',
+  omschrijving: item.notities ?? '',
+}, opties)), vandaag);
+const jaren = beschikbareJaren(
+  [...snapshot.agenda, ...snapshot.intern].map((item) => ({ start: item.start, eind: item.eind })),
+  vandaag,
+);
 
 function gastheerLabel(boekingId?: string): string {
   if (!boekingId) return '—';
-  const boeking = snapshot.boekingen.find((b) => b.id === boekingId);
-  return gastheerVan(boeking?.gastheerId, snapshot.gastheren)?.naam ?? 'Nog niet ingepland';
+  return gastNamen.get(boekingId) || 'Nog niet ingepland';
 }
 ---
 
@@ -18,18 +92,20 @@ function gastheerLabel(boekingId?: string): string {
   <header class="bh-top">
     <div>
       <p class="bh-label">Agenda</p>
-      <h1>Agenda</h1>
+      <h1>Activiteiten</h1>
       <p class="bh-hint">
-        Publieke activiteiten (alleen intern beheer) en interne blokkades. De website toont dit niet.
+        Publieke activiteiten en interne blokkades. Kies een jaar of periode, of zoek op persoon, organisatie of titel.
       </p>
     </div>
   </header>
 
+  <PlanningNavigatie basis="/beheer/agenda/" selectie={selectie} jaren={jaren} vandaag={vandaag} bron={bronParam} />
+
   <section class="bh-kaart">
     <h2>Publieke activiteiten</h2>
     {
-      snapshot.agenda.length === 0 ? (
-        <p class="bh-leeg">Geen publieke activiteiten.</p>
+      activiteiten.length === 0 ? (
+        <p class="bh-leeg">Geen activiteiten voor deze selectie.</p>
       ) : (
         <table class="bh-tabel">
           <thead>
@@ -41,10 +117,10 @@ function gastheerLabel(boekingId?: string): string {
             </tr>
           </thead>
           <tbody>
-            {snapshot.agenda.map((p) => (
+            {activiteiten.map((p) => (
               <tr>
                 <td>
-                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(p.id)}/`}>{p.titel}</a>
+                  <a class="bh-detail-link" href={metTerug(`/beheer/agenda/${encodeURIComponent(p.id)}/`, lijstPad)}>{p.titel}</a>
                 </td>
                 <td>
                   {formatNl(p.start)}
@@ -65,8 +141,8 @@ function gastheerLabel(boekingId?: string): string {
   <section class="bh-kaart">
     <h2>Interne activiteiten</h2>
     {
-      snapshot.intern.length === 0 ? (
-        <p class="bh-leeg">Geen interne blokkades.</p>
+      intern.length === 0 ? (
+        <p class="bh-leeg">Geen interne blokkades voor deze selectie.</p>
       ) : (
         <table class="bh-tabel">
           <thead>
@@ -77,10 +153,10 @@ function gastheerLabel(boekingId?: string): string {
             </tr>
           </thead>
           <tbody>
-            {snapshot.intern.map((i) => (
+            {intern.map((i) => (
               <tr>
                 <td>
-                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(i.id)}/`}>{i.titel}</a>
+                  <a class="bh-detail-link" href={metTerug(`/beheer/agenda/${encodeURIComponent(i.id)}/`, lijstPad)}>{i.titel}</a>
                 </td>
                 <td>
                   {formatNl(i.start)}

@@ -162,9 +162,9 @@ export async function leesSupabaseBeheer(
   const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen, tariefRijen, bronRijen] = await Promise.all([
     lees(client, 'relaties', 'id,naam,email,telefoon,adres,op_reservelijst'),
     lees(client, 'relatie_rollen', 'relatie_id,rol'),
-    lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities'),
+    lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
     lees(client, 'betalingen', 'id,boeking_id,soort,bedrag,status,vervaldatum,ontvangen_op'),
-    lees(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender'),
+    lees(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender,notities'),
     lees(client, 'gastbegeleider_toewijzingen', 'id,boeking_id,relatie_id,datum,type'),
     lees(client, 'vrienden', 'id,naam,email,actief,frequentie'),
     lees(client, 'nieuwsbrieven', 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd'),
@@ -242,6 +242,8 @@ export async function leesSupabaseBeheer(
       relatieId,
       gastheerId: rij.gastheer_relatie_id == null ? undefined : tekst(rij.gastheer_relatie_id),
       periode: periodeKlasse(tekst(rij.start_datum), tekst(rij.eind_datum), opties.vandaag),
+      medeExposanten: tekst(rij.mede_exposanten),
+      toelichting: tekst(rij.toelichting),
     };
   });
 
@@ -342,6 +344,7 @@ export async function leesSupabaseBeheer(
       start: tekst(rij.start_datum),
       eind: tekst(rij.eind_datum),
       blokkeert: Boolean(rij.blokkeert_verhuurkalender),
+      notities: tekst(rij.notities),
     })),
     relaties,
     gastheren: relaties

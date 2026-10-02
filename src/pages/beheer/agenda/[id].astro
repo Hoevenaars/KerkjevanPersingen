@@ -22,6 +22,7 @@ import {
 } from '../../../lib/agenda-zichtbaarheid.ts';
 import { magAlGetoondWorden } from '../../../lib/publiek-lezen.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { terugLink } from '../../../platform/planning.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -132,10 +133,11 @@ const timingOpties = [
   { value: 'uiterlijk_12_maanden', label: '12 maanden van tevoren' },
 ];
 const huidigeTiming = publiek?.trigger && timingOpties.some((optie) => optie.value === publiek.trigger) ? publiek.trigger : 'direct';
+const terug = terugLink(Astro.url.searchParams.get('terug'));
 ---
 
 <Beheer titel={titel}>
-  <p class="bh-crumb"><a href="/beheer/agenda/">Agenda</a> / {titel}</p>
+  <p class="bh-crumb"><a href={terug?.href ?? '/beheer/agenda/'}>{terug?.label ?? 'Agenda'}</a> / {titel}</p>
   <header class="bh-top">
     <div>
       <h1>{titel}</h1>

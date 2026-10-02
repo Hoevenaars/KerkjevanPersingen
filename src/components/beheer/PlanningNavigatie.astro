@@ -1,0 +1,143 @@
+---
+import {
+  PLANNING_FILTERS,
+  PLANNING_PERIODES,
+  PLANNING_TYPEN,
+  huidigJaar,
+  metJaar,
+  metPeriode,
+  planningHref,
+  type PlanningFilter,
+  type PlanningPeriode,
+  type PlanningSelectie,
+} from '../../platform/planning.ts';
+import { SOORT_LABEL } from '../../platform/demo-data.ts';
+
+interface Props {
+  basis: string;
+  selectie: PlanningSelectie;
+  jaren: number[];
+  vandaag: string;
+  bron?: string;
+  filters?: readonly PlanningFilter[];
+}
+
+const { basis, selectie, jaren, vandaag, bron = '', filters = PLANNING_FILTERS } = Astro.props;
+const zoekId = basis.includes('agenda') ? 'agenda-q' : 'planning-q';
+const jaarTonen = selectie.periode === 'volgend_jaar'
+  ? huidigJaar(vandaag) + 1
+  : selectie.periode === 'dit_jaar'
+    ? huidigJaar(vandaag)
+    : typeof selectie.jaar === 'number'
+      ? selectie.jaar
+      : huidigJaar(vandaag);
+const jaarLabel = selectie.periode === 'deze_maand' || selectie.periode === 'volgende_3' || selectie.periode === 'verleden'
+  ? (selectie.jaar === 'alle' ? 'Alle jaren' : String(selectie.jaar))
+  : String(jaarTonen);
+const vorig = planningHref(basis, metJaar(selectie, jaarTonen - 1), vandaag, {}, bron);
+const volgend = planningHref(basis, metJaar(selectie, jaarTonen + 1), vandaag, {}, bron);
+
+const filterLabel: Record<PlanningFilter, string> = {
+  alles: 'Alles',
+  deze_maand: 'Deze maand',
+  opties: 'Opties',
+  definitief: 'Definitief',
+  publiek: 'Publieke activiteiten',
+  website: 'Website zichtbaar',
+  niet_openbaar: 'Niet openbaar',
+  geannuleerd: 'Geannuleerd',
+};
+const periodeLabel: Record<PlanningPeriode, string> = {
+  deze_maand: 'Deze maand',
+  volgende_3: 'Volgende 3 maanden',
+  dit_jaar: 'Dit jaar',
+  volgend_jaar: 'Volgend jaar',
+  verleden: 'Verleden',
+};
+
+function href(wijziging: Partial<PlanningSelectie> = {}): string {
+  return planningHref(basis, selectie, vandaag, wijziging, bron);
+}
+---
+
+<div class="bh-planning-nav">
+  <form class="bh-zoek bh-planning-zoek" method="get" action={basis}>
+    <label class="visually-hidden" for={zoekId}>Zoeken in de lijst</label>
+    <input
+      id={zoekId}
+      name="q"
+      type="search"
+      placeholder="Zoek op persoon, huurder, organisatie, titel of type"
+      value={selectie.q}
+    />
+    {selectie.jaar !== huidigJaar(vandaag) && <input type="hidden" name="jaar" value={selectie.jaar} />}
+    {selectie.van && <input type="hidden" name="van" value={selectie.van} />}
+    {selectie.tot && <input type="hidden" name="tot" value={selectie.tot} />}
+    {selectie.periode && <input type="hidden" name="periode" value={selectie.periode} />}
+    {selectie.filter !== 'alles' && <input type="hidden" name="filter" value={selectie.filter} />}
+    {selectie.type && <input type="hidden" name="type" value={selectie.type} />}
+    {bron && <input type="hidden" name="bron" value={bron} />}
+    <button type="submit">Zoek</button>
+  </form>
+
+  <nav class="bh-jaar" aria-label="Jaar">
+    <a href={vorig}>‹ Vorig jaar</a>
+    <strong>{jaarLabel}</strong>
+    <a href={volgend}>Volgend jaar ›</a>
+    <form method="get" action={basis} class="bh-jaar-form">
+      <label>
+        Jaar
+        <select name="jaar">
+          {jaren.map((jaar) => (
+            <option value={jaar} selected={selectie.jaar === jaar}>{jaar}</option>
+          ))}
+        </select>
+      </label>
+      {selectie.van && <input type="hidden" name="van" value={selectie.van} />}
+      {selectie.tot && <input type="hidden" name="tot" value={selectie.tot} />}
+      {selectie.filter !== 'alles' && <input type="hidden" name="filter" value={selectie.filter} />}
+      {selectie.type && <input type="hidden" name="type" value={selectie.type} />}
+      {selectie.q && <input type="hidden" name="q" value={selectie.q} />}
+      {bron && <input type="hidden" name="bron" value={bron} />}
+      <button class="bh-btn bh-btn--sec" type="submit">Toon</button>
+    </form>
+  </nav>
+
+  <nav class="bh-filters" aria-label="Periode">
+    {PLANNING_PERIODES.map((periode) => (
+      <a href={planningHref(basis, metPeriode(selectie, periode), vandaag, {}, bron)} class:list={{ 'is-actief': selectie.periode === periode }}>
+        {periodeLabel[periode]}
+      </a>
+    ))}
+  </nav>
+
+  <form method="get" action={basis} class="bh-periode-form">
+    <label>
+      Van
+      <input type="date" name="van" value={selectie.van} />
+    </label>
+    <label>
+      Tot
+      <input type="date" name="tot" value={selectie.tot} />
+    </label>
+    {selectie.jaar !== huidigJaar(vandaag) && <input type="hidden" name="jaar" value={selectie.jaar} />}
+    {selectie.filter !== 'alles' && <input type="hidden" name="filter" value={selectie.filter} />}
+    {selectie.type && <input type="hidden" name="type" value={selectie.type} />}
+    {selectie.q && <input type="hidden" name="q" value={selectie.q} />}
+    {bron && <input type="hidden" name="bron" value={bron} />}
+    <button class="bh-btn bh-btn--sec" type="submit">Filter periode</button>
+  </form>
+
+  <nav class="bh-filters" aria-label="Filters">
+    {filters.map((filter) => (
+      <a href={href({ filter })} class:list={{ 'is-actief': selectie.filter === filter }}>{filterLabel[filter]}</a>
+    ))}
+  </nav>
+  <nav class="bh-filters" aria-label="Verhuurtype">
+    <a href={href({ type: '' })} class:list={{ 'is-actief': !selectie.type }}>Alle types</a>
+    {PLANNING_TYPEN.map((type) => (
+      <a href={href({ type })} class:list={{ 'is-actief': selectie.type === type }}>{SOORT_LABEL[type]}</a>
+    ))}
+    <a href={href({ type: 'onbekend' })} class:list={{ 'is-actief': selectie.type === 'onbekend' }}>Zonder type</a>
+  </nav>
+</div>
