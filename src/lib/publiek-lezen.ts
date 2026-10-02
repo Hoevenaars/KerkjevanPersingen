@@ -96,21 +96,31 @@ export function activiteitVanBezetRij(rij: BezetRij, index: number): Activiteit 
   };
 }
 
+function zichtbaarOpWebsite(item: Activiteit, nu: Date): boolean {
+  return magAlGetoondWorden(item, nu) && magOpWebsiteZonderTiming({
+    zichtbaarheid: item.zichtbaarheid,
+    geannuleerd: item.geannuleerd,
+    contentstatus: item.contentstatus,
+    soort: item.soort,
+    titel: item.publiekeTitel,
+    korteOmschrijving: item.korteOmschrijving,
+    volledigeOmschrijving: item.volledigeOmschrijving,
+    hoofdafbeelding: typeof item.foto === 'string' ? item.foto : null,
+  });
+}
+
 export function stelPubliekeAgenda(rijen: AgendaRij[], nu = new Date(), limit = 30): Activiteit[] {
-  const lijst = rijen
+  return rijen
     .map(activiteitVanAgendaRij)
-    .filter((item) => magAlGetoondWorden(item, nu))
-    .filter((item) => magOpWebsiteZonderTiming({
-      zichtbaarheid: item.zichtbaarheid,
-      geannuleerd: item.geannuleerd,
-      contentstatus: item.contentstatus,
-      soort: item.soort,
-      titel: item.publiekeTitel,
-      korteOmschrijving: item.korteOmschrijving,
-      volledigeOmschrijving: item.volledigeOmschrijving,
-      hoofdafbeelding: typeof item.foto === 'string' ? item.foto : null,
-    }));
-  return lijst.slice(0, limit);
+    .filter((item) => zichtbaarOpWebsite(item, nu))
+    .slice(0, limit);
+}
+
+/** Eén slug, dezelfde publicatiepoort als de agenda, zonder de lijst af te kappen. */
+export function activiteitUitSlugRijen(slug: string, rijen: AgendaRij[], nu = new Date()): Activiteit | null {
+  return rijen
+    .map(activiteitVanAgendaRij)
+    .find((item) => item.slug === slug && zichtbaarOpWebsite(item, nu)) ?? null;
 }
 
 function leesClient() {
@@ -137,6 +147,14 @@ export async function leesBezetRijen(): Promise<BezetRij[]> {
   return (data ?? []) as BezetRij[];
 }
 
+async function leesAgendaRijOpSlug(slug: string): Promise<AgendaRij[]> {
+  const supabase = leesClient();
+  if (!supabase) throw new Error('Supabase is niet geconfigureerd. De agenda leest Sanity niet.');
+  const { data, error } = await supabase.rpc('publieke_activiteit_op_slug', { p_slug: slug });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AgendaRij[];
+}
+
 export async function leesPubliekeAgenda(limit = 30, nu = new Date()): Promise<Activiteit[]> {
   const rijen = await leesAgendaRijen();
   const lijst = stelPubliekeAgenda(rijen, nu, limit);
@@ -157,14 +175,21 @@ export async function leesBezetteData(): Promise<Activiteit[]> {
 }
 
 export async function leesActiviteitOpSlug(slug: string, nu = new Date()): Promise<Activiteit | null> {
-  const lijst = await leesPubliekeAgenda(100, nu);
-  const gevonden = lijst.find((item) => item.slug === slug) ?? null;
+  const gevonden = activiteitUitSlugRijen(slug, await leesAgendaRijOpSlug(slug), nu);
   if (gevonden) return gevonden;
   const { secondNatureFallback } = await import('./second-nature.ts');
   return secondNatureFallback(slug);
 }
 
-export async function leesEerstvolgendeVrijeWeekenden(aantal = 3): Promise<VrijWeekend[]> {
+export function vrijeWeekendenVanBezetting(
+  bezet: Parameters<typeof bezetteKalenderDagen>[0],
+  aantal = 3,
+  nu = new Date(),
+): VrijWeekend[] {
+  return eerstvolgendeVrijeWeekenden(bezetteKalenderDagen(bezet), aantal, nu);
+}
+
+export async function leesEerstvolgendeVrijeWeekenden(aantal = 3, nu = new Date()): Promise<VrijWeekend[]> {
   const bezet = await leesBezetteData();
-  return eerstvolgendeVrijeWeekenden(bezetteKalenderDagen(bezet), aantal);
+  return vrijeWeekendenVanBezetting(bezet, aantal, nu);
 }
