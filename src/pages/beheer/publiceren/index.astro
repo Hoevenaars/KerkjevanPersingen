@@ -100,10 +100,14 @@ if (Astro.request.method === 'POST') {
   }
   const checks = publicatieChecks(concept);
   const publiceren = actie === 'publiceer' || actie === 'toch_publiceren';
-  const besluit = publicatieBesluit(checks, actie === 'toch_publiceren' && data.get('bevestig') === 'ja');
+  const besluit = publicatieBesluit(checks, actie === 'toch_publiceren');
   if (publiceren && !besluit.mag) {
     terug.searchParams.set('fout', besluit.melding);
     return Astro.redirect(terug.toString());
+  }
+  if (publiceren && !concept.slug?.trim()) {
+    const basis = slugUitActiviteit(exposanten, titel);
+    concept.slug = uniekeSlug(basis, bezetteSlugs, concept.start.slice(0, 4), item.slug ?? '');
   }
   const slugBesluit = slugNaPublicatie(item, concept.slug ?? '', data.get('slug_bewust') === 'ja');
   if (slugBesluit.waarschuwing && data.get('slug_bewust') !== 'ja' && concept.slug && concept.slug !== item.slug) {
@@ -191,6 +195,8 @@ function stapHref(volgende: number): string {
           {!compleet && status !== 'geannuleerd' && (
             <p class="bh-hint">Deze activiteit is nog niet volledig. Je kunt hem wel publiceren.</p>
           )}
+          {openId === item.id && melding && <p class="bh-flash">{melding}</p>}
+          {openId === item.id && fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
           {openId === item.id && slugLetOp && <p class="bh-flash bh-flash--fout">{slugLetOp}</p>}
           <form method="post" class="bh-form">
             <input type="hidden" name="id" value={item.id} />
@@ -231,13 +237,7 @@ function stapHref(volgende: number): string {
                 <button class="bh-btn" type="submit" name="actie" value="publiceer">{status === 'gepubliceerd' ? 'Wijzigingen publiceren' : 'Publiceer'}</button>
               )}
               {status !== 'geannuleerd' && !compleet && (
-                <>
-                  <label class="bh-check">
-                    <input type="checkbox" name="bevestig" value="ja" />
-                    Toch publiceren, ook al is de content niet volledig
-                  </label>
-                  <button class="bh-btn" type="submit" name="actie" value="toch_publiceren">{status === 'gepubliceerd' ? 'Wijzigingen publiceren' : 'Toch publiceren'}</button>
-                </>
+                <button class="bh-btn" type="submit" name="actie" value="toch_publiceren" onclick="return confirm('Deze activiteit is nog niet volledig. Toch publiceren?')">{status === 'gepubliceerd' ? 'Wijzigingen publiceren' : 'Toch publiceren'}</button>
               )}
               {status === 'gepubliceerd' && (
                 <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verberg">Verbergen</button>
