@@ -6,6 +6,7 @@
 
 import { automatiseringVoorTemplate } from '../../platform/automatisering.ts';
 import { eisProviderToegestaan } from '../mail-transport.ts';
+import { toezichtBcc } from '../toezicht-bcc.ts';
 import type { Activiteit } from '../sanity.ts';
 import { maakBeheerAdminClient } from '../supabase.ts';
 import { huidigeContentBron } from '../../platform/bron.ts';
@@ -243,11 +244,13 @@ function mailTransport(env: Record<string, unknown>) {
       if (!sleutel) throw new Error('RESEND_API_KEY ontbreekt');
       const { Resend } = await import('resend');
       const resend = new Resend(sleutel);
+      const bcc = await toezichtBcc(input.naar, env);
       const { error } = await resend.emails.send({
         from: VAN,
         to: [input.naar],
         subject: input.onderwerp,
         text: input.tekst,
+        ...(bcc.length ? { bcc } : {}),
       });
       if (error) throw new Error(error.message);
     },

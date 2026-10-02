@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { toezichtBcc } from './toezicht-bcc.ts';
 
 export async function verstuurTestMail(input: {
   naar: string;
@@ -16,12 +17,14 @@ export async function verstuurTestMail(input: {
     return { verzonden: false, detail: 'RESEND_API_KEY ontbreekt — inhoud lokaal gegenereerd' };
   }
   const resend = new Resend(apiKey);
+  const bcc = await toezichtBcc(input.naar);
   const { error } = await resend.emails.send({
     from,
     to: input.naar,
     subject: input.onderwerp,
     html: input.html,
     headers: { 'X-Mail-Template-Test': 'true' },
+    ...(bcc.length ? { bcc } : {}),
   });
   if (error) return { verzonden: false, detail: error.message };
   return { verzonden: true, detail: 'ok' };
