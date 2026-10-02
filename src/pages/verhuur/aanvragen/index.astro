@@ -403,7 +403,7 @@ const vandaag = new Date().toISOString().split('T')[0];
       </p>
       <div class="kalender-met-lijst">
         <Kalender bezet={bezet} maand={maand} basisPad="/verhuur/aanvragen/" />
-        <VrijeWeekenden />
+        <VrijeWeekenden bezet={bezet} />
       </div>
     </section>
   </div>

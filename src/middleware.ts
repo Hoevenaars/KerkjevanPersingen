@@ -181,10 +181,9 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   }
 
   if (isBeheerPad(pad)) {
-    if (context.url.searchParams.get('bron') === 'supabase') {
-      return metSanityRegistratie(() => beheerMiddleware(context, next));
-    }
-    return await beheerMiddleware(context, next);
+    // Eén requestcontext voor elke beheer-URL. Pagina en layout delen zo
+    // dezelfde Supabase-snapshot, ook zonder ?bron=supabase.
+    return metSanityRegistratie(() => beheerMiddleware(context, next));
   }
 
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;

@@ -10,7 +10,7 @@ import {
   type Vriend,
 } from '../src/lib/vrienden-supabase.ts';
 import { draaiNieuwsbriefDryRun, geheugenNieuwsbrief } from '../src/lib/nieuwsbrief-supabase.ts';
-import { magAlGetoondWorden, stelPubliekeAgenda, type AgendaRij } from '../src/lib/publiek-lezen.ts';
+import { activiteitUitSlugRijen, magAlGetoondWorden, stelPubliekeAgenda, vrijeWeekendenVanBezetting, type AgendaRij } from '../src/lib/publiek-lezen.ts';
 import { laadBeheerSnapshot, resetBeheerBronCache } from '../src/platform/beheer-bron.ts';
 import type { SupabaseLeesClient } from '../src/platform/beheer-supabase-lees.ts';
 import { huidigeContentBron } from '../src/platform/bron.ts';
@@ -128,6 +128,43 @@ test('publieke agenda toont een bezette activiteit niet en respecteert toonVanaf
   assert.equal(getoond.length, 1);
   assert.equal(getoond[0].zichtbaarheid, 'publiek');
   assert.equal(magAlGetoondWorden(getoond[0], nu), false);
+});
+
+test('activiteitdetail vindt een slug voorbij de eerste 100 agenda-rijen', () => {
+  const nu = new Date('2026-10-02T12:00:00Z');
+  const rijen: AgendaRij[] = Array.from({ length: 120 }, (_, index) => ({
+    id: index + 1,
+    slug: `activiteit-${index + 1}`,
+    titel: `Activiteit ${index + 1}`,
+    start_datum: '2027-06-01',
+    eind_datum: '2027-06-02',
+    omschrijving: null,
+    foto_pad: null,
+    foto_alt: null,
+    publicatie_trigger: null,
+    zichtbaarheid: 'publiek',
+    inhoud_status: 'niet_gestart',
+    soort: 'expositie',
+    contentstatus: null,
+  }));
+  const lijst = stelPubliekeAgenda(rijen, nu, 100);
+  assert.equal(lijst.some((item) => item.slug === 'activiteit-120'), false);
+  const detail = activiteitUitSlugRijen('activiteit-120', [rijen[119]], nu);
+  assert.equal(detail?.publiekeTitel, 'Activiteit 120');
+  assert.equal(activiteitUitSlugRijen('activiteit-1', [{ ...rijen[0], zichtbaarheid: 'bezet' }], nu), null);
+});
+
+test('vrije weekenden hergebruiken de kalenderbezetting', () => {
+  const bezet = [{
+    start: '2026-10-10T12:00:00+02:00',
+    eind: '2026-10-10T12:00:00+02:00',
+    soort: 'expositie',
+    zichtbaarheid: 'bezet',
+  }];
+  const weekenden = vrijeWeekendenVanBezetting(bezet, 1, new Date('2026-10-02T12:00:00Z'));
+  assert.equal(weekenden.length, 1);
+  assert.equal(weekenden[0].zaterdag, '2026-10-03');
+  assert.equal(weekenden[0].zondagVrij, true);
 });
 
 function clientVan(tabellen: Record<string, Record<string, unknown>[]>): SupabaseLeesClient {

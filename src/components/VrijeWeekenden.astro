@@ -1,7 +1,22 @@
 ---
 import { getEerstvolgendeVrijeWeekenden, formatWeekend } from '../lib/sanity';
+import { vrijeWeekendenVanBezetting } from '../lib/publiek-lezen';
 
-const weekenden = await getEerstvolgendeVrijeWeekenden(3);
+interface Props {
+  /** Al geladen bezetting. Zonder deze prop haalt het blok de RPC zelf op. */
+  bezet?: {
+    start?: string;
+    eind?: string;
+    soort?: string;
+    zichtbaarheid?: string;
+    geannuleerd?: boolean;
+  }[];
+}
+
+const { bezet } = Astro.props;
+const weekenden = bezet
+  ? vrijeWeekendenVanBezetting(bezet)
+  : await getEerstvolgendeVrijeWeekenden(3);
 ---
 
 {
