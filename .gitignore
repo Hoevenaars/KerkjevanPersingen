@@ -9,3 +9,4 @@ data/beheer-rollen.json
 
 # Bronmigratie bevat persoonsgegevens. Niet committen.
 migratie/
+tests/fixtures/huuroverzicht-db-snapshot-live.json
