@@ -156,6 +156,8 @@ test('publiceren toont geen technische bronvelden en blokkeert mail in sql', () 
   const sql = readFileSync(new URL('../supabase/migrations/20261002200000_publiceren_boekingen.sql', import.meta.url), 'utf8');
   assert.match(pagina, /Te publiceren komende 8 weken/);
   assert.match(pagina, /Toch publiceren/);
+  assert.match(pagina, /publicatieBesluit\(checks, actie === 'toch_publiceren'\)/);
+  assert.equal(pagina.includes('name="bevestig"'), false);
   assert.match(pagina, /Genereer URL/);
   assert.match(pagina, /Standaardafbeelding wordt gebruikt/);
   assert.equal(pagina.includes('legacy_id'), false);
