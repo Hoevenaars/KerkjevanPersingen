@@ -13,6 +13,8 @@ import {
   leesVensterStap,
   publicatieBesluit,
   publicatieChecks,
+  publicatieDossierHref,
+  publicatieUitBoekingen,
   publicatieWerklijst,
   slugNaPublicatie,
   slugUitActiviteit,
@@ -46,9 +48,21 @@ const bronnen: PublicatieBron[] = snapshot.agenda.map((activiteit) => ({
   geannuleerd: activiteit.levenscyclus === 'geannuleerd',
   tabel: activiteit.tabel,
   legacyId: activiteit.legacyId,
+  boekingId: activiteit.boekingId,
   trigger: activiteit.trigger,
 }));
-const { venster, items } = publicatieWerklijst(bronnen, vandaag, stap);
+const verhuur = publicatieUitBoekingen(
+  snapshot.boekingen.map((boeking) => ({
+    id: boeking.id,
+    start: boeking.start,
+    eind: boeking.eind,
+    titel: boeking.interneTitel,
+    huurder: boeking.huurder,
+    status: boeking.status,
+  })),
+  bronnen,
+);
+const { venster, items } = publicatieWerklijst([...bronnen, ...verhuur], vandaag, stap);
 const bezetteSlugs = new Set(snapshot.agenda.map((activiteit) => activiteit.slug).filter((slug): slug is string => Boolean(slug)));
 
 if (Astro.request.method === 'POST') {
@@ -101,7 +115,7 @@ if (Astro.request.method === 'POST') {
   const rij = snapshot.agenda.find((kandidaat) => kandidaat.id === item.id);
   const opgeslagen = await voerPublicatie(omgevingsRecord(), {
     tabel: item.tabel || 'publieke_activiteiten',
-    id: rij?.activiteitId || item.id.replace(/^bron:/, ''),
+    id: item.tabel === 'boekingen' ? item.id : (rij?.activiteitId || item.id.replace(/^bron:/, '')),
     actie: actie === 'verberg' ? 'verberg' : publiceren ? 'publiceer' : 'bewaar',
     payload: {
       titel: concept.titel,
@@ -209,7 +223,7 @@ function stapHref(volgende: number): string {
                 Ik wil de gepubliceerde URL bewust wijzigen
               </label>
             )}
-            <p><a href={`/beheer/agenda/${encodeURIComponent(item.id)}/`}>Open het activiteitdossier</a></p>
+            <p><a href={publicatieDossierHref(item)}>{item.tabel === 'boekingen' ? 'Open de boeking' : 'Open het activiteitdossier'}</a></p>
             <div class="bh-form-rij">
               <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">Opslaan</button>
               <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="genereer">Genereer URL</button>

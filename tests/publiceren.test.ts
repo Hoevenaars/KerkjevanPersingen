@@ -10,6 +10,8 @@ import {
   kaartVoorWebsite,
   publicatieBesluit,
   publicatieChecks,
+  publicatieDossierHref,
+  publicatieUitBoekingen,
   publicatieWerklijst,
   slugNaPublicatie,
   slugUitActiviteit,
@@ -131,15 +133,36 @@ test('publicatie toont de activiteit, verbergen haalt haar weg, zonder mail', ()
   assert.equal(besluit.jobs, 0);
 });
 
+test('verhuur in de komende 8 weken staat op de werklijst', () => {
+  const activiteiten = [
+    item({ id: 'evelien', start: '2026-11-07', eind: '2026-11-08', titel: 'expositie Evelien Bannenberg' }),
+  ];
+  const verhuur = publicatieUitBoekingen([
+    { id: '42', start: '2026-10-10', eind: '2026-10-11', titel: 'Oktober 10/11', huurder: 'Martina Vieten', status: 'migratie_vastgelegd' },
+    { id: '39', start: '2026-10-03', eind: '2026-10-04', titel: 'Oktober 3/4 geannuleerd', huurder: 'Jos van Riswick', status: 'geannuleerd' },
+    { id: '257', start: '2026-11-07', eind: '2026-11-08', titel: 'November 7/8.', huurder: 'Evelien Bannenberg', status: 'migratie_vastgelegd' },
+    { id: '51', start: '2026-11-28', eind: '2026-11-29', titel: 'November 28/29', huurder: 'Nick Cillessen', status: 'migratie_vastgelegd' },
+  ], activiteiten);
+  const lijst = publicatieWerklijst([...activiteiten, ...verhuur], vandaag);
+  assert.deepEqual(lijst.items.map((rij) => rij.id), ['42', 'evelien']);
+  assert.equal(lijst.items[0]?.exposanten, 'Martina Vieten');
+  assert.equal(lijst.items[0]?.tabel, 'boekingen');
+  assert.equal(publicatieDossierHref(lijst.items[0]!), '/beheer/boekingen/42/');
+  assert.equal(werkstatus(lijst.items[0]!), 'mist_content');
+});
+
 test('publiceren toont geen technische bronvelden en blokkeert mail in sql', () => {
   const pagina = readFileSync(new URL('../src/pages/beheer/publiceren/index.astro', import.meta.url), 'utf8');
-  const sql = readFileSync(new URL('../supabase/migrations/20261002190000_publiceren_werklijst.sql', import.meta.url), 'utf8');
+  const sql = readFileSync(new URL('../supabase/migrations/20261002200000_publiceren_boekingen.sql', import.meta.url), 'utf8');
   assert.match(pagina, /Te publiceren komende 8 weken/);
   assert.match(pagina, /Toch publiceren/);
   assert.match(pagina, /Genereer URL/);
   assert.match(pagina, /Standaardafbeelding wordt gebruikt/);
   assert.equal(pagina.includes('legacy_id'), false);
   assert.equal(pagina.includes('activiteit_bron'), false);
+  assert.match(pagina, /Open de boeking/);
+  assert.match(sql, /boekingen/);
+  assert.match(sql, /boeking_id/);
   assert.match(sql, /force_publish/);
   assert.match(sql, /publiceren mag geen communicatiejob maken/);
   assert.equal(sql.includes('insert into public.communicatie_jobs'), false);
