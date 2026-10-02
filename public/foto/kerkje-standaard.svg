@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Kerkje van Persingen">
+  <rect width="800" height="600" fill="#f4f1ea"/>
+  <path d="M400 90l18 36h-36zM370 126h60v250h-60zM250 250h300v160H250z" fill="#7c8460"/>
+  <rect x="382" y="300" width="36" height="70" fill="#f4f1ea"/>
+  <text x="400" y="470" text-anchor="middle" font-family="Georgia, serif" font-size="28" fill="#3d4a32">Kerkje van Persingen</text>
+</svg>

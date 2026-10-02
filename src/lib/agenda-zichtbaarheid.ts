@@ -104,22 +104,12 @@ export function triggerVanToonVanaf(waarde: unknown): string | null {
 
 /**
  * Websitepoort zonder publicatietiming.
- * Zonder contentstatus blijft de huidige regel: zichtbaarheid publiek is genoeg.
- * Een gezet contentstatus-veld telt pas mee als het goedgekeurd is.
- * Een expositie met goedgekeurde content heeft titel, beide teksten en een hoofdafbeelding nodig.
+ * Zichtbaarheid publiek is genoeg. Ontbrekende content blokkeert niet;
+ * de site gebruikt dan de tekst- en afbeeldingsfallback.
  */
 export function magOpWebsiteZonderTiming(rij: WebsitePoort): boolean {
   if (rij.geannuleerd) return false;
-  if (rij.zichtbaarheid !== 'publiek') return false;
-  if (rij.contentstatus == null || rij.contentstatus === '') return true;
-  if (rij.contentstatus !== 'goedgekeurd') return false;
-  if ((rij.soort || 'expositie') !== 'expositie') return true;
-  return Boolean(
-    rij.titel?.trim()
-    && rij.korteOmschrijving?.trim()
-    && rij.volledigeOmschrijving?.trim()
-    && rij.hoofdafbeelding?.trim(),
-  );
+  return rij.zichtbaarheid === 'publiek';
 }
 
 /** Publiek en bezet blokkeren. Verborgen en geannuleerd niet. */
@@ -137,16 +127,6 @@ export function hoortOpPubliekeAgenda(rij: AgendaBron, vandaag: string): boolean
   if (rij.geannuleerd) return false;
   if (rij.trigger === 'niet_publiceren') return false;
   if (rij.zichtbaarheid === 'verborgen' || rij.zichtbaarheid === 'bezet') return false;
-  if (rij.contentstatus && rij.contentstatus !== 'goedgekeurd') return false;
-  if (rij.contentstatus === 'goedgekeurd' && (rij.soort || 'expositie') === 'expositie') {
-    const compleet = Boolean(
-      rij.titel?.trim()
-      && rij.korteOmschrijving?.trim()
-      && rij.volledigeOmschrijving?.trim()
-      && rij.hoofdafbeelding?.trim(),
-    );
-    if (!compleet) return false;
-  }
   if (rij.zichtbaarheid === 'publiek') return true;
   return rij.gepubliceerd && rij.inhoudStatus === 'goedgekeurd';
 }
