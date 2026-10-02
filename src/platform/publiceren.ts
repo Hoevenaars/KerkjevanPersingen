@@ -35,8 +35,9 @@ export interface PublicatieBron {
   slug?: string;
   publicatiestatus?: 'publiek' | 'bezet' | 'verborgen' | null;
   geannuleerd?: boolean;
-  tabel?: 'publieke_activiteiten' | 'activiteit_bron';
+  tabel?: 'publieke_activiteiten' | 'activiteit_bron' | 'boekingen';
   legacyId?: string;
+  boekingId?: string;
   trigger?: string | null;
 }
 
@@ -94,6 +95,49 @@ export function sorteerPublicatie<T extends PublicatieBron>(items: readonly T[],
     if (aLoopt !== bLoopt) return aLoopt ? -1 : 1;
     return a.start.localeCompare(b.start) || a.titel.localeCompare(b.titel, 'nl');
   });
+}
+
+const BOEKING_ZICHTBAAR = new Set(['optie', 'definitief', 'migratie_vastgelegd', 'afgerond']);
+
+export interface PublicatieBoeking {
+  id: string;
+  start: string;
+  eind: string;
+  titel: string;
+  huurder: string;
+  status: string;
+}
+
+function dektBoeking(boeking: PublicatieBoeking, activiteit: PublicatieBron): boolean {
+  if (activiteit.boekingId && activiteit.boekingId === boeking.id) return true;
+  const naam = boeking.huurder.trim().toLowerCase();
+  if (naam.length < 3) return false;
+  if (activiteit.start.slice(0, 10) !== boeking.start.slice(0, 10)) return false;
+  if (activiteit.eind.slice(0, 10) !== boeking.eind.slice(0, 10)) return false;
+  return `${activiteit.titel} ${activiteit.exposanten ?? ''}`.toLowerCase().includes(naam);
+}
+
+/** Verhuur uit het huuroverzicht, behalve wat al als website-activiteit op dezelfde dagen staat. */
+export function publicatieUitBoekingen(boekingen: readonly PublicatieBoeking[], activiteiten: readonly PublicatieBron[]): PublicatieBron[] {
+  return boekingen
+    .filter((boeking) => BOEKING_ZICHTBAAR.has(boeking.status) && Boolean(boeking.start) && Boolean(boeking.eind))
+    .filter((boeking) => !activiteiten.some((activiteit) => dektBoeking(boeking, activiteit)))
+    .map((boeking) => ({
+      id: boeking.id,
+      start: boeking.start,
+      eind: boeking.eind,
+      titel: boeking.titel.trim() || boeking.huurder.trim() || 'Verhuur',
+      exposanten: boeking.huurder.trim(),
+      organisatie: boeking.huurder.trim(),
+      publicatiestatus: null,
+      tabel: 'boekingen' as const,
+      boekingId: boeking.id,
+    }));
+}
+
+export function publicatieDossierHref(item: Pick<PublicatieBron, 'id' | 'tabel'>): string {
+  const pad = item.tabel === 'boekingen' ? 'boekingen' : 'agenda';
+  return `/beheer/${pad}/${encodeURIComponent(item.id)}/`;
 }
 
 export function publicatieWerklijst<T extends PublicatieBron>(
