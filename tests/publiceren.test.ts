@@ -151,6 +151,14 @@ test('verhuur in de komende 8 weken staat op de werklijst', () => {
   assert.equal(werkstatus(lijst.items[0]!), 'mist_content');
 });
 
+test('publieke agenda volgt publicatiestatus en koppelt Second Nature', () => {
+  const sql = readFileSync(new URL('../supabase/migrations/20261002210000_agenda_zonder_contentblokkade.sql', import.meta.url), 'utf8');
+  assert.equal(sql.includes("p.contentstatus = 'goedgekeurd'"), false);
+  assert.match(sql, /second-nature/);
+  assert.match(sql, /Monika Loster/);
+  assert.match(sql, /boeking_id = b.id/);
+});
+
 test('publiceren toont geen technische bronvelden en blokkeert mail in sql', () => {
   const pagina = readFileSync(new URL('../src/pages/beheer/publiceren/index.astro', import.meta.url), 'utf8');
   const sql = readFileSync(new URL('../supabase/migrations/20261002200000_publiceren_boekingen.sql', import.meta.url), 'utf8');
