@@ -1,0 +1,371 @@
+{
+  "source_period": {
+    "old": "01-09-2026",
+    "new": "01-10-2026"
+  },
+  "notes": [
+    "Voor 2027 zijn beide bestandsnamen 01-09-2026. De versie zonder '(1)' is als nieuw behandeld omdat de workbook-metadata modified=2026-10-01 16:58:02 toont en deze de latere wijzigingen bevat.",
+    "Alleen inhoudelijke celwaarden zijn vergeleken; opmaak is niet als datawijziging behandeld.",
+    "Bestaande ongewijzigde bronfouten/typo's zijn niet opgeschoond. Alleen verschillen tussen oud en nieuw staan in deze delta."
+  ],
+  "summary": {
+    "change_events": 20,
+    "new_booking_records": 6,
+    "existing_booking_status_or_party_changes": 3,
+    "payment_updates": 5,
+    "overdue_followup_flags": 4,
+    "data_correction": 1,
+    "availability_slot_reopened": 1,
+    "deleted_records": 0
+  },
+  "changes": [
+    {
+      "year": 2026,
+      "slot": "November 7/8",
+      "date_start": "2026-11-07",
+      "date_end": "2026-11-08",
+      "entity": "booking",
+      "person": "Jan Rensen",
+      "action": "update",
+      "changes": {
+        "slot_label": {
+          "old": "November 7/8",
+          "new": "November 7/8 geannuleerd"
+        }
+      },
+      "meaning": "Bestaande boeking annuleren; niet verwijderen."
+    },
+    {
+      "year": 2026,
+      "slot": "November 7/8",
+      "date_start": "2026-11-07",
+      "date_end": "2026-11-08",
+      "entity": "booking",
+      "person": "Evelien Bannenberg",
+      "action": "insert_cancelled_booking",
+      "record": {
+        "slot_label": "November 7/8. geannuleerd",
+        "huurder": "Evelien Bannenberg",
+        "telefoon": "681501599",
+        "email": "evelienbannenberg@gmail.com",
+        "contract": "nee",
+        "te_betalen": "490",
+        "termijn_1": "490 te bet voor 01-10-2026",
+        "termijn_2": "",
+        "bijzonderheden": "contr verz 17-09-2026"
+      },
+      "meaning": "Nieuwe historische/geannuleerde boeking toevoegen; slot blijft uiteindelijk beschikbaar."
+    },
+    {
+      "year": 2026,
+      "slot": "November 7/8",
+      "date_start": "2026-11-07",
+      "date_end": "2026-11-08",
+      "entity": "booking",
+      "person": "Steven van Meurs",
+      "action": "insert_cancelled_booking",
+      "record": {
+        "slot_label": "November 7/8. geannuleerd                 Steven van Meurs",
+        "huurder": "Steven van Meurs",
+        "telefoon": "638209430",
+        "email": "info@stevevanmeurs.nl",
+        "contract": "nee",
+        "te_betalen": "490",
+        "termijn_1": "490 te bet voor 11-10-2026",
+        "termijn_2": "",
+        "bijzonderheden": "contr verz 27-09-2026",
+        "legacy_payment_note": "350 retour aan Jan Rensen na ontvangst"
+      },
+      "meaning": "Nieuwe historische/geannuleerde boeking toevoegen. Refundtekst als notitie bewaren; geen voltooide restitutie boeken zonder betaal-/restitutiedatum."
+    },
+    {
+      "year": 2026,
+      "slot": "November 7/8",
+      "date_start": "2026-11-07",
+      "date_end": "2026-11-08",
+      "entity": "availability",
+      "action": "reopen_slot",
+      "record": {
+        "slot_label": "November 7/8",
+        "huurder": ""
+      },
+      "meaning": "Weekend is na annuleringen weer vrij/beschikbaar."
+    },
+    {
+      "year": 2026,
+      "slot": "December 5/6",
+      "date_start": "2026-12-05",
+      "date_end": "2026-12-06",
+      "entity": "booking",
+      "person": "Elin Bennaars",
+      "action": "update",
+      "changes": {
+        "huurder": {
+          "old": "Elin Bennaars",
+          "new": "Elin Bennaars icm Marion Groenenberg"
+        }
+      },
+      "meaning": "Tweede naam/medehuurder toevoegen; overige gegevens ongewijzigd."
+    },
+    {
+      "year": 2027,
+      "slot": "Maart 6/7",
+      "date_start": "2027-03-06",
+      "date_end": "2027-03-07",
+      "entity": "booking",
+      "person": "Afke van Halen",
+      "action": "update",
+      "changes": {
+        "slot_label": {
+          "old": "Maart 6/7, 2027",
+          "new": "Maart 6/7, 2027 geannuleerd"
+        }
+      },
+      "meaning": "Bestaande boeking annuleren; betalingen niet dubbel tellen."
+    },
+    {
+      "year": 2027,
+      "slot": "Maart 6/7",
+      "date_start": "2027-03-06",
+      "date_end": "2027-03-07",
+      "entity": "booking",
+      "person": "Rob Pluijm ivm Carola Bouchoms",
+      "action": "insert_replacement_booking",
+      "record": {
+        "huurder": "Rob Pluijm ivm Carola Bouchoms",
+        "telefoon": "06 23449010",
+        "email": "info @robpluijm.nl",
+        "contract": "nee",
+        "te_betalen": "490,--",
+        "termijn_1": "reeds voldaan door Afke van Halen op 21-07-2025 en 05-08-2026",
+        "termijn_2": "",
+        "bijzonderheden": "contract verzonden 17-09-2026"
+      },
+      "meaning": "Vervangende boeking toevoegen. Hergebruik/relateer de bestaande betalingen van Afke; maak geen tweede omzetbetaling van 490 aan. E-mail exact uit bron bewaren of apart markeren voor review wegens spatie."
+    },
+    {
+      "year": 2027,
+      "slot": "April 17/18",
+      "date_start": "2027-04-17",
+      "date_end": "2027-04-18",
+      "entity": "booking_payment",
+      "person": "Marlous Arnold icm Anne Thoss en Margot van Neerven",
+      "action": "update",
+      "changes": {
+        "termijn_2": {
+          "old": "390,-- te bet. Voor 17-08-2026*",
+          "new": "390,-- betaald 02 09 2026"
+        },
+        "betaling_in_2026_note": {
+          "old": "",
+          "new": "100 te veel betaald op 02 09 2026 = terug betaald"
+        }
+      },
+      "meaning": "Restant 390 als betaald op 02-09-2026 verwerken. Daarnaast overbetaling/restitutie 100 vastleggen zonder netto omzet dubbel te tellen."
+    },
+    {
+      "year": 2027,
+      "slot": "April 24/25",
+      "date_start": "2027-04-24",
+      "date_end": "2027-04-25",
+      "entity": "booking_payment",
+      "person": "Ellen vd Wal icm Jolanthe Krepel",
+      "action": "update",
+      "changes": {
+        "termijn_2": {
+          "old": "390,-- te bet voor 24-08-2026*",
+          "new": "390,-- betaald 03-09-2026"
+        }
+      },
+      "meaning": "Restant 390 als betaald op 03-09-2026 verwerken."
+    },
+    {
+      "year": 2027,
+      "slot": "Mei 8/9",
+      "date_start": "2027-05-08",
+      "date_end": "2027-05-09",
+      "entity": "booking_payment",
+      "person": "Mirjam Withaar",
+      "action": "update",
+      "changes": {
+        "termijn_2": {
+          "old": "390,-- te bet voor 08-09-2026",
+          "new": "390,-- te bet voor 08-09-2026*"
+        }
+      },
+      "meaning": "Alleen bronflag '*' toegevoegd; geen betaling ontvangen. Markeer als achterstallig/follow-up indien het systeem zo'n status kent."
+    },
+    {
+      "year": 2027,
+      "slot": "Mei 15/16/17 pinksteren",
+      "date_start": "2027-05-15",
+      "date_end": "2027-05-17",
+      "entity": "booking_payment",
+      "person": "Jolanda van Hattum",
+      "action": "update",
+      "changes": {
+        "termijn_2": {
+          "old": "635,-- te bet voor 15-09-2026",
+          "new": "635,-- betaald 06-09-2026"
+        }
+      },
+      "meaning": "Restant 635 als betaald op 06-09-2026 verwerken."
+    },
+    {
+      "year": 2027,
+      "slot": "Mei 22/23",
+      "date_start": "2027-05-22",
+      "date_end": "2027-05-23",
+      "entity": "booking_note",
+      "person": "Ria Tharner",
+      "action": "correct",
+      "changes": {
+        "betaling_in_2026_note": {
+          "old": "betaald 250,-- op 23-23-2026",
+          "new": "betaald 250,-- op 23-03-2026"
+        }
+      },
+      "meaning": "Alleen datumtypefout corrigeren; bedrag en betaaldstatus zijn al bestaand."
+    },
+    {
+      "year": 2027,
+      "slot": "Mei 29/30",
+      "date_start": "2027-05-29",
+      "date_end": "2027-05-30",
+      "entity": "booking_payment",
+      "person": "P. Nieuwenhuis (fotoclub NNF Nijmegen)",
+      "action": "update",
+      "changes": {
+        "termijn_2": {
+          "old": "390,-- te bet voor 29-09-2026",
+          "new": "390,-- te bet voor 29-09-2026*"
+        }
+      },
+      "meaning": "Alleen bronflag '*' toegevoegd; geen betaling ontvangen. Markeer als achterstallig/follow-up indien passend."
+    },
+    {
+      "year": 2027,
+      "slot": "Juni 5/6",
+      "date_start": "2027-06-05",
+      "date_end": "2027-06-06",
+      "entity": "booking_payment",
+      "person": "Maria Dabrowski",
+      "action": "update",
+      "changes": {
+        "termijn_2": {
+          "old": "390,-- te bet voor 05-10-2026",
+          "new": "390,-- betaald 27-09-2026"
+        }
+      },
+      "meaning": "Restant 390 als betaald op 27-09-2026 verwerken."
+    },
+    {
+      "year": 2027,
+      "slot": "Juni 25",
+      "date_start": "2027-06-25",
+      "date_end": "2027-06-25",
+      "entity": "booking_payment",
+      "person": "huwelijk Roos Hilstra",
+      "action": "update",
+      "changes": {
+        "termijn_1": {
+          "old": "100 te bet voor 03-09-2026",
+          "new": "100 te bet voor 03-09-2026*"
+        }
+      },
+      "meaning": "Alleen bronflag '*' toegevoegd; geen betaling ontvangen. Markeer als achterstallig/follow-up indien passend."
+    },
+    {
+      "year": 2028,
+      "slot": "Februari 19/20",
+      "date_start": "2028-02-19",
+      "date_end": "2028-02-20",
+      "entity": "booking_payment",
+      "person": "Isabelle Hartman",
+      "action": "update",
+      "changes": {
+        "termijn_1": {
+          "old": "100 te bet voor 03-09-2026",
+          "new": "100 te bet voor 03-09-2026*"
+        }
+      },
+      "meaning": "Alleen bronflag '*' toegevoegd; geen betaling ontvangen. Markeer als achterstallig/follow-up indien passend."
+    },
+    {
+      "year": 2028,
+      "slot": "Augustus 12/13",
+      "date_start": "2028-08-12",
+      "date_end": "2028-08-13",
+      "entity": "booking",
+      "person": "Karen Brouwer",
+      "action": "insert",
+      "record": {
+        "huurder": "Karen Brouwer",
+        "telefoon": "06 36007927",
+        "email": "karenbrouwer@kpnmail.nl",
+        "contract": "nee",
+        "te_betalen": "490",
+        "termijn_1": "100 betaald 22-09-2026",
+        "termijn_2": "390 te bet voor 12 12 2027",
+        "bijzonderheden": "contr verz 21-09-2026"
+      },
+      "meaning": "Nieuwe boeking toevoegen; aanbetaling 100 betaald op 22-09-2026."
+    },
+    {
+      "year": 2028,
+      "slot": "September 2/3",
+      "date_start": "2028-09-02",
+      "date_end": "2028-09-03",
+      "entity": "booking",
+      "person": "Frank Biemans icm Denny Baggen",
+      "action": "insert",
+      "record": {
+        "huurder": "Frank Biemans icm Denny Baggen",
+        "telefoon": "655722034",
+        "email": "info@frankbiemans.nl",
+        "contract": "nee",
+        "te_betalen": "490",
+        "termijn_1": "100 betaald 04-09-2026",
+        "termijn_2": "390 te bet voor 02-01-2028",
+        "bijzonderheden": "contr verz 04-09-2026"
+      },
+      "meaning": "Nieuwe boeking toevoegen; aanbetaling 100 betaald op 04-09-2026."
+    },
+    {
+      "year": 2028,
+      "slot": "September 30/oktober 1",
+      "date_start": "2028-09-30",
+      "date_end": "2028-10-01",
+      "entity": "booking_payment",
+      "person": "Tiny Zijlstra icm Doreen Bour",
+      "action": "update",
+      "changes": {
+        "termijn_1": {
+          "old": "100 te bet voor 16-09-2026",
+          "new": "100 betaald 06-09-2026"
+        }
+      },
+      "meaning": "Aanbetaling 100 als betaald op 06-09-2026 verwerken."
+    },
+    {
+      "year": 2029,
+      "slot": "Augustus 25/26",
+      "date_start": "2029-08-25",
+      "date_end": "2029-08-26",
+      "entity": "booking",
+      "person": "Rein van Vucht icm Mieke Koenen",
+      "action": "insert",
+      "record": {
+        "huurder": "Rein van Vucht icm Mieke Koenen",
+        "telefoon": "625274232",
+        "email": "info@reinvanvucht.nl",
+        "contract": "nee",
+        "te_betalen": "525",
+        "termijn_1": "100 te bet voor 15-10-2026",
+        "termijn_2": "425 te bet voor 25-12-2028",
+        "bijzonderheden": "contr verz 01 10 2026"
+      },
+      "meaning": "Nieuwe boeking toevoegen; nog geen betaling ontvangen volgens de nieuwe dataset."
+    }
+  ]
+}
