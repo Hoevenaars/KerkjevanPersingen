@@ -7,6 +7,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord } from '../..
 import { actorVanSessie } from '../../../lib/operatie/runtime.ts';
 import { voerPublicatie } from '../../../lib/activiteit-schrijf.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { nuZichtbaarOpWebsite } from '../../../lib/agenda-zichtbaarheid.ts';
 import {
   WERKSTATUS,
   contentCompleet,
@@ -16,9 +17,9 @@ import {
   publicatieDossierHref,
   publicatieUitBoekingen,
   publicatieWerklijst,
+  slugBijPublicatie,
   slugNaPublicatie,
-  slugUitActiviteit,
-  uniekeSlug,
+  urlVoorstelZonderContentverlies,
   websiteUrl,
   werkstatus,
   type PublicatieBron,
@@ -28,7 +29,6 @@ const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
 const stap = leesVensterStap(Astro.url.searchParams.get('stap'));
 const openId = Astro.url.searchParams.get('open') ?? '';
-const voorstel = Astro.url.searchParams.get('voorstel') ?? '';
 const slugLetOp = Astro.url.searchParams.get('slugletop') ?? '';
 
 const bronnen: PublicatieBron[] = snapshot.agenda.map((activiteit) => ({
@@ -44,6 +44,7 @@ const bronnen: PublicatieBron[] = snapshot.agenda.map((activiteit) => ({
   praktisch: activiteit.praktisch || '',
   fotoPad: activiteit.fotoPad || '',
   slug: activiteit.slug || '',
+  soort: activiteit.soort || '',
   publicatiestatus: activiteit.publicatiestatus ?? null,
   geannuleerd: activiteit.levenscyclus === 'geannuleerd',
   tabel: activiteit.tabel,
@@ -59,6 +60,7 @@ const verhuur = publicatieUitBoekingen(
     titel: boeking.interneTitel,
     huurder: boeking.huurder,
     status: boeking.status,
+    soort: boeking.soort,
   })),
   bronnen,
 );
@@ -90,13 +92,14 @@ if (Astro.request.method === 'POST') {
     slug: String(data.get('slug') ?? item.slug ?? ''),
   };
   if (actie === 'genereer') {
-    const basis = slugUitActiviteit(exposanten, titel);
-    const uniek = uniekeSlug(basis, bezetteSlugs, concept.start.slice(0, 4), item.slug ?? '');
-    const besluit = slugNaPublicatie(item, uniek, false);
-    if (besluit.slug !== item.slug) terug.searchParams.set('voorstel', besluit.slug);
-    if (besluit.waarschuwing) terug.searchParams.set('slugletop', besluit.waarschuwing);
-    else terug.searchParams.set('melding', `Voorstel: ${websiteUrl(besluit.slug || uniek)}`);
-    return Astro.redirect(terug.toString());
+    const voorstel = urlVoorstelZonderContentverlies(concept, bezetteSlugs, data.get('slug_bewust') === 'ja');
+    concept.slug = voorstel.item.slug;
+    concept.titel = voorstel.item.titel;
+    concept.exposanten = voorstel.item.exposanten;
+    concept.korteOmschrijving = voorstel.item.korteOmschrijving;
+    concept.volledigeOmschrijving = voorstel.item.volledigeOmschrijving;
+    concept.praktisch = voorstel.item.praktisch;
+    concept.fotoPad = voorstel.item.fotoPad;
   }
   const checks = publicatieChecks(concept);
   const publiceren = actie === 'publiceer' || actie === 'toch_publiceren';
@@ -105,9 +108,18 @@ if (Astro.request.method === 'POST') {
     terug.searchParams.set('fout', besluit.melding);
     return Astro.redirect(terug.toString());
   }
+  if (publiceren && item.geannuleerd) {
+    terug.searchParams.set('fout', 'Een geannuleerde activiteit wordt niet gepubliceerd.');
+    return Astro.redirect(terug.toString());
+  }
   if (publiceren && !concept.slug?.trim()) {
-    const basis = slugUitActiviteit(exposanten, titel);
-    concept.slug = uniekeSlug(basis, bezetteSlugs, concept.start.slice(0, 4), item.slug ?? '');
+    concept.slug = slugBijPublicatie({
+      exposanten,
+      titel,
+      slug: '',
+      start: concept.start,
+      bezet: bezetteSlugs,
+    });
   }
   const slugBesluit = slugNaPublicatie(item, concept.slug ?? '', data.get('slug_bewust') === 'ja');
   if (slugBesluit.waarschuwing && data.get('slug_bewust') !== 'ja' && concept.slug && concept.slug !== item.slug) {
@@ -169,10 +181,19 @@ function stapHref(volgende: number): string {
     <p class="bh-leeg">Geen activiteiten in deze acht weken.</p>
   ) : (
     items.map((item) => {
-      const checks = publicatieChecks({ ...item, slug: openId === item.id && voorstel ? voorstel : item.slug });
+      const checks = publicatieChecks(item);
       const status = werkstatus(item, checks);
       const compleet = contentCompleet(checks);
-      const slugVeld = openId === item.id && voorstel ? voorstel : (item.slug || '');
+      const slugVeld = item.slug || '';
+      const nuZichtbaar = nuZichtbaarOpWebsite({
+        zichtbaarheid: item.publicatiestatus,
+        geannuleerd: item.geannuleerd,
+        start: item.start,
+        eind: item.eind,
+        trigger: item.trigger,
+        vandaag,
+        viaPubliekeAgenda: item.tabel === 'publieke_activiteiten',
+      });
       return (
         <details class="bh-kaart" open={openId === item.id}>
           <summary>
@@ -184,12 +205,16 @@ function stapHref(volgende: number): string {
           <p class="bh-hint">
             Content compleet: {compleet ? 'ja' : 'nee'}.
             Afbeelding: {item.fotoPad ? 'eigen afbeelding' : 'standaardafbeelding wordt gebruikt'}.
-            URL: {item.slug ? 'gereed' : 'nog niet'}.
-            Nu op de website: {status === 'gepubliceerd' && !item.geannuleerd ? 'ja' : 'nee'}.
+            URL: {item.slug ? 'gereed' : 'wordt automatisch gemaakt'}.
+            Nu zichtbaar op website: {nuZichtbaar ? 'ja' : 'nee'}.
           </p>
           <ul class="bh-checks">
             {checks.map((check) => (
-              <li>{check.ok ? '✓' : '⚠'} {check.ok ? check.label : check.label.replace('aanwezig', 'ontbreekt').replace('beschikbaar', 'ontbreekt')}</li>
+              <li>
+                {check.rol === 'automatisch'
+                  ? check.label
+                  : `${check.ok ? '✓' : '⚠'} ${check.ok ? check.label : check.label.replace('aanwezig', 'ontbreekt')}`}
+              </li>
             ))}
           </ul>
           {!compleet && status !== 'geannuleerd' && (
@@ -215,6 +240,7 @@ function stapHref(volgende: number): string {
             {!item.fotoPad && <p class="bh-muted">Standaardafbeelding wordt gebruikt</p>}
             <label for={`slug-${item.id}`}>Website-URL</label>
             <input id={`slug-${item.id}`} name="slug" value={slugVeld} placeholder="evelien-bannenberg" />
+            <p class="bh-flash bh-flash--fout" data-slug-letop hidden></p>
             <p class="bh-muted">
               Website:{' '}
               {slugVeld && status === 'gepubliceerd' ? (
@@ -232,7 +258,16 @@ function stapHref(volgende: number): string {
             <p><a href={publicatieDossierHref(item)}>{item.tabel === 'boekingen' ? 'Open de boeking' : 'Open het activiteitdossier'}</a></p>
             <div class="bh-form-rij">
               <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">Opslaan</button>
-              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="genereer">Genereer URL</button>
+              <button
+                class="bh-btn bh-btn--sec"
+                type="button"
+                data-genereer-url
+                data-id={item.id}
+                data-start={item.start}
+                data-eind={item.eind}
+                data-huidige-slug={item.slug || ''}
+                data-status={item.publicatiestatus || ''}
+              >Genereer URL</button>
               {status !== 'geannuleerd' && compleet && (
                 <button class="bh-btn" type="submit" name="actie" value="publiceer">{status === 'gepubliceerd' ? 'Wijzigingen publiceren' : 'Publiceer'}</button>
               )}
@@ -248,7 +283,46 @@ function stapHref(volgende: number): string {
       );
     })
   )}
+  <script type="application/json" id="bezette-slugs" set:html={JSON.stringify([...bezetteSlugs])} />
 </Beheer>
+
+<script>
+  import { urlVoorstelZonderContentverlies, type PublicatieBron } from '../../../platform/publiceren.ts';
+
+  const bezet = new Set<string>(JSON.parse(document.getElementById('bezette-slugs')?.textContent || '[]'));
+
+  document.querySelectorAll<HTMLButtonElement>('[data-genereer-url]').forEach((knop) => {
+    knop.addEventListener('click', () => {
+      const form = knop.closest('form');
+      if (!form) return;
+      const waarde = (naam: string) =>
+        form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${naam}"]`)?.value ?? '';
+      const status = knop.dataset.status;
+      const bron: PublicatieBron = {
+        id: knop.dataset.id || '',
+        start: knop.dataset.start || '',
+        eind: knop.dataset.eind || '',
+        titel: waarde('titel'),
+        exposanten: waarde('exposanten'),
+        korteOmschrijving: waarde('korte_omschrijving'),
+        volledigeOmschrijving: waarde('volledige_omschrijving'),
+        praktisch: waarde('praktische_informatie'),
+        fotoPad: waarde('foto_pad'),
+        slug: knop.dataset.huidigeSlug || waarde('slug'),
+        publicatiestatus: status === 'publiek' || status === 'verborgen' || status === 'bezet' ? status : null,
+      };
+      const bewust = form.querySelector<HTMLInputElement>('[name="slug_bewust"]')?.checked ?? false;
+      const besluit = urlVoorstelZonderContentverlies(bron, bezet, bewust);
+      const slugVeld = form.querySelector<HTMLInputElement>('[name="slug"]');
+      if (slugVeld) slugVeld.value = besluit.item.slug || '';
+      const letop = form.querySelector<HTMLElement>('[data-slug-letop]');
+      if (letop) {
+        letop.textContent = besluit.waarschuwing;
+        letop.hidden = !besluit.waarschuwing;
+      }
+    });
+  });
+</script>
 
 <style>
   .bh-checks { margin: 0.5rem 0 1rem; padding-left: 1.1rem; }

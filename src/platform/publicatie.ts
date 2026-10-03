@@ -87,6 +87,16 @@ export function beoordeelPublicatie(input: PublicatieInput): PublicatieUitkomst 
     };
   }
 
+  if (input.trigger === 'direct') {
+    return {
+      magOnline: true,
+      reden: 'Handmatig direct gepubliceerd.',
+      minimaleContent,
+      ontbrekendeAanvulling: ontbrekend,
+      dashboardActie: ontbrekend.length > 0,
+    };
+  }
+
   if (input.trigger === 'zodra_content_compleet') {
     return {
       magOnline: contentCompleet,

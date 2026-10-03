@@ -64,6 +64,20 @@ describe('publicatie', () => {
     assert.equal(uitkomst.magOnline, false);
   });
 
+  test('handmatig direct publiceren blijft online zonder volledige content', () => {
+    const uitkomst = beoordeelPublicatie({
+      gekoppeldeBoekingStatus: 'definitief',
+      publiekeTitel: 'Expositie Jansen',
+      datum: '2026-09-12',
+      trigger: 'direct',
+      startYmd: '2026-09-12',
+      nuYmd: '2026-09-01',
+    });
+    assert.equal(uitkomst.magOnline, true);
+    assert.ok(uitkomst.ontbrekendeAanvulling.includes('omschrijving'));
+    assert.ok(uitkomst.ontbrekendeAanvulling.includes('foto'));
+  });
+
   test('ontbrekende foto blokkeert minimale publicatie niet als het moment er is', () => {
     const uitkomst = beoordeelPublicatie({
       gekoppeldeBoekingStatus: 'definitief',

@@ -16,11 +16,9 @@ import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { voerActiviteitActie } from '../../../lib/activiteit-schrijf.ts';
 import {
   blokkeertBeschikbaarheid,
-  magOpWebsiteZonderTiming,
-  maandenVanTrigger,
+  nuZichtbaarOpWebsite,
   CONTENTSTATUSSEN,
 } from '../../../lib/agenda-zichtbaarheid.ts';
-import { magAlGetoondWorden } from '../../../lib/publiek-lezen.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { terugLink } from '../../../platform/planning.ts';
 
@@ -88,29 +86,15 @@ const titel = publiek?.titel ?? intern!.titel;
 const actief = snapshot.gastheren.filter((g) => g.actief);
 const vandaag = ymdInAmsterdam(new Date());
 const geannuleerd = publiek?.levenscyclus === 'geannuleerd';
-const toonVanaf = maandenVanTrigger(publiek?.trigger ?? '');
-const startIso = publiek ? `${publiek.start.slice(0, 10)}T12:00:00+02:00` : '';
-const momentBereikt = publiek
-  ? magAlGetoondWorden({
-      _id: publiek.id,
-      slug: publiek.slug,
-      interneTitel: publiek.titel,
-      start: startIso,
-      soort: publiek.soort || 'expositie',
-      zichtbaarheid: 'publiek',
-      toonVanafMaanden: toonVanaf,
-    }, new Date())
-  : false;
 const zichtbaar = publiek
-  ? publiek.eind >= vandaag && momentBereikt && magOpWebsiteZonderTiming({
+  ? nuZichtbaarOpWebsite({
       zichtbaarheid: publiek.publicatiestatus,
       geannuleerd,
-      contentstatus: publiek.contentstatus,
-      soort: publiek.soort || boeking?.soort || 'expositie',
-      titel: publiek.titel,
-      korteOmschrijving: publiek.korteOmschrijving || undefined,
-      volledigeOmschrijving: publiek.volledigeOmschrijving || undefined,
-      hoofdafbeelding: publiek.fotoPad || undefined,
+      start: publiek.start,
+      eind: publiek.eind,
+      trigger: publiek.trigger,
+      vandaag,
+      viaPubliekeAgenda: publiek.tabel === 'publieke_activiteiten',
     })
   : false;
 const blokkeert = publiek

@@ -33,6 +33,7 @@ export interface PublicatieBron {
   praktisch?: string;
   fotoPad?: string;
   slug?: string;
+  soort?: string | null;
   publicatiestatus?: 'publiek' | 'bezet' | 'verborgen' | null;
   geannuleerd?: boolean;
   tabel?: 'publieke_activiteiten' | 'activiteit_bron' | 'boekingen';
@@ -42,10 +43,18 @@ export interface PublicatieBron {
 }
 
 export interface PublicatieCheck {
-  sleutel: 'titel' | 'datum' | 'kort' | 'volledig' | 'afbeelding' | 'url';
+  sleutel: 'titel' | 'datum' | 'kort' | 'volledig' | 'praktisch' | 'afbeelding' | 'url';
   label: string;
   ok: boolean;
+  /** Content waarschuwt. Automatisch is opgelost door een fallback en telt niet als ontbrekend. */
+  rol: 'content' | 'automatisch';
 }
+
+/** Handmatig publiceren: nu online, later niet alsnog tegenhouden op content. */
+export const HANDMATIGE_PUBLICATIE_TRIGGER = 'direct' as const;
+
+/** Nieuw concept zonder bestaand publicatierecord. Nooit bezet. */
+export const CONCEPT_ZICHTBAARHEID = 'verborgen' as const;
 
 export interface PublicatieVenster {
   van: string;
@@ -106,6 +115,7 @@ export interface PublicatieBoeking {
   titel: string;
   huurder: string;
   status: string;
+  soort?: string;
 }
 
 function dektBoeking(boeking: PublicatieBoeking, activiteit: PublicatieBron): boolean {
@@ -129,6 +139,7 @@ export function publicatieUitBoekingen(boekingen: readonly PublicatieBoeking[], 
       titel: boeking.titel.trim() || boeking.huurder.trim() || 'Verhuur',
       exposanten: boeking.huurder.trim(),
       organisatie: boeking.huurder.trim(),
+      soort: boeking.soort,
       publicatiestatus: null,
       tabel: 'boekingen' as const,
       boekingId: boeking.id,
@@ -152,23 +163,62 @@ export function publicatieWerklijst<T extends PublicatieBron>(
   };
 }
 
+/** Praktische informatie hoort bij een expositie. Andere verhuurtypes hebben die tekst niet nodig. */
+export function praktischeInfoRelevant(soort?: string | null): boolean {
+  return (soort ?? '').trim().toLowerCase() === 'expositie';
+}
+
 export function publicatieChecks(item: PublicatieBron): PublicatieCheck[] {
-  return [
-    { sleutel: 'titel', label: 'Titel aanwezig', ok: Boolean(item.titel.trim()) },
-    { sleutel: 'datum', label: 'Datum aanwezig', ok: Boolean(item.start) && Boolean(item.eind) },
-    { sleutel: 'kort', label: 'Korte omschrijving aanwezig', ok: Boolean(item.korteOmschrijving?.trim()) },
-    { sleutel: 'volledig', label: 'Volledige tekst aanwezig', ok: Boolean(item.volledigeOmschrijving?.trim()) },
-    { sleutel: 'afbeelding', label: 'Eigen afbeelding aanwezig', ok: Boolean(item.fotoPad?.trim()) },
-    { sleutel: 'url', label: 'URL beschikbaar', ok: Boolean(item.slug?.trim()) },
+  const checks: PublicatieCheck[] = [
+    { sleutel: 'titel', label: 'Titel aanwezig', ok: Boolean(item.titel.trim()), rol: 'content' },
+    { sleutel: 'datum', label: 'Datum aanwezig', ok: Boolean(item.start) && Boolean(item.eind), rol: 'content' },
+    { sleutel: 'kort', label: 'Korte omschrijving aanwezig', ok: Boolean(item.korteOmschrijving?.trim()), rol: 'content' },
+    { sleutel: 'volledig', label: 'Volledige tekst aanwezig', ok: Boolean(item.volledigeOmschrijving?.trim()), rol: 'content' },
   ];
+  if (praktischeInfoRelevant(item.soort)) {
+    checks.push({
+      sleutel: 'praktisch',
+      label: 'Praktische informatie aanwezig',
+      ok: Boolean(item.praktisch?.trim()),
+      rol: 'content',
+    });
+  }
+  checks.push(
+    {
+      sleutel: 'afbeelding',
+      label: item.fotoPad?.trim() ? 'Eigen afbeelding aanwezig' : 'Standaardafbeelding wordt gebruikt',
+      ok: true,
+      rol: 'automatisch',
+    },
+    {
+      sleutel: 'url',
+      label: item.slug?.trim() ? 'URL beschikbaar' : 'URL wordt bij publiceren automatisch gemaakt',
+      ok: true,
+      rol: 'automatisch',
+    },
+  );
+  return checks;
 }
 
 export function contentCompleet(checks: readonly PublicatieCheck[]): boolean {
-  return checks.every((check) => check.ok);
+  return checks.filter((check) => check.rol === 'content').every((check) => check.ok);
 }
 
 export function ontbrekendeVelden(checks: readonly PublicatieCheck[]): string[] {
-  return checks.filter((check) => !check.ok).map((check) => check.label.replace(' aanwezig', '').replace(' beschikbaar', ''));
+  return checks
+    .filter((check) => check.rol === 'content' && !check.ok)
+    .map((check) => check.label.replace(' aanwezig', '').replace(' beschikbaar', ''));
+}
+
+/**
+ * Opslaan behoudt een bestaande zichtbaarheid.
+ * Zonder publicatierecord wordt het een verborgen concept, nooit bezet.
+ */
+export function zichtbaarheidNaBewaren(
+  huidig: 'publiek' | 'bezet' | 'verborgen' | null | undefined,
+): 'publiek' | 'bezet' | 'verborgen' {
+  if (huidig === 'publiek' || huidig === 'bezet' || huidig === 'verborgen') return huidig;
+  return CONCEPT_ZICHTBAARHEID;
 }
 
 export function werkstatus(item: PublicatieBron, checks = publicatieChecks(item)): Werkstatus {
@@ -214,6 +264,41 @@ export function slugVanTekst(bron: string): string {
 
 export function slugUitActiviteit(exposanten: string, titel: string): string {
   return slugVanTekst(exposanten.trim() || titel.trim());
+}
+
+export function slugBijPublicatie(input: {
+  exposanten?: string;
+  titel: string;
+  slug?: string;
+  start: string;
+  bezet: ReadonlySet<string>;
+  opnieuw?: boolean;
+}): string {
+  const huidig = input.slug?.trim() ?? '';
+  if (huidig && !input.opnieuw) return huidig;
+  const basis = slugUitActiviteit(input.exposanten ?? '', input.titel) || 'activiteit';
+  return uniekeSlug(basis, input.bezet, input.start.slice(0, 4), huidig);
+}
+
+/** URL-voorstel in hetzelfde formulier. Alle overige contentvelden blijven staan. */
+export function urlVoorstelZonderContentverlies(
+  item: PublicatieBron,
+  bezet: ReadonlySet<string>,
+  bewust = false,
+): { item: PublicatieBron; waarschuwing: string } {
+  const voorgesteld = slugBijPublicatie({
+    exposanten: item.exposanten,
+    titel: item.titel,
+    slug: item.slug,
+    start: item.start,
+    bezet,
+    opnieuw: true,
+  });
+  const besluit = slugNaPublicatie(item, voorgesteld, bewust);
+  return {
+    item: { ...item, slug: besluit.slug || item.slug || voorgesteld },
+    waarschuwing: besluit.waarschuwing,
+  };
 }
 
 export function uniekeSlug(basis: string, bezet: ReadonlySet<string>, jaar: string, huidige = ''): string {

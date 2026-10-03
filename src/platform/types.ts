@@ -47,6 +47,7 @@ export const PRIJSTYPEN = ['vast', 'vanaf', 'op_aanvraag'] as const;
 export type Prijstype = (typeof PRIJSTYPEN)[number];
 
 export const PUBLICATIE_TRIGGERS = [
+  'direct',
   'zodra_content_compleet',
   'uiterlijk_1_maand',
   'uiterlijk_2_maanden',

@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { hoortOpPubliekeAgenda, magOpWebsiteZonderTiming } from '../src/lib/agenda-zichtbaarheid.ts';
+import { blokkeertBeschikbaarheid, hoortOpPubliekeAgenda, magOpWebsiteZonderTiming, nuZichtbaarOpWebsite } from '../src/lib/agenda-zichtbaarheid.ts';
+import { activiteitUitSlugRijen, stelPubliekeAgenda, type AgendaRij } from '../src/lib/publiek-lezen.ts';
 import {
+  CONCEPT_ZICHTBAARHEID,
+  HANDMATIGE_PUBLICATIE_TRIGGER,
   STANDAARD_AFBEELDING,
   afbeeldingVoorWebsite,
   contentCompleet,
@@ -13,10 +16,13 @@ import {
   publicatieDossierHref,
   publicatieUitBoekingen,
   publicatieWerklijst,
+  slugBijPublicatie,
   slugNaPublicatie,
   slugUitActiviteit,
   uniekeSlug,
+  urlVoorstelZonderContentverlies,
   werkstatus,
+  zichtbaarheidNaBewaren,
   type PublicatieBron,
 } from '../src/platform/publiceren.ts';
 
@@ -72,6 +78,100 @@ test('volledige content is klaar, ontbrekende korte tekst waarschuwt en force pu
   assert.equal(geforceerd.mag, true);
   assert.equal(geforceerd.force, true);
   assert.ok(geforceerd.ontbrekend.some((veld) => /korte/i.test(veld)));
+  assert.equal(geforceerd.ontbrekend.some((veld) => /afbeelding|url/i.test(veld)), false);
+});
+
+test('scenario B en C: standaardafbeelding en ontbrekende URL blokkeren klaar niet', () => {
+  const basis = item({
+    id: 'foto',
+    start: '2026-10-10',
+    eind: '2026-10-11',
+    titel: 'Evelien',
+    exposanten: 'Evelien Bannenberg',
+    korteOmschrijving: 'Kort.',
+    volledigeOmschrijving: 'Lang.',
+    soort: 'expositie',
+    praktisch: 'Zaterdag en zondag 11.00-17.00.',
+    fotoPad: '',
+    slug: 'evelien-bannenberg',
+    publicatiestatus: null,
+  });
+  const zonderFoto = publicatieChecks(basis);
+  assert.equal(contentCompleet(zonderFoto), true);
+  assert.equal(werkstatus(basis, zonderFoto), 'klaar');
+  assert.equal(zonderFoto.find((check) => check.sleutel === 'afbeelding')?.label, 'Standaardafbeelding wordt gebruikt');
+  assert.equal(zonderFoto.find((check) => check.sleutel === 'afbeelding')?.rol, 'automatisch');
+  const zonderSlug = { ...basis, slug: '' };
+  const checks = publicatieChecks(zonderSlug);
+  assert.equal(contentCompleet(checks), true);
+  assert.equal(werkstatus(zonderSlug, checks), 'klaar');
+  assert.equal(slugBijPublicatie({
+    exposanten: zonderSlug.exposanten,
+    titel: zonderSlug.titel,
+    slug: '',
+    start: zonderSlug.start,
+    bezet: new Set(['evelien-bannenberg']),
+  }), 'evelien-bannenberg-2026');
+  const zonderPraktisch = { ...basis, praktisch: '' };
+  const praktischChecks = publicatieChecks(zonderPraktisch);
+  assert.equal(contentCompleet(praktischChecks), false);
+  assert.equal(werkstatus(zonderPraktisch, praktischChecks), 'mist_content');
+  assert.equal(publicatieBesluit(praktischChecks, true).mag, true);
+  const concert = publicatieChecks({ ...zonderPraktisch, soort: 'concert' });
+  assert.equal(contentCompleet(concert), true);
+});
+
+test('scenario D: URL-voorstel bewaart de ingevoerde tekst', () => {
+  const ingevoerd = item({
+    id: 'url',
+    start: '2026-10-10',
+    eind: '2026-10-11',
+    titel: 'Nieuwe titel',
+    exposanten: 'Nelian Smit',
+    korteOmschrijving: 'Net ingetypt.',
+    volledigeOmschrijving: 'Ook de lange tekst.',
+    praktisch: 'Parkeren aan de overkant.',
+    fotoPad: '/foto/nieuw.jpg',
+    slug: '',
+    publicatiestatus: 'verborgen',
+  });
+  const voorstel = urlVoorstelZonderContentverlies(ingevoerd, new Set());
+  assert.equal(voorstel.item.slug, 'nelian-smit');
+  assert.equal(voorstel.item.titel, ingevoerd.titel);
+  assert.equal(voorstel.item.korteOmschrijving, ingevoerd.korteOmschrijving);
+  assert.equal(voorstel.item.volledigeOmschrijving, ingevoerd.volledigeOmschrijving);
+  assert.equal(voorstel.item.praktisch, ingevoerd.praktisch);
+  assert.equal(voorstel.item.fotoPad, ingevoerd.fotoPad);
+  assert.equal(voorstel.item.publicatiestatus, 'verborgen');
+});
+
+test('scenario A en G: opslaan houdt verborgen en blokkeert de kalender niet', () => {
+  assert.equal(CONCEPT_ZICHTBAARHEID, 'verborgen');
+  assert.equal(zichtbaarheidNaBewaren(null), 'verborgen');
+  assert.equal(zichtbaarheidNaBewaren(undefined), 'verborgen');
+  assert.equal(zichtbaarheidNaBewaren('verborgen'), 'verborgen');
+  assert.equal(zichtbaarheidNaBewaren('publiek'), 'publiek');
+  assert.equal(zichtbaarheidNaBewaren('bezet'), 'bezet');
+  const verborgen = zichtbaarheidNaBewaren('verborgen');
+  assert.equal(blokkeertBeschikbaarheid({ zichtbaarheid: verborgen }), false);
+  assert.equal(blokkeertBeschikbaarheid({ zichtbaarheid: zichtbaarheidNaBewaren(null) }), false);
+  const opgeslagen = item({
+    id: 'verborgen',
+    start: '2026-10-10',
+    eind: '2026-10-11',
+    titel: 'Blijft verborgen',
+    korteOmschrijving: 'Aangepaste tekst.',
+    publicatiestatus: verborgen,
+  });
+  assert.equal(werkstatus(opgeslagen), 'verborgen');
+  assert.equal(nuZichtbaarOpWebsite({
+    zichtbaarheid: opgeslagen.publicatiestatus,
+    start: opgeslagen.start,
+    eind: opgeslagen.eind,
+    trigger: 'direct',
+    vandaag,
+    viaPubliekeAgenda: true,
+  }), false);
 });
 
 test('ontbrekende tekst en afbeelding breken de pagina niet', () => {
@@ -159,14 +259,95 @@ test('publieke agenda volgt publicatiestatus en koppelt Second Nature', () => {
   assert.match(sql, /boeking_id = b.id/);
 });
 
+test('scenario E en F: toch publiceren is direct zichtbaar, agenda en detail volgen dezelfde poort', () => {
+  const kaal = item({
+    id: 'kaal',
+    start: '2026-10-10',
+    eind: '2026-10-11',
+    titel: 'Zonder tekst',
+    publicatiestatus: 'publiek',
+    trigger: HANDMATIGE_PUBLICATIE_TRIGGER,
+    tabel: 'publieke_activiteiten',
+  });
+  const checks = publicatieChecks(kaal);
+  assert.equal(contentCompleet(checks), false);
+  const besluit = publicatieBesluit(checks, true);
+  assert.equal(besluit.mag, true);
+  assert.equal(besluit.force, true);
+  assert.equal(besluit.mail, false);
+  assert.equal(besluit.workflow, false);
+  assert.equal(besluit.jobs, 0);
+  assert.equal(kaartVoorWebsite(kaal), 'Binnenkort meer informatie over deze activiteit.');
+  assert.equal(detailVoorWebsite(kaal), 'Meer informatie volgt.');
+  assert.equal(afbeeldingVoorWebsite(kaal.fotoPad).src, STANDAARD_AFBEELDING);
+  assert.equal(nuZichtbaarOpWebsite({
+    zichtbaarheid: 'publiek',
+    geannuleerd: false,
+    start: kaal.start,
+    eind: kaal.eind,
+    trigger: HANDMATIGE_PUBLICATIE_TRIGGER,
+    vandaag,
+    viaPubliekeAgenda: true,
+    nu: new Date('2026-10-02T12:00:00Z'),
+  }), true);
+  assert.equal(nuZichtbaarOpWebsite({
+    zichtbaarheid: 'publiek',
+    start: kaal.start,
+    eind: kaal.eind,
+    trigger: 'niet_publiceren',
+    vandaag,
+    viaPubliekeAgenda: true,
+  }), false);
+  assert.equal(nuZichtbaarOpWebsite({
+    zichtbaarheid: 'publiek',
+    start: '2028-06-01',
+    eind: '2028-06-02',
+    trigger: 'uiterlijk_12_maanden',
+    vandaag,
+    viaPubliekeAgenda: true,
+    nu: new Date('2026-10-02T12:00:00Z'),
+  }), false);
+  const rij: AgendaRij = {
+    id: 9,
+    slug: 'zonder-tekst',
+    titel: 'Zonder tekst',
+    start_datum: '2026-10-10',
+    eind_datum: '2026-10-11',
+    omschrijving: null,
+    foto_pad: null,
+    foto_alt: null,
+    publicatie_trigger: HANDMATIGE_PUBLICATIE_TRIGGER,
+    zichtbaarheid: 'publiek',
+    inhoud_status: 'niet_gestart',
+    soort: 'expositie',
+    contentstatus: 'niet_aangeleverd',
+    korte_omschrijving: null,
+    volledige_omschrijving: null,
+  };
+  assert.equal(stelPubliekeAgenda([rij], new Date('2026-10-02T12:00:00Z')).length, 1);
+  assert.equal(activiteitUitSlugRijen('zonder-tekst', [rij], new Date('2026-10-02T12:00:00Z'))?.slug, 'zonder-tekst');
+  assert.equal(activiteitUitSlugRijen('zonder-tekst', [{ ...rij, zichtbaarheid: 'verborgen' }], new Date('2026-10-02T12:00:00Z')), null);
+});
+
 test('publiceren toont geen technische bronvelden en blokkeert mail in sql', () => {
   const pagina = readFileSync(new URL('../src/pages/beheer/publiceren/index.astro', import.meta.url), 'utf8');
-  const sql = readFileSync(new URL('../supabase/migrations/20261002200000_publiceren_boekingen.sql', import.meta.url), 'utf8');
+  const sql = readFileSync(new URL('../supabase/migrations/20261003190100_publiceren_concept_en_direct.sql', import.meta.url), 'utf8');
+  const bezetting = readFileSync(new URL('../supabase/migrations/20261001180000_activiteit_beheer.sql', import.meta.url), 'utf8');
+  const bezettingFunctie = bezetting.slice(
+    bezetting.indexOf('function public.publieke_bezetting'),
+    bezetting.indexOf('revoke all on function public.publieke_bezetting'),
+  );
   assert.match(pagina, /Te publiceren komende 8 weken/);
   assert.match(pagina, /Toch publiceren/);
   assert.match(pagina, /publicatieBesluit\(checks, actie === 'toch_publiceren'\)/);
   assert.equal(pagina.includes('name="bevestig"'), false);
   assert.match(pagina, /Genereer URL/);
+  assert.match(pagina, /data-genereer-url/);
+  assert.match(pagina, /type="button"/);
+  assert.equal(pagina.includes("searchParams.set('voorstel'"), false);
+  assert.match(pagina, /urlVoorstelZonderContentverlies/);
+  assert.match(pagina, /Nu zichtbaar op website/);
+  assert.match(pagina, /nuZichtbaarOpWebsite/);
   assert.match(pagina, /Standaardafbeelding wordt gebruikt/);
   assert.equal(pagina.includes('legacy_id'), false);
   assert.equal(pagina.includes('activiteit_bron'), false);
@@ -175,6 +356,15 @@ test('publiceren toont geen technische bronvelden en blokkeert mail in sql', () 
   assert.match(sql, /boeking_id/);
   assert.match(sql, /force_publish/);
   assert.match(sql, /publiceren mag geen communicatiejob maken/);
+  assert.match(sql, /'direct'::public\.publicatie_trigger/);
+  assert.match(sql, /unieke_publicatie_slug/);
+  assert.match(sql, /else 'verborgen'/);
+  assert.equal(sql.includes("else 'bezet'"), false);
   assert.equal(sql.includes('insert into public.communicatie_jobs'), false);
+  assert.equal(sql.includes('insert into public.workflow'), false);
+  assert.equal(/update\s+public\.boekingen/i.test(sql), false);
   assert.equal(sql.includes("p.contentstatus = 'goedgekeurd'"), false);
+  assert.equal(bezettingFunctie.includes('publieke_activiteiten'), false);
+  assert.match(sql, /publicatie_trigger = 'direct'::public\.publicatie_trigger/);
+  assert.match(sql, /then publicatie_trigger/);
 });

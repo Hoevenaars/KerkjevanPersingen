@@ -6,7 +6,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Activiteit } from './sanity';
 import { supabaseLoginUitOmgeving } from './supabase-project.ts';
-import { contentStatusVanInhoud, magOpWebsiteZonderTiming, maandenVanTrigger } from './agenda-zichtbaarheid.ts';
+import { contentStatusVanInhoud, maandenVanTrigger, nuZichtbaarOpWebsite, timingBereikt } from './agenda-zichtbaarheid.ts';
+import { ymdInAmsterdam } from '../platform/datum.ts';
 import { eerstvolgendeVrijeWeekenden, type VrijWeekend } from './week.ts';
 import { bezetteKalenderDagen } from './datum.ts';
 
@@ -42,14 +43,8 @@ function dag(iso: string): string {
   return `${iso.slice(0, 10)}T12:00:00+02:00`;
 }
 
-export function magAlGetoondWorden(activiteit: Activiteit, nu = new Date()): boolean {
-  if (!activiteit.toonVanafMaanden) return true;
-  const maanden = Number(activiteit.toonVanafMaanden);
-  if (!maanden) return true;
-  const start = new Date(activiteit.start);
-  const drempel = new Date(start);
-  drempel.setUTCMonth(drempel.getUTCMonth() - maanden);
-  return nu >= drempel;
+export function magAlGetoondWorden(activiteit: Pick<Activiteit, 'start' | 'toonVanafMaanden'>, nu = new Date()): boolean {
+  return timingBereikt({ start: activiteit.start, toonVanafMaanden: activiteit.toonVanafMaanden }, nu);
 }
 
 export function activiteitVanAgendaRij(rij: AgendaRij): Activiteit {
@@ -97,15 +92,15 @@ export function activiteitVanBezetRij(rij: BezetRij, index: number): Activiteit 
 }
 
 function zichtbaarOpWebsite(item: Activiteit, nu: Date): boolean {
-  return magAlGetoondWorden(item, nu) && magOpWebsiteZonderTiming({
+  return nuZichtbaarOpWebsite({
     zichtbaarheid: item.zichtbaarheid,
     geannuleerd: item.geannuleerd,
-    contentstatus: item.contentstatus,
-    soort: item.soort,
-    titel: item.publiekeTitel,
-    korteOmschrijving: item.korteOmschrijving,
-    volledigeOmschrijving: item.volledigeOmschrijving,
-    hoofdafbeelding: typeof item.foto === 'string' ? item.foto : null,
+    start: item.start,
+    eind: item.eind ?? item.start,
+    toonVanafMaanden: item.toonVanafMaanden,
+    vandaag: ymdInAmsterdam(nu),
+    viaPubliekeAgenda: true,
+    nu,
   });
 }
 
