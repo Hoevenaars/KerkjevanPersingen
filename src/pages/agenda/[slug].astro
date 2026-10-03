@@ -5,6 +5,7 @@ import MasonMark from '../../components/MasonMark.astro';
 import { detailTekst, publiekeFotoBron, tekstNaarParagrafen } from '../../lib/activiteit-content';
 import { STANDAARD_AFBEELDING, detailVoorWebsite } from '../../platform/publiceren';
 import { getActiviteitBySlug, publiekeFotoUrl, formatDatumBereik } from '../../lib/sanity';
+import { toonFotoInHetGeheel } from '../../lib/publicatie-foto.ts';
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
 import { eventJsonLd } from '../../lib/seo';
 
@@ -21,6 +22,7 @@ const foto =
   (fotoBron ? publiekeFotoUrl(fotoBron, 1200, 800) : null) ??
   STANDAARD_AFBEELDING;
 const poster = isSecondNature(activiteit);
+const heel = toonFotoInHetGeheel(foto);
 const inlineTekst = detailTekst(activiteit) ?? detailVoorWebsite({
   korteOmschrijving: activiteit.korteOmschrijving,
   volledigeOmschrijving: activiteit.volledigeOmschrijving,
@@ -55,8 +57,8 @@ const jsonLdEvent = eventJsonLd({
       <p class="kunstenaars">{activiteit.kunstenaars}</p>
     )}
 
-    <div class:list={['frame', 'beeld', poster ? 'frame--poster' : 'frame--wide']}>
-      <img src={foto} alt={activiteit.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={poster ? 2000 : 1200} height={poster ? 1558 : 675} />
+    <div class:list={['frame', 'beeld', poster ? 'frame--poster' : heel ? 'frame--heel' : 'frame--wide']}>
+      <img src={foto} alt={activiteit.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={poster ? 2000 : heel ? undefined : 1200} height={poster ? 1558 : heel ? undefined : 675} />
     </div>
 
     {
