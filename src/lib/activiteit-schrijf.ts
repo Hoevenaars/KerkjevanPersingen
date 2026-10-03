@@ -3,7 +3,9 @@
  * De bridge blijft Sanity naar Supabase. Deze functie mailt niet.
  */
 
+import { leesbarePublicatieFout } from './publicatie-foto.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,9 +51,10 @@ export async function voerPublicatie(
     actorNaam: string;
     actorId?: string;
   },
+  sessie?: SupabaseClient | null,
 ): Promise<{ ok: boolean; melding: string }> {
-  const client = maakBeheerAdminClient(env);
-  if (!client) return { ok: false, melding: 'Supabase service-role ontbreekt. Er is niets gepubliceerd en er is geen mail verstuurd.' };
+  const client = sessie ?? maakBeheerAdminClient(env);
+  if (!client) return { ok: false, melding: 'Er is geen ingelogde beheer-sessie. Er is niets gepubliceerd en er is geen mail verstuurd.' };
   const id = Number(input.id);
   if (!Number.isInteger(id) || id <= 0) return { ok: false, melding: 'Deze activiteit heeft nog geen opslagrecord.' };
   const actorId = input.actorId && UUID.test(input.actorId) ? input.actorId : null;
@@ -63,7 +66,7 @@ export async function voerPublicatie(
     p_actor_naam: input.actorNaam,
     p_actor_id: actorId,
   } as never);
-  if (error) return { ok: false, melding: error.message };
+  if (error) return { ok: false, melding: leesbarePublicatieFout(error.message) };
   const antwoord = (data ?? {}) as { ok?: boolean; melding?: string; mail?: boolean; jobs?: number };
   if (antwoord.mail || (antwoord.jobs ?? 0) > 0) {
     return { ok: false, melding: 'Publiceren probeerde mail of een workflow te starten en is daarom gestopt.' };

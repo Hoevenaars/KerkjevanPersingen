@@ -6,6 +6,9 @@ import { formatNl } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie } from '../../../lib/operatie/runtime.ts';
 import { voerPublicatie } from '../../../lib/activiteit-schrijf.ts';
+import { uploadPublicatieFoto } from '../../../lib/publicatie-foto.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+import { directeFotoUrl } from '../../../lib/agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { nuZichtbaarOpWebsite } from '../../../lib/agenda-zichtbaarheid.ts';
 import {
@@ -91,6 +94,20 @@ if (Astro.request.method === 'POST') {
     fotoPad: String(data.get('foto_pad') ?? ''),
     slug: String(data.get('slug') ?? item.slug ?? ''),
   };
+  const fotoBestand = data.get('foto');
+  if (fotoBestand instanceof File && fotoBestand.size > 0) {
+    const sessieVoorFoto = sessieSupabaseUitAstro(Astro);
+    if (!sessieVoorFoto) {
+      terug.searchParams.set('fout', 'Je bent niet ingelogd. De afbeelding is niet opgeslagen.');
+      return Astro.redirect(terug.toString());
+    }
+    const geupload = await uploadPublicatieFoto(sessieVoorFoto, fotoBestand, id);
+    if (!geupload.ok) {
+      terug.searchParams.set('fout', geupload.melding);
+      return Astro.redirect(terug.toString());
+    }
+    concept.fotoPad = geupload.fotoPad;
+  }
   if (actie === 'genereer') {
     const voorstel = urlVoorstelZonderContentverlies(concept, bezetteSlugs, data.get('slug_bewust') === 'ja');
     concept.slug = voorstel.item.slug;
@@ -147,7 +164,7 @@ if (Astro.request.method === 'POST') {
     },
     actorNaam: actor.naam,
     actorId: actor.id,
-  });
+  }, sessieSupabaseUitAstro(Astro));
   terug.searchParams.set(opgeslagen.ok ? 'melding' : 'fout', opgeslagen.melding);
   return Astro.redirect(terug.toString());
 }
@@ -223,7 +240,7 @@ function stapHref(volgende: number): string {
           {openId === item.id && melding && <p class="bh-flash">{melding}</p>}
           {openId === item.id && fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
           {openId === item.id && slugLetOp && <p class="bh-flash bh-flash--fout">{slugLetOp}</p>}
-          <form method="post" class="bh-form">
+          <form method="post" enctype="multipart/form-data" class="bh-form">
             <input type="hidden" name="id" value={item.id} />
             <label for={`titel-${item.id}`}>Titel</label>
             <input id={`titel-${item.id}`} name="titel" value={item.titel} />
@@ -235,9 +252,15 @@ function stapHref(volgende: number): string {
             <textarea id={`lang-${item.id}`} name="volledige_omschrijving" rows="6">{item.volledigeOmschrijving || ''}</textarea>
             <label for={`praktisch-${item.id}`}>Openingstijden en praktische informatie</label>
             <textarea id={`praktisch-${item.id}`} name="praktische_informatie" rows="3">{item.praktisch || ''}</textarea>
-            <label for={`foto-${item.id}`}>Hoofdafbeelding of flyer</label>
+            <label for={`foto-bestand-${item.id}`}>Hoofdafbeelding of flyer vanaf je computer</label>
+            <input id={`foto-bestand-${item.id}`} name="foto" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+            <label for={`foto-${item.id}`}>Of een bestaand pad of URL</label>
             <input id={`foto-${item.id}`} name="foto_pad" value={item.fotoPad || ''} placeholder="Pad of URL van de eigen afbeelding" />
-            {!item.fotoPad && <p class="bh-muted">Standaardafbeelding wordt gebruikt</p>}
+            {directeFotoUrl(item.fotoPad) ? (
+              <img src={directeFotoUrl(item.fotoPad) ?? ''} alt="" width="240" />
+            ) : (
+              <p class="bh-muted">Standaardafbeelding wordt gebruikt. Kies een foto van je computer, of laat dit leeg.</p>
+            )}
             <label for={`slug-${item.id}`}>Website-URL</label>
             <input id={`slug-${item.id}`} name="slug" value={slugVeld} placeholder="evelien-bannenberg" />
             <p class="bh-flash bh-flash--fout" data-slug-letop hidden></p>
