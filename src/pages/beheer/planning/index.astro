@@ -19,8 +19,7 @@ import {
   type PlanningInvoer,
 } from '../../../platform/planning.ts';
 import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, leesbareTitel } from '../../../platform/verhuur-classificatie.ts';
-import { magOpWebsiteZonderTiming, maandenVanTrigger } from '../../../lib/agenda-zichtbaarheid.ts';
-import { magAlGetoondWorden } from '../../../lib/publiek-lezen.ts';
+import { nuZichtbaarOpWebsite } from '../../../lib/agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 
 if (Astro.request.method === 'POST') {
@@ -94,37 +93,19 @@ function namenVan(boekingId?: string): string {
 function websiteZichtbaar(item: {
   start: string;
   eind: string;
-  titel: string;
-  soort?: string;
   publicatiestatus?: 'publiek' | 'bezet' | 'verborgen' | null;
-  contentstatus?: string | null;
   levenscyclus?: string;
   trigger?: string | null;
-  korteOmschrijving?: string;
-  volledigeOmschrijving?: string;
-  fotoPad?: string;
-  omschrijving?: string;
+  tabel?: string;
 }): boolean {
-  if (item.levenscyclus === 'geannuleerd' || item.eind < vandaag) return false;
-  const toon = maandenVanTrigger(item.trigger ?? '');
-  const moment = magAlGetoondWorden({
-    _id: 'planning',
-    slug: '',
-    interneTitel: item.titel,
-    start: `${item.start.slice(0, 10)}T12:00:00+02:00`,
-    soort: item.soort || 'expositie',
-    zichtbaarheid: 'publiek',
-    toonVanafMaanden: toon,
-  }, new Date());
-  return moment && magOpWebsiteZonderTiming({
+  return nuZichtbaarOpWebsite({
     zichtbaarheid: item.publicatiestatus,
     geannuleerd: item.levenscyclus === 'geannuleerd',
-    contentstatus: item.contentstatus,
-    soort: item.soort || 'expositie',
-    titel: item.titel,
-    korteOmschrijving: item.korteOmschrijving || undefined,
-    volledigeOmschrijving: item.volledigeOmschrijving || undefined,
-    hoofdafbeelding: item.fotoPad || undefined,
+    start: item.start,
+    eind: item.eind,
+    trigger: item.trigger,
+    vandaag,
+    viaPubliekeAgenda: item.tabel === 'publieke_activiteiten',
   });
 }
 
@@ -134,7 +115,7 @@ const planningBron: PlanningInvoer[] = [
     .map((boeking) => {
       const activiteit = agendaPerBoeking.get(boeking.id);
       const geannuleerd = boeking.status === 'geannuleerd' || activiteit?.levenscyclus === 'geannuleerd';
-      const zichtbaar = activiteit ? websiteZichtbaar({ ...activiteit, soort: activiteit.soort || boeking.soort, levenscyclus: geannuleerd ? 'geannuleerd' : activiteit.levenscyclus }) : false;
+      const zichtbaar = activiteit ? websiteZichtbaar({ ...activiteit, levenscyclus: geannuleerd ? 'geannuleerd' : activiteit.levenscyclus }) : false;
       return {
         sleutel: `boeking:${boeking.id}`,
         href: metTerug(`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`, lijstPad),

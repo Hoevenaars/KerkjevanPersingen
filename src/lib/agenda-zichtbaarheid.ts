@@ -139,6 +139,7 @@ export function directeFotoUrl(source: unknown): string | null {
 
 export function triggerIsBekend(trigger: string): trigger is PublicatieTrigger {
   return (
+    trigger === 'direct' ||
     trigger === 'zodra_content_compleet' ||
     trigger === 'uiterlijk_1_maand' ||
     trigger === 'uiterlijk_2_maanden' ||
@@ -147,5 +148,49 @@ export function triggerIsBekend(trigger: string): trigger is PublicatieTrigger {
     trigger === 'uiterlijk_9_maanden' ||
     trigger === 'uiterlijk_12_maanden' ||
     trigger === 'niet_publiceren'
+  );
+}
+
+/** Zelfde publicatietiming als de publieke site: geen maanden betekent direct tonen. */
+export function timingBereikt(
+  input: { start: string; trigger?: string | null; toonVanafMaanden?: string | null },
+  nu = new Date(),
+): boolean {
+  const maanden = input.toonVanafMaanden ?? maandenVanTrigger(input.trigger ?? '') ?? '';
+  if (!maanden) return true;
+  const aantal = Number(maanden);
+  if (!aantal) return true;
+  const iso = input.start.includes('T') ? input.start : `${input.start.slice(0, 10)}T12:00:00+02:00`;
+  const start = new Date(iso);
+  const drempel = new Date(start);
+  drempel.setUTCMonth(drempel.getUTCMonth() - aantal);
+  return nu >= drempel;
+}
+
+/**
+ * Werkelijke websitezichtbaarheid.
+ * Zelfde poort als publieke_agenda plus de publicatietiming van de site.
+ * Contentstatus, een ontbrekende tekst of een ontbrekende eigen foto telt niet.
+ */
+export function nuZichtbaarOpWebsite(input: {
+  zichtbaarheid?: string | null;
+  geannuleerd?: boolean;
+  start: string;
+  eind: string;
+  trigger?: string | null;
+  toonVanafMaanden?: string | null;
+  vandaag: string;
+  viaPubliekeAgenda: boolean;
+  nu?: Date;
+}): boolean {
+  if (!input.viaPubliekeAgenda) return false;
+  if (input.geannuleerd) return false;
+  if (input.zichtbaarheid !== 'publiek') return false;
+  if ((input.trigger ?? '') === 'niet_publiceren') return false;
+  const eind = input.eind.slice(0, 10);
+  if (!eind || eind < input.vandaag) return false;
+  return timingBereikt(
+    { start: input.start, trigger: input.trigger, toonVanafMaanden: input.toonVanafMaanden },
+    input.nu ?? new Date(),
   );
 }
