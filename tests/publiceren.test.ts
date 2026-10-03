@@ -398,4 +398,12 @@ test('publicatiefoto accepteert alleen een bruikbaar beeldbestand en maakt een p
   );
   assert.match(leesbarePublicatieFout('Invalid API key'), /weigert de beheersleutel/);
   assert.match(leesbarePublicatieFout('permission denied for function beheer_publicatie'), /Geen recht/);
+  const { toonFotoInHetGeheel } = await import('../src/lib/publicatie-foto.ts');
+  assert.equal(toonFotoInHetGeheel(publiekeMediaUrl('publicaties/42-1000.webp')), true);
+  assert.equal(toonFotoInHetGeheel('/foto/kerkje-standaard.svg'), false);
+  const detail = readFileSync(new URL('../src/pages/agenda/[slug].astro', import.meta.url), 'utf8');
+  const lijst = readFileSync(new URL('../src/pages/agenda/index.astro', import.meta.url), 'utf8');
+  assert.match(detail, /frame--heel/);
+  assert.match(lijst, /frame--heel/);
+  assert.match(readFileSync(new URL('../src/styles/global.css', import.meta.url), 'utf8'), /object-fit: contain/);
 });

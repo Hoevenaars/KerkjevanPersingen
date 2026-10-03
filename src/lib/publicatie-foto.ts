@@ -36,6 +36,11 @@ export function publicatieFotoPad(id: string, naam: string, nu = Date.now()): st
   return `publicaties/${veilig}-${nu}.${MIME[ext] ? ext : 'jpg'}`;
 }
 
+/** Een geüploade publicatiefoto is een poster of kunstwerk en hoort heel in beeld. */
+export function toonFotoInHetGeheel(source: unknown): boolean {
+  return typeof source === 'string' && source.includes('/storage/v1/object/public/public-media/');
+}
+
 export function publiekeMediaUrl(pad: string, basis = STANDAARD_SUPABASE_URL): string {
   const schoon = pad.replace(/^\/+/, '');
   return `${basis.replace(/\/$/, '')}/storage/v1/object/public/public-media/${schoon}`;

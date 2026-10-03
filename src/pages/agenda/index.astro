@@ -6,6 +6,7 @@ import { getPubliekeAgenda, publiekeFotoUrl, formatDatumBereik } from '../../lib
 import { kaartTekst } from '../../lib/activiteit-content';
 import { STANDAARD_AFBEELDING, kaartVoorWebsite } from '../../platform/publiceren';
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
+import { toonFotoInHetGeheel } from '../../lib/publicatie-foto.ts';
 
 const activiteiten = await getPubliekeAgenda(50);
 
@@ -39,6 +40,7 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
               secondNaturePoster(a) ??
               (a.foto ? publiekeFotoUrl(a.foto, 800, 600) : null) ??
               STANDAARD_AFBEELDING;
+            const heel = toonFotoInHetGeheel(foto);
             const kaart = kaartTekst(a);
             const kaartWeergave = kaart.tekst
               ? (kaart.letterlijk ? kaart.tekst : kortOpZinnen(kaart.tekst))
@@ -49,8 +51,8 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
               });
             return (
               <li class="kaart">
-                <div class:list={['frame', 'frame--photo', { 'frame--poster': isSecondNature(a) }]}>
-                  <img src={foto} alt={a.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width="800" height="600" loading="lazy" />
+                <div class:list={['frame', heel ? 'frame--heel' : 'frame--photo', { 'frame--poster': isSecondNature(a) }]}>
+                  <img src={foto} alt={a.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={heel ? undefined : 800} height={heel ? undefined : 600} loading="lazy" />
                 </div>
                 <div class="kaart-tekst">
                   <p class="datum">{formatDatumBereik(a)}</p>
