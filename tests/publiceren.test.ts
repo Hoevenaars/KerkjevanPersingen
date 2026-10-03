@@ -377,6 +377,9 @@ test('publiceren toont geen technische bronvelden en blokkeert mail in sql', () 
   assert.match(sessie, /public_media_toevoegen/);
   assert.match(pagina, /enctype="multipart\/form-data"/);
   assert.match(pagina, /type="file"/);
+  assert.match(pagina, /name="foto_bestand"/);
+  assert.match(pagina, /Hoofdafbeelding \/ flyer/);
+  assert.equal(pagina.includes('Of een bestaand pad of URL'), false);
   assert.match(pagina, /uploadPublicatieFoto/);
   assert.match(pagina, /sessieSupabaseUitAstro/);
 });
@@ -406,4 +409,7 @@ test('publicatiefoto accepteert alleen een bruikbaar beeldbestand en maakt een p
   assert.match(detail, /frame--heel/);
   assert.match(lijst, /frame--heel/);
   assert.match(readFileSync(new URL('../src/styles/global.css', import.meta.url), 'utf8'), /object-fit: contain/);
+  const beleid = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  const csp = beleid.headers.flatMap((blok) => blok.headers).find((kop) => kop.key === 'Content-Security-Policy').value;
+  assert.match(csp, /img-src[^;]*https:\/\/xskqpefeumylrticrphp\.supabase\.co/);
 });

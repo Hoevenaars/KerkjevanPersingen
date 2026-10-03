@@ -94,7 +94,7 @@ if (Astro.request.method === 'POST') {
     fotoPad: String(data.get('foto_pad') ?? ''),
     slug: String(data.get('slug') ?? item.slug ?? ''),
   };
-  const fotoBestand = data.get('foto');
+  const fotoBestand = data.get('foto_bestand');
   if (fotoBestand instanceof File && fotoBestand.size > 0) {
     const sessieVoorFoto = sessieSupabaseUitAstro(Astro);
     if (!sessieVoorFoto) {
@@ -252,12 +252,11 @@ function stapHref(volgende: number): string {
             <textarea id={`lang-${item.id}`} name="volledige_omschrijving" rows="6">{item.volledigeOmschrijving || ''}</textarea>
             <label for={`praktisch-${item.id}`}>Openingstijden en praktische informatie</label>
             <textarea id={`praktisch-${item.id}`} name="praktische_informatie" rows="3">{item.praktisch || ''}</textarea>
-            <label for={`foto-bestand-${item.id}`}>Hoofdafbeelding of flyer vanaf je computer</label>
-            <input id={`foto-bestand-${item.id}`} name="foto" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
-            <label for={`foto-${item.id}`}>Of een bestaand pad of URL</label>
-            <input id={`foto-${item.id}`} name="foto_pad" value={item.fotoPad || ''} placeholder="Pad of URL van de eigen afbeelding" />
+            <label for={`foto-bestand-${item.id}`}>Hoofdafbeelding / flyer</label>
+            <input id={`foto-bestand-${item.id}`} name="foto_bestand" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+            <input type="hidden" name="foto_pad" value={item.fotoPad || ''} />
             {directeFotoUrl(item.fotoPad) ? (
-              <img src={directeFotoUrl(item.fotoPad) ?? ''} alt="" width="240" />
+              <img src={directeFotoUrl(item.fotoPad) ?? ''} alt="Huidige hoofdafbeelding" width="240" />
             ) : (
               <p class="bh-muted">Standaardafbeelding wordt gebruikt. Kies een foto van je computer, of laat dit leeg.</p>
             )}
