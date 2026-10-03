@@ -406,4 +406,7 @@ test('publicatiefoto accepteert alleen een bruikbaar beeldbestand en maakt een p
   assert.match(detail, /frame--heel/);
   assert.match(lijst, /frame--heel/);
   assert.match(readFileSync(new URL('../src/styles/global.css', import.meta.url), 'utf8'), /object-fit: contain/);
+  const beleid = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  const csp = beleid.headers.flatMap((blok) => blok.headers).find((kop) => kop.key === 'Content-Security-Policy').value;
+  assert.match(csp, /img-src[^;]*https:\/\/xskqpefeumylrticrphp\.supabase\.co/);
 });
