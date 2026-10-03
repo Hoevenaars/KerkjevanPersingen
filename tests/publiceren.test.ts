@@ -367,4 +367,35 @@ test('publiceren toont geen technische bronvelden en blokkeert mail in sql', () 
   assert.equal(bezettingFunctie.includes('publieke_activiteiten'), false);
   assert.match(sql, /publicatie_trigger = 'direct'::public\.publicatie_trigger/);
   assert.match(sql, /then publicatie_trigger/);
+  const sessie = readFileSync(new URL('../supabase/migrations/20261003190200_publicatie_sessie_en_foto.sql', import.meta.url), 'utf8');
+  assert.match(sessie, /security definer/);
+  assert.match(sessie, /app\.heeft_recht\('agenda', 'schrijven'\)/);
+  assert.match(sessie, /grant execute on function public\.beheer_publicatie/);
+  assert.match(sessie, /to authenticated, service_role/);
+  assert.match(sessie, /from public, anon/);
+  assert.match(sessie, /public-media/);
+  assert.match(sessie, /public_media_toevoegen/);
+  assert.match(pagina, /enctype="multipart\/form-data"/);
+  assert.match(pagina, /type="file"/);
+  assert.match(pagina, /uploadPublicatieFoto/);
+  assert.match(pagina, /sessieSupabaseUitAstro/);
+});
+
+test('publicatiefoto accepteert alleen een bruikbaar beeldbestand en maakt een publieke url', async () => {
+  const {
+    publicatieFotoGeldig,
+    publicatieFotoPad,
+    publiekeMediaUrl,
+    leesbarePublicatieFout,
+  } = await import('../src/lib/publicatie-foto.ts');
+  assert.equal(publicatieFotoGeldig({ type: 'image/png', name: 'martina.png', size: 12 }).ok, true);
+  assert.match(publicatieFotoGeldig({ type: 'text/plain', name: 'lees.txt', size: 12 }).melding ?? '', /JPEG/);
+  assert.match(publicatieFotoGeldig({ type: 'image/jpeg', name: 'groot.jpg', size: 11 * 1024 * 1024 }).melding ?? '', /10 MB/);
+  assert.equal(publicatieFotoPad('42', 'Martina Vieten.JPG', 1000), 'publicaties/42-1000.jpg');
+  assert.equal(
+    publiekeMediaUrl('publicaties/42-1000.jpg'),
+    'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/publicaties/42-1000.jpg',
+  );
+  assert.match(leesbarePublicatieFout('Invalid API key'), /weigert de beheersleutel/);
+  assert.match(leesbarePublicatieFout('permission denied for function beheer_publicatie'), /Geen recht/);
 });

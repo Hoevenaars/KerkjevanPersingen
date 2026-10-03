@@ -7,6 +7,7 @@ create or replace function public.slug_van_tekst(p_bron text)
 returns text
 language sql
 immutable
+set search_path = public
 as $$
   select trim(both '-' from regexp_replace(
     regexp_replace(
@@ -33,6 +34,7 @@ create or replace function public.publicatie_slug_vrij(p_slug text, p_huidige te
 returns boolean
 language sql
 stable
+set search_path = public
 as $$
   select coalesce(p_slug, '') <> '' and (
     p_slug = coalesce(p_huidige, '')
@@ -52,6 +54,7 @@ create or replace function public.unieke_publicatie_slug(
 returns text
 language plpgsql
 stable
+set search_path = public
 as $$
 declare
   v_basis text := public.slug_van_tekst(p_bron);
