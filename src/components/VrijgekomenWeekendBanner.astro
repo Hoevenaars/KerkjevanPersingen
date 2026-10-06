@@ -1,25 +1,22 @@
 ---
 /**
  * Donkergroene balk onder de header voor een vrijgekomen expositieweekend.
- * Layout, blad-illustraties en copy blijven bewaard; zichtbaarheid wordt
- * geschakeld in `src/lib/vrijgekomen-weekend.ts`.
+ * Vormgeving blijft gelijk. Zichtbaarheid en datum komen uit Beheer → Publiceren.
  */
 import Button from './Button.astro';
-import {
-  VRIJGEKOMEN_EXPOSITIE_WEEKEND,
-  aanvraagPadVrijgekomenWeekend,
-  toonVrijgekomenWeekendBannerOpPagina,
-  weekendDatumKaarten,
-} from '../lib/vrijgekomen-weekend';
+import { leesVrijgekomenWeekendBanner } from '../lib/vrijgekomen-weekend-lezen';
 
-const zichtbaar = toonVrijgekomenWeekendBannerOpPagina(Astro.url.pathname);
-const { eyebrow, titel, tekst, knop } = VRIJGEKOMEN_EXPOSITIE_WEEKEND;
-const href = aanvraagPadVrijgekomenWeekend();
-const kaarten = weekendDatumKaarten();
+const inhoud = await leesVrijgekomenWeekendBanner(Astro.url.pathname);
+const eyebrow = inhoud?.eyebrow ?? '';
+const titel = inhoud?.titel ?? '';
+const tekst = inhoud?.tekst ?? '';
+const knop = inhoud?.knop ?? '';
+const href = inhoud?.aanvraagPad ?? '';
+const kaarten = inhoud?.kaarten ?? [];
 ---
 
 {
-  zichtbaar && (
+  inhoud && (
     <aside class="banner" aria-labelledby="vrijgekomen-weekend-titel">
       <svg class="blad blad--links" viewBox="0 0 120 150" aria-hidden="true" focusable="false">
         <g opacity="0.38">

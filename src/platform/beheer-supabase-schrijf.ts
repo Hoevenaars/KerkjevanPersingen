@@ -4,6 +4,7 @@
  */
 
 import { websiteMeldingRij, type WebsiteMelding } from '../lib/website-melding.ts';
+import { vrijgekomenWeekendRij, type VrijgekomenWeekendInstelling } from '../lib/vrijgekomen-weekend.ts';
 
 export interface InstellingenInvoer {
   openingVan: string;
@@ -65,5 +66,13 @@ export async function bewaarInstellingen(client: UpsertClient, invoer: Instellin
 
 export async function bewaarWebsiteMelding(client: UpsertClient, melding: WebsiteMelding): Promise<void> {
   const antwoord = await client.from('instellingen').upsert(websiteMeldingRij(melding), { onConflict: 'sleutel' });
+  if (antwoord.error) throw new Error(antwoord.error.message);
+}
+
+export async function bewaarVrijgekomenWeekendBanner(
+  client: UpsertClient,
+  instelling: VrijgekomenWeekendInstelling,
+): Promise<void> {
+  const antwoord = await client.from('instellingen').upsert(vrijgekomenWeekendRij(instelling), { onConflict: 'sleutel' });
   if (antwoord.error) throw new Error(antwoord.error.message);
 }
