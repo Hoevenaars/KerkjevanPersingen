@@ -15,22 +15,22 @@ describe('aanvraagPadVrijgekomenWeekend', () => {
     const pad = aanvraagPadVrijgekomenWeekend();
     assert.equal(
       pad,
-      '/verhuur/aanvragen/?datum=2026-11-07&datumTot=2026-11-08&soort=expositie',
+      '/verhuur/aanvragen/?datum=2026-10-17&datumTot=2026-10-18&soort=expositie',
     );
-    assert.equal(VRIJGEKOMEN_EXPOSITIE_WEEKEND.zaterdag, '2026-11-07');
-    assert.equal(VRIJGEKOMEN_EXPOSITIE_WEEKEND.zondag, '2026-11-08');
+    assert.equal(VRIJGEKOMEN_EXPOSITIE_WEEKEND.zaterdag, '2026-10-17');
+    assert.equal(VRIJGEKOMEN_EXPOSITIE_WEEKEND.zondag, '2026-10-18');
   });
 });
 
 describe('weekendDatumKaarten', () => {
-  test('zet 7 en 8 november als zichtbare datumkaarten', () => {
+  test('zet 17 en 18 oktober als zichtbare datumkaarten', () => {
     const [zaterdag, zondag] = weekendDatumKaarten();
     assert.equal(zaterdag.weekdag, 'zaterdag');
-    assert.equal(zaterdag.dag, '7');
-    assert.match(zaterdag.maand, /^nov/i);
+    assert.equal(zaterdag.dag, '17');
+    assert.match(zaterdag.maand, /^okt/i);
     assert.equal(zondag.weekdag, 'zondag');
-    assert.equal(zondag.dag, '8');
-    assert.match(zondag.maand, /^nov/i);
+    assert.equal(zondag.dag, '18');
+    assert.match(zondag.maand, /^okt/i);
   });
 });
 
@@ -38,43 +38,43 @@ describe('copy', () => {
   test('noemt de vrijgekomen datum in titel of knop', () => {
     assert.match(VRIJGEKOMEN_EXPOSITIE_WEEKEND.eyebrow, /vrij/i);
     assert.match(VRIJGEKOMEN_EXPOSITIE_WEEKEND.titel, /vrijgekomen/i);
-    assert.match(VRIJGEKOMEN_EXPOSITIE_WEEKEND.knop, /7 en 8 november/i);
+    assert.match(VRIJGEKOMEN_EXPOSITIE_WEEKEND.knop, /17 en 18 oktober/i);
   });
 });
 
 describe('VRIJGEKOMEN_WEEKEND_BANNER_AAN', () => {
-  test('staat aan omdat 7-8 november weer vrij is', () => {
+  test('staat aan omdat 17-18 oktober weer vrij is', () => {
     assert.equal(VRIJGEKOMEN_WEEKEND_BANNER_AAN, true);
   });
 });
 
 describe('weekendNogBeschikbaar', () => {
-  test('blijft true tot en met zondag 8 november (Nederlandse tijd)', () => {
+  test('blijft true tot en met zondag 18 oktober (Nederlandse tijd)', () => {
     assert.equal(weekendNogBeschikbaar(new Date('2026-09-10T12:00:00Z')), true);
-    assert.equal(weekendNogBeschikbaar(new Date('2026-11-07T12:00:00Z')), true);
-    // 22:30 UTC = 23:30 Amsterdam (wintertijd) — nog steeds 8 november
-    assert.equal(weekendNogBeschikbaar(new Date('2026-11-08T22:30:00Z')), true);
+    assert.equal(weekendNogBeschikbaar(new Date('2026-10-17T12:00:00Z')), true);
+    // 21:30 UTC = 23:30 Amsterdam (zomertijd) — nog steeds 18 oktober
+    assert.equal(weekendNogBeschikbaar(new Date('2026-10-18T21:30:00Z')), true);
   });
 
-  test('is false vanaf maandag 9 november Nederlandse tijd', () => {
-    // 23:30 UTC op 8 november = 00:30 Amsterdam op 9 november
-    assert.equal(weekendNogBeschikbaar(new Date('2026-11-08T23:30:00Z')), false);
-    assert.equal(weekendNogBeschikbaar(new Date('2026-11-09T12:00:00Z')), false);
+  test('is false vanaf maandag 19 oktober Nederlandse tijd', () => {
+    // 22:30 UTC op 18 oktober = 00:30 Amsterdam op 19 oktober
+    assert.equal(weekendNogBeschikbaar(new Date('2026-10-18T22:30:00Z')), false);
+    assert.equal(weekendNogBeschikbaar(new Date('2026-10-19T12:00:00Z')), false);
   });
 });
 
 describe('toonVrijgekomenWeekendBanner', () => {
-  test('blijft zichtbaar tot en met zondag 8 november (Nederlandse tijd)', () => {
+  test('blijft zichtbaar tot en met zondag 18 oktober (Nederlandse tijd)', () => {
     assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-09-10T12:00:00Z')), true);
-    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-11-07T12:00:00Z')), true);
-    // 22:30 UTC = 23:30 Amsterdam (wintertijd) — nog steeds 8 november
-    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-11-08T22:30:00Z')), true);
+    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-10-17T12:00:00Z')), true);
+    // 21:30 UTC = 23:30 Amsterdam (zomertijd) — nog steeds 18 oktober
+    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-10-18T21:30:00Z')), true);
   });
 
-  test('verdwijnt vanaf maandag 9 november Nederlandse tijd', () => {
-    // 23:30 UTC op 8 november = 00:30 Amsterdam op 9 november
-    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-11-08T23:30:00Z')), false);
-    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-11-09T12:00:00Z')), false);
+  test('verdwijnt vanaf maandag 19 oktober Nederlandse tijd', () => {
+    // 22:30 UTC op 18 oktober = 00:30 Amsterdam op 19 oktober
+    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-10-18T22:30:00Z')), false);
+    assert.equal(toonVrijgekomenWeekendBanner(new Date('2026-10-19T12:00:00Z')), false);
   });
 });
 
