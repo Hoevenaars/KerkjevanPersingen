@@ -261,12 +261,17 @@ function tabHref(tabNaam: string): string {
               {!verleng.ok && <p class="bh-muted">{verleng.melding}</p>}
               {!definitief.ok && <p class="bh-muted">{definitief.melding}</p>}
               <p class="bh-muted">Annuleren verstuurt geen mail. Die automation staat uit.</p>
-              {boeking.status !== 'geannuleerd' && (
+            </form>
+            {boeking.status !== 'geannuleerd' && (
+              <form method="post" class="bh-form">
+                <label for="annuleer-reden">Reden annulering</label>
+                <textarea id="annuleer-reden" name="reden" rows="3" placeholder="Bijvoorbeeld: weg afgesloten"></textarea>
+                <p class="bh-muted">De gekoppelde activiteit verdwijnt uit de publieke agenda. Er gaat geen mail uit.</p>
                 <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
                   Annuleer
                 </button>
-              )}
-            </form>
+              </form>
+            )}
           )}
           {snapshot.bron === 'supabase' && !snapshot.alleenLezen && (
             <>

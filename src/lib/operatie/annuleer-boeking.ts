@@ -29,6 +29,7 @@ export interface AnnuleerDb {
   leesStatus(id: number): Promise<{ status: string } | { fout: string }>;
   zetGeannuleerd(id: number): Promise<{ status: string } | { fout: string } | { leeg: true }>;
   annuleerOpenJobs(id: number): Promise<{ fout?: string }>;
+  annuleerGekoppeldeActiviteiten(id: number, reden: string): Promise<{ fout?: string }>;
   aantalJobs(id: number): Promise<number | { fout: string }>;
   schrijfAudit(rij: AnnuleerAudit): Promise<{ fout?: string; code?: string }>;
 }
@@ -49,7 +50,11 @@ export async function annuleerBoeking(
   if (typeof jobsVoor !== 'number') return { ok: false, melding: jobsVoor.fout };
   const huidig = await db.leesStatus(id);
   if ('fout' in huidig) return { ok: false, melding: huidig.fout };
-  if (huidig.status === 'geannuleerd') return { ok: true, melding: 'Boeking was al geannuleerd.' };
+  if (huidig.status === 'geannuleerd') {
+    const sync = await db.annuleerGekoppeldeActiviteiten(id, reden);
+    if (sync.fout) return { ok: false, melding: sync.fout };
+    return { ok: true, melding: 'Boeking was al geannuleerd.' };
+  }
 
   const gezet = await db.zetGeannuleerd(id);
   if ('fout' in gezet) return { ok: false, melding: gezet.fout };
@@ -64,6 +69,8 @@ export async function annuleerBoeking(
   if (jobsNa !== jobsVoor) {
     return { ok: false, melding: 'Annuleren heeft een mail of workflow aangemaakt. Dat hoort niet.' };
   }
+  const sync = await db.annuleerGekoppeldeActiviteiten(id, reden);
+  if (sync.fout) return { ok: false, melding: sync.fout };
 
   const rij: AnnuleerAudit = {
     actor_id: actor.id && UUID.test(actor.id) ? actor.id : null,
@@ -99,7 +106,7 @@ interface SessieQuery extends PromiseLike<{ data: { status?: string } | null; er
 }
 
 export interface AnnuleerSessie {
-  from: (tabel: 'boekingen' | 'communicatie_jobs' | 'auditlog') => SessieQuery;
+  from: (tabel: 'boekingen' | 'communicatie_jobs' | 'auditlog' | 'publieke_activiteiten') => SessieQuery;
 }
 
 export function annuleerDbVanSessie(client: AnnuleerSessie): AnnuleerDb {
@@ -127,6 +134,16 @@ export function annuleerDbVanSessie(client: AnnuleerSessie): AnnuleerDb {
         .update({ status: 'geannuleerd' })
         .eq('boeking_id', id)
         .neq('status', 'verzonden');
+      return error ? { fout: error.message } : {};
+    },
+    async annuleerGekoppeldeActiviteiten(id, reden) {
+      const waarden: Record<string, unknown> = {
+        levenscyclus: 'geannuleerd',
+        gepubliceerd: false,
+      };
+      const tekst = reden.trim();
+      if (tekst) waarden.annuleringsreden = tekst;
+      const { error } = await client.from('publieke_activiteiten').update(waarden).eq('boeking_id', id);
       return error ? { fout: error.message } : {};
     },
     async aantalJobs(id) {
