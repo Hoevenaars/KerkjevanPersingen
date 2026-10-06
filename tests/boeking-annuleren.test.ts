@@ -29,6 +29,9 @@ function geheugen(status = 'migratie_vastgelegd', jobs = 0): AnnuleerDb & { audi
     async annuleerOpenJobs() {
       return {};
     },
+    async annuleerGekoppeldeActiviteiten() {
+      return {};
+    },
     async aantalJobs() {
       return staat.jobs;
     },
@@ -103,7 +106,7 @@ test('de sessie werkt de boeking bij en maakt geen communicatiejob', async () =>
           return query;
         },
         update(waarden: Record<string, unknown>) {
-          stappen.push(`update:${tabel}:${String(waarden.status ?? '')}`);
+          stappen.push(`update:${tabel}:${String(waarden.status ?? waarden.levenscyclus ?? '')}`);
           if (tabel === 'boekingen') status = String(waarden.status);
           return query;
         },
@@ -136,7 +139,50 @@ test('de sessie werkt de boeking bij en maakt geen communicatiejob', async () =>
   assert.equal(status, 'geannuleerd');
   assert.equal(aangeroepen.some((stap) => stap.startsWith('communicatie_jobs>insert')), false);
   assert.equal(aangeroepen.some((stap) => stap.includes('update:boekingen:geannuleerd')), true);
+  assert.equal(aangeroepen.some((stap) => stap.includes('update:publieke_activiteiten:geannuleerd')), true);
   assert.equal(aangeroepen.some((stap) => stap.includes('insert:auditlog')), true);
+});
+
+test('een al geannuleerde boeking haalt de gekoppelde activiteit alsnog van de agenda', async () => {
+  const updates: string[] = [];
+  const client: AnnuleerSessie = {
+    from(tabel) {
+      const query = {
+        select() {
+          return query;
+        },
+        update(waarden: Record<string, unknown>) {
+          updates.push(`${tabel}:${String(waarden.levenscyclus ?? waarden.status ?? '')}:${String(waarden.annuleringsreden ?? '')}`);
+          return query;
+        },
+        insert() {
+          return Promise.resolve({ error: null });
+        },
+        eq() {
+          return query;
+        },
+        neq() {
+          return query;
+        },
+        maybeSingle() {
+          return Promise.resolve({ data: { status: 'geannuleerd' }, error: null });
+        },
+        then(resolve: (waarde: { data: null; error: null; count: number }) => unknown) {
+          return Promise.resolve({ data: null, error: null, count: 0 }).then(resolve);
+        },
+      };
+      return query;
+    },
+  };
+  const uit = await annuleerBoekingViaSessie(client, 43, 'Weg afgesloten. Exposant verwacht minder bezoekers.', {
+    type: 'gebruiker',
+    naam: 'Beheer',
+  });
+  assert.equal(uit.ok, true);
+  assert.equal(uit.melding, 'Boeking was al geannuleerd.');
+  assert.deepEqual(updates, [
+    'publieke_activiteiten:geannuleerd:Weg afgesloten. Exposant verwacht minder bezoekers.',
+  ]);
 });
 
 test('een redirect houdt status 303 nadat beheerheaders zijn gezet', () => {

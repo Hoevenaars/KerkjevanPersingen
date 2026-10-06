@@ -347,7 +347,14 @@ export function pasToe(wereld: Wereld, mutaties: readonly Mutatie[]): Wereld {
       const id = mutatie.id ?? (mutatie.ref ? refs.get(mutatie.ref) : undefined);
       const rij = volgende.boekingen.find((item) => item.id === id);
       if (!rij) continue;
-      if ('status' in velden) rij.status = tekst('status') as BoekingStatus;
+      if ('status' in velden) {
+        rij.status = tekst('status') as BoekingStatus;
+        if (rij.status === 'geannuleerd') {
+          for (const item of volgende.publiek) {
+            if (item.boekingId === rij.id) item.geannuleerd = true;
+          }
+        }
+      }
       if ('gastheer_relatie_id' in velden) rij.gastheerId = tekst('gastheer_relatie_id') || null;
       if ('aanbetaling_ontvangen' in velden) {
         rij.aanbetalingOntvangen = velden.aanbetaling_ontvangen === true || velden.aanbetaling_ontvangen === 'true';
