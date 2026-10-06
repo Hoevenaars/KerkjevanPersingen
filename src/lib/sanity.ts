@@ -462,7 +462,8 @@ export interface AgendaOverzicht {
  * dubbel in beeld komt.
  */
 export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
-  const lijst = await getPubliekeAgenda(20); // filtert al op magAlGetoondWorden
+  // Blokkades (winterstop) staan op de agenda als "Bezet", niet als eerstvolgende activiteit.
+  const lijst = (await getPubliekeAgenda(80)).filter((item) => item.soort !== 'blokkade');
   const vandaag = startVanDag(new Date().toISOString());
 
   const lopend = lijst.find((a) => loopVandaag(a, vandaag)) ?? null;
