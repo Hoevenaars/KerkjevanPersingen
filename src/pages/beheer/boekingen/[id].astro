@@ -243,35 +243,37 @@ function tabHref(tabNaam: string): string {
               : 'Geen contractgeneratie, geen echte mail, geen wijziging in Sanity.'}
           </p>
           {!snapshot.alleenLezen && (
-            <form method="post" class="bh-acties">
-              {definitief.ok && definitief.melding !== 'al' && (
-                <>
-                  <label for="reden">Reden bij definitief zetten</label>
-                  <input id="reden" name="reden" type="text" />
-                  <button class="bh-btn" type="submit" name="actie" value="definitief">
-                    Zet definitief
+            <>
+              <form method="post" class="bh-acties">
+                {definitief.ok && definitief.melding !== 'al' && (
+                  <>
+                    <label for="reden">Reden bij definitief zetten</label>
+                    <input id="reden" name="reden" type="text" />
+                    <button class="bh-btn" type="submit" name="actie" value="definitief">
+                      Zet definitief
+                    </button>
+                  </>
+                )}
+                {verleng.ok && (
+                  <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
+                    Verleng optie
                   </button>
-                </>
-              )}
-              {verleng.ok && (
-                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verleng">
-                  Verleng optie
-                </button>
-              )}
-              {!verleng.ok && <p class="bh-muted">{verleng.melding}</p>}
-              {!definitief.ok && <p class="bh-muted">{definitief.melding}</p>}
-              <p class="bh-muted">Annuleren verstuurt geen mail. Die automation staat uit.</p>
-            </form>
-            {boeking.status !== 'geannuleerd' && (
-              <form method="post" class="bh-form">
-                <label for="annuleer-reden">Reden annulering</label>
-                <textarea id="annuleer-reden" name="reden" rows="3" placeholder="Bijvoorbeeld: weg afgesloten"></textarea>
-                <p class="bh-muted">De gekoppelde activiteit verdwijnt uit de publieke agenda. Er gaat geen mail uit.</p>
-                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
-                  Annuleer
-                </button>
+                )}
+                {!verleng.ok && <p class="bh-muted">{verleng.melding}</p>}
+                {!definitief.ok && <p class="bh-muted">{definitief.melding}</p>}
+                <p class="bh-muted">Annuleren verstuurt geen mail. Die automation staat uit.</p>
               </form>
-            )}
+              {boeking.status !== 'geannuleerd' && (
+                <form method="post" class="bh-form">
+                  <label for="annuleer-reden">Reden annulering</label>
+                  <textarea id="annuleer-reden" name="reden" rows="3" placeholder="Bijvoorbeeld: weg afgesloten"></textarea>
+                  <p class="bh-muted">De gekoppelde activiteit verdwijnt uit de publieke agenda. Er gaat geen mail uit.</p>
+                  <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
+                    Annuleer
+                  </button>
+                </form>
+              )}
+            </>
           )}
           {snapshot.bron === 'supabase' && !snapshot.alleenLezen && (
             <>
