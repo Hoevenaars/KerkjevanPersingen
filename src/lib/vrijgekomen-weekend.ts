@@ -1,7 +1,7 @@
 /**
  * Banner voor een onverwacht vrij expositieweekend.
  *
- * 7 en 8 november 2026 is weer vrij — de schakelaar staat aan.
+ * 17 en 18 oktober 2026 is weer vrij — de schakelaar staat aan.
  * Zet `VRIJGEKOMEN_WEEKEND_BANNER_AAN` op `false` om hem tijdelijk te verbergen
  * zonder component of copy te verwijderen. Bij een ander weekend: datums en
  * copy hieronder bijwerken.
@@ -14,13 +14,13 @@
 export const VRIJGEKOMEN_WEEKEND_BANNER_AAN = true;
 
 export const VRIJGEKOMEN_EXPOSITIE_WEEKEND = {
-  zaterdag: '2026-11-07',
-  zondag: '2026-11-08',
+  zaterdag: '2026-10-17',
+  zondag: '2026-10-18',
   eyebrow: 'Onverwacht vrij',
   titel: 'Een uniek expositieweekend is vrijgekomen',
   tekst:
     'Presenteer jouw werk in het Kerkje van Persingen. Dit weekend is nu beschikbaar — vraag het aan voordat het weer vergeven is.',
-  knop: 'Vraag 7 en 8 november aan',
+  knop: 'Vraag 17 en 18 oktober aan',
 } as const;
 
 export type WeekendDatumKaart = {
