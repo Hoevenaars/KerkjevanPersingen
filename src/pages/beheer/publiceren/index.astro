@@ -2,7 +2,19 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { formatNl } from '../../../platform/demo-data';
+import { demoNaActie, formatNl } from '../../../platform/demo-data';
+import { bewaarVrijgekomenWeekendBanner } from '../../../platform/beheer-supabase-schrijf.ts';
+import { bezetteKalenderDagen } from '../../../lib/datum.ts';
+import { leesBezetteData } from '../../../lib/publiek-lezen.ts';
+import {
+  STANDAARD_VRIJGEKOMEN_WEEKEND,
+  VRIJGEKOMEN_WEEKEND_SLEUTEL,
+  bannerUitFormulier,
+  bannerZichtbaar,
+  bezetteDagenUitBronnen,
+  parseVrijgekomenWeekend,
+  volledigVrijeWeekenden,
+} from '../../../lib/vrijgekomen-weekend.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie } from '../../../lib/operatie/runtime.ts';
 import { voerPublicatie } from '../../../lib/activiteit-schrijf.ts';
@@ -70,9 +82,50 @@ const verhuur = publicatieUitBoekingen(
 const { venster, items } = publicatieWerklijst([...bronnen, ...verhuur], vandaag, stap);
 const bezetteSlugs = new Set(snapshot.agenda.map((activiteit) => activiteit.slug).filter((slug): slug is string => Boolean(slug)));
 
+function bezettingUitSnapshot(): Set<string> {
+  return bezetteDagenUitBronnen({
+    boekingen: snapshot.boekingen,
+    blokkades: snapshot.intern,
+    agenda: snapshot.agenda,
+  }, bezetteKalenderDagen);
+}
+
+let bezetteDagen: Set<string>;
+if (snapshot.bron === 'demo') {
+  bezetteDagen = bezettingUitSnapshot();
+} else {
+  try {
+    bezetteDagen = bezetteKalenderDagen(await leesBezetteData());
+  } catch {
+    bezetteDagen = bezettingUitSnapshot();
+  }
+}
+const vrijeWeekenden = volledigVrijeWeekenden(bezetteDagen);
+const vrijeZaterdagen = new Set(vrijeWeekenden.map((weekend) => weekend.zaterdag));
+
 if (Astro.request.method === 'POST') {
   const data = await Astro.request.formData();
   const actie = String(data.get('actie') ?? '');
+  if (actie === 'vrij_weekend_banner') {
+    const terugBanner = new URL(Astro.url.pathname, Astro.url.origin);
+    const bron = Astro.url.searchParams.get('bron');
+    if (bron) terugBanner.searchParams.set('bron', bron);
+    if (snapshot.bron === 'demo') return Astro.redirect(demoNaActie(Astro.url));
+    try {
+      const formulier = bannerUitFormulier(data, vrijeZaterdagen);
+      const schrijver = sessieSupabaseUitAstro(Astro);
+      if (!schrijver) {
+        terugBanner.searchParams.set('fout', 'Je bent niet ingelogd. De banner is niet opgeslagen.');
+        return Astro.redirect(terugBanner.toString());
+      }
+      await bewaarVrijgekomenWeekendBanner(schrijver as never, formulier);
+      terugBanner.searchParams.set('melding', 'De vrij-weekendbanner is opgeslagen.');
+      return Astro.redirect(terugBanner.toString());
+    } catch (error) {
+      terugBanner.searchParams.set('fout', error instanceof Error ? error.message : 'Opslaan van de banner mislukt.');
+      return Astro.redirect(terugBanner.toString());
+    }
+  }
   const id = String(data.get('id') ?? '');
   const item = items.find((kandidaat) => kandidaat.id === id) ?? bronnen.find((kandidaat) => kandidaat.id === id);
   const terug = new URL(Astro.url.pathname, Astro.url.origin);
@@ -171,6 +224,31 @@ if (Astro.request.method === 'POST') {
 
 const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
+
+let weekendInstelling = { ...STANDAARD_VRIJGEKOMEN_WEEKEND };
+let weekendGelezen = false;
+const weekendLezer = sessieSupabaseUitAstro(Astro);
+if (weekendLezer && snapshot.bron !== 'demo') {
+  const { data, error } = await weekendLezer
+    .from('instellingen')
+    .select('waarde')
+    .eq('sleutel', VRIJGEKOMEN_WEEKEND_SLEUTEL)
+    .maybeSingle();
+  if (!error && data?.waarde) {
+    const geparsed = parseVrijgekomenWeekend(data.waarde);
+    if (geparsed) {
+      weekendInstelling = geparsed;
+      weekendGelezen = true;
+    }
+  }
+}
+const gekozenWeekend = vrijeWeekenden.find((weekend) => weekend.zaterdag === weekendInstelling.zaterdag) ?? null;
+const bannerNuZichtbaar = bannerZichtbaar(weekendInstelling, new Date(), bezetteDagen);
+const terugvalTekst = !weekendGelezen && bannerZichtbaar(STANDAARD_VRIJGEKOMEN_WEEKEND, new Date())
+  ? ' Nog niet opgeslagen; tot die tijd geldt 17 en 18 oktober 2026.'
+  : !weekendGelezen
+    ? ' Nog niet opgeslagen.'
+    : '';
 function stapHref(volgende: number): string {
   const params = new URLSearchParams();
   if (volgende !== 0) params.set('stap', String(volgende));
@@ -188,6 +266,55 @@ function stapHref(volgende: number): string {
   </header>
   {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+
+  <section class="bh-kaart" id="vrij-weekend-banner">
+    <h2>Vrij weekend</h2>
+    <p class="bh-hint">
+      Banner onder de kop van de website, ook op de homepage. Zet hem aan of uit en kies een weekend dat vrij is.
+      De datum en de periode worden automatisch uit dat weekend gehaald. Na het weekend verdwijnt de banner vanzelf.
+    </p>
+    <p class="bh-muted">
+      {bannerNuZichtbaar ? 'Deze banner is nu zichtbaar.' : 'Deze banner staat nu niet op de website.'}
+      {terugvalTekst}
+    </p>
+    {!gekozenWeekend && weekendInstelling.zaterdag && (
+      <p class="bh-flash bh-flash--fout">Het gekozen weekend is niet meer vrij. Kies een ander weekend of zet de banner uit.</p>
+    )}
+    <form method="post" class="bh-form">
+      <input type="hidden" name="actie" value="vrij_weekend_banner" />
+      <input type="hidden" name="actief" value="0" />
+      <label class="bh-check">
+        <input type="checkbox" name="actief" value="1" checked={weekendInstelling.actief} />
+        <span>Banner tonen</span>
+      </label>
+      <label for="vrij-weekend">Weekend</label>
+      {vrijeWeekenden.length === 0 ? (
+        <p class="bh-leeg">Er is geen vrij weekend om te kiezen.</p>
+      ) : (
+        <select id="vrij-weekend" name="zaterdag">
+          <option value="" selected={!gekozenWeekend}>Kies een vrij weekend</option>
+          {vrijeWeekenden.map((weekend) => (
+            <option
+              value={weekend.zaterdag}
+              selected={weekend.zaterdag === weekendInstelling.zaterdag}
+              data-periode={weekend.periode}
+            >
+              {weekend.label}
+            </option>
+          ))}
+        </select>
+      )}
+      <p class="bh-muted" id="vrij-weekend-periode">
+        {gekozenWeekend
+          ? `Periode: ${gekozenWeekend.periode}`
+          : 'Kies een vrij weekend. De periode wordt daarna automatisch ingevuld.'}
+      </p>
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit">{snapshot.bron === 'demo' ? 'Bewaar (voorbeeld)' : 'Bewaar banner'}</button>
+      </div>
+    </form>
+  </section>
+
   <nav class="bh-jaar" aria-label="Periode van 8 weken">
     <a href={stapHref(stap - 1)}>‹ Vorige 8 weken</a>
     {stap !== 0 && <a href={stapHref(0)}>Vanaf vandaag</a>}
@@ -343,6 +470,16 @@ function stapHref(volgende: number): string {
         letop.hidden = !besluit.waarschuwing;
       }
     });
+  });
+
+  const weekendKeuze = document.getElementById('vrij-weekend');
+  const weekendPeriode = document.getElementById('vrij-weekend-periode');
+  weekendKeuze?.addEventListener('change', () => {
+    if (!(weekendKeuze instanceof HTMLSelectElement) || !weekendPeriode) return;
+    const periode = weekendKeuze.selectedOptions[0]?.dataset.periode;
+    weekendPeriode.textContent = periode
+      ? `Periode: ${periode}`
+      : 'Kies een vrij weekend. De periode wordt daarna automatisch ingevuld.';
   });
 </script>
 
