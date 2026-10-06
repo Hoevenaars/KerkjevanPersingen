@@ -1,0 +1,152 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../../platform/beheer-bron.ts';
+import { STANDAARD_VERHUURTYPEN } from '../../../../platform/types.ts';
+import { magSchrijven } from '../../../../platform/rechten.ts';
+import { actorVanSessie } from '../../../../lib/operatie/runtime.ts';
+import { voerDossierViaSessie, type DossierSessie } from '../../../../lib/operatie/dossier-sessie.ts';
+import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
+
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const magBoeking = magSchrijven(rechten, 'boekingen');
+const demo = snapshot.bron === 'demo';
+
+const waarden = {
+  titel: '',
+  naam: '',
+  email: '',
+  telefoon: '',
+  adres: '',
+  verhuurtype: 'expositie',
+  start: '',
+  eind: '',
+  personen: '',
+  toelichting: '',
+  status: 'optie',
+  reden: '',
+};
+
+let fout = Astro.url.searchParams.get('fout') ?? '';
+
+if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  for (const sleutel of Object.keys(waarden) as Array<keyof typeof waarden>) {
+    waarden[sleutel] = String(data.get(sleutel) ?? '');
+  }
+  if (!magBoeking) {
+    fout = 'Geen recht om een boeking aan te maken.';
+  } else if (demo) {
+    fout = 'Voorbeelddata slaan niets op. Er is geen boeking aangemaakt en er is geen mail verstuurd.';
+  } else {
+    const sessie = sessieSupabaseUitAstro(Astro);
+    if (!sessie) {
+      fout = 'Geen ingelogde sessie. Er is niets opgeslagen. De service-role is niet gebruikt.';
+    } else {
+      const uit = await voerDossierViaSessie(
+        sessie as DossierSessie,
+        {
+          soort: 'handmatige_boeking',
+          naam: waarden.naam,
+          email: waarden.email,
+          telefoon: waarden.telefoon,
+          adres: waarden.adres,
+          verhuurtype: waarden.verhuurtype,
+          start: waarden.start,
+          eind: waarden.eind,
+          personen: waarden.personen,
+          toelichting: waarden.toelichting,
+          titel: waarden.titel,
+          status: waarden.status === 'definitief' ? 'definitief' : 'optie',
+          reden: waarden.reden,
+        },
+        actorVanSessie(Astro.locals.beheer),
+      );
+      if (uit.ok && uit.boekingId) {
+        const doel = new URL(`/beheer/boekingen/${encodeURIComponent(uit.boekingId)}/`, Astro.url.origin);
+        doel.searchParams.set('melding', uit.melding);
+        return Astro.redirect(doel.toString());
+      }
+      fout = uit.melding;
+    }
+  }
+}
+---
+
+<Beheer titel="Nieuwe boeking">
+  <p class="bh-crumb"><a href="/beheer/boekingen/">Boekingen</a> / Nieuw</p>
+  <header class="bh-top">
+    <div>
+      <p class="bh-label">Boekingen</p>
+      <h1>Nieuwe boeking</h1>
+      <p class="bh-hint">
+        Voor een reservering die niet via het aanvraagformulier binnenkwam.
+        Een expositie is zaterdag en zondag. Overige verhuur is maandag t/m vrijdag.
+        De boeking blijft intern en er gaat geen mail uit.
+      </p>
+    </div>
+  </header>
+
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+
+  <section class="bh-kaart">
+    <form method="post" class="bh-form">
+      <label for="titel">Interne titel</label>
+      <input id="titel" name="titel" value={waarden.titel} autocomplete="off" />
+
+      <label for="verhuurtype">Soort</label>
+      <select id="verhuurtype" name="verhuurtype">
+        {STANDAARD_VERHUURTYPEN.filter((type) => type.actief).map((type) => (
+          <option value={type.sleutel} selected={waarden.verhuurtype === type.sleutel}>{type.naam}</option>
+        ))}
+      </select>
+
+      <label for="start">Startdatum</label>
+      <input id="start" name="start" type="date" value={waarden.start} required />
+
+      <label for="eind">Einddatum</label>
+      <input id="eind" name="eind" type="date" value={waarden.eind} required />
+
+      <label for="naam">Naam huurder</label>
+      <input id="naam" name="naam" value={waarden.naam} required autocomplete="name" />
+
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" value={waarden.email} required autocomplete="email" />
+
+      <label for="telefoon">Telefoon</label>
+      <input id="telefoon" name="telefoon" value={waarden.telefoon} autocomplete="tel" />
+
+      <label for="adres">Adres</label>
+      <textarea id="adres" name="adres" class="kort" rows="2">{waarden.adres}</textarea>
+
+      <label for="personen">Aantal personen</label>
+      <input id="personen" name="personen" value={waarden.personen} />
+
+      <label for="toelichting">Toelichting</label>
+      <textarea id="toelichting" name="toelichting" class="kort" rows="3">{waarden.toelichting}</textarea>
+
+      <fieldset class="bh-status">
+        <legend>Status</legend>
+        <label class="bh-check">
+          <input type="radio" name="status" value="optie" checked={waarden.status !== 'definitief'} />
+          Optie
+        </label>
+        <label class="bh-check">
+          <input type="radio" name="status" value="definitief" checked={waarden.status === 'definitief'} />
+          Meteen definitief
+        </label>
+      </fieldset>
+
+      <label for="reden">Reden, verplicht bij definitief</label>
+      <textarea id="reden" name="reden" class="kort" rows="2">{waarden.reden}</textarea>
+
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit" disabled={!magBoeking}>Boeking vastleggen</button>
+        <a class="bh-btn bh-btn--sec" href="/beheer/boekingen/">Annuleren</a>
+      </div>
+      {!magBoeking && <p class="bh-muted">Alleen iemand met schrijfrechten op boekingen kan dit opslaan.</p>}
+    </form>
+  </section>
+</Beheer>

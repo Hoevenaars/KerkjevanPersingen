@@ -107,5 +107,5 @@ export const SNEL_NIEUW = [
   { module: 'aanvragen', href: '/beheer/aanvragen/', label: 'Aanvraag bekijken' },
   { module: 'relaties', href: '/beheer/relaties/', label: 'Relatie' },
   { module: 'agenda', href: '/beheer/agenda/', label: 'Agenda-item' },
-  { module: 'boekingen', href: '/beheer/boekingen/', label: 'Boeking' },
+  { module: 'boekingen', href: '/beheer/boekingen/nieuw/', label: 'Boeking' },
 ] as const;
