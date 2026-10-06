@@ -8,7 +8,7 @@ import { STANDAARD_AFBEELDING, kaartVoorWebsite } from '../../platform/publicere
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
 import { toonFotoInHetGeheel } from '../../lib/publicatie-foto.ts';
 
-const activiteiten = await getPubliekeAgenda(50);
+const activiteiten = await getPubliekeAgenda(80);
 
 /**
  * Maximaal 2 zinnen, met een "…" als er meer volgt. Belangrijk zodra er
@@ -36,6 +36,17 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
       activiteiten.length > 0 ? (
         <ul class="lijst">
           {activiteiten.map((a) => {
+            if (a.soort === 'blokkade') {
+              return (
+                <li class="kaart kaart--bezet">
+                  <div class="kaart-tekst">
+                    <p class="datum">{formatDatumBereik(a)}</p>
+                    <h2>Bezet</h2>
+                    <p>Dit weekend is bezet.</p>
+                  </div>
+                </li>
+              );
+            }
             const foto =
               secondNaturePoster(a) ??
               (a.foto ? publiekeFotoUrl(a.foto, 800, 600) : null) ??
@@ -78,6 +89,7 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
 <style>
   .lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-12); }
   .kaart { display: grid; grid-template-columns: 320px 1fr; gap: var(--s-8); align-items: start; padding-bottom: var(--s-12); border-bottom: var(--border); }
+  .kaart--bezet { grid-template-columns: 1fr; padding-bottom: var(--s-6); }
   .kaart:last-child { border-bottom: none; }
   .datum { font-weight: 600; color: var(--olive-dark); margin-bottom: var(--s-2); font-size: var(--t-sm); text-transform: uppercase; letter-spacing: 0.06em; }
   .kaart h2 { font-size: var(--t-2xl); margin-bottom: var(--s-3); }
