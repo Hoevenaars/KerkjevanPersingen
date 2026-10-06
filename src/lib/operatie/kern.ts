@@ -21,6 +21,7 @@ import {
   type Readiness,
 } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam, voegDagenToe, periodesOverlappen } from '../../platform/datum.ts';
+import { boekingNummer, leesHandmatigeBoeking } from '../../platform/handmatige-boeking.ts';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
 import { MailGeblokkeerd } from '../../platform/automatisering.ts';
@@ -750,6 +751,21 @@ export type Opdracht =
   | { soort: 'incident_sluiten'; incidentId: string }
   | { soort: 'sluit'; boekingId: string; reden?: string }
   | { soort: 'handmatig_definitief'; boekingId: string; reden: string }
+  | {
+      soort: 'handmatige_boeking';
+      naam: string;
+      email: string;
+      telefoon?: string;
+      adres?: string;
+      verhuurtype: string;
+      start: string;
+      eind: string;
+      personen?: string;
+      toelichting?: string;
+      titel?: string;
+      status?: 'optie' | 'definitief';
+      reden?: string;
+    }
   | { soort: 'annuleer'; boekingId: string; reden?: string }
   | { soort: 'verleng'; boekingId: string }
   | { soort: 'scheduler' };
@@ -1303,6 +1319,54 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
       { soort: 'update_boeking', id: boeking.id, velden: { status: 'optie', optie_einddatum: optie.optieEinddatum, optietermijn_dagen: optie.optietermijnDagen } },
       audit({ dedup: `boeking:${boeking.id}:verlengd:${vandaag}`, actie: 'optie_verlengd', type: 'boeking', id: boeking.id, naar: optie.optieEinddatum, actor: ctx.actor }),
     ]);
+  }
+
+  if (opdracht.soort === 'handmatige_boeking') {
+    if (!actorMag(ctx.actor, 'boekingen')) return mislukt('Geen recht om een boeking aan te maken.');
+    const gelezen = leesHandmatigeBoeking(opdracht);
+    if (!gelezen.ok) return mislukt(gelezen.melding);
+    const invoer = gelezen.boeking;
+    if (!periodeVrij(wereld, invoer.start, invoer.eind)) return mislukt('De periode is al bezet.');
+    const optie = optieSnapshot(vandaag, STANDAARD_OPTIETERMIJN_DAGEN);
+    const mutaties: Mutatie[] = [
+      {
+        soort: 'insert_boeking',
+        ref: 'boek',
+        velden: {
+          nummer: boekingNummer(invoer.start, 'HAND'),
+          status: invoer.status,
+          verhuurtype_sleutel: invoer.verhuurtype,
+          interne_titel: invoer.titel,
+          start_datum: invoer.start,
+          eind_datum: invoer.eind,
+          huurder_naam_snapshot: invoer.naam,
+          huurder_email_snapshot: invoer.email,
+          huurder_telefoon_snapshot: invoer.telefoon,
+          huurder_adres_snapshot: invoer.adres,
+          aantal_personen: invoer.personen,
+          toelichting: invoer.toelichting,
+          optie_aangemaakt_op: optie.optieAangemaaktOp,
+          optietermijn_dagen: optie.optietermijnDagen,
+          optie_einddatum: optie.optieEinddatum,
+        },
+      },
+    ];
+    const geprojecteerd = pasToe(wereld, mutaties);
+    const boeking = geprojecteerd.boekingen.at(-1);
+    if (!boeking) return mislukt('De boeking kon niet worden opgebouwd.');
+    mutaties.push(audit({
+      dedup: `boeking:${boeking.id}:handmatig_aangemaakt`,
+      actie: 'handmatig_aangemaakt',
+      type: 'boeking',
+      id: boeking.id,
+      naar: invoer.status,
+      reden: invoer.status === 'definitief' ? invoer.reden : 'Handmatig aangemaakt, zonder aanvraag.',
+      actor: ctx.actor,
+    }));
+    const melding = invoer.status === 'definitief'
+      ? 'Boeking is definitief vastgelegd. Er is geen mail of workflow gestart.'
+      : 'Optie vastgelegd. Er is geen mail of workflow gestart.';
+    return gelukt(melding, { boekingId: boeking.id }, mutaties);
   }
 
   if (opdracht.soort === 'scheduler') {

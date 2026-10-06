@@ -6,6 +6,7 @@
 
 import { magStatusZetten } from '../../platform/aanvraag.ts';
 import { ymdInAmsterdam, periodesOverlappen } from '../../platform/datum.ts';
+import { boekingNummer, leesHandmatigeBoeking, type HandmatigeBoeking } from '../../platform/handmatige-boeking.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
 import { magSchrijven } from '../../platform/rechten.ts';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
@@ -19,6 +20,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export interface DossierResultaat {
   ok: boolean;
   melding: string;
+  boekingId?: string;
 }
 
 interface BoekingRij {
@@ -77,6 +79,9 @@ function actorId(actor: Actor): string | null {
 export function leesbareAuthFout(bericht: string): string {
   if (/invalid api key|jwt|unauthorized|401|permission denied|row-level security/i.test(bericht)) {
     return 'Geen recht of de sessie is verlopen. Er is niets gewijzigd. Log opnieuw in.';
+  }
+  if (/boekingen_geen_dubbele_bezetting|boekingen_een_actieve_optie|exclusion constraint/i.test(bericht)) {
+    return 'Deze periode overlapt met een bestaande optie of definitieve boeking. Er is niets opgeslagen.';
   }
   return bericht;
 }
@@ -369,6 +374,79 @@ async function goedkeuren(client: DossierSessie, id: number, actor: Actor): Prom
   return { ok: true, melding: 'Optie vastgelegd. Er is geen mail of workflow gestart. Aanbetaling is geen voorwaarde.' };
 }
 
+async function maakHandmatigeBoeking(
+  client: DossierSessie,
+  opdracht: Extract<Opdracht, { soort: 'handmatige_boeking' }>,
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!mag(actor, 'boekingen')) return { ok: false, melding: 'Geen recht om een boeking aan te maken.' };
+  const gelezen = leesHandmatigeBoeking(opdracht);
+  if (!gelezen.ok) return { ok: false, melding: gelezen.melding };
+  const boeking = gelezen.boeking;
+  const overlap = await overlapMetActieve(client, 0, boeking.start, boeking.eind);
+  if ('fout' in overlap) return { ok: false, melding: overlap.fout };
+  if (overlap.nummers.length > 0) {
+    return { ok: false, melding: `Niet opgeslagen. De periode overlapt met ${overlap.nummers.join(', ')}.` };
+  }
+  const vandaag = ymdInAmsterdam(new Date());
+  const optie = optieSnapshot(vandaag, STANDAARD_OPTIETERMIJN_DAGEN);
+  let insert = await schrijfBoeking(client, boeking, optie, boekingNummer(boeking.start));
+  if ('fout' in insert && insert.fout === 'nummer') {
+    insert = await schrijfBoeking(client, boeking, optie, boekingNummer(boeking.start));
+  }
+  if ('fout' in insert) {
+    const melding = insert.fout === 'nummer'
+      ? 'Dit boekingsnummer bestond al. Probeer opnieuw. Er is niets opgeslagen.'
+      : insert.fout;
+    return { ok: false, melding };
+  }
+  await audit(client, actor, {
+    actie: 'handmatig_aangemaakt',
+    type: 'boeking',
+    id: insert.id,
+    naar: boeking.status,
+    reden: boeking.status === 'definitief' ? boeking.reden : 'Handmatig aangemaakt, zonder aanvraag.',
+    dedup: `boeking:${insert.id}:handmatig_aangemaakt`,
+  });
+  const melding = boeking.status === 'definitief'
+    ? 'Boeking is definitief vastgelegd. Er is geen mail of workflow gestart.'
+    : 'Optie vastgelegd. Er is geen mail of workflow gestart.';
+  return { ok: true, melding, boekingId: insert.id };
+}
+
+async function schrijfBoeking(
+  client: DossierSessie,
+  boeking: HandmatigeBoeking,
+  optie: { optieAangemaaktOp: string; optietermijnDagen: number; optieEinddatum: string },
+  nummer: string,
+): Promise<{ id: string } | { fout: string }> {
+  const insert = await client.from('boekingen').insert({
+    nummer,
+    status: boeking.status,
+    verhuurtype_sleutel: boeking.verhuurtype,
+    interne_titel: boeking.titel,
+    start_datum: boeking.start,
+    eind_datum: boeking.eind,
+    huurder_naam_snapshot: boeking.naam,
+    huurder_email_snapshot: boeking.email,
+    huurder_telefoon_snapshot: boeking.telefoon || null,
+    huurder_adres_snapshot: boeking.adres || null,
+    aantal_personen: boeking.personen || null,
+    toelichting: boeking.toelichting || null,
+    interne_notities: boeking.status === 'definitief' ? boeking.reden : null,
+    optie_aangemaakt_op: optie.optieAangemaaktOp,
+    optietermijn_dagen: optie.optietermijnDagen,
+    optie_einddatum: optie.optieEinddatum,
+  }).select('id').maybeSingle();
+  if (insert.error) {
+    if (insert.error.code === '23505') return { fout: 'nummer' };
+    return { fout: leesbareAuthFout(insert.error.message) };
+  }
+  const id = insert.data?.id;
+  if (id == null || id === '') return { fout: 'De boeking is niet opgeslagen. Controleer je rechten.' };
+  return { id: String(id) };
+}
+
 export async function voerDossierViaSessie(
   client: DossierSessie,
   opdracht: Opdracht,
@@ -395,6 +473,7 @@ export async function voerDossierViaSessie(
   if (opdracht.soort === 'handmatig_definitief') {
     return definitief(client, Number(opdracht.boekingId), opdracht.reden, actor);
   }
+  if (opdracht.soort === 'handmatige_boeking') return maakHandmatigeBoeking(client, opdracht, actor);
   if (opdracht.soort === 'sluit') return afronden(client, Number(opdracht.boekingId), opdracht.reden ?? '', actor);
   if (opdracht.soort === 'incident') return incident(client, Number(opdracht.boekingId), opdracht.omschrijving, actor);
   if (opdracht.soort === 'incident_sluiten') return incidentSluiten(client, Number(opdracht.incidentId), actor);

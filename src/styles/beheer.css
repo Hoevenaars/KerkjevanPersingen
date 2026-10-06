@@ -990,6 +990,26 @@
   min-height: 6rem;
 }
 
+.bh-form fieldset.bh-status {
+  border: 0;
+  margin: var(--s-4) 0 0;
+  padding: 0;
+}
+
+.bh-form fieldset.bh-status legend {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  padding: 0;
+}
+
+.bh-form fieldset.bh-status .bh-check {
+  margin-top: var(--s-2);
+}
+
+.bh-form .bh-check input {
+  width: auto;
+}
+
 .bh-form-rij {
   display: flex;
   gap: var(--s-2);

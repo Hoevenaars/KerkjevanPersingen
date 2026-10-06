@@ -2,10 +2,15 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { BOEKING_LABEL, SOORT_LABEL, formatNl } from '../../../platform/demo-data';
+import { BOEKING_LABEL, formatNl } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const magBoeking = magSchrijven(
+  Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
+  'boekingen',
+);
 const filter = Astro.url.searchParams.get('status') ?? 'alle';
 const lijst =
   filter === 'alle' ? snapshot.boekingen : snapshot.boekingen.filter((b) => b.status === filter);
@@ -32,6 +37,7 @@ const tabs = [
       <h1>Boekingen</h1>
       <p class="bh-hint">Interne boekingen — nooit zichtbaar op de website. Klik een nummer voor details.</p>
     </div>
+    {magBoeking && <a class="bh-btn" href="/beheer/boekingen/nieuw/">Nieuwe boeking</a>}
   </header>
 
   <nav class="bh-tabs" aria-label="Filter boekingen">
