@@ -25,6 +25,7 @@ import { boekingNummer, leesHandmatigeBoeking } from '../../platform/handmatige-
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
 import { MailGeblokkeerd } from '../../platform/automatisering.ts';
+import { replyToVoor } from '../mail-adressen.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { hashToegangstoken, nieuwToegangstoken, tokenIsVerlopen } from '../../platform/magictoken.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
@@ -210,6 +211,7 @@ export interface VerzendOpdracht {
   tekst: string;
   pogingen: number;
   jobRef: string;
+  replyTo: string;
 }
 
 export interface Plan {
@@ -229,7 +231,13 @@ export interface Resultaat {
 }
 
 export interface MailTransport {
-  verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string }): Promise<void>;
+  verstuur(input: {
+    naar: string;
+    onderwerp: string;
+    tekst: string;
+    templateSleutel?: string;
+    replyTo?: string;
+  }): Promise<void>;
 }
 
 export interface DienstContext {
@@ -682,6 +690,11 @@ function communicatieMutaties(
           tekst: bericht.tekst,
           pogingen: bestaand?.pogingen ?? 0,
           jobRef: `job:${dedup}`,
+          replyTo: replyToVoor({
+            templateId: stapItem.templateId,
+            ontvangerRol: stapItem.ontvangerRol,
+            aanvragerEmail: boeking.email,
+          }),
         });
       }
     }
@@ -1407,7 +1420,15 @@ function conceptJob(
     },
   };
   const verzend = modus === 'automatisch'
-    ? { dedup, naar, onderwerp, tekst, pogingen: 0, jobRef: `job:${dedup}` }
+    ? {
+        dedup,
+        naar,
+        onderwerp,
+        tekst,
+        pogingen: 0,
+        jobRef: `job:${dedup}`,
+        replyTo: replyToVoor({ templateId, aanvragerEmail: aanvraag.email }),
+      }
     : null;
   return { mutatie, verzend };
 }
@@ -1448,6 +1469,7 @@ export async function voerOpdrachtUit(
           onderwerp: `${guard.onderwerpPrefix}${mail.onderwerp}`,
           tekst: mail.tekst,
           templateSleutel: mail.dedup.split(':').at(-1) ?? '',
+          replyTo: mail.replyTo,
         });
         mutaties.push({
           soort: 'upsert_job',

@@ -107,6 +107,8 @@ if (Astro.request.method === 'POST') {
             onderwerp: 'Nieuwe verhuuraanvraag',
             tekst: `${waarden.naam} vraagt ${waarden.soort} aan op ${waarden.datum}.`,
             html: bestuurMailTekst(waarden),
+            replyTo: waarden.email,
+            aanvragerEmail: waarden.email,
           }).catch((error) => {
             console.error('[aanvraag] bestuursnotificatie niet verzonden', error);
           });

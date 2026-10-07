@@ -8,7 +8,6 @@ import { SOORTEN, type Aanvraag, type Fouten } from './validatie';
  * en twee mails versturen.
  */
 
-const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
 const TELEFOON = '06 52 66 84 49';
 
 // E-mail kan geen relatieve paden tonen — het logo moet een volledige,
