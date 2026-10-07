@@ -147,7 +147,12 @@ if (Astro.request.method === 'POST' && supabaseTest) {
     else if (!email) fout = 'Vul een e-mailadres in';
     else {
       const html = renderMailHtml(tpl, VOORBEELD_VARIABELEN, { voorbeeldUrl: 'https://kerkjepersingen.nl/' });
-      const ok = await verstuurTestMail({ naar: email, onderwerp: `[Test] ${onderwerpUitTemplate(tpl, VOORBEELD_VARIABELEN)}`, html });
+      const ok = await verstuurTestMail({
+        naar: email,
+        onderwerp: `[Test] ${onderwerpUitTemplate(tpl, VOORBEELD_VARIABELEN)}`,
+        html,
+        templateId: id,
+      });
       await registreerTestmail({ templateId: id, email, gebruiker });
       melding = ok.verzonden
         ? `Testmail verstuurd naar ${email}.`

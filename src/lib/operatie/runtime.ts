@@ -5,7 +5,7 @@
  */
 
 import { automatiseringVoorTemplate } from '../../platform/automatisering.ts';
-import { eisProviderToegestaan } from '../mail-transport.ts';
+import { bouwResendInhoud, eisProviderToegestaan, verstuurMetResend } from '../mail-transport.ts';
 import { toezichtBcc } from '../toezicht-bcc.ts';
 import type { Activiteit } from '../sanity.ts';
 import { maakBeheerAdminClient } from '../supabase.ts';
@@ -30,7 +30,6 @@ import {
   type Wereld,
 } from './kern.ts';
 
-const VAN = 'Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function operationeelSupabase(env: Record<string, unknown> = process.env): boolean {
@@ -238,21 +237,20 @@ async function laadWereld(): Promise<Wereld> {
 function mailTransport(env: Record<string, unknown>) {
   const sleutel = String(env.RESEND_API_KEY ?? '');
   return {
-    async verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string }) {
+    async verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string; replyTo?: string }) {
       const automatisering = input.templateSleutel ? automatiseringVoorTemplate(input.templateSleutel) : null;
       await eisProviderToegestaan(automatisering ?? 'workflow', undefined, env);
       if (!sleutel) throw new Error('RESEND_API_KEY ontbreekt');
-      const { Resend } = await import('resend');
-      const resend = new Resend(sleutel);
       const bcc = await toezichtBcc(input.naar, env);
-      const { error } = await resend.emails.send({
-        from: VAN,
-        to: [input.naar],
-        subject: input.onderwerp,
-        text: input.tekst,
-        ...(bcc.length ? { bcc } : {}),
+      const inhoud = bouwResendInhoud({
+        naar: input.naar,
+        onderwerp: input.onderwerp,
+        tekst: input.tekst,
+        replyTo: input.replyTo,
+        templateId: input.templateSleutel,
+        bcc,
       });
-      if (error) throw new Error(error.message);
+      await verstuurMetResend(inhoud, env as Record<string, string | undefined>);
     },
   };
 }

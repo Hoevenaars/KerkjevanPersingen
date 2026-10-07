@@ -59,7 +59,10 @@ Alleen webmaster ziet de lijst in Studio.
 
 Mail naar de aanvrager krijgt die BCC niet.
 
-Van: `noreply@send.kerkjepersingen.nl`.
+Van: `Het Kerkje van Persingen <noreply@send.kerkjepersingen.nl>`.
+Reply-To bij een nieuwe aanvraag naar contractbeheer: het e-mailadres van de aanvrager.
+Reply-To bij mail aan aanvrager, huurder, gastheer of reservelijst: `contractbeheer.kvp@gmail.com`.
+Reply-To wijst nooit naar `noreply@send.kerkjepersingen.nl`.
 
 ## Formulier
 
