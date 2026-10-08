@@ -13,7 +13,7 @@ import {
   type Aanvraag,
   type Fouten,
 } from '../../../lib/aanvraag';
-import { bezettingVoorTest, bewaarTestAanvraag } from '../../../lib/aanvraag-test';
+import { bezettingVoorTest, bewaarTestAanvraag, periodeBeschikbaar } from '../../../lib/aanvraag-test';
 import { bezetteKalenderDagen } from '../../../lib/datum';
 
 export const prerender = false;
@@ -94,6 +94,14 @@ if (Astro.request.method === 'POST') {
 
       if (Object.keys(fouten).length === 0) {
         waarschuwing = weekendWaarschuwing(waarden, isDagBruiloft);
+      }
+
+      if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {
+        const beschikbaar = await periodeBeschikbaar(waarden.datum, waarden.datumTot || waarden.datum);
+        if (!beschikbaar) {
+          fouten.algemeen =
+            'Deze periode is niet beschikbaar. De aanvraag is niet opgeslagen en er is geen mail verstuurd.';
+        }
       }
 
       if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {

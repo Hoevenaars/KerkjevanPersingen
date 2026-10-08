@@ -16,6 +16,16 @@ function client() {
   });
 }
 
+/** Zelfde bron als de kalender. Bij een fout: niet beschikbaar. */
+export async function periodeBeschikbaar(start: string, eind: string): Promise<boolean> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(eind) || eind < start) return false;
+  const supabase = client();
+  if (!supabase) return false;
+  const { data, error } = await supabase.rpc('is_periode_beschikbaar', { p_start: start, p_eind: eind });
+  if (error || data !== true) return false;
+  return true;
+}
+
 export async function bezettingVoorTest(): Promise<{ start: string; eind?: string; soort: string; zichtbaarheid: 'bezet' }[]> {
   const supabase = client();
   if (!supabase) throw new Error('Supabase is niet geconfigureerd.');
