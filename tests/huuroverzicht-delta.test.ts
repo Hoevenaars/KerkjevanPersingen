@@ -1,17 +1,27 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { planHuuroverzichtDelta, type DbSnapshot, type HuuroverzichtDelta } from '../src/platform/huuroverzicht-delta.ts';
+
+// De live-export bevat persoonsgegevens en staat daarom in .gitignore.
+// Zonder lokaal bestand slaat de test over; er wordt niets uit productie gehaald of gecommit.
+const snapshotUrl = new URL('./fixtures/huuroverzicht-db-snapshot-live.json', import.meta.url);
+const snapshotOntbreekt = !existsSync(snapshotUrl);
 
 const delta = JSON.parse(
   readFileSync(new URL('./fixtures/kerkje_delta_01-09_naar_01-10-2026.json', import.meta.url), 'utf8'),
 ) as HuuroverzichtDelta;
 
 describe('huuroverzicht delta planning', () => {
-  test('idempotente tweede run op vast snapshot', () => {
-    const db = JSON.parse(
-      readFileSync(new URL('./fixtures/huuroverzicht-db-snapshot-live.json', import.meta.url), 'utf8'),
-    ) as DbSnapshot;
+  test(
+    'idempotente tweede run op vast snapshot',
+    {
+      skip: snapshotOntbreekt
+        ? 'Lokale export tests/fixtures/huuroverzicht-db-snapshot-live.json ontbreekt. Het bestand hoort niet in git. Zet een Supabase-export op dat pad om deze test lokaal te draaien.'
+        : false,
+    },
+    () => {
+    const db = JSON.parse(readFileSync(snapshotUrl, 'utf8')) as DbSnapshot;
     const eerste = planHuuroverzichtDelta(delta, db);
     assert.equal(eerste.geblokkeerd.length, 0);
     assert.ok(eerste.nietGematcht.length >= 3);
@@ -43,5 +53,6 @@ describe('huuroverzicht delta planning', () => {
       tweede.telling.nieuweBoekingen + tweede.telling.nieuweRelaties + tweede.telling.betalingenNieuw,
       tweede.telling.nieuweBoekingen + tweede.telling.nieuweRelaties + tweede.telling.betalingenNieuw,
     );
-  });
+  },
+  );
 });
