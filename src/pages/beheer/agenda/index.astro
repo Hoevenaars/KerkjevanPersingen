@@ -128,7 +128,9 @@ function gastheerLabel(boekingId?: string): string {
                 </td>
                 <td>{gastheerLabel(p.boekingId)}</td>
                 <td>
-                  <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
+                  <span class={`bh-badge bh-badge--${p.publicatiestatus === 'bezet' ? 'bezet' : p.status}`}>
+                    {p.publicatiestatus === 'bezet' ? 'Bezet' : AGENDA_LABEL[p.status]}
+                  </span>
                 </td>
               </tr>
             ))}

@@ -120,7 +120,12 @@ test('een lezer kan geen boeking aanmaken', async () => {
 });
 
 test('de sessie slaat een definitieve boeking op zonder communicatiejob', async () => {
-  const staat = { jobs: 0, audits: 0, rij: null as Record<string, unknown> | null };
+  const staat = {
+    jobs: 0,
+    audits: 0,
+    rij: null as Record<string, unknown> | null,
+    agenda: null as Record<string, unknown> | null,
+  };
   const client = {
     from(tabel: string) {
       const q = {
@@ -132,6 +137,7 @@ test('de sessie slaat een definitieve boeking op zonder communicatiejob', async 
           q.actie = 'insert';
           q.waarden = waarden;
           if (tabel === 'communicatie_jobs') staat.jobs += 1;
+          if (tabel === 'publieke_activiteiten') staat.agenda = waarden;
           return q;
         },
         eq() { return q; },
@@ -168,4 +174,9 @@ test('de sessie slaat een definitieve boeking op zonder communicatiejob', async 
   assert.equal(staat.rij?.interne_notities, 'Telefonisch bevestigd');
   assert.equal(staat.jobs, 0);
   assert.equal(staat.audits, 1);
+  assert.equal(staat.agenda?.zichtbaarheid, 'bezet');
+  assert.equal(staat.agenda?.gepubliceerd, false);
+  assert.equal(staat.agenda?.start_datum, '2027-06-12');
+  assert.equal(staat.agenda?.eind_datum, '2027-06-13');
+  assert.equal(staat.agenda?.boeking_id, 77);
 });

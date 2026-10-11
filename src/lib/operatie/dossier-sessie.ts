@@ -29,6 +29,8 @@ interface BoekingRij {
   start_datum: string;
   eind_datum: string;
   nummer: string | null;
+  interne_titel: string | null;
+  huurder_naam_snapshot: string | null;
 }
 
 interface AanvraagRij {
@@ -62,6 +64,7 @@ interface Query {
 
 export interface DossierSessie {
   from: (tabel: string) => Query;
+  rpc?: (naam: string, args: Record<string, unknown>) => PromiseLike<{ data?: unknown; error: Fout }>;
 }
 
 function rechtenVan(actor: Actor): GebruikerRechten {
@@ -108,7 +111,7 @@ async function audit(
 async function leesBoeking(client: DossierSessie, id: number): Promise<BoekingRij | { fout: string }> {
   const { data, error } = await client
     .from('boekingen')
-    .select('id,status,start_datum,eind_datum,nummer')
+    .select('id,status,start_datum,eind_datum,nummer,interne_titel,huurder_naam_snapshot')
     .eq('id', id)
     .maybeSingle();
   if (error) return { fout: leesbareAuthFout(error.message) };
@@ -119,7 +122,47 @@ async function leesBoeking(client: DossierSessie, id: number): Promise<BoekingRi
     start_datum: String(data.start_datum),
     eind_datum: String(data.eind_datum),
     nummer: data.nummer == null ? null : String(data.nummer),
+    interne_titel: data.interne_titel == null ? null : String(data.interne_titel),
+    huurder_naam_snapshot: data.huurder_naam_snapshot == null ? null : String(data.huurder_naam_snapshot),
   };
+}
+
+/** Definitieve boeking zonder agendarecord houdt de publieke agenda anders vrij. */
+async function agendaAlsBezet(
+  client: DossierSessie,
+  boeking: { id: number; titel: string; start: string; eind: string; exposant: string },
+): Promise<string | null> {
+  if (client.rpc) {
+    const { error } = await client.rpc('agenda_bezet_voor_definitieve_boeking', { p_boeking_id: boeking.id });
+    if (!error) return null;
+    if (!/agenda_bezet_voor_definitieve_boeking|could not find the function|schema cache/i.test(error.message)) {
+      return leesbareAuthFout(error.message);
+    }
+  }
+
+  const bestaand = await client
+    .from('publieke_activiteiten')
+    .select('id')
+    .eq('boeking_id', boeking.id)
+    .maybeSingle();
+  if (bestaand.error) return leesbareAuthFout(bestaand.error.message);
+  if (bestaand.data?.id != null) return null;
+
+  const insert = await client.from('publieke_activiteiten').insert({
+    boeking_id: boeking.id,
+    titel: boeking.titel || 'Bezet',
+    start_datum: boeking.start,
+    eind_datum: boeking.eind,
+    zichtbaarheid: 'bezet',
+    gepubliceerd: false,
+    exposanten: boeking.exposant || null,
+    legacy_source: 'beheer',
+  }).select('id').maybeSingle();
+  if (insert.error) {
+    if (insert.error.code === '23505') return null;
+    return leesbareAuthFout(insert.error.message);
+  }
+  return null;
 }
 
 async function overlapMetActieve(
@@ -212,7 +255,16 @@ async function definitief(client: DossierSessie, id: number, reden: string, acto
     reden: reden.trim(),
     dedup: `boeking:${id}:handmatig_definitief`,
   });
-  return { ok: true, melding: 'Boeking is definitief. Aanbetaling is geen voorwaarde. Er is geen mail of workflow gestart.' };
+  const agendaFout = await agendaAlsBezet(client, {
+    id,
+    titel: boeking.interne_titel || 'Bezet',
+    start: boeking.start_datum,
+    eind: boeking.eind_datum,
+    exposant: boeking.huurder_naam_snapshot || '',
+  });
+  const melding = 'Boeking is definitief. Aanbetaling is geen voorwaarde. Er is geen mail of workflow gestart.';
+  if (agendaFout) return { ok: true, melding: `${melding} De agenda is niet geblokkeerd: ${agendaFout}` };
+  return { ok: true, melding };
 }
 
 async function afronden(client: DossierSessie, id: number, reden: string, actor: Actor): Promise<DossierResultaat> {
@@ -408,9 +460,19 @@ async function maakHandmatigeBoeking(
     reden: boeking.status === 'definitief' ? boeking.reden : 'Handmatig aangemaakt, zonder aanvraag.',
     dedup: `boeking:${insert.id}:handmatig_aangemaakt`,
   });
-  const melding = boeking.status === 'definitief'
+  let melding = boeking.status === 'definitief'
     ? 'Boeking is definitief vastgelegd. Er is geen mail of workflow gestart.'
     : 'Optie vastgelegd. Er is geen mail of workflow gestart.';
+  if (boeking.status === 'definitief') {
+    const agendaFout = await agendaAlsBezet(client, {
+      id: Number(insert.id),
+      titel: boeking.titel,
+      start: boeking.start,
+      eind: boeking.eind,
+      exposant: boeking.naam,
+    });
+    if (agendaFout) melding = `${melding} De agenda is niet geblokkeerd: ${agendaFout}`;
+  }
   return { ok: true, melding, boekingId: insert.id };
 }
 
