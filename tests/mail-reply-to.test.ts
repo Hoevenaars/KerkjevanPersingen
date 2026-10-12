@@ -2,15 +2,17 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { TEMPLATES_LEGACY } from '../src/platform/automatisering.ts';
+import { STANDAARD_AUTOMATISERINGEN, TEMPLATES_LEGACY } from '../src/platform/automatisering.ts';
 import { MAILTEMPLATE_META } from '../src/platform/mailtemplates/meta.ts';
 import {
   CONTRACTBEHEER_EMAIL,
   NOREPLY_ADRES,
   VAN_ADRES,
+  replyToHeader,
+  replyToInterneAanvraag,
   replyToVoor,
 } from '../src/lib/mail-adressen.ts';
-import { bouwResendInhoud } from '../src/lib/mail-transport.ts';
+import { bouwResendInhoud, sendInterneAanvraagMail, sendMailNaarAanvrager } from '../src/lib/mail-transport.ts';
 import { legeWereld, voerOpdrachtUit, type DienstContext } from '../src/lib/operatie/kern.ts';
 
 const AANVRAGER = 'aanvrager@example.nl';
@@ -139,4 +141,104 @@ test('nieuwe aanvraag mailt contractbeheer met reply-to van de aanvrager', async
   assert.equal(bevestiging.naar, AANVRAGER);
   assert.equal(bevestiging.replyTo, CONTRACTBEHEER_EMAIL);
   assert.equal(verzonden.some((mail) => mail.replyTo === NOREPLY_ADRES), false);
+});
+
+test('ongeldig aanvrageradres valt terug op contractbeheer en wordt gelogd', () => {
+  const waarschuwingen: unknown[][] = [];
+  const oorspronkelijk = console.warn;
+  console.warn = (...args: unknown[]) => {
+    waarschuwingen.push(args);
+  };
+  try {
+    assert.equal(replyToInterneAanvraag(['   ', 'noreply@send.kerkjepersingen.nl'], { sleutel: 'contact_bestuur' }), CONTRACTBEHEER_EMAIL);
+    assert.equal(replyToVoor({
+      sleutel: 'aanvraag_bestuur',
+      richting: 'intern',
+      aanvragerEmail: 'geen-adres',
+    }), CONTRACTBEHEER_EMAIL);
+    assert.equal(replyToVoor({
+      templateId: 'internal_booking_review_required',
+      aanvragerEmail: '  huurder@example.nl  ',
+    }), 'huurder@example.nl');
+    assert.equal(replyToVoor({
+      templateId: 'booking_request_received',
+      replyTo: AANVRAGER,
+      aanvragerEmail: AANVRAGER,
+    }), CONTRACTBEHEER_EMAIL);
+  } finally {
+    console.warn = oorspronkelijk;
+  }
+  assert.equal(waarschuwingen.length >= 2, true);
+  assert.equal(String(waarschuwingen[0]?.[0]).includes('aanvrageradres ontbreekt'), true);
+});
+
+test('centrale helpers zetten from en reply-to per richting', async () => {
+  const intern: { richting?: string; aanvragerEmail?: string; sleutel?: string }[] = [];
+  const uit = await sendInterneAanvraagMail({
+    to: CONTRACTBEHEER_EMAIL,
+    subject: 'Contactformulier',
+    html: '<p>bericht</p>',
+    text: 'bericht',
+    aanvragerEmail: '  Contact <persoon@example.nl>  ',
+    aanvragerNaam: 'Contact Persoon',
+    sleutel: 'contact_bestuur',
+  }, {
+    transport: {
+      async verstuur(bericht) {
+        intern.push({
+          richting: bericht.richting,
+          aanvragerEmail: bericht.aanvragerEmail,
+          sleutel: bericht.sleutel,
+        });
+      },
+    },
+  });
+  assert.equal(uit.providerAangeroepen, true);
+  assert.equal(intern[0]?.richting, 'intern');
+  assert.equal(intern[0]?.sleutel, 'contact_bestuur');
+
+  const inhoud = bouwResendInhoud({
+    naar: CONTRACTBEHEER_EMAIL,
+    onderwerp: 'Verhuurdocument',
+    tekst: 'dossier',
+    sleutel: 'aanvraag_bestuur',
+    richting: 'intern',
+    aanvragerEmail: intern[0]?.aanvragerEmail,
+    aanvragerNaam: 'Contact Persoon',
+  });
+  assert.equal(inhoud.from, VAN_ADRES);
+  assert.equal(inhoud.replyTo, 'persoon@example.nl');
+  assert.equal(replyToHeader(inhoud.replyTo, inhoud.replyToNaam), 'Contact Persoon <persoon@example.nl>');
+  assert.equal(replyToHeader(inhoud.replyTo, inhoud.replyToNaam).includes(NOREPLY_ADRES), false);
+
+  const naarAanvrager = bouwResendInhoud({
+    naar: AANVRAGER,
+    onderwerp: 'Aanvraag ontvangen',
+    tekst: 'bevestiging',
+    templateId: 'booking_request_received',
+    richting: 'aanvrager',
+    aanvragerEmail: AANVRAGER,
+    replyTo: AANVRAGER,
+  });
+  assert.equal(naarAanvrager.replyTo, CONTRACTBEHEER_EMAIL);
+  assert.equal(replyToHeader(naarAanvrager.replyTo, naarAanvrager.replyToNaam), `Contractbeheer <${CONTRACTBEHEER_EMAIL}>`);
+
+  const bevestigingAan = STANDAARD_AUTOMATISERINGEN.find((item) => item.sleutel === 'aanvraag_bevestiging');
+  assert.ok(bevestigingAan);
+  let richting = '';
+  await sendMailNaarAanvrager({
+    to: AANVRAGER,
+    subject: 'Bevestiging',
+    text: 'ontvangen',
+    sleutel: 'aanvraag_bevestiging',
+    templateId: 'booking_request_received',
+  }, {
+    register: [{ ...bevestigingAan, status: 'actief' }],
+    transport: {
+      async verstuur(bericht) {
+        richting = bericht.richting ?? '';
+      },
+    },
+  });
+  assert.equal(richting, 'aanvrager');
 });

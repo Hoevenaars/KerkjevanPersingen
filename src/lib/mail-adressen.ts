@@ -36,9 +36,48 @@ export function isNoreplyAdres(waarde: string): boolean {
 
 /** Een adres dat een mens kan beantwoorden. Nooit het sending-only noreply-adres. */
 export function veiligReplyTo(waarde: string | null | undefined): string {
+  return menselijkAdres(waarde) ?? CONTRACTBEHEER_EMAIL;
+}
+
+/** Trimt, haalt een adres uit "Naam <adres>" en weigert het sending-only noreply-adres. */
+export function menselijkAdres(waarde: string | null | undefined): string | null {
   const kern = emailUitAdres(waarde ?? '');
-  if (!kern || !EMAIL.test(kern) || kern === NOREPLY_ADRES) return CONTRACTBEHEER_EMAIL;
+  if (!kern || !EMAIL.test(kern) || kern === NOREPLY_ADRES) return null;
   return kern;
+}
+
+function redenGeenAntwoordAdres(waarde: string | null | undefined): 'leeg' | 'ongeldig' | 'noreply' {
+  const kern = emailUitAdres(waarde ?? '');
+  if (!kern) return 'leeg';
+  if (kern === NOREPLY_ADRES) return 'noreply';
+  return 'ongeldig';
+}
+
+/**
+ * Reply-To voor een interne aanvraagnotificatie.
+ * Ongeldig of ontbrekend aanvrageradres valt terug op contractbeheer en wordt gelogd.
+ * noreply wordt nooit als bewuste Reply-To gebruikt.
+ */
+export function replyToInterneAanvraag(
+  kandidaten: Array<string | null | undefined>,
+  context: { sleutel?: string } = {},
+): string {
+  for (const kandidaat of kandidaten) {
+    const adres = menselijkAdres(kandidaat);
+    if (adres) return adres;
+  }
+  console.warn('[mail] aanvrageradres ontbreekt of is ongeldig; reply-to valt terug op contractbeheer', {
+    sleutel: context.sleutel ?? '',
+    reden: kandidaten.map((kandidaat) => redenGeenAntwoordAdres(kandidaat)),
+  });
+  return CONTRACTBEHEER_EMAIL;
+}
+
+/** Reply-To op de MIME-regel, met weergavenaam als die er is. */
+export function replyToHeader(adres: string, naam?: string | null): string {
+  const kern = menselijkAdres(adres) ?? CONTRACTBEHEER_EMAIL;
+  const label = (naam ?? '').replace(/["<>\r\n]/g, ' ').replace(/\s+/g, ' ').trim();
+  return label ? `${label} <${kern}>` : kern;
 }
 
 function antwoordNaarAanvrager(input: {
@@ -68,11 +107,21 @@ function antwoordNaarAanvrager(input: {
   return ontvanger.includes('bestuur') || ontvanger.includes('finance');
 }
 
+export function richtingVoorMail(input: {
+  sleutel?: string;
+  templateId?: string;
+  ontvangerRol?: string;
+  richting?: 'intern' | 'aanvrager';
+}): 'intern' | 'aanvrager' {
+  if (input.richting === 'intern' || input.richting === 'aanvrager') return input.richting;
+  return antwoordNaarAanvrager(input) ? 'intern' : 'aanvrager';
+}
+
 /**
  * Reply-To voor één mail.
  * Interne notificatie over een aanvraag gaat naar de aanvrager.
  * Mail aan aanvrager, huurder, gastheer of reservelijst gaat naar contractbeheer.
- * Interne mail zonder tegenpartij gaat ook naar contractbeheer, niet naar noreply.
+ * Een expliciet Reply-To overschrijft die richting niet, en noreply wint nooit.
  */
 export function replyToVoor(input: {
   sleutel?: string;
@@ -80,11 +129,10 @@ export function replyToVoor(input: {
   ontvangerRol?: string;
   aanvragerEmail?: string | null;
   replyTo?: string | null;
+  richting?: 'intern' | 'aanvrager';
 }): string {
-  const expliciet = input.replyTo?.trim();
-  if (expliciet && !isNoreplyAdres(expliciet) && EMAIL.test(emailUitAdres(expliciet))) {
-    return emailUitAdres(expliciet);
-  }
-  if (antwoordNaarAanvrager(input)) return veiligReplyTo(input.aanvragerEmail);
-  return CONTRACTBEHEER_EMAIL;
+  if (richtingVoorMail(input) === 'aanvrager') return CONTRACTBEHEER_EMAIL;
+  return replyToInterneAanvraag([input.aanvragerEmail, input.replyTo], {
+    sleutel: input.sleutel ?? input.templateId,
+  });
 }

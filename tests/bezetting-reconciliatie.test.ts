@@ -32,7 +32,7 @@ test('aanvraag wordt geweigerd vóór opslaan, mail en job', () => {
   assert.match(opslaan, /Deze periode is niet beschikbaar/);
   assert.match(formulier, /await periodeBeschikbaar/);
   assert.ok(formulier.indexOf('await periodeBeschikbaar') < formulier.indexOf('await bewaarTestAanvraag'));
-  assert.ok(formulier.indexOf('await periodeBeschikbaar') < formulier.indexOf('verstuurGecontroleerd'));
+  assert.ok(formulier.indexOf('await periodeBeschikbaar') < formulier.indexOf('sendInterneAanvraagMail'));
 });
 
 test('gedeeltelijke, exacte en volledige overlap worden geweigerd; een aangrenzende periode niet', () => {
