@@ -25,7 +25,7 @@ import { boekingNummer, leesHandmatigeBoeking } from '../../platform/handmatige-
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
 import { MailGeblokkeerd } from '../../platform/automatisering.ts';
-import { replyToVoor } from '../mail-adressen.ts';
+import { replyToVoor, richtingVoorMail } from '../mail-adressen.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { hashToegangstoken, nieuwToegangstoken, tokenIsVerlopen } from '../../platform/magictoken.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
@@ -212,6 +212,9 @@ export interface VerzendOpdracht {
   pogingen: number;
   jobRef: string;
   replyTo: string;
+  aanvragerEmail: string;
+  aanvragerNaam: string;
+  richting: 'intern' | 'aanvrager';
 }
 
 export interface Plan {
@@ -237,6 +240,9 @@ export interface MailTransport {
     tekst: string;
     templateSleutel?: string;
     replyTo?: string;
+    aanvragerEmail?: string;
+    aanvragerNaam?: string;
+    richting?: 'intern' | 'aanvrager';
   }): Promise<void>;
 }
 
@@ -690,11 +696,7 @@ function communicatieMutaties(
           tekst: bericht.tekst,
           pogingen: bestaand?.pogingen ?? 0,
           jobRef: `job:${dedup}`,
-          replyTo: replyToVoor({
-            templateId: stapItem.templateId,
-            ontvangerRol: stapItem.ontvangerRol,
-            aanvragerEmail: boeking.email,
-          }),
+          ...verzendKop(stapItem.templateId, stapItem.ontvangerRol, aanvragerBijBoeking(wereld, boeking)),
         });
       }
     }
@@ -1390,6 +1392,31 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
   return mislukt('Onbekende opdracht.');
 }
 
+function aanvragerBijBoeking(wereld: Wereld, boeking: BoekingRij): { email: string; naam: string } {
+  if (boeking.email.trim()) return { email: boeking.email, naam: boeking.naam };
+  const aanvraag = wereld.aanvragen.find((item) => item.id === boeking.aanvraagId || item.boekingId === boeking.id);
+  return { email: aanvraag?.email ?? '', naam: aanvraag?.naam || boeking.naam };
+}
+
+function verzendKop(
+  templateId: string,
+  ontvangerRol: string | undefined,
+  aanvrager: { email: string; naam: string },
+): Pick<VerzendOpdracht, 'replyTo' | 'aanvragerEmail' | 'aanvragerNaam' | 'richting'> {
+  const richting = richtingVoorMail({ templateId, ontvangerRol });
+  return {
+    richting,
+    aanvragerEmail: aanvrager.email,
+    aanvragerNaam: aanvrager.naam,
+    replyTo: replyToVoor({
+      templateId,
+      ontvangerRol,
+      aanvragerEmail: aanvrager.email,
+      richting,
+    }),
+  };
+}
+
 function conceptJob(
   wereld: Wereld,
   aanvraag: AanvraagRij,
@@ -1427,7 +1454,7 @@ function conceptJob(
         tekst,
         pogingen: 0,
         jobRef: `job:${dedup}`,
-        replyTo: replyToVoor({ templateId, aanvragerEmail: aanvraag.email }),
+        ...verzendKop(templateId, undefined, { email: aanvraag.email, naam: aanvraag.naam }),
       }
     : null;
   return { mutatie, verzend };
@@ -1470,6 +1497,9 @@ export async function voerOpdrachtUit(
           tekst: mail.tekst,
           templateSleutel: mail.dedup.split(':').at(-1) ?? '',
           replyTo: mail.replyTo,
+          aanvragerEmail: mail.aanvragerEmail,
+          aanvragerNaam: mail.aanvragerNaam,
+          richting: mail.richting,
         });
         mutaties.push({
           soort: 'upsert_job',

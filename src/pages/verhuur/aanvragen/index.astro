@@ -107,16 +107,16 @@ if (Astro.request.method === 'POST') {
       if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {
         const uitkomst = await bewaarTestAanvraag(waarden, false);
         if (uitkomst.ok) {
-          const { verstuurGecontroleerd } = await import('../../../lib/mail-transport.ts');
+          const { sendInterneAanvraagMail } = await import('../../../lib/mail-transport.ts');
           const { bestuurMailTekst } = await import('../../../lib/aanvraag.ts');
-          await verstuurGecontroleerd({
+          await sendInterneAanvraagMail({
             sleutel: 'aanvraag_bestuur',
-            naar: process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'contractbeheer.kvp@gmail.com',
-            onderwerp: 'Nieuwe verhuuraanvraag',
-            tekst: `${waarden.naam} vraagt ${waarden.soort} aan op ${waarden.datum}.`,
+            to: process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'contractbeheer.kvp@gmail.com',
+            subject: 'Nieuwe verhuuraanvraag',
+            text: `${waarden.naam} vraagt ${waarden.soort} aan op ${waarden.datum}.`,
             html: bestuurMailTekst(waarden),
-            replyTo: waarden.email,
             aanvragerEmail: waarden.email,
+            aanvragerNaam: waarden.naam,
           }).catch((error) => {
             console.error('[aanvraag] bestuursnotificatie niet verzonden', error);
           });

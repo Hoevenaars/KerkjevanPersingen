@@ -237,7 +237,16 @@ async function laadWereld(): Promise<Wereld> {
 function mailTransport(env: Record<string, unknown>) {
   const sleutel = String(env.RESEND_API_KEY ?? '');
   return {
-    async verstuur(input: { naar: string; onderwerp: string; tekst: string; templateSleutel?: string; replyTo?: string }) {
+    async verstuur(input: {
+      naar: string;
+      onderwerp: string;
+      tekst: string;
+      templateSleutel?: string;
+      replyTo?: string;
+      aanvragerEmail?: string;
+      aanvragerNaam?: string;
+      richting?: 'intern' | 'aanvrager';
+    }) {
       const automatisering = input.templateSleutel ? automatiseringVoorTemplate(input.templateSleutel) : null;
       await eisProviderToegestaan(automatisering ?? 'workflow', undefined, env);
       if (!sleutel) throw new Error('RESEND_API_KEY ontbreekt');
@@ -247,7 +256,10 @@ function mailTransport(env: Record<string, unknown>) {
         onderwerp: input.onderwerp,
         tekst: input.tekst,
         replyTo: input.replyTo,
+        aanvragerEmail: input.aanvragerEmail,
+        aanvragerNaam: input.aanvragerNaam,
         templateId: input.templateSleutel,
+        richting: input.richting,
         bcc,
       });
       await verstuurMetResend(inhoud, env as Record<string, string | undefined>);
