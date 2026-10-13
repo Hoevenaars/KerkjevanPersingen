@@ -9,6 +9,7 @@ import {
   bannerUitFormulier,
   bannerUitRpc,
   bannerZichtbaar,
+  inhoudUitInstelling,
   bezetteDagenUitBronnen,
   knopVanWeekend,
   parseVrijgekomenWeekend,
@@ -141,17 +142,18 @@ describe('volledigVrijeWeekenden', () => {
 
 describe('banner aan of uit', () => {
   test('een uitgezet of voorbij weekend blijft van de site', () => {
-    const uit = { actief: false, zaterdag: '2026-10-17' };
+    const leeg = { soort: 'weekend' as const, eyebrow: '', titel: '', tekst: '', knop: '', link: '' };
+    const uit = { ...leeg, actief: false, zaterdag: '2026-10-17' };
     assert.equal(bannerZichtbaar(uit, new Date('2026-10-06T12:00:00Z'), new Set()), false);
     assert.equal(bannerZichtbaar(
-      { actief: true, zaterdag: '2026-10-17' },
+      { ...leeg, actief: true, zaterdag: '2026-10-17' },
       new Date('2026-10-19T12:00:00Z'),
       new Set(),
     ), false);
     assert.equal(toonVrijgekomenWeekendBannerOpPagina(
       '/',
       new Date('2026-10-06T12:00:00Z'),
-      { actief: true, zaterdag: '2026-10-17' },
+      { ...leeg, actief: true, zaterdag: '2026-10-17' },
       new Set(['2026-10-18']),
     ), false);
   });
@@ -181,14 +183,114 @@ describe('banner aan of uit', () => {
   });
 
   test('opgeslagen json komt terug en de publieke functie valt terug op het standaardweekend', () => {
-    const rij = vrijgekomenWeekendRij({ actief: true, zaterdag: '2026-10-17' });
+    const rij = vrijgekomenWeekendRij({ actief: true, soort: 'weekend', zaterdag: '2026-10-17', eyebrow: '', titel: '', tekst: '', knop: '', link: '' });
     assert.equal(rij.sleutel, 'vrijgekomen_weekend_banner');
-    assert.deepEqual(parseVrijgekomenWeekend(rij.waarde), { actief: true, zaterdag: '2026-10-17' });
+    assert.equal(rij.waarde.soort, 'weekend');
+    assert.deepEqual(parseVrijgekomenWeekend(rij.waarde), {
+      actief: true,
+      soort: 'weekend',
+      zaterdag: '2026-10-17',
+      eyebrow: '',
+      titel: '',
+      tekst: '',
+      knop: '',
+      link: '',
+    });
+    assert.equal(parseVrijgekomenWeekend({ actief: true, zaterdag: '2026-10-17' })?.soort, 'weekend');
     const tijdens = new Date('2026-10-06T12:00:00Z');
     assert.equal(bannerUitRpc(null, { message: 'function ontbreekt' }, tijdens)?.zaterdag, '2026-10-17');
     assert.equal(bannerUitRpc(null, null, tijdens), null);
     assert.equal(bannerUitRpc({ zaterdag: '2026-11-07', zondag: '2026-11-08' }, null, tijdens)?.zaterdag, '2026-11-07');
+    assert.equal(bannerUitRpc({ soort: 'weekend', zaterdag: '2026-11-07', zondag: '2026-11-08' }, null, tijdens)?.soort, 'weekend');
     assert.equal(bannerUitRpc({ zaterdag: '2026-10-17' }, null, new Date('2026-10-19T12:00:00Z')), null);
+  });
+});
+
+describe('banner met alleen tekst', () => {
+  const later = new Date('2027-06-01T12:00:00Z');
+
+  function formVan(waarden: Record<string, string>, actief = true) {
+    return {
+      get: (naam: string) => waarden[naam] ?? null,
+      getAll: () => (actief ? ['0', '1'] : ['0']),
+    };
+  }
+
+  test('bewaart tekst zonder datum en zonder vrij weekend', () => {
+    const instelling = bannerUitFormulier(formVan({
+      soort: 'tekst',
+      zaterdag: '2026-10-24',
+      eyebrow: 'Let op',
+      titel: 'Het kerkje is open',
+      tekst: 'Kom langs wanneer het uitkomt.',
+      knop: 'Bekijk de agenda',
+      link: '/agenda/',
+    }), new Set(['2026-10-17']));
+    assert.equal(instelling.soort, 'tekst');
+    assert.equal(instelling.actief, true);
+    assert.equal(instelling.zaterdag, '2026-10-24');
+    assert.equal(instelling.titel, 'Het kerkje is open');
+    const inhoud = inhoudUitInstelling(instelling);
+    assert.equal(inhoud?.soort, 'tekst');
+    assert.deepEqual(inhoud?.kaarten, []);
+    assert.equal(inhoud?.knop, 'Bekijk de agenda');
+    assert.equal(inhoud?.aanvraagPad, '/agenda/');
+    assert.equal(inhoud?.zaterdag, '');
+    assert.equal(bannerZichtbaar(instelling, later, new Set(['2026-10-17', '2026-10-18'])), true);
+    assert.equal(toonVrijgekomenWeekendBannerOpPagina('/verhuur/aanvragen/', later, instelling), false);
+    assert.equal(toonVrijgekomenWeekendBannerOpPagina('/', later, instelling), true);
+  });
+
+  test('een tekstbanner kan zonder knop, en een onveilige link wordt geweigerd', () => {
+    const zonderKnop = bannerUitFormulier(formVan({
+      soort: 'tekst',
+      titel: 'Welkom',
+      tekst: 'Alleen deze tekst.',
+    }), new Set());
+    const inhoud = inhoudUitInstelling(zonderKnop);
+    assert.equal(inhoud?.knop, '');
+    assert.equal(inhoud?.aanvraagPad, '');
+    assert.equal(inhoud?.kaarten.length, 0);
+    assert.throws(
+      () => bannerUitFormulier(formVan({
+        soort: 'tekst',
+        titel: 'Welkom',
+        knop: 'Klik',
+        link: 'javascript:alert(1)',
+      }), new Set()),
+      /link moet beginnen/,
+    );
+    assert.throws(
+      () => bannerUitFormulier(formVan({ soort: 'tekst' }), new Set()),
+      /titel of tekst/,
+    );
+    const uit = bannerUitFormulier(formVan({ soort: 'tekst' }, false), new Set());
+    assert.equal(uit.actief, false);
+    assert.equal(bannerZichtbaar(uit, later), false);
+  });
+
+  test('de publieke functie levert tekst ook nadat een weekend voorbij zou zijn', () => {
+    const instelling = bannerUitRpc({
+      soort: 'tekst',
+      eyebrow: 'Let op',
+      titel: 'Welkom',
+      tekst: 'Kom langs.',
+      knop: 'Lees meer',
+      link: 'https://kerkjevanpersingen.nl/agenda',
+    }, null, later);
+    assert.equal(instelling?.soort, 'tekst');
+    assert.equal(instelling?.titel, 'Welkom');
+    const inhoud = instelling ? inhoudUitInstelling(instelling) : null;
+    assert.equal(inhoud?.aanvraagPad, 'https://kerkjevanpersingen.nl/agenda');
+    assert.equal(inhoud?.kaarten.length, 0);
+    assert.equal(bannerUitRpc({ soort: 'tekst', titel: '   ', tekst: '' }, null, later), null);
+    const onveilig = bannerUitRpc({
+      soort: 'tekst',
+      titel: 'Welkom',
+      knop: 'Klik',
+      link: 'javascript:alert(1)',
+    }, null, later);
+    assert.equal(onveilig ? inhoudUitInstelling(onveilig)?.aanvraagPad : 'mist', '');
   });
 });
 
@@ -213,16 +315,23 @@ describe('toonVrijgekomenWeekendBannerOpPagina', () => {
 test('publiceren beheert de banner en de site leest alleen die instelling', () => {
   const pagina = readFileSync(new URL('../src/pages/beheer/publiceren/index.astro', import.meta.url), 'utf8');
   const sql = readFileSync(new URL('../supabase/migrations/20261006181000_vrijgekomen_weekend_banner.sql', import.meta.url), 'utf8');
+  const tekstSql = readFileSync(new URL('../supabase/migrations/20261013193000_vrijgekomen_weekend_banner_tekst.sql', import.meta.url), 'utf8');
   const component = readFileSync(new URL('../src/components/VrijgekomenWeekendBanner.astro', import.meta.url), 'utf8');
   assert.match(pagina, /Vrij weekend/);
   assert.match(pagina, /name="actie" value="vrij_weekend_banner"/);
   assert.match(pagina, /Banner tonen/);
   assert.match(pagina, /volledigVrijeWeekenden/);
   assert.match(pagina, /data-periode/);
+  assert.match(pagina, /name="soort" value="tekst"/);
+  assert.match(pagina, /Alleen tekst, zonder datum/);
+  assert.match(pagina, /#vrij-weekend-formulier:has\(input\[name="soort"\]\[value="tekst"\]:checked\) #banner-tekst-velden/);
   assert.match(sql, /vrijgekomen_weekend_banner/);
   assert.match(sql, /'zaterdag', '2026-10-17'/);
   assert.match(sql, /publieke_vrijgekomen_weekend_banner/);
   assert.match(sql, /grant execute on function public\.publieke_vrijgekomen_weekend_banner\(\) to anon, authenticated, service_role/);
+  assert.match(tekstSql, /coalesce\(i\.waarde->>'soort', 'weekend'\) = 'tekst'/);
+  assert.match(tekstSql, /grant execute on function public\.publieke_vrijgekomen_weekend_banner\(\) to anon, authenticated, service_role/);
   assert.match(component, /leesVrijgekomenWeekendBanner/);
   assert.match(component, /class="banner"/);
+  assert.match(component, /toonDatums/);
 });

@@ -1,7 +1,8 @@
 ---
 /**
- * Donkergroene balk onder de header voor een vrijgekomen expositieweekend.
- * Vormgeving blijft gelijk. Zichtbaarheid en datum komen uit Beheer → Publiceren.
+ * Donkergroene balk onder de header.
+ * Een vrij weekend toont datumkaarten. Alleen tekst laat die kaarten weg.
+ * Vormgeving blijft gelijk. Inhoud komt uit Beheer → Publiceren.
  */
 import Button from './Button.astro';
 import { leesVrijgekomenWeekendBanner } from '../lib/vrijgekomen-weekend-lezen';
@@ -13,6 +14,9 @@ const tekst = inhoud?.tekst ?? '';
 const knop = inhoud?.knop ?? '';
 const href = inhoud?.aanvraagPad ?? '';
 const kaarten = inhoud?.kaarten ?? [];
+const toonDatums = inhoud != null && inhoud.soort !== 'tekst' && kaarten.length > 0;
+const toonKnop = Boolean(knop && href);
+const kopId = 'vrijgekomen-weekend-titel';
 ---
 
 {
@@ -49,28 +53,41 @@ const kaarten = inhoud?.kaarten ?? [];
         </g>
       </svg>
 
-      <div class="wrap binnen">
-        <ol class="datums">
-          {kaarten.map((kaart) => (
-            <li class="kaart">
-              <span class="kaart-weekdag">{kaart.weekdag}</span>
-              <span class="kaart-dag">{kaart.dag}</span>
-              <span class="kaart-maand">{kaart.maand}</span>
-            </li>
-          ))}
-        </ol>
+      <div class:list={['wrap binnen', !toonDatums && 'binnen--tekst', !toonKnop && 'binnen--zonder-knop']}>
+        {toonDatums && (
+          <ol class="datums">
+            {kaarten.map((kaart) => (
+              <li class="kaart">
+                <span class="kaart-weekdag">{kaart.weekdag}</span>
+                <span class="kaart-dag">{kaart.dag}</span>
+                <span class="kaart-maand">{kaart.maand}</span>
+              </li>
+            ))}
+          </ol>
+        )}
 
         <div class="tekstblok">
-          <p class="eyebrow">{eyebrow}</p>
-          <p class="titel" id="vrijgekomen-weekend-titel">{titel}</p>
-          <p class="tekst">{tekst}</p>
+          {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+          {titel && (
+            <p class="titel" id={kopId}>
+              {titel}
+            </p>
+          )}
+          {tekst && titel && <p class="tekst">{tekst}</p>}
+          {tekst && !titel && (
+            <p class="tekst" id={kopId}>
+              {tekst}
+            </p>
+          )}
         </div>
 
-        <div class="knop">
-          <Button href={href} variant="primary">
-            {knop} <span aria-hidden="true">→</span>
-          </Button>
-        </div>
+        {toonKnop && (
+          <div class="knop">
+            <Button href={href} variant="primary" nieuwTabblad={href.startsWith('https://')}>
+              {knop} <span aria-hidden="true">→</span>
+            </Button>
+          </div>
+        )}
       </div>
     </aside>
   )
@@ -92,6 +109,18 @@ const kaarten = inhoud?.kaarten ?? [];
     gap: var(--s-8);
     align-items: center;
     padding-block: var(--s-8);
+  }
+
+  .binnen--tekst {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .binnen--tekst.binnen--zonder-knop {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .binnen--tekst .tekst {
+    max-width: 62ch;
   }
 
   .blad {
