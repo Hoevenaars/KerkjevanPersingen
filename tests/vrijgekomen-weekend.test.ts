@@ -10,6 +10,8 @@ import {
   bannerUitRpc,
   bannerZichtbaar,
   inhoudUitInstelling,
+  SLUITING_TEKST,
+  SLUITING_TITEL,
   bezetteDagenUitBronnen,
   knopVanWeekend,
   parseVrijgekomenWeekend,
@@ -182,27 +184,59 @@ describe('banner aan of uit', () => {
     );
   });
 
-  test('opgeslagen json komt terug en de publieke functie valt terug op het standaardweekend', () => {
-    const rij = vrijgekomenWeekendRij({ actief: true, soort: 'weekend', zaterdag: '2026-10-17', eyebrow: '', titel: '', tekst: '', knop: '', link: '' });
+  test('opgeslagen json komt terug en een ander weekend blijft een vrij weekend', () => {
+    const rij = vrijgekomenWeekendRij({ actief: true, soort: 'weekend', zaterdag: '2026-11-07', eyebrow: '', titel: '', tekst: '', knop: '', link: '', tot: '' });
     assert.equal(rij.sleutel, 'vrijgekomen_weekend_banner');
     assert.equal(rij.waarde.soort, 'weekend');
     assert.deepEqual(parseVrijgekomenWeekend(rij.waarde), {
       actief: true,
       soort: 'weekend',
-      zaterdag: '2026-10-17',
+      zaterdag: '2026-11-07',
       eyebrow: '',
       titel: '',
       tekst: '',
       knop: '',
       link: '',
+      tot: '',
     });
-    assert.equal(parseVrijgekomenWeekend({ actief: true, zaterdag: '2026-10-17' })?.soort, 'weekend');
     const tijdens = new Date('2026-10-06T12:00:00Z');
-    assert.equal(bannerUitRpc(null, { message: 'function ontbreekt' }, tijdens)?.zaterdag, '2026-10-17');
     assert.equal(bannerUitRpc(null, null, tijdens), null);
     assert.equal(bannerUitRpc({ zaterdag: '2026-11-07', zondag: '2026-11-08' }, null, tijdens)?.zaterdag, '2026-11-07');
     assert.equal(bannerUitRpc({ soort: 'weekend', zaterdag: '2026-11-07', zondag: '2026-11-08' }, null, tijdens)?.soort, 'weekend');
+  });
+});
+
+describe('sluiting in plaats van beschikbaar weekend', () => {
+  const tijdens = new Date('2026-10-13T12:00:00Z');
+  const boodschap = `${SLUITING_TITEL} ${SLUITING_TEKST}`;
+
+  test('de oude beschikbaar-melding wordt de sluitingstekst, zonder datumkaarten', () => {
+    const uitOpslag = parseVrijgekomenWeekend({ actief: true, zaterdag: '2026-10-17' });
+    assert.equal(uitOpslag?.soort, 'tekst');
+    assert.equal(`${uitOpslag?.titel} ${uitOpslag?.tekst}`, boodschap);
+    const uitFunctie = bannerUitRpc({ zaterdag: '2026-10-17', zondag: '2026-10-18' }, null, tijdens);
+    const inhoud = uitFunctie ? inhoudUitInstelling(uitFunctie) : null;
+    assert.equal(inhoud?.kaarten.length, 0);
+    assert.equal(inhoud?.knop, '');
+    assert.equal(`${inhoud?.titel} ${inhoud?.tekst}`, boodschap);
     assert.equal(bannerUitRpc({ zaterdag: '2026-10-17' }, null, new Date('2026-10-19T12:00:00Z')), null);
+    const terugval = bannerUitRpc(null, { message: 'function ontbreekt' }, tijdens);
+    assert.equal(`${terugval?.titel} ${terugval?.tekst}`, boodschap);
+  });
+
+  test('een gewijzigde tekst in het formulier blijft bewaard', () => {
+    const instelling = bannerUitFormulier({
+      get: (naam) => ({
+        soort: 'tekst',
+        titel: SLUITING_TITEL,
+        tekst: 'Gewijzigde tekst vanuit beheer.',
+        tot: '2026-10-18',
+      }[naam] ?? ''),
+      getAll: () => ['1'],
+    }, new Set());
+    assert.equal(instelling.tekst, 'Gewijzigde tekst vanuit beheer.');
+    assert.equal(instelling.tot, '2026-10-18');
+    assert.equal(inhoudUitInstelling(instelling)?.kaarten.length, 0);
   });
 });
 
@@ -330,6 +364,10 @@ test('publiceren beheert de banner en de site leest alleen die instelling', () =
   assert.match(sql, /publieke_vrijgekomen_weekend_banner/);
   assert.match(sql, /grant execute on function public\.publieke_vrijgekomen_weekend_banner\(\) to anon, authenticated, service_role/);
   assert.match(tekstSql, /coalesce\(i\.waarde->>'soort', 'weekend'\) = 'tekst'/);
+  assert.match(tekstSql, /Door omstandigheden is het kerkje komend weekend \(17\/18 oktober\) gesloten\./);
+  assert.match(tekstSql, /Geen expositie dus\. Excuses voor het ongemak!/);
+  assert.match(tekstSql, /'tot', '2026-10-18'/);
+  assert.match(pagina, /name="tot"/);
   assert.match(tekstSql, /grant execute on function public\.publieke_vrijgekomen_weekend_banner\(\) to anon, authenticated, service_role/);
   assert.match(component, /leesVrijgekomenWeekendBanner/);
   assert.match(component, /class="banner"/);

@@ -111,9 +111,22 @@ if (Astro.request.method === 'POST') {
     const terugBanner = new URL(Astro.url.pathname, Astro.url.origin);
     const bron = Astro.url.searchParams.get('bron');
     if (bron) terugBanner.searchParams.set('bron', bron);
-    if (snapshot.bron === 'demo') return Astro.redirect(demoNaActie(Astro.url));
     try {
       const formulier = bannerUitFormulier(data, vrijeZaterdagen);
+      if (snapshot.bron === 'demo') {
+        return Astro.redirect(demoNaActie(terugBanner, {
+          melding: 'Voorbeeld gecontroleerd. Niets is opgeslagen.',
+          banner_soort: formulier.soort,
+          banner_actief: formulier.actief ? '1' : '0',
+          banner_titel: formulier.titel,
+          banner_tekst: formulier.tekst,
+          banner_eyebrow: formulier.eyebrow,
+          banner_knop: formulier.knop,
+          banner_link: formulier.link,
+          banner_tot: formulier.tot,
+          banner_zaterdag: formulier.zaterdag,
+        }));
+      }
       const schrijver = sessieSupabaseUitAstro(Astro);
       if (!schrijver) {
         terugBanner.searchParams.set('fout', 'Je bent niet ingelogd. De banner is niet opgeslagen.');
@@ -243,6 +256,21 @@ if (weekendLezer && snapshot.bron !== 'demo') {
     }
   }
 }
+if (snapshot.bron === 'demo' && (Astro.url.searchParams.get('banner_soort') === 'tekst' || Astro.url.searchParams.get('banner_soort') === 'weekend')) {
+  const soort = Astro.url.searchParams.get('banner_soort') === 'tekst' ? 'tekst' : 'weekend';
+  weekendInstelling = {
+    ...weekendInstelling,
+    soort,
+    actief: Astro.url.searchParams.get('banner_actief') !== '0',
+    zaterdag: Astro.url.searchParams.get('banner_zaterdag') ?? weekendInstelling.zaterdag,
+    eyebrow: Astro.url.searchParams.get('banner_eyebrow') ?? '',
+    titel: Astro.url.searchParams.get('banner_titel') ?? '',
+    tekst: Astro.url.searchParams.get('banner_tekst') ?? '',
+    knop: Astro.url.searchParams.get('banner_knop') ?? '',
+    link: Astro.url.searchParams.get('banner_link') ?? '',
+    tot: Astro.url.searchParams.get('banner_tot') ?? '',
+  };
+}
 const gekozenWeekend = vrijeWeekenden.find((weekend) => weekend.zaterdag === weekendInstelling.zaterdag) ?? null;
 const bannerNuZichtbaar = bannerZichtbaar(weekendInstelling, new Date(), bezetteDagen);
 const terugvalTekst = !weekendGelezen && bannerZichtbaar(STANDAARD_VRIJGEKOMEN_WEEKEND, new Date())
@@ -271,9 +299,9 @@ function stapHref(volgende: number): string {
   <section class="bh-kaart" id="vrij-weekend-banner">
     <h2>Vrij weekend</h2>
     <p class="bh-hint">
-      Banner onder de kop van de website, ook op de homepage. Kies een vrij weekend, of toon dezelfde banner met alleen tekst, zonder datum.
+      Banner onder de kop van de website, ook op de homepage. De tekst hieronder staat nu op de site en is hier te wijzigen.
+      Kies een vrij weekend, of toon dezelfde banner met alleen tekst, zonder datumkaarten.
       Bij een weekend worden de datum en de periode automatisch ingevuld, en verdwijnt de banner na dat weekend vanzelf.
-      Alleen tekst blijft staan tot je de banner uitzet.
     </p>
     <p class="bh-muted">
       {bannerNuZichtbaar ? 'Deze banner is nu zichtbaar.' : 'Deze banner staat nu niet op de website.'}
@@ -332,6 +360,9 @@ function stapHref(volgende: number): string {
         <label for="banner-tekst">Tekst</label>
         <textarea id="banner-tekst" name="tekst" class="kort" rows="4" maxlength={BANNER_TEKST_GRENZEN.tekst}>{weekendInstelling.tekst}</textarea>
         <p class="bh-muted">De datumkaarten blijven weg. Vul een titel of tekst in, of allebei.</p>
+        <label for="banner-tot">Zichtbaar tot en met</label>
+        <input id="banner-tot" name="tot" type="date" value={weekendInstelling.tot} />
+        <p class="bh-muted">Leeg laten betekent: de tekst blijft staan tot je de banner uitzet.</p>
         <label for="banner-knop">Knoptekst</label>
         <input id="banner-knop" name="knop" value={weekendInstelling.knop} maxlength={BANNER_TEKST_GRENZEN.knop} />
         <label for="banner-link">Link bij de knop</label>

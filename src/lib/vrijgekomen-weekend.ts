@@ -6,8 +6,9 @@
  * - een vrij expositieweekend, met datumkaarten die uit dat weekend komen;
  * - alleen tekst, zonder datum. Die blijft staan tot hij wordt uitgezet.
  *
- * Zonder opgeslagen instelling blijft 17 en 18 oktober 2026 de terugval,
- * zodat de banner niet stil verdwijnt.
+ * Zolang er nog geen opgeslagen tekst is, toont de balk dat het kerkje
+ * op 17 en 18 oktober 2026 gesloten is. Die tekst is in Beheer te wijzigen.
+ * Na 18 oktober verdwijnt die sluitingsboodschap vanzelf.
  *
  * Staat op alle publieke pagina's behalve `/verhuur/aanvragen`.
  * Na afloop van een gekozen weekend verdwijnt die vorm vanzelf — Nederlandse tijd.
@@ -48,17 +49,30 @@ export interface VrijgekomenWeekendInstelling {
   tekst: string;
   knop: string;
   link: string;
+  /** Leeg = alleen-tekst blijft staan tot de banner uit gaat. */
+  tot: string;
 }
+
+/** De oude “dit weekend is beschikbaar”-banner voor 17 en 18 oktober 2026. */
+export const SLUITING_ZATERDAG = '2026-10-17';
+
+export const SLUITING_TITEL =
+  'Door omstandigheden is het kerkje komend weekend (17/18 oktober) gesloten.';
+
+export const SLUITING_TEKST = 'Geen expositie dus. Excuses voor het ongemak!';
+
+export const SLUITING_TOT = '2026-10-18';
 
 export const STANDAARD_VRIJGEKOMEN_WEEKEND: VrijgekomenWeekendInstelling = {
   actief: VRIJGEKOMEN_WEEKEND_BANNER_AAN,
-  soort: 'weekend',
-  zaterdag: '2026-10-17',
+  soort: 'tekst',
+  zaterdag: SLUITING_ZATERDAG,
   eyebrow: '',
-  titel: '',
-  tekst: '',
+  titel: SLUITING_TITEL,
+  tekst: SLUITING_TEKST,
   knop: '',
   link: '',
+  tot: SLUITING_TOT,
 };
 
 export type WeekendDatumKaart = {
@@ -260,7 +274,11 @@ export function toonVrijgekomenWeekendBanner(
   instelling: VrijgekomenWeekendInstelling = STANDAARD_VRIJGEKOMEN_WEEKEND,
 ): boolean {
   if (!instelling.actief) return false;
-  if (instelling.soort === 'tekst') return Boolean(instelling.titel.trim() || instelling.tekst.trim());
+  if (instelling.soort === 'tekst') {
+    if (!instelling.titel.trim() && !instelling.tekst.trim()) return false;
+    if (instelling.tot && vandaagInAmsterdam(nu) > instelling.tot) return false;
+    return true;
+  }
   if (!isZaterdag(instelling.zaterdag)) return false;
   return weekendNogBeschikbaar(nu, zondagVanZaterdag(instelling.zaterdag));
 }
@@ -373,8 +391,26 @@ function tekstVan(waarde: unknown): string {
   return typeof waarde === 'string' ? waarde.trim() : '';
 }
 
-function leegTekst(): Pick<VrijgekomenWeekendInstelling, 'eyebrow' | 'titel' | 'tekst' | 'knop' | 'link'> {
-  return { eyebrow: '', titel: '', tekst: '', knop: '', link: '' };
+function leegTekst(): Pick<VrijgekomenWeekendInstelling, 'eyebrow' | 'titel' | 'tekst' | 'knop' | 'link' | 'tot'> {
+  return { eyebrow: '', titel: '', tekst: '', knop: '', link: '', tot: '' };
+}
+
+function datumVeld(waarde: unknown): string {
+  const tekst = tekstVan(waarde);
+  return /^\d{4}-\d{2}-\d{2}$/.test(tekst) ? tekst : '';
+}
+
+/**
+ * De oorspronkelijke banner zei dat 17 en 18 oktober beschikbaar waren.
+ * Die boodschap is de sluitingstekst, tot iemand in Beheer iets anders bewaart.
+ */
+export function vervangBeschikbareWeekendMelding(
+  instelling: VrijgekomenWeekendInstelling,
+): VrijgekomenWeekendInstelling {
+  if (instelling.soort === 'tekst') return instelling;
+  if (instelling.zaterdag !== SLUITING_ZATERDAG) return instelling;
+  if (instelling.titel.trim() || instelling.tekst.trim()) return instelling;
+  return { ...STANDAARD_VRIJGEKOMEN_WEEKEND, actief: instelling.actief };
 }
 
 export function parseVrijgekomenWeekend(waarde: unknown): VrijgekomenWeekendInstelling | null {
@@ -382,7 +418,7 @@ export function parseVrijgekomenWeekend(waarde: unknown): VrijgekomenWeekendInst
   if (!bron || typeof bron !== 'object') return null;
   const rij = bron as Record<string, unknown>;
   const zaterdag = tekstVan(rij.zaterdag);
-  return {
+  return vervangBeschikbareWeekendMelding({
     actief: rij.actief === true || rij.actief === 'true',
     soort: rij.soort === 'tekst' ? 'tekst' : 'weekend',
     zaterdag: isZaterdag(zaterdag) ? zaterdag : '',
@@ -391,7 +427,8 @@ export function parseVrijgekomenWeekend(waarde: unknown): VrijgekomenWeekendInst
     tekst: begrens(tekstVan(rij.tekst), BANNER_TEKST_GRENZEN.tekst),
     knop: begrens(tekstVan(rij.knop), BANNER_TEKST_GRENZEN.knop),
     link: begrens(tekstVan(rij.link), BANNER_TEKST_GRENZEN.link),
-  };
+    tot: datumVeld(rij.tot),
+  });
 }
 
 function veiligeJson(tekst: string): unknown {
@@ -414,6 +451,7 @@ export function vrijgekomenWeekendRij(instelling: VrijgekomenWeekendInstelling):
     tekst: string;
     knop: string;
     link: string | null;
+    tot: string | null;
   };
   toelichting: string;
 } {
@@ -430,6 +468,7 @@ export function vrijgekomenWeekendRij(instelling: VrijgekomenWeekendInstelling):
       tekst: begrens(instelling.tekst, BANNER_TEKST_GRENZEN.tekst),
       knop: begrens(instelling.knop, BANNER_TEKST_GRENZEN.knop),
       link: link || null,
+      tot: datumVeld(instelling.tot) || null,
     },
     toelichting: 'Banner voor een vrij expositieweekend of alleen tekst',
   };
@@ -446,7 +485,17 @@ function tekstUitFormulier(form: { get(naam: string): FormDataEntryValue | null 
     tekst: begrens(String(form.get('tekst') ?? '').replace(/\s+/g, ' '), BANNER_TEKST_GRENZEN.tekst),
     knop: begrens(String(form.get('knop') ?? ''), BANNER_TEKST_GRENZEN.knop),
     link: begrens(String(form.get('link') ?? ''), BANNER_TEKST_GRENZEN.link),
+    tot: datumVeld(form.get('tot')),
   };
+}
+
+function leesTotUitFormulier(waarde: string): string {
+  const schoon = waarde.trim();
+  if (!schoon) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(schoon)) {
+    throw new Error('Vul bij zichtbaar tot en met een geldige datum in, of laat het veld leeg.');
+  }
+  return schoon;
 }
 
 function controleerTekst(instelling: VrijgekomenWeekendInstelling, actief: boolean): void {
@@ -473,7 +522,7 @@ export function bannerUitFormulier(
 ): VrijgekomenWeekendInstelling {
   const actief = form.getAll('actief').some((waarde) => String(waarde) === '1');
   const soort: BannerSoort = String(form.get('soort') ?? '') === 'tekst' ? 'tekst' : 'weekend';
-  const tekst = tekstUitFormulier(form);
+  const tekst = { ...tekstUitFormulier(form), tot: leesTotUitFormulier(String(form.get('tot') ?? '')) };
   const ruweZaterdag = String(form.get('zaterdag') ?? '').trim();
   if (soort === 'tekst') {
     controleerTekst(tekst, actief);
@@ -496,8 +545,9 @@ export function bannerUitFormulier(
 
 /**
  * Resultaat van publieke_vrijgekomen_weekend_banner().
- * Een fout (functie ontbreekt) toont het standaardweekend, zodat de banner
- * niet stil verdwijnt. Een lege respons betekent: uitgezet of voorbij.
+ * Een fout (functie ontbreekt) toont de sluitingsboodschap, zodat de banner
+ * niet terugvalt op “dit weekend is beschikbaar”. Een lege respons betekent:
+ * uitgezet of voorbij.
  */
 export function bannerUitRpc(
   data: unknown,
@@ -521,16 +571,17 @@ export function bannerUitRpc(
       tekst: begrens(tekstVan(rij.tekst), BANNER_TEKST_GRENZEN.tekst),
       knop: begrens(tekstVan(rij.knop), BANNER_TEKST_GRENZEN.knop),
       link: begrens(tekstVan(rij.link), BANNER_TEKST_GRENZEN.link),
+      tot: datumVeld(rij.tot),
     };
     return toonVrijgekomenWeekendBanner(nu, instelling) ? instelling : null;
   }
   const zaterdag = tekstVan(rij.zaterdag);
   if (!isZaterdag(zaterdag)) return null;
-  const instelling: VrijgekomenWeekendInstelling = {
+  const instelling = vervangBeschikbareWeekendMelding({
     ...leegTekst(),
     actief: true,
     soort: 'weekend',
     zaterdag,
-  };
+  });
   return toonVrijgekomenWeekendBanner(nu, instelling) ? instelling : null;
 }
