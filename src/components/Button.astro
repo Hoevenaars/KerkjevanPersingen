@@ -9,12 +9,18 @@ interface Props {
   variant?: 'primary' | 'secondary' | 'text';
   class?: string;
   type?: 'button' | 'submit';
+  nieuwTabblad?: boolean;
 }
 
-const { href, variant = 'secondary', class: className = '' } = Astro.props;
+const { href, variant = 'secondary', class: className = '', nieuwTabblad = false } = Astro.props;
 ---
 
-<a href={href} class={`btn btn--${variant} ${className}`}>
+<a
+  href={href}
+  class={`btn btn--${variant} ${className}`}
+  target={nieuwTabblad ? '_blank' : undefined}
+  rel={nieuwTabblad ? 'noopener noreferrer' : undefined}
+>
   <slot />
 </a>
 

@@ -8,9 +8,10 @@ import { supabaseLoginUitOmgeving } from './supabase-project.ts';
 import { bezetteKalenderDagen } from './datum.ts';
 import { leesBezetteData } from './publiek-lezen.ts';
 import {
-  bannerInhoud,
   bannerUitRpc,
   bannerZichtbaar,
+  inhoudUitInstelling,
+  weekendVolledigVrij,
   type VrijgekomenWeekendInhoud,
   type VrijgekomenWeekendInstelling,
 } from './vrijgekomen-weekend.ts';
@@ -29,10 +30,10 @@ async function leesInstelling(nu: Date): Promise<VrijgekomenWeekendInstelling | 
   }
 }
 
-async function nogVrij(zaterdag: string, nu: Date): Promise<boolean> {
+async function nogVrij(zaterdag: string): Promise<boolean> {
   try {
     const dagen = bezetteKalenderDagen(await leesBezetteData());
-    return bannerZichtbaar({ actief: true, zaterdag }, nu, dagen);
+    return weekendVolledigVrij(zaterdag, dagen);
   } catch {
     return true;
   }
@@ -45,6 +46,6 @@ export async function leesVrijgekomenWeekendBanner(
   if (pad.startsWith('/verhuur/aanvragen')) return null;
   const instelling = await leesInstelling(nu);
   if (!instelling || !bannerZichtbaar(instelling, nu)) return null;
-  if (!(await nogVrij(instelling.zaterdag, nu))) return null;
-  return bannerInhoud(instelling.zaterdag);
+  if (instelling.soort !== 'tekst' && !(await nogVrij(instelling.zaterdag))) return null;
+  return inhoudUitInstelling(instelling);
 }

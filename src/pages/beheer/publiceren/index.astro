@@ -7,6 +7,7 @@ import { bewaarVrijgekomenWeekendBanner } from '../../../platform/beheer-supabas
 import { bezetteKalenderDagen } from '../../../lib/datum.ts';
 import { leesBezetteData } from '../../../lib/publiek-lezen.ts';
 import {
+  BANNER_TEKST_GRENZEN,
   STANDAARD_VRIJGEKOMEN_WEEKEND,
   VRIJGEKOMEN_WEEKEND_SLEUTEL,
   bannerUitFormulier,
@@ -110,16 +111,29 @@ if (Astro.request.method === 'POST') {
     const terugBanner = new URL(Astro.url.pathname, Astro.url.origin);
     const bron = Astro.url.searchParams.get('bron');
     if (bron) terugBanner.searchParams.set('bron', bron);
-    if (snapshot.bron === 'demo') return Astro.redirect(demoNaActie(Astro.url));
     try {
       const formulier = bannerUitFormulier(data, vrijeZaterdagen);
+      if (snapshot.bron === 'demo') {
+        return Astro.redirect(demoNaActie(terugBanner, {
+          melding: 'Voorbeeld gecontroleerd. Niets is opgeslagen.',
+          banner_soort: formulier.soort,
+          banner_actief: formulier.actief ? '1' : '0',
+          banner_titel: formulier.titel,
+          banner_tekst: formulier.tekst,
+          banner_eyebrow: formulier.eyebrow,
+          banner_knop: formulier.knop,
+          banner_link: formulier.link,
+          banner_tot: formulier.tot,
+          banner_zaterdag: formulier.zaterdag,
+        }));
+      }
       const schrijver = sessieSupabaseUitAstro(Astro);
       if (!schrijver) {
         terugBanner.searchParams.set('fout', 'Je bent niet ingelogd. De banner is niet opgeslagen.');
         return Astro.redirect(terugBanner.toString());
       }
       await bewaarVrijgekomenWeekendBanner(schrijver as never, formulier);
-      terugBanner.searchParams.set('melding', 'De vrij-weekendbanner is opgeslagen.');
+      terugBanner.searchParams.set('melding', 'De banner is opgeslagen.');
       return Astro.redirect(terugBanner.toString());
     } catch (error) {
       terugBanner.searchParams.set('fout', error instanceof Error ? error.message : 'Opslaan van de banner mislukt.');
@@ -242,6 +256,21 @@ if (weekendLezer && snapshot.bron !== 'demo') {
     }
   }
 }
+if (snapshot.bron === 'demo' && (Astro.url.searchParams.get('banner_soort') === 'tekst' || Astro.url.searchParams.get('banner_soort') === 'weekend')) {
+  const soort = Astro.url.searchParams.get('banner_soort') === 'tekst' ? 'tekst' : 'weekend';
+  weekendInstelling = {
+    ...weekendInstelling,
+    soort,
+    actief: Astro.url.searchParams.get('banner_actief') !== '0',
+    zaterdag: Astro.url.searchParams.get('banner_zaterdag') ?? weekendInstelling.zaterdag,
+    eyebrow: Astro.url.searchParams.get('banner_eyebrow') ?? '',
+    titel: Astro.url.searchParams.get('banner_titel') ?? '',
+    tekst: Astro.url.searchParams.get('banner_tekst') ?? '',
+    knop: Astro.url.searchParams.get('banner_knop') ?? '',
+    link: Astro.url.searchParams.get('banner_link') ?? '',
+    tot: Astro.url.searchParams.get('banner_tot') ?? '',
+  };
+}
 const gekozenWeekend = vrijeWeekenden.find((weekend) => weekend.zaterdag === weekendInstelling.zaterdag) ?? null;
 const bannerNuZichtbaar = bannerZichtbaar(weekendInstelling, new Date(), bezetteDagen);
 const terugvalTekst = !weekendGelezen && bannerZichtbaar(STANDAARD_VRIJGEKOMEN_WEEKEND, new Date())
@@ -270,45 +299,76 @@ function stapHref(volgende: number): string {
   <section class="bh-kaart" id="vrij-weekend-banner">
     <h2>Vrij weekend</h2>
     <p class="bh-hint">
-      Banner onder de kop van de website, ook op de homepage. Zet hem aan of uit en kies een weekend dat vrij is.
-      De datum en de periode worden automatisch uit dat weekend gehaald. Na het weekend verdwijnt de banner vanzelf.
+      Banner onder de kop van de website, ook op de homepage. De tekst hieronder staat nu op de site en is hier te wijzigen.
+      Kies een vrij weekend, of toon dezelfde banner met alleen tekst, zonder datumkaarten.
+      Bij een weekend worden de datum en de periode automatisch ingevuld, en verdwijnt de banner na dat weekend vanzelf.
     </p>
     <p class="bh-muted">
       {bannerNuZichtbaar ? 'Deze banner is nu zichtbaar.' : 'Deze banner staat nu niet op de website.'}
       {terugvalTekst}
     </p>
-    {!gekozenWeekend && weekendInstelling.zaterdag && (
+    {weekendInstelling.soort !== 'tekst' && !gekozenWeekend && weekendInstelling.zaterdag && (
       <p class="bh-flash bh-flash--fout">Het gekozen weekend is niet meer vrij. Kies een ander weekend of zet de banner uit.</p>
     )}
-    <form method="post" class="bh-form">
+    <form method="post" class="bh-form" id="vrij-weekend-formulier">
       <input type="hidden" name="actie" value="vrij_weekend_banner" />
       <input type="hidden" name="actief" value="0" />
       <label class="bh-check">
         <input type="checkbox" name="actief" value="1" checked={weekendInstelling.actief} />
         <span>Banner tonen</span>
       </label>
-      <label for="vrij-weekend">Weekend</label>
-      {vrijeWeekenden.length === 0 ? (
-        <p class="bh-leeg">Er is geen vrij weekend om te kiezen.</p>
-      ) : (
-        <select id="vrij-weekend" name="zaterdag">
-          <option value="" selected={!gekozenWeekend}>Kies een vrij weekend</option>
-          {vrijeWeekenden.map((weekend) => (
-            <option
-              value={weekend.zaterdag}
-              selected={weekend.zaterdag === weekendInstelling.zaterdag}
-              data-periode={weekend.periode}
-            >
-              {weekend.label}
-            </option>
-          ))}
-        </select>
-      )}
-      <p class="bh-muted" id="vrij-weekend-periode">
-        {gekozenWeekend
-          ? `Periode: ${gekozenWeekend.periode}`
-          : 'Kies een vrij weekend. De periode wordt daarna automatisch ingevuld.'}
-      </p>
+      <fieldset class="bh-status">
+        <legend>Inhoud</legend>
+        <label class="bh-check">
+          <input type="radio" name="soort" value="weekend" checked={weekendInstelling.soort !== 'tekst'} />
+          <span>Vrij weekend</span>
+        </label>
+        <label class="bh-check">
+          <input type="radio" name="soort" value="tekst" checked={weekendInstelling.soort === 'tekst'} />
+          <span>Alleen tekst, zonder datum</span>
+        </label>
+      </fieldset>
+      <div id="vrij-weekend-velden">
+        <label for="vrij-weekend">Weekend</label>
+        {vrijeWeekenden.length === 0 ? (
+          <p class="bh-leeg">Er is geen vrij weekend om te kiezen.</p>
+        ) : (
+          <select id="vrij-weekend" name="zaterdag">
+            <option value="" selected={!gekozenWeekend}>Kies een vrij weekend</option>
+            {vrijeWeekenden.map((weekend) => (
+              <option
+                value={weekend.zaterdag}
+                selected={weekend.zaterdag === weekendInstelling.zaterdag}
+                data-periode={weekend.periode}
+              >
+                {weekend.label}
+              </option>
+            ))}
+          </select>
+        )}
+        <p class="bh-muted" id="vrij-weekend-periode">
+          {gekozenWeekend
+            ? `Periode: ${gekozenWeekend.periode}`
+            : 'Kies een vrij weekend. De periode wordt daarna automatisch ingevuld.'}
+        </p>
+      </div>
+      <div id="banner-tekst-velden">
+        <label for="banner-eyebrow">Klein kopje</label>
+        <input id="banner-eyebrow" name="eyebrow" value={weekendInstelling.eyebrow} maxlength={BANNER_TEKST_GRENZEN.eyebrow} />
+        <label for="banner-titel">Titel</label>
+        <input id="banner-titel" name="titel" value={weekendInstelling.titel} maxlength={BANNER_TEKST_GRENZEN.titel} />
+        <label for="banner-tekst">Tekst</label>
+        <textarea id="banner-tekst" name="tekst" class="kort" rows="4" maxlength={BANNER_TEKST_GRENZEN.tekst}>{weekendInstelling.tekst}</textarea>
+        <p class="bh-muted">De datumkaarten blijven weg. Vul een titel of tekst in, of allebei.</p>
+        <label for="banner-tot">Zichtbaar tot en met</label>
+        <input id="banner-tot" name="tot" type="date" value={weekendInstelling.tot} />
+        <p class="bh-muted">Leeg laten betekent: de tekst blijft staan tot je de banner uitzet.</p>
+        <label for="banner-knop">Knoptekst</label>
+        <input id="banner-knop" name="knop" value={weekendInstelling.knop} maxlength={BANNER_TEKST_GRENZEN.knop} />
+        <label for="banner-link">Link bij de knop</label>
+        <input id="banner-link" name="link" value={weekendInstelling.link} maxlength={BANNER_TEKST_GRENZEN.link} placeholder="/verhuur/ of https://" />
+        <p class="bh-muted">Laat knop en link leeg als de banner alleen tekst moet tonen. Een link begint met / of https://.</p>
+      </div>
       <div class="bh-acties">
         <button class="bh-btn" type="submit">{snapshot.bron === 'demo' ? 'Bewaar (voorbeeld)' : 'Bewaar banner'}</button>
       </div>
@@ -481,9 +541,15 @@ function stapHref(volgende: number): string {
       ? `Periode: ${periode}`
       : 'Kies een vrij weekend. De periode wordt daarna automatisch ingevuld.';
   });
+
 </script>
 
 <style>
   .bh-checks { margin: 0.5rem 0 1rem; padding-left: 1.1rem; }
   details.bh-kaart summary { cursor: pointer; }
+</style>
+<style is:global>
+  #banner-tekst-velden { display: none; }
+  #vrij-weekend-formulier:has(input[name="soort"][value="tekst"]:checked) #vrij-weekend-velden { display: none; }
+  #vrij-weekend-formulier:has(input[name="soort"][value="tekst"]:checked) #banner-tekst-velden { display: block; }
 </style>
