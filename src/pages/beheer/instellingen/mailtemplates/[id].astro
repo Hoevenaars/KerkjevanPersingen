@@ -10,7 +10,7 @@ import {
   registreerTestmail,
 } from '../../../../platform/mailtemplates/store.ts';
 import { MAIL_VARIABELEN } from '../../../../platform/mailtemplates/types.ts';
-import { renderMailHtml, onderwerpUitTemplate } from '../../../../platform/mailtemplates/render.ts';
+import { renderMailBericht, renderMailHtml, onderwerpUitTemplate } from '../../../../platform/mailtemplates/render.ts';
 import { VOORBEELD_VARIABELEN } from '../../../../platform/mailtemplates/voorbeeld.ts';
 import { beheerId } from '../../../../platform/beheer-bron.ts';
 import { verstuurTestMail } from '../../../../lib/mailtemplate-verzending.ts';
@@ -146,11 +146,12 @@ if (Astro.request.method === 'POST' && supabaseTest) {
     if (!tpl) fout = 'Template niet gevonden';
     else if (!email) fout = 'Vul een e-mailadres in';
     else {
-      const html = renderMailHtml(tpl, VOORBEELD_VARIABELEN, { voorbeeldUrl: 'https://kerkjepersingen.nl/' });
+      const brief = renderMailBericht(tpl, VOORBEELD_VARIABELEN, { voorbeeldUrl: 'https://kerkjepersingen.nl/' });
       const ok = await verstuurTestMail({
         naar: email,
         onderwerp: `[Test] ${onderwerpUitTemplate(tpl, VOORBEELD_VARIABELEN)}`,
-        html,
+        html: brief.html,
+        text: brief.text,
         templateId: id,
       });
       await registreerTestmail({ templateId: id, email, gebruiker });

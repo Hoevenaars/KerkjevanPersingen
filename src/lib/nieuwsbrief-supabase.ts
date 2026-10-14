@@ -6,7 +6,7 @@
 import type { Activiteit, AgendaOverzicht } from './sanity.ts';
 import { maandagVanWeekIso } from './week.ts';
 import { mailMeta } from './nieuwsbrief-frequentie.ts';
-import { bouwNieuwsbriefHtml } from './nieuwsbrief-html.ts';
+import { nieuwsbriefEnvelop, NIEUWSBRIEF_REPLY_TO } from './nieuwsbrief-html.ts';
 import { kiesActiviteitenVoorMail } from './nieuwsbrief-agenda.ts';
 import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import type { Vriend, VriendenBron } from './vrienden-supabase.ts';
@@ -82,8 +82,14 @@ export async function draaiNieuwsbriefDryRun(opties: {
   };
   const agenda = await opties.bron.agenda();
   for (const vriend of ontvangers) {
-    const html = htmlVoor(week, vriend, agenda.activiteiten, agenda.overzicht, datum);
-    if (!html.includes(vriend.uitschrijfToken) && !html.includes(encodeURIComponent(vriend.uitschrijfToken))) {
+    const brief = briefVoor(week, vriend, agenda.activiteiten, agenda.overzicht, datum);
+    if (brief.replyTo !== NIEUWSBRIEF_REPLY_TO) {
+      throw new Error('Nieuwsbrief mist het vaste Reply-To-adres.');
+    }
+    if (!brief.text.includes(vriend.uitschrijfToken) && !brief.text.includes(encodeURIComponent(vriend.uitschrijfToken))) {
+      throw new Error('Nieuwsbrieftekst mist het afmeldtoken.');
+    }
+    if (!brief.html.includes(vriend.uitschrijfToken) && !brief.html.includes(encodeURIComponent(vriend.uitschrijfToken))) {
       throw new Error('Nieuwsbrief mist het afmeldtoken.');
     }
     await opties.bron.legVast({
@@ -105,18 +111,18 @@ export async function draaiNieuwsbriefDryRun(opties: {
   };
 }
 
-function htmlVoor(
+function briefVoor(
   week: NieuwsbriefWeek,
   vriend: Vriend,
   activiteiten: Activiteit[],
   agenda: AgendaOverzicht,
   datum: Date,
-): string {
+) {
   const frequentie = vriend.frequentie ?? 'wekelijks';
   const meta = mailMeta(frequentie, datum);
   const blokken = kiesActiviteitenVoorMail(activiteiten, agenda, frequentie, datum);
   const foto = directeFotoUrl(week.fotoPad);
-  return bouwNieuwsbriefHtml(
+  return nieuwsbriefEnvelop(
     {
       kortNieuws: week.kortNieuws,
       kortNieuwsFotoUrl: foto ?? undefined,
