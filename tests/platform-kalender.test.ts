@@ -30,7 +30,7 @@ const internOpen: BezettingsItem = {
 };
 
 describe('kalender — nieuwe regels', () => {
-  test('optie blokkeert de publieke kalender niet', () => {
+  test('oude kalenderhulp telt een optie niet mee', () => {
     assert.equal(blokkeertPubliekeKalender({ status: 'optie' }), false);
     assert.equal(publiekeBezetteDagen([optie]).has('2026-09-12'), false);
     assert.equal(interneStatusVoorDag('2026-09-12', [optie]), 'optie');

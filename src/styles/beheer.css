@@ -579,9 +579,26 @@
 
 .bh-badge--verborgen,
 .bh-badge--geannuleerd,
-.bh-badge--afgewezen {
+.bh-badge--afgewezen,
+.bh-badge--fn-niet-aangesloten {
   background: var(--cream-deep);
   color: var(--ink-mute);
+}
+
+.bh-badge--fn-actief {
+  background: #dce6d0;
+  color: var(--pine);
+}
+
+.bh-badge--fn-klaar,
+.bh-badge--fn-dry-run {
+  background: #efe6c9;
+  color: #6a5a20;
+}
+
+.bh-badge--fn-test {
+  background: #f3d9cf;
+  color: var(--brick-dark);
 }
 
 .bh-acties {

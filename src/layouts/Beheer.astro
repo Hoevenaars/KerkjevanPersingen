@@ -259,14 +259,6 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
                 </>
               )
             }
-            {
-              snapshot.bron === 'supabase' && (
-                <>
-                  {' '}
-                  <a href={liveHref}>Terug naar Sanity-weergave</a>
-                </>
-              )
-            }
           </p>
           {
             snapshot.bron === 'supabase' && (

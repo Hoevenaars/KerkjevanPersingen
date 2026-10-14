@@ -800,7 +800,15 @@ export const COMMUNICATIE_LABEL: Record<string, string> = {
   verzonden: 'Verzonden',
   fout: 'Fout',
   geannuleerd: 'Geannuleerd',
+  geblokkeerd: 'Geblokkeerd',
 };
+
+/** Prognose is nooit "ingepland". Dat woord hoort alleen bij een echte job. */
+export function labelVoorCommunicatie(status: string, herkomst: 'verwacht' | 'job'): string {
+  if (herkomst === 'verwacht') return 'Verwacht';
+  if (status === 'gepland') return 'Ingepland';
+  return COMMUNICATIE_LABEL[status] ?? status;
+}
 
 export const DEMO_FLASH =
   'Voorbeeldactie uitgevoerd — niets is opgeslagen, gemaild of naar de website/agenda gestuurd.';

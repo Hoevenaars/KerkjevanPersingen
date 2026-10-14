@@ -5,13 +5,14 @@
  * - Intern: aanvraag, optie, optie verlopen, definitief, intern, afgerond.
  * - Publiek: alleen Vrij of Bezet. Geen namen, geen type, geen finance.
  *
- * Publiek Bezet alleen bij:
- *   definitieve boeking, of interne activiteit met blokkeert_verhuurkalender.
- * Een optie blokkeert de publieke kalender niet.
+ * Deze hulp is de oude projectie voor migratievergelijking.
+ * De live verhuurkalender gebruikt public.publieke_bezetting. Die telt
+ * optie, optie_verlopen, definitief, migratie_vastgelegd, interne blokkades
+ * en activiteiten met zichtbaarheid publiek of bezet als bezet.
+ * Een losse aanvraag, een geannuleerde boeking en een afgeronde boeking niet.
  *
- * `huidigeBezetteDagen` spiegelt de huidige Sanity-logica (zichtbaarheid !=
- * verborgen), zodat later output 1-op-1 vergeleken kan worden zonder de
- * website nu al om te zetten.
+ * `huidigeBezetteDagen` vergelijkt nog met de oude Sanity-zichtbaarheid.
+ * De website leest die functie niet als bron voor verhuurbezetting.
  */
 
 import { dagenInPeriode } from './datum.ts';
@@ -83,11 +84,8 @@ export function publiekeStatusVoorDag(
 }
 
 /**
- * Huidige website-logica, 1-op-1 met Kalender.astro + getBezetteData():
- * alles met zichtbaarheid anders dan "verborgen" telt als bezet, inclusief
- * de hele periode start t/m eind in Nederlandse kalenderdagen. Opties die in
- * Sanity nog "verborgen" staan, blokkeren dus nu ook niet — totdat het bestuur
- * de zichtbaarheid op "bezet" zet.
+ * Legacy-vergelijking met de oude Sanity-kalender.
+ * Dit is niet de live verhuurbezetting. Die staat in public.publieke_bezetting.
  */
 export function huidigeBezetteDagen(
   activiteiten: readonly {

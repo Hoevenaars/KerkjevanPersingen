@@ -72,8 +72,11 @@ const toonLabels = periode.dagen === 7;
       <p class="bh-label">Website</p>
       <h1>Analytics</h1>
       <p class="bh-hint">
-        Pageviews van de publieke site, van {lang(periode.van)} t/m {lang(periode.tot)}. Geen
-        bezoekersprofiel en geen koppeling met aanvragen of relaties.
+        {
+          leeg
+            ? `Periode ${lang(periode.van)} t/m ${lang(periode.tot)}. Geen bezoekersprofiel en geen koppeling met aanvragen of relaties.`
+            : `Pageviews van de publieke site, van ${lang(periode.van)} t/m ${lang(periode.tot)}. Geen bezoekersprofiel en geen koppeling met aanvragen of relaties.`
+        }
       </p>
     </div>
   </header>
@@ -99,7 +102,9 @@ const toonLabels = periode.dagen === 7;
   }
   {
     leeg && (
-      <p class="bh-leeg">Er is voor deze periode nog geen websiteverkeer geregistreerd.</p>
+      <p class="bh-leeg">
+        Eigen websiteanalytics is momenteel nog niet actief. Vercel Analytics draait afzonderlijk.
+      </p>
     )
   }
 

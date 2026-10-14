@@ -439,6 +439,63 @@ export function statusLabel(status: AutomatiseringStatus): string {
   return 'Uit';
 }
 
+export type FunctioneleStatus = 'actief' | 'klaar' | 'test' | 'dry-run' | 'niet-aangesloten';
+
+export interface FunctioneelOordeel {
+  status: FunctioneleStatus;
+  label: string;
+  toelichting: string;
+}
+
+/** Sleutels waarvan de code ook bij Aan geen provider-mail verstuurt. */
+const DRY_RUN_SLEUTELS = new Set(['nieuwsbrief']);
+
+/**
+ * Functionele stand, los van de opgeslagen schakelaar Aan/Test/Uit.
+ * Een schakelaar op Aan zonder caller is niet actief.
+ */
+export function functioneleStatus(item: Automatisering): FunctioneelOordeel {
+  if (DRY_RUN_SLEUTELS.has(item.sleutel)) {
+    return {
+      status: 'dry-run',
+      label: 'DRY-RUN',
+      toelichting: 'Cron en opbouw zijn aanwezig. Verzending blijft een dry-run en is nog niet live.',
+    };
+  }
+  if (!item.actieveTrigger) {
+    return {
+      status: 'niet-aangesloten',
+      label: 'NIET AANGESLOTEN',
+      toelichting:
+        item.sleutel === 'contact_bestuur'
+          ? 'De schakelaar kan op Aan staan, maar de contactpagina heeft geen formulier.'
+          : 'Er is geen actieve caller. De schakelaar start geen mail.',
+    };
+  }
+  if (item.status === 'test') {
+    return {
+      status: 'test',
+      label: 'TEST',
+      toelichting: 'De knop mag draaien, maar er gaat geen provider-call uit.',
+    };
+  }
+  if (item.status === 'actief') {
+    return {
+      status: 'actief',
+      label: 'ACTIEF',
+      toelichting:
+        item.sleutel === 'aanvraag_bestuur'
+          ? 'Een nieuwe verhuuraanvraag kan mail naar het bestuur sturen. Die mail schrijft nog geen verzendregel.'
+          : 'Caller en schakelaar staan aan.',
+    };
+  }
+  return {
+    status: 'klaar',
+    label: 'KLAAR MAAR UIT',
+    toelichting: 'Technisch gereed, maar nog niet geactiveerd.',
+  };
+}
+
 export function isStatus(waarde: string): waarde is AutomatiseringStatus {
   return waarde === 'actief' || waarde === 'test' || waarde === 'uit';
 }

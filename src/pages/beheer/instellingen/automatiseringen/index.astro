@@ -10,6 +10,7 @@ import {
   kanExternVersturen,
   magAutomatiseringUitvoeren,
   planStatuswijziging,
+  functioneleStatus,
   statusLabel,
   type Automatisering,
 } from '../../../../platform/automatisering.ts';
@@ -128,7 +129,7 @@ const groepen = [
     <div>
       <h1>Automatiseringen</h1>
       <p class="bh-hint">
-        Alleen een nieuwe verhuuraanvraag naar het bestuur kan nu mail versturen. Contact staat op Aan, maar er is geen formulier en dus geen trigger. Overige mail blijft dicht tot je die hier aanzet.
+        Schakelaar is de opgeslagen stand Aan, Test of Uit. Functioneel is wat er nu echt gebeurt. Alleen een nieuwe verhuuraanvraag naar het bestuur is actief. Een schakelaar op Aan zonder caller verstuurt niets.
       </p>
     </div>
   </header>
@@ -155,7 +156,8 @@ const groepen = [
           <thead>
             <tr>
               <th>Naam</th>
-              <th>Status</th>
+              <th>Schakelaar</th>
+              <th>Functioneel</th>
               <th>Trigger</th>
               <th>Flow</th>
               <th>Provider</th>
@@ -165,7 +167,9 @@ const groepen = [
             </tr>
           </thead>
           <tbody>
-            {lijst.filter((item) => item.categorie === categorie).map((item) => (
+            {lijst.filter((item) => item.categorie === categorie).map((item) => {
+              const functie = functioneleStatus(item);
+              return (
               <tr>
                 <td>
                   <strong>{item.naam}</strong>
@@ -174,11 +178,18 @@ const groepen = [
                 </td>
                 <td>{statusLabel(item.status)}</td>
                 <td>
+                  <span class={`bh-badge bh-badge--fn-${functie.status}`}>{functie.label}</span>
+                  <div class="bh-muted">{functie.toelichting}</div>
+                </td>
+                <td>
                   {item.actieveTrigger ? 'Ja' : 'Nee'}
                   <div class="bh-muted">{item.actieveTrigger ? item.trigger : 'Geen actieve trigger'}</div>
                 </td>
                 <td>{gekoppeldeFlow(item.sleutel)}</td>
-                <td>{magAutomatiseringUitvoeren(item.sleutel, lijst).provider ? 'Ja' : 'Nee'}</td>
+                <td>
+                  {item.actieveTrigger && magAutomatiseringUitvoeren(item.sleutel, lijst).provider ? 'Ja' : 'Nee'}
+                  {!item.actieveTrigger ? <div class="bh-muted">Geen caller</div> : null}
+                </td>
                 <td>{kanExternVersturen(item, lijst) ? 'Ja' : 'Nee'}</td>
                 <td>
                   {item.laatsteRun ? item.laatsteRun.slice(0, 16).replace('T', ' ') : '—'}
@@ -187,7 +198,7 @@ const groepen = [
                 <td>
                   <form method="post" class="bh-acties">
                     <input type="hidden" name="sleutel" value={item.sleutel} />
-                    <select name="status" aria-label={`Status van ${item.naam}`}>
+                    <select name="status" aria-label={`Schakelaar van ${item.naam}`}>
                       <option value="actief" selected={item.status === 'actief'}>Aan</option>
                       <option value="test" selected={item.status === 'test'}>Test</option>
                       <option value="uit" selected={item.status === 'uit'}>Uit</option>
@@ -196,7 +207,8 @@ const groepen = [
                   </form>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </section>

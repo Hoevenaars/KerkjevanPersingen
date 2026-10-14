@@ -65,8 +65,10 @@ function hrefVoorDag(ymd: string): string | null {
     <div>
       <h1>Kalender</h1>
       <p class="bh-hint">
-        Interne statussen (aanvraag, optie, definitief, intern). Dit is niet de publieke agenda —
-        die toont alleen vrij of bezet.
+        Interne statussen: aanvraag, optie, verlopen optie, definitief en interne blokkade.
+        De publieke verhuurkalender toont alleen vrij of bezet. Bezet volgt publieke_bezetting:
+        optie, verlopen optie, definitieve boeking, vastgelegde migratie, winterstop en een activiteit
+        met zichtbaarheid publiek of bezet. Een losse aanvraag, een geannuleerde boeking en een afgeronde boeking blokkeren niet.
       </p>
     </div>
     <p class="bh-hint">

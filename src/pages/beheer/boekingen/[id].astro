@@ -5,10 +5,10 @@ import Beheer from '../../../layouts/Beheer.astro';
 import {
   BOEKING_LABEL,
   SOORT_LABEL,
-  COMMUNICATIE_LABEL,
   demoNaActie,
   formatNl,
   gastheerVan,
+  labelVoorCommunicatie,
 } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
@@ -18,7 +18,7 @@ import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { statusActieToegestaan } from '../../../platform/status-overgang.ts';
 import { behoudTerug, terugLink } from '../../../platform/planning.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
-import type { MailCommunicatieRegel } from '../../../platform/mailtemplates/types.ts';
+import type { MailCommunicatieRegel, MailCommunicatieStatus } from '../../../platform/mailtemplates/types.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -45,6 +45,23 @@ const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
 const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id);
 const demoMails = snapshot.communicatie.filter((c) => c.boekingId === boeking.id);
 const opgeslagen = snapshot.bron === 'supabase' ? [] : await laadCommunicatieVoorBoeking(boeking.id);
+const JOB_STATUSSEN = new Set<MailCommunicatieStatus>(['gepland', 'concept', 'wachtrij', 'verzonden', 'fout', 'geannuleerd']);
+function jobAlsRegel(rij: { id: string; boekingId: string; template: string; ontvanger: string; status: string; wanneer: string }): MailCommunicatieRegel | null {
+  if (!JOB_STATUSSEN.has(rij.status as MailCommunicatieStatus)) return null;
+  return {
+    id: rij.id,
+    boekingId: rij.boekingId,
+    templateId: rij.template,
+    templateNaam: rij.template,
+    ontvanger: rij.ontvanger,
+    onderwerp: '',
+    status: rij.status as MailCommunicatieStatus,
+    geplandOp: rij.wanneer,
+    automatisch: true,
+    door: 'systeem',
+    test: false,
+  };
+}
 const templates =
   snapshot.bron === 'supabase'
     ? await (async () => {
@@ -52,45 +69,57 @@ const templates =
         return client ? laadMailtemplatesUitSupabase(client) : [];
       })()
     : await laadMailtemplates();
-const gepland = geplandeMailsVoorBoeking(boeking, templates, opgeslagen);
-const mails: {
-  id: string;
-  template: string;
-  ontvanger: string;
-  wanneer: string;
-  status: string;
-  automatisch?: boolean;
-  door?: string;
-  onderwerp?: string;
-}[] = [
-  ...opgeslagen.map((r: MailCommunicatieRegel) => ({
-    id: r.id,
-    template: r.templateNaam,
-    ontvanger: r.ontvanger,
-    wanneer: r.verzondenOp ?? r.geplandOp ?? '',
-    status: r.status,
-    automatisch: r.automatisch,
-    door: r.door,
-    onderwerp: r.onderwerp,
-  })),
-  ...gepland.map((r) => ({
-    id: r.id,
-    template: r.templateNaam,
-    ontvanger: r.ontvanger,
-    wanneer: r.geplandOp ?? '',
-    status: r.status,
-    automatisch: r.automatisch,
-    door: r.door,
-    onderwerp: r.onderwerp,
-  })),
-  ...demoMails.map((r) => ({
-    id: r.id,
-    template: r.template,
-    ontvanger: r.ontvanger,
-    wanneer: r.wanneer,
-    status: r.status,
-  })),
-].sort((a, b) => (a.wanneer || '').localeCompare(b.wanneer || ''));
+const jobRegels = snapshot.bron === 'supabase'
+  ? demoMails.flatMap((rij) => {
+      const regel = jobAlsRegel(rij);
+      return regel ? [regel] : [];
+    })
+  : opgeslagen;
+const verwacht = geplandeMailsVoorBoeking(boeking, templates, jobRegels).map((r) => ({
+  id: r.id,
+  template: r.templateNaam,
+  ontvanger: r.ontvanger,
+  wanneer: r.geplandOp ?? '',
+  status: 'verwacht',
+  automatisch: r.automatisch,
+  door: r.door,
+  onderwerp: r.onderwerp,
+}));
+const templateNaam = new Map(templates.map((tpl) => [tpl.id, tpl.naam]));
+const jobs = (snapshot.bron === 'supabase'
+  ? demoMails.map((r) => ({
+      id: r.id,
+      template: templateNaam.get(r.template) ?? r.template,
+      ontvanger: r.ontvanger,
+      wanneer: r.wanneer,
+      status: r.status,
+      automatisch: undefined as boolean | undefined,
+      door: undefined as string | undefined,
+      onderwerp: undefined as string | undefined,
+    }))
+  : [
+      ...opgeslagen.map((r: MailCommunicatieRegel) => ({
+        id: r.id,
+        template: r.templateNaam,
+        ontvanger: r.ontvanger,
+        wanneer: r.verzondenOp ?? r.geplandOp ?? '',
+        status: r.status,
+        automatisch: r.automatisch as boolean | undefined,
+        door: r.door as string | undefined,
+        onderwerp: r.onderwerp,
+      })),
+      ...demoMails.map((r) => ({
+        id: r.id,
+        template: r.template,
+        ontvanger: r.ontvanger,
+        wanneer: r.wanneer,
+        status: r.status,
+        automatisch: undefined as boolean | undefined,
+        door: undefined as string | undefined,
+        onderwerp: undefined as string | undefined,
+      })),
+    ]
+).sort((a, b) => (a.wanneer || '').localeCompare(b.wanneer || ''));
 const gastheer = gastheerVan(boeking.gastheerId, snapshot.gastheren);
 const actieveGastheren = snapshot.gastheren.filter((g) => g.actief);
 const verleng = statusActieToegestaan(boeking.status, 'verleng');
@@ -237,7 +266,7 @@ function tabHref(tabNaam: string): string {
           <h2>{snapshot.alleenLezen ? 'Alleen lezen' : snapshot.bron === 'supabase' ? 'Dossieracties' : 'Acties (voorbeeld)'}</h2>
           <p class="bh-muted">
             {snapshot.alleenLezen
-              ? 'Supabase-testmodus schrijft niets en verstuurt geen mail. Sanity blijft de runtimebron.'
+              ? 'Supabase-testmodus schrijft niets en verstuurt geen mail.'
               : snapshot.bron === 'supabase'
               ? 'Deze acties gebruiken je ingelogde sessie. Er gaat geen mail uit. Annuleren start geen annuleringsmail.'
               : 'Geen contractgeneratie, geen echte mail, geen wijziging in Sanity.'}
@@ -347,17 +376,50 @@ function tabHref(tabNaam: string): string {
     tab === 'communicatie' && (
       <section class="bh-kaart">
         <h2>Communicatie</h2>
+        <h3>Verwachte communicatie</h3>
         <p class="bh-muted">
-          Chronologisch overzicht inclusief geplande toekomstige mails. Officiële verzending is maximaal één keer per template en ontvanger.
+          Verwachte communicatie op basis van de huidige workflow.
+          Deze mails worden momenteel niet automatisch verstuurd zolang de betreffende automatisering uit staat.
         </p>
-        {mails.length === 0 ? (
-          <p class="bh-leeg">Geen communicatie voor deze boeking.</p>
+        {verwacht.length === 0 ? (
+          <p class="bh-leeg">Geen verwachte mail voor deze boeking.</p>
         ) : (
           <table class="bh-tabel">
             <thead>
               <tr>
-                <th>Datum / tijd</th>
+                <th>Datum</th>
                 <th>Template</th>
+                <th>Ontvanger</th>
+                <th>Onderwerp</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {verwacht.map((c) => (
+                <tr>
+                  <td>{c.wanneer ? formatNl(c.wanneer.slice(0, 10)) : '—'}</td>
+                  <td>{c.template}</td>
+                  <td>{c.ontvanger}</td>
+                  <td>{c.onderwerp ?? '—'}</td>
+                  <td><span class="bh-badge">{labelVoorCommunicatie(c.status, 'verwacht')}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <h3>Communicatiejobs</h3>
+        <p class="bh-muted">
+          Alleen echte rijen uit communicatie_jobs. Zonder job is er niets ingepland, verzonden, fout gegaan of geannuleerd.
+        </p>
+        {jobs.length === 0 ? (
+          <p class="bh-leeg">Er is geen communicatiejob voor deze boeking.</p>
+        ) : (
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Mailtype</th>
                 <th>Ontvanger</th>
                 <th>Onderwerp</th>
                 <th>Status</th>
@@ -365,14 +427,14 @@ function tabHref(tabNaam: string): string {
               </tr>
             </thead>
             <tbody>
-              {mails.map((c) => (
+              {jobs.map((c) => (
                 <tr>
                   <td>{c.wanneer ? formatNl(c.wanneer.slice(0, 10)) : '—'}</td>
                   <td>{c.template}</td>
                   <td>{c.ontvanger}</td>
                   <td>{c.onderwerp ?? '—'}</td>
                   <td>
-                    <span class={`bh-badge bh-badge--${c.status}`}>{COMMUNICATIE_LABEL[c.status] ?? c.status}</span>
+                    <span class={`bh-badge bh-badge--${c.status}`}>{labelVoorCommunicatie(c.status, 'job')}</span>
                   </td>
                   <td>{c.automatisch == null ? '—' : c.automatisch ? 'Automatisch' : `Handmatig (${c.door ?? '—'})`}</td>
                 </tr>
@@ -380,6 +442,9 @@ function tabHref(tabNaam: string): string {
             </tbody>
           </table>
         )}
+        <p class="bh-muted">
+          De directe mail naar het bestuur bij een verhuuraanvraag staat hier niet bij. Die schrijft geen communicatiejob en geen verzendregel.
+        </p>
         <p class="bh-acties">
           <button class="bh-btn" type="button" disabled>Maak mailconcept — nog niet beschikbaar</button>
         </p>
