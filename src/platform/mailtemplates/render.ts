@@ -1,6 +1,7 @@
 import type { MailTemplateInhoud, MailVariabelenMap } from './types.ts';
 import { maakActieToken, type MailActieSoort } from './actie.ts';
 import { kerkjeMail, type KerkjeMailCta } from '../../lib/kerkje-mail.ts';
+import { googleReviewUrl } from '../../lib/google-review.ts';
 
 const INK = '#1A1A1A';
 const INK_SOFT = '#4A4A44';
@@ -116,7 +117,10 @@ export function renderMailBericht(
 ): { html: string; text: string } {
   const onderwerp = onderwerpUitTemplate(inhoud, vars);
   const hoofdBron = vervangVariabelen(inhoud.hoofdtekst, vars);
-  const knoppen = ctaVoor(inhoud, vars, opties);
+  const knoppen = ctaVoor(inhoud, vars, {
+    ...opties,
+    templateId: opties.templateId ?? ('id' in inhoud && typeof inhoud.id === 'string' ? inhoud.id : undefined),
+  });
   const bericht = kerkjeMail({
     titel: onderwerp,
     aanhef: vervangVariabelen(inhoud.aanhef, vars),
@@ -172,5 +176,16 @@ function ctaVoor(
       secundair: kn.actie !== 'link' && Boolean(primair),
     });
   }
+  if (opties.templateId === 'booking_review_request') return reviewKnop(knoppen);
   return knoppen;
+}
+
+function reviewKnop(knoppen: KerkjeMailCta[]): KerkjeMailCta[] {
+  const url = googleReviewUrl();
+  if (!url) {
+    console.warn('[mail] GOOGLE_REVIEW_URL ontbreekt. De reviewmail blijft leesbaar, zonder knop.');
+    return [];
+  }
+  const label = knoppen.find((knop) => knop.label.trim())?.label || 'Laat een Google Review achter';
+  return [{ label, href: url }];
 }
