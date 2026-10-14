@@ -192,7 +192,7 @@ export const MAILTEMPLATE_META: Record<string, MailTemplateMeta> = {
     categorie: 'Nazorg',
     ontvanger: 'Aanvrager',
     verzendwijze: 'automatisch',
-    trigger: rel('dagen_na_activiteit', '1 dag na activiteit', { offsetWaarde: 1, offsetEenheid: 'dagen', offsetRichting: 'na' }),
+    trigger: rel('dagen_na_activiteit', '1 dag na de einddatum', { offsetWaarde: 1, offsetEenheid: 'dagen', offsetRichting: 'na' }),
   },
   host_post_event_check: {
     naam: 'Controle na afloop',

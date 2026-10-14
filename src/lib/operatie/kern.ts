@@ -559,6 +559,11 @@ function periodeVrij(wereld: Wereld, start: string, eind: string, behalveId?: st
   );
 }
 
+/** Eén review- of andere workflowmail per boeking en template. */
+export function jobDedupSleutel(boekingId: string, templateId: string): string {
+  return `job:${boekingId}:${templateId}`;
+}
+
 function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string): CommunicatieContext {
   const publiek = wereld.publiek.find((item) => item.boekingId === boeking.id);
   const trigger = publiek?.trigger ?? publicatieTriggerVoor(boeking.verhuurtype);
@@ -579,6 +584,8 @@ function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string): Commu
         .map((job) => job.templateSleutel),
     ),
     vandaag,
+    eind: boeking.eind || boeking.start,
+    geannuleerd: boeking.status === 'geannuleerd' || Boolean(publiek?.geannuleerd),
   };
 }
 
@@ -600,7 +607,7 @@ function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingR
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : stapItem.templateId;
   const tekst = `${template ? plainTekstUitTemplate(template, vars) : stapItem.conditie}${link ? `\n\n${link}` : ''}`;
   const html = template
-    ? renderMailHtml(template, vars, { voorbeeldUrl: link || 'https://kerkjepersingen.nl/' })
+    ? renderMailHtml(template, vars, { voorbeeldUrl: link || 'https://kerkjepersingen.nl/', templateId: template.id })
     : kerkjeMail({ titel: onderwerp, hoofdtekst: stapItem.conditie }).html;
   return { onderwerp, tekst, html };
 }
@@ -640,7 +647,7 @@ function communicatieMutaties(
     }
 
     for (const stapItem of actueleVerzendingen(comm)) {
-      const dedup = `job:${boeking.id}:${stapItem.templateId}`;
+      const dedup = jobDedupSleutel(boeking.id, stapItem.templateId);
       const bestaand = wereld.jobs.find((job) => job.dedup === dedup);
       if (bestaand && (bestaand.status === 'verzonden' || bestaand.status === 'fout' || bestaand.status === 'geannuleerd')) {
         continue;
@@ -1437,7 +1444,7 @@ function conceptJob(
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : templateId;
   const tekst = template ? plainTekstUitTemplate(template, vars) : templateId;
   const html = template
-    ? renderMailHtml(template, vars, { voorbeeldUrl: 'https://kerkjepersingen.nl/' })
+    ? renderMailHtml(template, vars, { voorbeeldUrl: 'https://kerkjepersingen.nl/', templateId: template.id })
     : kerkjeMail({ titel: onderwerp, hoofdtekst: templateId }).html;
   const dedup = `job:aanvraag:${aanvraag.id}:${templateId}`;
   const mutatie: Mutatie = {

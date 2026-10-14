@@ -49,7 +49,8 @@ export function geplandeMailsVoorBoeking(
     if (id.startsWith('host_') || id === 'internal_host_required') {
       if (boeking.soort !== 'expositie') continue;
     }
-    const datum = berekenGeplandeDatum(boeking.start, template);
+    const anker = id === 'booking_review_request' ? boeking.eind || boeking.start : boeking.start;
+    const datum = berekenGeplandeDatum(anker, template);
     if (!datum) continue;
     if (datum < vandaag) continue;
     const alVerzonden = bestaand.some(

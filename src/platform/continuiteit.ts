@@ -54,6 +54,10 @@ export interface CommunicatieContext {
   gastheerAanwezig: boolean;
   verzonden: ReadonlySet<string>;
   vandaag: string;
+  /** Laatste dag van de boeking. Review telt vanaf deze dag, niet vanaf de start. */
+  eind?: string;
+  /** Boeking of gekoppelde activiteit is geannuleerd. */
+  geannuleerd?: boolean;
 }
 
 /** Publicatie volgt de bestaande trigger, niet het activiteitstype alleen. */
@@ -212,18 +216,22 @@ export function communicatieStappen(ctx: CommunicatieContext): CommunicatieStap[
       geplandOp: voegDagenToe(ctx.start, -2),
       conditie: 'definitief',
     }),
-    stap({
-      templateId: 'booking_review_request',
-      keten: 'nazorg',
-      volgorde: 1,
-      modus: 'automatisch',
-      ontvangerRol: 'huurder',
-      eigenaar: 'systeem',
-      taakType: 'review',
-      geplandOp: voegDagenToe(ctx.start, 1),
-      conditie: 'definitief',
-    }),
   );
+  if (!ctx.geannuleerd) {
+    stappen.push(
+      stap({
+        templateId: 'booking_review_request',
+        keten: 'nazorg',
+        volgorde: 1,
+        modus: 'automatisch',
+        ontvangerRol: 'huurder',
+        eigenaar: 'systeem',
+        taakType: 'review',
+        geplandOp: voegDagenToe(ctx.eind?.trim() || ctx.start, 1),
+        conditie: 'definitief',
+      }),
+    );
+  }
 
   if (gastheerVereist(ctx.verhuurtype, ctx.publicatieTrigger) && !ctx.gastheerAanwezig) {
     stappen.push(
