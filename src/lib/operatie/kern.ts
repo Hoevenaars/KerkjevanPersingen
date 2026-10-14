@@ -29,7 +29,8 @@ import { replyToVoor, richtingVoorMail } from '../mail-adressen.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { hashToegangstoken, nieuwToegangstoken, tokenIsVerlopen } from '../../platform/magictoken.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
-import { onderwerpUitTemplate, plainTekstUitTemplate } from '../../platform/mailtemplates/render.ts';
+import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailHtml } from '../../platform/mailtemplates/render.ts';
+import { kerkjeMail } from '../kerkje-mail.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
 import { beoordeelPublicatie } from '../../platform/publicatie.ts';
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
@@ -209,6 +210,7 @@ export interface VerzendOpdracht {
   naar: string;
   onderwerp: string;
   tekst: string;
+  html?: string;
   pogingen: number;
   jobRef: string;
   replyTo: string;
@@ -238,6 +240,7 @@ export interface MailTransport {
     naar: string;
     onderwerp: string;
     tekst: string;
+    html?: string;
     templateSleutel?: string;
     replyTo?: string;
     aanvragerEmail?: string;
@@ -584,7 +587,7 @@ function templateVoor(wereld: Wereld, id: string): import('../../platform/mailte
   return standaardTemplate(id);
 }
 
-function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingRij, link?: string): { onderwerp: string; tekst: string } {
+function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingRij, link?: string): { onderwerp: string; tekst: string; html: string } {
   const template = templateVoor(wereld, stapItem.templateId);
   const vars = {
     voornaam: boeking.naam.split(' ')[0] || boeking.naam,
@@ -596,7 +599,10 @@ function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingR
   };
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : stapItem.templateId;
   const tekst = `${template ? plainTekstUitTemplate(template, vars) : stapItem.conditie}${link ? `\n\n${link}` : ''}`;
-  return { onderwerp, tekst };
+  const html = template
+    ? renderMailHtml(template, vars, { voorbeeldUrl: link || 'https://kerkjepersingen.nl/' })
+    : kerkjeMail({ titel: onderwerp, hoofdtekst: stapItem.conditie }).html;
+  return { onderwerp, tekst, html };
 }
 
 function ontvangerVoor(stapItem: CommunicatieStap, wereld: Wereld, boeking: BoekingRij, internEmail: string): string {
@@ -694,6 +700,7 @@ function communicatieMutaties(
           naar,
           onderwerp: bericht.onderwerp,
           tekst: bericht.tekst,
+          html: bericht.html,
           pogingen: bestaand?.pogingen ?? 0,
           jobRef: `job:${dedup}`,
           ...verzendKop(stapItem.templateId, stapItem.ontvangerRol, aanvragerBijBoeking(wereld, boeking)),
@@ -1429,6 +1436,9 @@ function conceptJob(
   const vars = { voornaam: aanvraag.naam.split(' ')[0] || aanvraag.naam, naam: aanvraag.naam, datum: aanvraag.start, activiteitstype: aanvraag.verhuurtype };
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : templateId;
   const tekst = template ? plainTekstUitTemplate(template, vars) : templateId;
+  const html = template
+    ? renderMailHtml(template, vars, { voorbeeldUrl: 'https://kerkjepersingen.nl/' })
+    : kerkjeMail({ titel: onderwerp, hoofdtekst: templateId }).html;
   const dedup = `job:aanvraag:${aanvraag.id}:${templateId}`;
   const mutatie: Mutatie = {
     soort: 'upsert_job',
@@ -1452,6 +1462,7 @@ function conceptJob(
         naar,
         onderwerp,
         tekst,
+        html,
         pogingen: 0,
         jobRef: `job:${dedup}`,
         ...verzendKop(templateId, undefined, { email: aanvraag.email, naam: aanvraag.naam }),
@@ -1495,6 +1506,7 @@ export async function voerOpdrachtUit(
           naar: guard.naar,
           onderwerp: `${guard.onderwerpPrefix}${mail.onderwerp}`,
           tekst: mail.tekst,
+          html: mail.html,
           templateSleutel: mail.dedup.split(':').at(-1) ?? '',
           replyTo: mail.replyTo,
           aanvragerEmail: mail.aanvragerEmail,

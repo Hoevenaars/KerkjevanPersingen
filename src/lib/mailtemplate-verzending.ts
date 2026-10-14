@@ -6,6 +6,7 @@ export async function verstuurTestMail(input: {
   naar: string;
   onderwerp: string;
   html: string;
+  text: string;
   templateId?: string;
 }): Promise<{ verzonden: boolean; detail: string }> {
   const { besluitVoor } = await import('./automatisering-register.ts');
@@ -21,6 +22,7 @@ export async function verstuurTestMail(input: {
     naar: input.naar,
     onderwerp: input.onderwerp,
     html: input.html,
+    tekst: input.text,
     templateId: input.templateId,
     bcc,
     headers: { 'X-Mail-Template-Test': 'true' },

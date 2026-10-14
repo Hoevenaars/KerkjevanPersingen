@@ -241,6 +241,7 @@ function mailTransport(env: Record<string, unknown>) {
       naar: string;
       onderwerp: string;
       tekst: string;
+      html?: string;
       templateSleutel?: string;
       replyTo?: string;
       aanvragerEmail?: string;
@@ -255,6 +256,7 @@ function mailTransport(env: Record<string, unknown>) {
         naar: input.naar,
         onderwerp: input.onderwerp,
         tekst: input.tekst,
+        html: input.html,
         replyTo: input.replyTo,
         aanvragerEmail: input.aanvragerEmail,
         aanvragerNaam: input.aanvragerNaam,

@@ -1,27 +1,15 @@
-import { SOORTEN, type Aanvraag, type Fouten } from './validatie';
+import { SOORTEN, type Aanvraag, type Fouten } from './validatie.ts';
+import { kerkjeMail } from './kerkje-mail.ts';
 
 /**
  * Verzending van een verhuuraanvraag.
  *
- * Validatie staat in `validatie.ts` en is daar zonder afhankelijkheden te testen.
- * Deze module doet alleen het werk dat de buitenwereld raakt: ontvangstadres ophalen
- * en twee mails versturen.
+ * Validatie staat in `validatie.ts`. De visuele omlijsting staat in `kerkje-mail.ts`.
  */
 
-const TELEFOON = '06 52 66 84 49';
-
-// E-mail kan geen relatieve paden tonen — het logo moet een volledige,
-// publieke URL zijn. Zelfde bestand als het zegel op de site (Footer.astro).
-const LOGO_URL = 'https://kerkjepersingen.nl/logo-klein.png';
-
-const PINE = '#4A5235';
-const BRICK = '#9C4A2F';
-const CREAM = '#FAF8F3';
-const CREAM_DEEP = '#F1EBDD';
-const INK = '#1A1A1A';
 const INK_SOFT = '#4A4A44';
 
-export * from './validatie';
+export * from './validatie.ts';
 
 function escape(s: string): string {
   return s
@@ -46,41 +34,7 @@ function datumBereik(a: Aanvraag): string {
   return `${langeDatum(a.datum)} t/m ${langeDatum(a.datumTot)}`;
 }
 
-/** Gedeelde omlijsting. `metLogo` toont het zegel gecentreerd boven de inhoud —
- *  alleen voor de bevestigingsmail aan de aanvrager, niet voor de zakelijke
- *  bestuursmail. */
-function mailOmlijsting(titel: string, inhoud: string, metLogo = false): string {
-  return `
-    <div style="background:${CREAM};padding:32px 16px;font-family:Georgia,'Times New Roman',serif;">
-      <table role="presentation" width="100%" style="max-width:520px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr>
-          <td style="background:${PINE};padding:28px 32px;text-align:${metLogo ? 'center' : 'left'};">
-            ${metLogo ? `<img src="${LOGO_URL}" width="64" height="65" alt="" style="display:block;margin:0 auto 14px;border-radius:50%;" />` : ''}
-            <div style="color:${CREAM};font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-family:Arial,sans-serif;">
-              Kerkje van Persingen
-            </div>
-            <div style="color:#ffffff;font-size:22px;font-weight:normal;margin-top:6px;">
-              ${titel}
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px;font-family:Arial,sans-serif;color:${INK};font-size:15px;line-height:1.6;">
-            ${inhoud}
-          </td>
-        </tr>
-        <tr>
-          <td style="background:${CREAM_DEEP};padding:20px 32px;font-family:Arial,sans-serif;color:${INK_SOFT};font-size:13px;line-height:1.5;">
-            Stichting Het Kerkje van Persingen<br>
-            Persingensestraat 7, 6575 JA Persingen<br>
-            ${TELEFOON}
-          </td>
-        </tr>
-      </table>
-    </div>`;
-}
-
-export function bestuurMailTekst(a: Aanvraag): string {
+export function bestuurMail(a: Aanvraag): { html: string; text: string } {
   const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
   const isExpositie = a.soort === 'expositie';
 
@@ -96,7 +50,7 @@ export function bestuurMailTekst(a: Aanvraag): string {
       `
     : '';
 
- const inhoud = `
+  const tabel = `
     <table role="presentation" style="border-collapse:collapse;width:100%;">
       ${rij('Soort', escape(soort))}
       ${rij('Datum', escape(datumBereik(a)))}
@@ -110,25 +64,31 @@ export function bestuurMailTekst(a: Aanvraag): string {
     ${a.toelichting ? `<p style="margin-top:20px;"><strong>Opmerkingen</strong><br>${escape(a.toelichting).replace(/\n/g, '<br>')}</p>` : ''}
     <p style="margin-top:24px;color:${INK_SOFT};font-size:13px;">Beantwoorden gaat rechtstreeks naar de aanvrager.</p>
   `;
+  const tekst = [
+    `Soort: ${soort}`,
+    `Datum: ${datumBereik(a)}`,
+    a.personen ? `Personen: ${a.personen}` : '',
+    `Naam: ${a.naam}`,
+    `Adres: ${a.adres}`,
+    `Telefoon: ${a.telefoon || '—'}`,
+    `E-mail: ${a.email}`,
+    a.website ? `Website: ${a.website}` : '',
+    a.eerderGeexposeerd ? `Eerder geëxposeerd: ${a.eerderGeexposeerd === 'ja' ? 'Ja' : 'Nee'}` : '',
+    a.medeExposanten ? `Mede-exposanten: ${a.medeExposanten}` : '',
+    isExpositie ? `Akkoord voorwaarden: ${a.akkoordVoorwaarden === 'ja' ? 'Ja' : 'Nee'}` : '',
+    a.toelichting ? `Opmerkingen: ${a.toelichting}` : '',
+    'Beantwoorden gaat rechtstreeks naar de aanvrager.',
+  ].filter(Boolean).join('\n');
 
-  return mailOmlijsting('Huuraanvraag', inhoud);
+  return kerkjeMail({
+    titel: 'Huuraanvraag',
+    hoofdtekst: tekst,
+    extraBlok: tabel,
+  });
 }
 
-function bevestigingMail(a: Aanvraag): string {
-  const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
-
-  const inhoud = `
-    <p>Beste ${escape(a.naam)},</p>
-    <p>We hebben uw aanvraag ontvangen voor de ${escape(soort.toLowerCase())} op
-    <strong>${escape(datumBereik(a))}</strong>.</p>
-    <p>We nemen uw aanvraag in behandeling.</p>
-    <p style="margin-top:28px;">
-      Met vriendelijke groet,<br>
-      <span style="color:${BRICK};font-weight:bold;">Bestuur "Het Kerkje van Persingen"</span>
-    </p>
-  `;
-
-  return mailOmlijsting('Aanvraag ontvangen', inhoud, true);
+export function bestuurMailTekst(a: Aanvraag): string {
+  return bestuurMail(a).html;
 }
 
 export interface Uitkomst {

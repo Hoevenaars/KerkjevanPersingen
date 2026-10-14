@@ -11,6 +11,10 @@ export const FOOTER_LANDSCHAP_URL = `${SITE}/foto/footer-landschap.jpg`;
 
 export type { NieuwsbriefMailMeta } from './nieuwsbrief-frequentie.ts';
 import type { NieuwsbriefMailMeta } from './nieuwsbrief-frequentie.ts';
+import { CONTRACTBEHEER_EMAIL } from './mail-adressen.ts';
+
+/** Vast Reply-To voor de vriendenmail. Niet de transportfallback. */
+export const NIEUWSBRIEF_REPLY_TO = CONTRACTBEHEER_EMAIL;
 
 const PINE = '#4A5235';
 const BRICK = '#9C4A2F';
@@ -371,4 +375,62 @@ export function bouwNieuwsbriefHtml(
   </table>
 </body>
 </html>`;
+}
+
+export function bouwNieuwsbriefTekst(
+  content: NieuwsbriefInhoud | null,
+  activiteiten: NieuwsbriefActiviteitBlok[],
+  uitschrijfUrl: string,
+  meta: NieuwsbriefMailMeta,
+): string {
+  const regels = [
+    meta.kop,
+    '',
+    'Beste vriend van het kerkje,',
+    '',
+    meta.intro,
+    '',
+  ];
+  if (activiteiten.length === 0) {
+    regels.push(meta.legeAgendaTekst, '');
+  } else {
+    for (const blok of activiteiten) {
+      regels.push(blok.kop, blok.titel, blok.datumTekst);
+      if (blok.omschrijving?.trim()) regels.push(blok.omschrijving.trim());
+      regels.push(blok.agendaUrl, '');
+    }
+  }
+  if (content?.kortNieuws?.trim()) regels.push('Kort nieuws', content.kortNieuws.trim(), '');
+  if (content?.donatieUpdate?.trim()) regels.push(content.donatieUpdate.trim(), '');
+  for (const blok of content?.extraBlokken ?? []) {
+    regels.push(blok.titel, blok.tekst, '');
+  }
+  regels.push(
+    'Voorkeuren of afmelden:',
+    uitschrijfUrl,
+    '',
+    'Stichting Het Kerkje van Persingen',
+    'Persingensestraat 7, 6575 JA Persingen',
+    `${SITE}/`,
+  );
+  return regels.join('\n');
+}
+
+/** HTML, tekst en expliciet Reply-To. Verstuurt niets. */
+export function nieuwsbriefEnvelop(
+  content: NieuwsbriefInhoud | null,
+  activiteiten: NieuwsbriefActiviteitBlok[],
+  uitschrijfUrl: string,
+  meta: NieuwsbriefMailMeta,
+): { html: string; text: string; replyTo: string; subject: string } {
+  const link = uitschrijfUrl.trim();
+  if (!link.includes('token=')) {
+    throw new Error('Nieuwsbrief mist de afmeldlink.');
+  }
+  return {
+    html: bouwNieuwsbriefHtml(content, activiteiten, link, meta),
+    text: bouwNieuwsbriefTekst(content, activiteiten, link, meta),
+    replyTo: NIEUWSBRIEF_REPLY_TO,
+    subject: meta.onderwerp,
+  };
 }
