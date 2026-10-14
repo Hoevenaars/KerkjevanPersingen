@@ -548,11 +548,12 @@ export async function postAlsSupabase(input: {
   env: Record<string, unknown>;
   actor: Actor;
   sessie?: unknown;
+  formulier?: FormData;
 }): Promise<Response | null> {
   if (!operationeelSupabase(input.env)) return null;
   const doel = new URL(input.url.pathname, input.url.origin);
   try {
-    const data = await input.request.formData();
+    const data = input.formulier ?? await input.request.formData();
     const actie = String(data.get('actie') ?? '');
     if (NIET_BESCHIKBAAR.has(actie)) {
       doel.searchParams.set('fout', 'Nog niet beschikbaar. Er is niets opgeslagen en er is geen mail verstuurd.');

@@ -18,27 +18,71 @@ import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { statusActieToegestaan } from '../../../platform/status-overgang.ts';
 import { behoudTerug, terugLink } from '../../../platform/planning.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
-import type { MailCommunicatieRegel, MailCommunicatieStatus } from '../../../platform/mailtemplates/types.ts';
+import type { MailCommunicatieRegel, MailCommunicatieStatus, MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
+import Mailconcept from '../../../components/beheer/Mailconcept.astro';
+import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
+import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
+import { CONTRACTBEHEER_EMAIL } from '../../../lib/mail-adressen.ts';
+import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
+import { lijstIntake } from '../../../lib/intake-opslag.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
 const boeking = snapshot.boekingen.find((b) => b.id === id);
 
+const mailSessie = sessieSupabaseUitAstro(Astro);
+let mailPreview: { onderwerp: string; text: string } | null = null;
+let mailMelding = '';
+let vroegeTemplates: MailTemplateDef[] = [];
+if (mailSessie && boeking) vroegeTemplates = await laadMailtemplatesUitSupabase(mailSessie);
+
 if (Astro.request.method === 'POST') {
-  const operationeel = await postAlsSupabase({
-    request: Astro.request,
-    url: Astro.url,
-    env: omgevingsRecord(),
-    actor: actorVanSessie(Astro.locals.beheer),
-    sessie: sessieSupabaseUitAstro(Astro),
-  });
-  if (operationeel) return operationeel;
-  return Astro.redirect(demoNaActie(Astro.url));
+  const formulier = await Astro.request.formData();
+  const actie = String(formulier.get('actie') ?? '');
+  if (boeking && (actie === 'mailpreview' || actie === 'mailconcept' || actie === 'mailverstuur')) {
+    const template = vroegeTemplates.find((item) => item.id === String(formulier.get('templateId') ?? '')) ?? null;
+    const uit = await verwerkMailconcept({
+      actie,
+      dossier: { soort: 'boeking', id: boeking.id, ontvanger: boeking.email, naam: boeking.huurder || boeking.interneTitel },
+      template,
+      onderwerp: String(formulier.get('mailOnderwerp') ?? ''),
+      inhoud: String(formulier.get('mailInhoud') ?? ''),
+      actorNaam: Astro.locals.beheer?.gebruiker.naam ?? 'beheer',
+      bewaar: async (regel) => {
+        if (!mailSessie) return { error: 'geen sessie' };
+        const antwoord = await (mailSessie as unknown as { from: (tabel: string) => { insert: (rij: Record<string, unknown>) => Promise<{ error: { message: string } | null }> } }).from('communicatie_jobs').insert(regel);
+        return { error: antwoord.error?.message ?? null };
+      },
+    });
+    if (actie !== 'mailpreview') {
+      const doel = new URL(Astro.url.pathname, Astro.url.origin);
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+      return Astro.redirect(doel.toString());
+    }
+    mailPreview = uit.preview && !('fout' in uit.preview) ? { onderwerp: uit.preview.onderwerp, text: uit.preview.text } : null;
+    mailMelding = uit.melding;
+  } else {
+    const operationeel = await postAlsSupabase({
+      request: Astro.request,
+      url: Astro.url,
+      env: omgevingsRecord(),
+      actor: actorVanSessie(Astro.locals.beheer),
+      sessie: mailSessie,
+      formulier,
+    });
+    if (operationeel) return operationeel;
+    return Astro.redirect(demoNaActie(Astro.url));
+  }
 }
 
 if (!boeking) {
   return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
 }
+
+const mailBesluit = magAutomatiseringUitvoeren('handmatige_template');
+const mailmodusLabel = mailBesluit.modus === 'test' ? 'Test' : mailBesluit.modus === 'aan' ? 'Aan' : 'Uit';
+const testadres = mailBesluit.modus === 'test' ? await getTestMailRecipient().catch(() => null) : null;
+const intake = snapshot.bron === 'supabase' ? await lijstIntake(boeking.id).catch(() => []) : [];
 
 const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
 const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
@@ -153,6 +197,7 @@ function tabHref(tabNaam: string): string {
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
   {melding && <p class="bh-flash">{melding}</p>}
+  {mailMelding && <p class="bh-flash">{mailMelding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <nav class="bh-tabs" aria-label="Boekingonderdelen">
@@ -408,6 +453,31 @@ function tabHref(tabNaam: string): string {
           </table>
         )}
 
+        <h3>Aangeleverde foto's</h3>
+        {
+          intake.length === 0 ? (
+            <p class="bh-leeg">Nog geen privé-aanlevering. Publicatie gebeurt niet vanuit het exposantenportaal.</p>
+          ) : (
+            <ul>
+              {intake.map((foto) => (
+                <li>
+                  {foto.rol === 'hoofd' ? 'Hoofd' : 'Extra'}:{' '}
+                  {foto.url ? <a href={foto.url}>{foto.pad}</a> : foto.pad}
+                </li>
+              ))}
+            </ul>
+          )
+        }
+
+        <Mailconcept
+          templates={(snapshot.bron === 'supabase' ? vroegeTemplates : templates).map((item) => ({ id: item.id, naam: item.naam }))}
+          ontvanger={boeking.email}
+          modus={mailmodusLabel}
+          testadres={testadres}
+          replyTo={CONTRACTBEHEER_EMAIL}
+          preview={mailPreview}
+        />
+
         <h3>Communicatiejobs</h3>
         <p class="bh-muted">
           Alleen echte rijen uit communicatie_jobs. Zonder job is er niets ingepland, verzonden, fout gegaan of geannuleerd.
@@ -443,10 +513,7 @@ function tabHref(tabNaam: string): string {
           </table>
         )}
         <p class="bh-muted">
-          De directe mail naar het bestuur bij een verhuuraanvraag staat hier niet bij. Die schrijft geen communicatiejob en geen verzendregel.
-        </p>
-        <p class="bh-acties">
-          <button class="bh-btn" type="button" disabled>Maak mailconcept — nog niet beschikbaar</button>
+          De bestuursmail van een verhuuraanvraag staat in de communicatietijdlijn van de aanvraag.
         </p>
       </section>
     )

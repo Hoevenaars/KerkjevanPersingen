@@ -33,6 +33,7 @@ import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailHtml } from '../
 import { kerkjeMail } from '../kerkje-mail.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
 import { beoordeelPublicatie } from '../../platform/publicatie.ts';
+import { fotoPadNaAanlevering } from '../../platform/intake-foto.ts';
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
 
 export interface Actor {
@@ -777,7 +778,7 @@ export type Opdracht =
   | { soort: 'verstuur_informatie'; aanvraagId: string }
   | { soort: 'aanvulling'; token: string; toelichting: string }
   | { soort: 'betaling'; boekingId: string }
-  | { soort: 'content_indienen'; token: string; titel: string; omschrijving: string; praktisch?: string; foto?: boolean }
+  | { soort: 'content_indienen'; token: string; titel: string; omschrijving: string; praktisch?: string; foto?: boolean; hoofdfoto?: string }
   | { soort: 'content_beoordelen'; boekingId: string; besluit: 'goedkeuren' | 'wijziging'; toelichting?: string }
   | { soort: 'gastheer'; boekingId: string; gastheerId: string }
   | { soort: 'incident'; boekingId: string; omschrijving: string }
@@ -1123,7 +1124,7 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
           slug: publiek.slug || slugVan(opdracht.titel, boeking.id),
           omschrijving: opdracht.omschrijving,
           praktische_informatie: opdracht.praktisch ?? '',
-          foto_pad: opdracht.foto ? 'aangeleverd' : '',
+          foto_pad: fotoPadNaAanlevering(publiek.fotoPad, opdracht.hoofdfoto, Boolean(opdracht.foto)),
           start_datum: boeking.start,
           eind_datum: boeking.eind,
           publicatie_trigger: publiek.trigger,

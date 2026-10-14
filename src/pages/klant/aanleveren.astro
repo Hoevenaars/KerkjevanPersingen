@@ -3,7 +3,9 @@ export const prerender = false;
 
 import Base from '../../layouts/Base.astro';
 import { operationeelSupabase, voerOperationeel } from '../../lib/operatie/runtime';
-import { portaalMagPubliceren, portaalTeVaak, uploadToegestaan, valideerAanlevering } from '../../platform/exposant-portaal';
+import { portaalMagPubliceren, portaalTeVaak, valideerAanlevering } from '../../platform/exposant-portaal';
+import { valideerIntakeBestand } from '../../platform/intake-foto';
+import { bewaarIntakeFoto, dossierVanIntakeToken } from '../../lib/intake-opslag';
 
 const token = Astro.url.searchParams.get('token') ?? '';
 const actief = operationeelSupabase();
@@ -20,20 +22,44 @@ if (Astro.request.method === 'POST' && actief) {
   } else {
   const korte = String(data.get('korte') ?? '').trim();
   const lange = String(data.get('lange') ?? data.get('omschrijving') ?? '').trim();
-  const extra = Number(data.get('extra') ?? 0);
-  const bestand = data.get('hoofdafbeelding');
+  const hoofd = data.get('hoofdafbeelding');
+  const extras = data.getAll('extra').filter((item): item is File => item instanceof File && item.size > 0);
+  const bestanden = [
+    ...(hoofd instanceof File && hoofd.size > 0 ? [{ file: hoofd, alsHoofd: true }] : []),
+    ...extras.map((file) => ({ file, alsHoofd: false })),
+  ];
   const controle = valideerAanlevering({
     titel: String(data.get('titel') ?? '').trim(),
     korteTekst: korte,
     langeTekst: lange,
     praktisch: String(data.get('praktisch') ?? '').trim(),
-    hoofdafbeelding: bestand instanceof File && bestand.size > 0,
-    extraFotos: Number.isFinite(extra) ? extra : 99,
+    hoofdafbeelding: bestanden.some((item) => item.alsHoofd),
+    extraFotos: extras.length,
   });
-  if (bestand instanceof File && bestand.size > 0 && !uploadToegestaan(bestand.type, bestand.size)) {
-    fout = 'De hoofdafbeelding moet een jpeg, png of webp zijn van maximaal 8 MB.';
+  const bestandFout = bestanden.map((item) => valideerIntakeBestand(item.file)).find((item) => !item.ok);
+  if (bestandFout && !bestandFout.ok) {
+    fout = bestandFout.reden;
   } else if (!controle.ok) {
     fout = controle.reden;
+  } else {
+  let hoofdfoto = '';
+  if (bestanden.length > 0) {
+    const dossier = await dossierVanIntakeToken(tokenWaarde);
+    if (!dossier.ok) {
+      fout = 'Deze link is ongeldig, verlopen of ingetrokken. Er is niets opgeslagen.';
+    } else {
+      const opgeslagen = await bewaarIntakeFoto(dossier.boekingId, await Promise.all(bestanden.map(async (item) => ({
+        bytes: new Uint8Array(await item.file.arrayBuffer()),
+        type: item.file.type,
+        size: item.file.size,
+        alsHoofd: item.alsHoofd,
+      }))));
+      if (!opgeslagen.ok) fout = opgeslagen.reden;
+      else hoofdfoto = opgeslagen.hoofd;
+    }
+  }
+  if (fout) {
+    /* upload of token blokkeert de aanlevering */
   } else {
   const uit = await voerOperationeel(
     {
@@ -42,7 +68,8 @@ if (Astro.request.method === 'POST' && actief) {
       titel: String(data.get('titel') ?? '').trim(),
       omschrijving: [korte, lange].filter(Boolean).join('\n\n'),
       praktisch: String(data.get('praktisch') ?? '').trim(),
-      foto: data.get('foto') === 'ja' || (bestand instanceof File && bestand.size > 0),
+      foto: bestanden.length > 0,
+      hoofdfoto,
     },
     {
       actor: { type: 'klant', naam: 'Aanvrager' },
@@ -51,6 +78,7 @@ if (Astro.request.method === 'POST' && actief) {
   );
   if (uit.ok) melding = `${uit.melding} De activiteit is niet gepubliceerd.`;
   else fout = uit.melding;
+  }
   }
   }
 }
@@ -84,6 +112,8 @@ if (Astro.request.method === 'POST' && actief) {
           <textarea id="praktisch" name="praktisch" rows="4"></textarea>
           <label for="hoofdafbeelding">Hoofdafbeelding of flyer</label>
           <input id="hoofdafbeelding" name="hoofdafbeelding" type="file" accept="image/jpeg,image/png,image/webp" />
+          <label for="extra">Extra foto's</label>
+          <input id="extra" name="extra" type="file" accept="image/jpeg,image/png,image/webp" multiple />
           <p>Je kunt deze activiteit niet zelf publiceren en je ziet geen andere dossiers.</p>
           <label class="klant-check">
             <input type="checkbox" name="foto" value="ja" />

@@ -82,10 +82,11 @@ insert into public.modules (sleutel, naam, volgorde) values
   ('migratie', 'Migratie', 26)
 on conflict (sleutel) do nothing;
 
--- Caller bestaat nu. De schakelaar (status) blijft onaangeroerd.
+-- Caller bestaat nu. Alleen de triggervlag, nooit de schakelaar (status).
 update public.automatiseringen
 set actieve_trigger = true
-where sleutel in ('aanvraag_bevestiging', 'reservelijst_mail', 'handmatige_template');
+where sleutel in ('aanvraag_bevestiging', 'reservelijst_mail', 'handmatige_template')
+  and actieve_trigger is distinct from true;
 
 create or replace function public.zet_automatisering_status(
   p_sleutel text,
@@ -188,3 +189,52 @@ create policy verzendingen_select_dossier on public.communicatie_verzendingen
     or (select app.heeft_recht('relaties', 'lezen'))
     or (select app.heeft_recht('boekingen', 'lezen'))
   );
+
+-- Privé-intake. public-media blijft de openbare publicatiebucket en wordt hier niet gewijzigd.
+create table if not exists public.content_intake_bestanden (
+  id bigint generated always as identity primary key,
+  boeking_id bigint not null references public.boekingen (id) on delete cascade,
+  rol text not null check (rol in ('hoofd', 'extra')),
+  storage_pad text not null unique,
+  mime_type text not null,
+  bytes integer not null,
+  aangemaakt_op timestamptz not null default now()
+);
+
+alter table public.content_intake_bestanden enable row level security;
+revoke all on table public.content_intake_bestanden from anon;
+grant select on table public.content_intake_bestanden to authenticated;
+
+drop policy if exists content_intake_lezen on public.content_intake_bestanden;
+create policy content_intake_lezen on public.content_intake_bestanden
+  for select to authenticated
+  using (
+    (select app.heeft_recht('boekingen', 'lezen'))
+    or (select app.heeft_recht('agenda', 'lezen'))
+  );
+
+do $$
+begin
+  if exists (select 1 from information_schema.schemata where schema_name = 'storage') then
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values (
+      'content-intake',
+      'content-intake',
+      false,
+      8000000,
+      array['image/jpeg', 'image/png', 'image/webp']::text[]
+    )
+    on conflict (id) do nothing;
+
+    drop policy if exists content_intake_storage_lezen on storage.objects;
+    create policy content_intake_storage_lezen on storage.objects
+      for select to authenticated
+      using (
+        bucket_id = 'content-intake'
+        and (
+          (select app.heeft_recht('boekingen', 'lezen'))
+          or (select app.heeft_recht('agenda', 'lezen'))
+        )
+      );
+  end if;
+end $$;

@@ -1,0 +1,46 @@
+---
+interface Props {
+  templates: { id: string; naam: string }[];
+  ontvanger: string;
+  modus: string;
+  testadres: string | null;
+  replyTo: string;
+  preview?: { onderwerp: string; text: string } | null;
+}
+
+const { templates, ontvanger, modus, testadres, replyTo, preview = null } = Astro.props;
+---
+
+<section class="bh-kaart">
+  <h2>Nieuw mailconcept</h2>
+  <p class="bh-muted">
+    Huidige modus: {modus}. Reply-To: {replyTo}. Ontvanger in het dossier: {ontvanger || '—'}.
+    {modus === 'Test' && testadres ? ` Testmail wordt verstuurd naar: ${testadres}.` : ''}
+    {modus === 'Uit' ? ' Uit doet geen provider-call.' : ''}
+  </p>
+  <form method="post" class="bh-form">
+    <label for="templateId">Template</label>
+    <select id="templateId" name="templateId">
+      <option value="">Vrije tekst</option>
+      {templates.map((item) => <option value={item.id}>{item.naam}</option>)}
+    </select>
+    <label for="mailOnderwerp">Onderwerp</label>
+    <input id="mailOnderwerp" name="mailOnderwerp" value={preview?.onderwerp ?? ''} />
+    <label for="mailInhoud">Inhoud</label>
+    <textarea id="mailInhoud" name="mailInhoud" rows="8"></textarea>
+    <div class="bh-acties">
+      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailconcept">Concept bewaren</button>
+      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailpreview">Preview</button>
+      <button class="bh-btn" type="submit" name="actie" value="mailverstuur">Versturen</button>
+    </div>
+  </form>
+  {
+    preview && (
+      <div>
+        <h3>Preview</h3>
+        <p><strong>{preview.onderwerp}</strong></p>
+        <pre class="bh-muted">{preview.text}</pre>
+      </div>
+    )
+  }
+</section>

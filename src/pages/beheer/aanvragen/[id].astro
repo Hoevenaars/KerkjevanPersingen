@@ -10,21 +10,58 @@ import { laadTijdlijn } from '../../../lib/communicatie-log.ts';
 import { briefMeerInformatie } from '../../../lib/operatie/informatievraag.ts';
 import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
 import { CONTRACTBEHEER_EMAIL } from '../../../lib/mail-adressen.ts';
+import Mailconcept from '../../../components/beheer/Mailconcept.astro';
+import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
+import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
+import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
+import type { MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
 const aanvraag = snapshot.aanvragen.find((a) => a.id === id);
 
+const mailSessie = sessieSupabaseUitAstro(Astro);
+const mailtemplates: MailTemplateDef[] = mailSessie ? await laadMailtemplatesUitSupabase(mailSessie) : [];
+let mailPreview: { onderwerp: string; text: string } | null = null;
+let mailMelding = '';
+
 if (Astro.request.method === 'POST') {
-  const operationeel = await postAlsSupabase({
-    request: Astro.request,
-    url: Astro.url,
-    env: omgevingsRecord(),
-    actor: actorVanSessie(Astro.locals.beheer),
-    sessie: sessieSupabaseUitAstro(Astro),
-  });
-  if (operationeel) return operationeel;
-  return Astro.redirect(demoNaActie(Astro.url));
+  const formulier = await Astro.request.formData();
+  const actie = String(formulier.get('actie') ?? '');
+  if (aanvraag && (actie === 'mailpreview' || actie === 'mailconcept' || actie === 'mailverstuur')) {
+    const template = mailtemplates.find((item) => item.id === String(formulier.get('templateId') ?? '')) ?? null;
+    const uit = await verwerkMailconcept({
+      actie,
+      dossier: { soort: 'aanvraag', id: aanvraag.id, ontvanger: aanvraag.email, naam: aanvraag.naam },
+      template,
+      onderwerp: String(formulier.get('mailOnderwerp') ?? ''),
+      inhoud: String(formulier.get('mailInhoud') ?? ''),
+      actorNaam: Astro.locals.beheer?.gebruiker.naam ?? 'beheer',
+      bewaar: async (regel) => {
+        if (!mailSessie) return { error: 'geen sessie' };
+        const antwoord = await (mailSessie as unknown as { from: (tabel: string) => { insert: (rij: Record<string, unknown>) => Promise<{ error: { message: string } | null }> } }).from('communicatie_jobs').insert(regel);
+        return { error: antwoord.error?.message ?? null };
+      },
+    });
+    if (actie !== 'mailpreview') {
+      const doel = new URL(Astro.url.pathname, Astro.url.origin);
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+      return Astro.redirect(doel.toString());
+    }
+    mailPreview = uit.preview && !('fout' in uit.preview) ? { onderwerp: uit.preview.onderwerp, text: uit.preview.text } : null;
+    mailMelding = uit.melding;
+  } else {
+    const operationeel = await postAlsSupabase({
+      request: Astro.request,
+      url: Astro.url,
+      env: omgevingsRecord(),
+      actor: actorVanSessie(Astro.locals.beheer),
+      sessie: mailSessie,
+      formulier,
+    });
+    if (operationeel) return operationeel;
+    return Astro.redirect(demoNaActie(Astro.url));
+  }
 }
 
 if (!aanvraag) {
@@ -40,6 +77,8 @@ const tijdlijn = aanvraag && sessieClient
   ? await laadTijdlijn(sessieClient as never, { aanvraagId: aanvraag.id })
   : [];
 const testadres = await getTestMailRecipient().catch(() => null);
+const mailmodus = magAutomatiseringUitvoeren('handmatige_template').modus;
+const mailmodusLabel = mailmodus === 'test' ? 'Test' : mailmodus === 'aan' ? 'Aan' : 'Uit';
 const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam, aanvraag.informatievraag) : null;
 ---
 
@@ -58,6 +97,7 @@ const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam,
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
   {Astro.url.searchParams.get('melding') && <p class="bh-flash">{Astro.url.searchParams.get('melding')}</p>}
+  {mailMelding && <p class="bh-flash">{mailMelding}</p>}
   {Astro.url.searchParams.get('fout') && <p class="bh-flash">{Astro.url.searchParams.get('fout')}</p>}
 
   <div class="bh-split">
@@ -148,6 +188,15 @@ const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam,
       }
     </section>
   </div>
+
+  <Mailconcept
+    templates={mailtemplates.map((item) => ({ id: item.id, naam: item.naam }))}
+    ontvanger={aanvraag.email}
+    modus={mailmodusLabel}
+    testadres={testadres}
+    replyTo={CONTRACTBEHEER_EMAIL}
+    preview={mailPreview}
+  />
 
   <section class="bh-kaart">
     <h2>Communicatie</h2>
