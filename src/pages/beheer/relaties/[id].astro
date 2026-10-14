@@ -4,6 +4,10 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import { BOEKING_LABEL, formatNl } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { actorVanSessie } from '../../../lib/operatie/runtime.ts';
+import { bewaarRelatieViaSessie, invoerUitFormulier } from '../../../lib/operatie/relatie-bewerken.ts';
+import { laadTijdlijn } from '../../../lib/communicatie-log.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -11,7 +15,17 @@ const relatie = snapshot.relaties.find((r) => r.id === id);
 
 if (Astro.request.method === 'POST') {
   const doel = new URL(Astro.url.pathname, Astro.url.origin);
-  doel.searchParams.set('fout', 'Relatie bewaren is nog niet beschikbaar. Er is niets opgeslagen.');
+  const sessie = sessieSupabaseUitAstro(Astro);
+  const data = await Astro.request.formData();
+  const invoer = invoerUitFormulier(data);
+  if (!sessie) {
+    doel.searchParams.set('fout', 'Geen ingelogde sessie. Er is niets opgeslagen.');
+  } else if ('fout' in invoer) {
+    doel.searchParams.set('fout', invoer.fout);
+  } else {
+    const uit = await bewaarRelatieViaSessie(sessie as never, Number(id), invoer, actorVanSessie(Astro.locals.beheer));
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+  }
   return Astro.redirect(doel.toString());
 }
 
@@ -23,6 +37,9 @@ const boekingen = snapshot.boekingen.filter((b) => b.relatieId === relatie.id);
 const aanvragen = snapshot.aanvragen.filter((a) => a.email === relatie.email);
 const flash = Astro.url.searchParams.get('demo') === '1';
 const fout = Astro.url.searchParams.get('fout');
+const melding = Astro.url.searchParams.get('melding');
+const sessieClient = sessieSupabaseUitAstro(Astro);
+const tijdlijn = sessieClient ? await laadTijdlijn(sessieClient as never, { relatieId: relatie.id }) : [];
 ---
 
 <Beheer titel={relatie.naam}>
@@ -35,21 +52,35 @@ const fout = Astro.url.searchParams.get('fout');
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <section class="bh-kaart">
     <h2>Contact</h2>
-    <dl class="bh-dl">
-      <dt>E-mail</dt>
-      <dd>{relatie.email}</dd>
-      <dt>Telefoon</dt>
-      <dd>{relatie.telefoon}</dd>
-      <dt>Reservelijst exposities</dt>
-      <dd>{relatie.reservelijst ? 'Ja — mail bij vrijkomend weekend blijft handmatig' : 'Nee'}</dd>
-    </dl>
-    <p class="bh-acties">
-      <button class="bh-btn bh-btn--sec" type="button" disabled>Relatie bewaren — nog niet beschikbaar</button>
-    </p>
+    <form method="post" class="bh-form">
+      <label for="naam">Naam</label>
+      <input id="naam" name="naam" required value={relatie.naam} />
+      <label for="organisatie">Organisatie</label>
+      <input id="organisatie" name="organisatie" value={relatie.organisatie ?? ''} />
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" value={relatie.email} />
+      <label for="telefoon">Telefoon</label>
+      <input id="telefoon" name="telefoon" value={relatie.telefoon} />
+      <label for="adres">Adres</label>
+      <input id="adres" name="adres" value={relatie.adres ?? ''} />
+      <label for="rollen">Rollen, komma-gescheiden</label>
+      <input id="rollen" name="rollen" value={relatie.rollen.join(', ')} />
+      <label for="notities">Opmerkingen</label>
+      <textarea id="notities" name="notities" rows="4">{relatie.notities ?? ''}</textarea>
+      <label class="bh-check"><input type="checkbox" name="reservelijst" value="ja" checked={relatie.reservelijst} /> Op de reservelijst</label>
+      <p class="bh-muted">Opslaan stuurt geen mail en start geen workflow. Migratievelden worden niet overschreven.</p>
+      <button class="bh-btn" type="submit">Relatie bewaren</button>
+    </form>
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Communicatie</h2>
+    {tijdlijn.length === 0 ? <p class="bh-leeg">Geen communicatie bij deze relatie.</p> : <p>{tijdlijn.length} regel(s) in de tijdlijn.</p>}
   </section>
 
   <section class="bh-kaart">

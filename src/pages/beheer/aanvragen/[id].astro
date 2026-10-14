@@ -6,6 +6,10 @@ import { AANVRAAG_LABEL, SOORT_LABEL, demoNaActie, formatNl } from '../../../pla
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+import { laadTijdlijn } from '../../../lib/communicatie-log.ts';
+import { briefMeerInformatie } from '../../../lib/operatie/informatievraag.ts';
+import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
+import { CONTRACTBEHEER_EMAIL } from '../../../lib/mail-adressen.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -31,6 +35,12 @@ const relatie =
   snapshot.relaties.find((r) => aanvraag.relatieId && r.id === aanvraag.relatieId) ??
   snapshot.relaties.find((r) => r.email && r.email === aanvraag.email);
 const flash = Astro.url.searchParams.get('demo') === '1';
+const sessieClient = sessieSupabaseUitAstro(Astro);
+const tijdlijn = aanvraag && sessieClient
+  ? await laadTijdlijn(sessieClient as never, { aanvraagId: aanvraag.id })
+  : [];
+const testadres = await getTestMailRecipient().catch(() => null);
+const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam, aanvraag.informatievraag) : null;
 ---
 
 <Beheer titel={aanvraag.naam}>
@@ -102,7 +112,7 @@ const flash = Astro.url.searchParams.get('demo') === '1';
       <p class="bh-muted">
         {
           snapshot.bron === 'supabase'
-            ? 'Goedkeuren en afwijzen gebruiken je sessie en sturen geen mail. Meer informatie is nog niet beschikbaar.'
+            ? 'Goedkeuren en afwijzen gebruiken je sessie. Een informatievraag wordt eerst als concept opgeslagen.'
             : 'Deze knoppen slaan niets op en sturen geen mail.'
         }
       </p>
@@ -110,16 +120,70 @@ const flash = Astro.url.searchParams.get('demo') === '1';
         <button class="bh-btn" type="submit" name="actie" value="optie">Zet in optie</button>
         <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="akkoord">Goedkeuren</button>
         <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="weiger">Afwijzen</button>
-        {
-          snapshot.bron === 'supabase' && (
-            <>
-              <label for="vraag">Vraag aan de aanvrager</label>
-              <input id="vraag" name="vraag" type="text" />
-              <button class="bh-btn bh-btn--sec" type="button" disabled>Meer informatie — nog niet beschikbaar</button>
-            </>
-          )
-        }
       </form>
+      {
+        snapshot.bron === 'supabase' && (
+          <form method="post" class="bh-form">
+            <label for="vraag">Vraag aan de aanvrager</label>
+            <textarea id="vraag" name="vraag" rows="5" required>{aanvraag.informatievraag ?? ''}</textarea>
+            <p class="bh-muted">Reply-To blijft {CONTRACTBEHEER_EMAIL}. Concept, opslaan en preview doen geen provider-call.</p>
+            <div class="bh-acties">
+              <button class="bh-btn" type="submit" name="actie" value="meer">Concept opslaan</button>
+            </div>
+          </form>
+        )
+      }
+      {
+        voorbeeld && (
+          <div class="bh-kaart">
+            <h3>Preview</h3>
+            <p><strong>{voorbeeld.onderwerp}</strong></p>
+            <pre class="bh-muted">{voorbeeld.text}</pre>
+            <form method="post">
+              <p>Testmail wordt verstuurd naar: {testadres || 'geen geldig testmailadres ingesteld'} zolang de schakelaar op Test staat. Uit verstuurt niets.</p>
+              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="meer_verstuur">Verstuur vraag</button>
+            </form>
+          </div>
+        )
+      }
     </section>
   </div>
+
+  <section class="bh-kaart">
+    <h2>Communicatie</h2>
+    {
+      tijdlijn.length === 0 ? (
+        <p class="bh-leeg">Nog geen verzendregel of communicatiejob bij deze aanvraag.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Wanneer</th>
+              <th>Richting</th>
+              <th>Template</th>
+              <th>Onderwerp</th>
+              <th>Bedoeld</th>
+              <th>Werkelijk</th>
+              <th>Status</th>
+              <th>Provider</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tijdlijn.map((regel) => (
+              <tr>
+                <td>{regel.op ? formatNl(regel.op.slice(0, 10)) : '—'}</td>
+                <td>{regel.richting}</td>
+                <td>{regel.template || '—'}</td>
+                <td>{regel.onderwerp || '—'}</td>
+                <td>{regel.bedoeldeOntvanger || '—'}</td>
+                <td>{regel.werkelijkeOntvanger || '—'}</td>
+                <td>{regel.status}{regel.foutmelding ? ` — ${regel.foutmelding}` : ''}</td>
+                <td>{regel.providerBerichtId || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </section>
 </Beheer>

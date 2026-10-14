@@ -76,6 +76,41 @@ export const BEHEER_MODULES = {
     href: '/beheer/instellingen/',
     groep: 'instellingen',
   },
+  algemene_instellingen: {
+    label: 'Algemene instellingen',
+    href: '/beheer/instellingen/',
+    groep: 'instellingen',
+  },
+  gastheerbeheer: {
+    label: 'Gastheerbeheer',
+    href: '/beheer/instellingen/gastheren/',
+    groep: 'instellingen',
+  },
+  finance_instellingen: {
+    label: 'Finance-instellingen',
+    href: '/beheer/instellingen/finance/',
+    groep: 'instellingen',
+  },
+  automatiseringen: {
+    label: 'Automatiseringen',
+    href: '/beheer/instellingen/automatiseringen/',
+    groep: 'instellingen',
+  },
+  systeembeheer: {
+    label: 'Systeembeheer',
+    href: '/beheer/instellingen/systeem/',
+    groep: 'instellingen',
+  },
+  bridge: {
+    label: 'Sanity bridge',
+    href: '/beheer/instellingen/sanity-bridge/',
+    groep: 'instellingen',
+  },
+  migratie: {
+    label: 'Migratie',
+    href: '/beheer/migratie/',
+    groep: 'instellingen',
+  },
 } as const;
 
 export type ModuleSleutel = keyof typeof BEHEER_MODULES;
@@ -95,10 +130,11 @@ export const INSTELLINGEN_PAGINAS = [
   { module: 'instellingen', href: '/beheer/instellingen/', label: 'Algemeen' },
   { module: 'instellingen', href: '/beheer/instellingen/meldingen/', label: 'Meldingen' },
   { module: 'instellingen', href: '/beheer/instellingen/verhuur/', label: 'Verhuur' },
-  { module: 'instellingen', href: '/beheer/instellingen/finance/', label: 'Finance' },
-  { module: 'instellingen', href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },
-  { module: 'instellingen', href: '/beheer/instellingen/automatiseringen/', label: 'Automatiseringen' },
-  { module: 'instellingen', href: '/beheer/instellingen/sanity-bridge/', label: 'Sanity bridge' },
+  { module: 'finance_instellingen', href: '/beheer/instellingen/finance/', label: 'Finance' },
+  { module: 'gastheerbeheer', href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },
+  { module: 'automatiseringen', href: '/beheer/instellingen/automatiseringen/', label: 'Automatiseringen' },
+  { module: 'bridge', href: '/beheer/instellingen/sanity-bridge/', label: 'Sanity bridge' },
+  { module: 'systeembeheer', href: '/beheer/instellingen/systeem/', label: 'Systeem' },
   { module: 'templates', href: '/beheer/instellingen/mailtemplates/', label: 'Mailtemplates' },
   { module: 'gebruikers', href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
 ] as const;

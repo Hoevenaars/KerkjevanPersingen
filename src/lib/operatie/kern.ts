@@ -255,6 +255,8 @@ export interface DienstContext {
   actor: Actor;
   basisUrl: string;
   internEmail: string;
+  /** Triggers vóór deze dag starten niet. Leeg: geen extra grens. */
+  actiefVanaf?: string | null;
 }
 
 export function legeWereld(): Wereld {
@@ -564,7 +566,7 @@ export function jobDedupSleutel(boekingId: string, templateId: string): string {
   return `job:${boekingId}:${templateId}`;
 }
 
-function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string): CommunicatieContext {
+function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string, actiefVanaf?: string | null): CommunicatieContext {
   const publiek = wereld.publiek.find((item) => item.boekingId === boeking.id);
   const trigger = publiek?.trigger ?? publicatieTriggerVoor(boeking.verhuurtype);
   return {
@@ -586,6 +588,7 @@ function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string): Commu
     vandaag,
     eind: boeking.eind || boeking.start,
     geannuleerd: boeking.status === 'geannuleerd' || Boolean(publiek?.geannuleerd),
+    actiefVanaf: actiefVanaf ?? null,
   };
 }
 
@@ -632,7 +635,7 @@ function communicatieMutaties(
   const boekingen = wereld.boekingen.filter((boeking) => !alleenBoekingId || boeking.id === alleenBoekingId);
 
   for (const boeking of boekingen) {
-    const comm = contextVan(wereld, boeking, vandaag);
+    const comm = contextVan(wereld, boeking, vandaag, ctx.actiefVanaf);
     const openTemplates = wereld.jobs
       .filter(
         (job) =>
@@ -771,6 +774,7 @@ export type Opdracht =
       personen?: string;
     }
   | { soort: 'beoordeel'; aanvraagId: string; besluit: 'in_behandeling' | 'goedkeuren' | 'afwijzen' | 'meer_informatie'; reden?: string; vraag?: string }
+  | { soort: 'verstuur_informatie'; aanvraagId: string }
   | { soort: 'aanvulling'; token: string; toelichting: string }
   | { soort: 'betaling'; boekingId: string }
   | { soort: 'content_indienen'; token: string; titel: string; omschrijving: string; praktisch?: string; foto?: boolean }

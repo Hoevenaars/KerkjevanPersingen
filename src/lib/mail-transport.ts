@@ -5,6 +5,13 @@
 
 import { besluitVoor } from './automatisering-register.ts';
 import { MailGeblokkeerd, type Automatisering, type Verzendbesluit } from '../platform/automatisering.ts';
+import {
+  GEEN_TESTMAILADRES,
+  pasTestmodusToe,
+  providerPayloadIsTestveilig,
+  type Mailmodus,
+} from '../platform/testmail.ts';
+import { getTestMailRecipient } from './testmail-adres.ts';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES, isNoreplyAdres, replyToHeader, replyToVoor, richtingVoorMail } from './mail-adressen.ts';
 import { isInterneKerkjeSleutel, toezichtBcc } from './toezicht-bcc.ts';
 
@@ -21,6 +28,8 @@ export interface MailBericht {
   templateId?: string;
   /** intern = notificatie over een aanvraag. aanvrager = mail naar de aanvrager of huurder. */
   richting?: 'intern' | 'aanvrager';
+  modus?: Mailmodus;
+  bedoeldeOntvanger?: string;
 }
 
 export interface ResendInhoud {
@@ -32,17 +41,24 @@ export interface ResendInhoud {
   replyTo: string;
   replyToNaam?: string;
   bcc?: string[];
+  cc?: string[];
   headers?: Record<string, string>;
+  testmodus?: boolean;
 }
 
 export interface MailTransport {
-  verstuur(bericht: MailBericht): Promise<void>;
+  verstuur(bericht: MailBericht): Promise<string | null | void>;
 }
 
 export interface TransportUitkomst {
   verzonden: boolean;
   providerAangeroepen: boolean;
   besluit: Verzendbesluit;
+  providerBerichtId?: string | null;
+  bedoeldeOntvanger?: string;
+  werkelijkeOntvanger?: string;
+  geblokkeerd?: boolean;
+  melding?: string;
 }
 
 export async function verstuurGecontroleerd(
@@ -50,15 +66,65 @@ export async function verstuurGecontroleerd(
   opties: {
     register?: readonly Automatisering[];
     transport?: MailTransport;
+    modus?: Mailmodus;
+    testadres?: string | null;
+    env?: Record<string, unknown>;
   } = {},
 ): Promise<TransportUitkomst> {
-  const besluit = await besluitVoor(bericht.sleutel, opties.register);
-  if (!besluit.provider) {
-    return { verzonden: false, providerAangeroepen: false, besluit };
+  const besluit = await besluitVoor(bericht.sleutel, opties.register, opties.env);
+  const modus: Mailmodus = opties.modus ?? bericht.modus ?? besluit.modus;
+  const effectief: Verzendbesluit = { ...besluit, modus };
+  if (modus === 'uit' || modus === 'dry-run' || !effectief.provider) {
+    return {
+      verzonden: false,
+      providerAangeroepen: false,
+      besluit: effectief,
+      bedoeldeOntvanger: bericht.naar,
+      geblokkeerd: modus !== 'dry-run',
+      melding: effectief.reden,
+    };
+  }
+  let uitgaand = bericht;
+  if (modus === 'test') {
+    const testadres = opties.testadres !== undefined ? opties.testadres : await getTestMailRecipient(opties.env);
+    const veilig = pasTestmodusToe(
+      {
+        to: [bericht.naar],
+        subject: bericht.onderwerp,
+        replyTo: bericht.replyTo,
+        bedoeldeOntvanger: bericht.bedoeldeOntvanger || bericht.naar,
+      },
+      testadres,
+    );
+    if (!veilig.ok) {
+      return {
+        verzonden: false,
+        providerAangeroepen: false,
+        besluit: effectief,
+        bedoeldeOntvanger: bericht.naar,
+        geblokkeerd: true,
+        melding: GEEN_TESTMAILADRES,
+      };
+    }
+    uitgaand = {
+      ...bericht,
+      naar: veilig.werkelijkeOntvanger,
+      onderwerp: veilig.subject,
+      modus: 'test',
+      bedoeldeOntvanger: veilig.bedoeldeOntvanger,
+      replyTo: veilig.replyTo,
+    };
   }
   const transport = opties.transport ?? resendTransport();
-  await transport.verstuur(bericht);
-  return { verzonden: true, providerAangeroepen: true, besluit };
+  const providerBerichtId = await transport.verstuur(uitgaand);
+  return {
+    verzonden: true,
+    providerAangeroepen: true,
+    besluit: effectief,
+    providerBerichtId: typeof providerBerichtId === 'string' ? providerBerichtId : null,
+    bedoeldeOntvanger: uitgaand.bedoeldeOntvanger || bericht.naar,
+    werkelijkeOntvanger: uitgaand.naar,
+  };
 }
 
 export async function eisProviderToegestaan(
@@ -175,7 +241,10 @@ export async function sendMailNaarAanvrager(
 export async function verstuurMetResend(
   inhoud: ResendInhoud,
   env: Record<string, string | undefined> = process.env,
-): Promise<void> {
+): Promise<string | null> {
+  if (inhoud.testmodus && !providerPayloadIsTestveilig(inhoud, inhoud.to[0] ?? '')) {
+    throw new MailGeblokkeerd(GEEN_TESTMAILADRES);
+  }
   const apiKey = env.RESEND_API_KEY?.trim();
   if (!apiKey) throw new MailGeblokkeerd('RESEND_API_KEY ontbreekt');
   const replyTo = replyToHeader(inhoud.replyTo, inhoud.replyToNaam);
@@ -184,23 +253,25 @@ export async function verstuurMetResend(
   }
   const { Resend } = await import('resend');
   const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: inhoud.from,
     to: inhoud.to,
     subject: inhoud.subject,
-    text: inhoud.text,
+    text: inhoud.text ?? '',
     html: inhoud.html,
     replyTo,
-    ...(inhoud.bcc?.length ? { bcc: inhoud.bcc } : {}),
+    ...(inhoud.testmodus || !inhoud.bcc?.length ? {} : { bcc: inhoud.bcc }),
     ...(inhoud.headers ? { headers: inhoud.headers } : {}),
   });
   if (error) throw new Error(error.message);
+  return data?.id ?? null;
 }
 
 function resendTransport(): MailTransport {
   return {
     async verstuur(bericht) {
-      const bcc = await toezichtBcc(bericht.naar, process.env, isInterneKerkjeSleutel(bericht.sleutel));
+      const test = bericht.modus === 'test';
+      const bcc = test ? [] : await toezichtBcc(bericht.naar, process.env, isInterneKerkjeSleutel(bericht.sleutel));
       const inhoud = bouwResendInhoud({
         naar: bericht.naar,
         onderwerp: bericht.onderwerp,
@@ -214,7 +285,12 @@ function resendTransport(): MailTransport {
         richting: bericht.richting,
         bcc,
       });
-      await verstuurMetResend(inhoud);
+      if (test) {
+        inhoud.bcc = [];
+        inhoud.cc = [];
+        inhoud.testmodus = true;
+      }
+      return verstuurMetResend(inhoud);
     },
   };
 }

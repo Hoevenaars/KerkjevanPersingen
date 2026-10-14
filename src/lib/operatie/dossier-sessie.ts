@@ -546,7 +546,12 @@ export async function voerDossierViaSessie(
     return goedkeuren(client, Number(opdracht.aanvraagId), actor);
   }
   if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'meer_informatie') {
-    return { ok: false, melding: 'Meer informatie is nog niet beschikbaar. Er is geen mail verstuurd en de aanvraag is niet gewijzigd.' };
+    const { bewaarInformatievraag } = await import('./informatievraag.ts');
+    return bewaarInformatievraag(client as never, Number(opdracht.aanvraagId), opdracht.vraag ?? '', actor);
+  }
+  if (opdracht.soort === 'verstuur_informatie') {
+    const { verstuurInformatievraag } = await import('./informatievraag.ts');
+    return verstuurInformatievraag(client as never, Number(opdracht.aanvraagId), actor);
   }
   if (opdracht.soort === 'betaling') {
     return { ok: false, melding: 'Aanbetaling is in deze fase geen actie. Er is niets gewijzigd.' };

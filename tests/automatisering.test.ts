@@ -102,7 +102,7 @@ test('onbekende sleutel en onbekende mailcategorie zijn fail-closed', async () =
   await assert.rejects(() => eisProviderToegestaan('bestaat-niet', register), MailGeblokkeerd);
 });
 
-test('uitgeschakeld blokkeert en testmodus doet geen provider-call', async () => {
+test('uit blokkeert en test gaat alleen naar het testmailadres', async () => {
   const uitgeschakeld = STANDAARD_AUTOMATISERINGEN.map((item) =>
     item.sleutel === 'aanvraag_bestuur' ? { ...item, status: 'uit' as const } : item,
   );
@@ -115,13 +115,32 @@ test('uitgeschakeld blokkeert en testmodus doet geen provider-call', async () =>
 
   const testbesluit = magAutomatiseringUitvoeren('mailtemplate_test');
   assert.equal(testbesluit.uitvoeren, true);
-  assert.equal(testbesluit.provider, false);
+  assert.equal(testbesluit.provider, true);
+  assert.equal(testbesluit.modus, 'test');
+  let ontvangen = '';
   const testmail = await verstuurGecontroleerd(
-    { ...bericht, sleutel: 'mailtemplate_test' },
-    { transport: verbodenTransport() },
+    { ...bericht, sleutel: 'mailtemplate_test', naar: 'klant@example.com' },
+    {
+      register: STANDAARD_AUTOMATISERINGEN,
+      testadres: 'nhoevenaars@gmail.com',
+      transport: {
+        async verstuur(brief) {
+          ontvangen = brief.naar;
+          assert.equal(brief.onderwerp.startsWith('[TEST]'), true);
+        },
+      },
+    },
   );
-  assert.equal(testmail.verzonden, false);
-  assert.equal(testmail.providerAangeroepen, false);
+  assert.equal(testmail.providerAangeroepen, true);
+  assert.equal(ontvangen, 'nhoevenaars@gmail.com');
+  assert.equal(testmail.bedoeldeOntvanger, 'klant@example.com');
+
+  const zonder = await verstuurGecontroleerd(
+    { ...bericht, sleutel: 'mailtemplate_test' },
+    { register: STANDAARD_AUTOMATISERINGEN, testadres: null, transport: verbodenTransport() },
+  );
+  assert.equal(zonder.providerAangeroepen, false);
+  assert.match(zonder.melding ?? '', /testmailadres/);
 });
 
 test('risicovolle activatie vraagt bevestiging en schrijft een auditregel', () => {

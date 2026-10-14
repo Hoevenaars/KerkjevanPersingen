@@ -102,6 +102,14 @@ async function lees(client: SupabaseLeesClient, tabel: string, kolommen: string)
   return rijen(antwoord.data);
 }
 
+async function leesZacht(client: SupabaseLeesClient, tabel: string, kolommen: string): Promise<Record<string, unknown>[]> {
+  try {
+    return await lees(client, tabel, kolommen);
+  } catch {
+    return [];
+  }
+}
+
 function jsonTekst(waarde: unknown): string {
   if (typeof waarde === 'string') {
     const schoon = waarde.trim();
@@ -159,9 +167,9 @@ export async function leesSupabaseBeheer(
   client: SupabaseLeesClient,
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
-  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen, tariefRijen, bronRijen] = await Promise.all([
-    lees(client, 'relaties', 'id,naam,email,telefoon,adres,op_reservelijst'),
-    lees(client, 'relatie_rollen', 'relatie_id,rol'),
+  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
+    lees(client, 'relaties', 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst'),
+    lees(client, 'relatie_rollen', 'relatie_id,rol,actief'),
     lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
     lees(client, 'betalingen', 'id,boeking_id,soort,bedrag,status,vervaldatum,ontvangen_op'),
     lees(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender,notities'),
@@ -172,10 +180,11 @@ export async function leesSupabaseBeheer(
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
     lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
-    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id'),
+    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id,informatievraag'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
     lees(client, 'tarieven', 'id,verhuurtype_sleutel,prijstype,bedrag,geldig_vanaf,geldig_tot,toelichting'),
     lees(client, 'activiteit_bron', 'id,legacy_id,zichtbaarheid,soort,titel,interne_titel,slug,start_datum,eind_datum,publicatie_trigger,content_status,contentstatus,levenscyclus'),
+    leesZacht(client, 'incidenten', 'id,boeking_id,omschrijving,status'),
   ]);
 
   const rollenPerRelatie = new Map<string, string[]>();
@@ -185,11 +194,23 @@ export async function leesSupabaseBeheer(
     lijst.push(tekst(rij.rol));
     rollenPerRelatie.set(id, lijst);
   }
+  const rolActief = new Map<string, boolean>();
+  for (const rij of rolRijen) {
+    if (tekst(rij.rol) !== 'gastheer') continue;
+    const id = tekst(rij.relatie_id);
+    rolActief.set(id, rij.actief == null ? true : Boolean(rij.actief));
+    const lijst = rollenPerRelatie.get(id) ?? [];
+    if (!lijst.includes('gastheer')) lijst.push('gastheer');
+    rollenPerRelatie.set(id, lijst);
+  }
   const relaties = relatieRijen.map((rij) => ({
     id: tekst(rij.id),
     naam: tekst(rij.naam),
+    organisatie: tekst(rij.organisatie),
     email: tekst(rij.email),
     telefoon: tekst(rij.telefoon),
+    adres: tekst(rij.adres),
+    notities: tekst(rij.notities),
     rollen: rollenPerRelatie.get(tekst(rij.id)) ?? [],
     reservelijst: Boolean(rij.op_reservelijst),
   }));
@@ -214,7 +235,7 @@ export async function leesSupabaseBeheer(
     datum: rij.datum == null || tekst(rij.datum) === '' ? null : tekst(rij.datum),
   }));
 
-  const gastheerIds = new Set<string>();
+  const gastheerIds = new Set<string>(rolActief.keys());
   for (const rij of boekingRijen) {
     if (rij.gastheer_relatie_id != null) gastheerIds.add(tekst(rij.gastheer_relatie_id));
   }
@@ -285,6 +306,7 @@ export async function leesSupabaseBeheer(
       website: tekst(rij.website),
       boekingId: rij.boeking_id == null ? undefined : tekst(rij.boeking_id),
       afwijsreden: tekst(rij.afwijsreden),
+      informatievraag: tekst(rij.informatievraag),
       relatieId: rij.relatie_id == null ? undefined : tekst(rij.relatie_id),
     })),
     boekingen,
@@ -354,7 +376,7 @@ export async function leesSupabaseBeheer(
         naam: relatie.naam,
         email: relatie.email,
         telefoon: relatie.telefoon,
-        actief: true,
+        actief: rolActief.has(relatie.id) ? rolActief.get(relatie.id) !== false : true,
       })),
     vrienden: vriendRijen.map((rij) => ({
       id: tekst(rij.id),
@@ -389,6 +411,12 @@ export async function leesSupabaseBeheer(
       datum: tekst(rij.geupload_op).slice(0, 10),
     })),
     migratie: null,
+    incidenten: incidentRijen.map((rij) => ({
+      id: tekst(rij.id),
+      boekingId: tekst(rij.boeking_id),
+      omschrijving: tekst(rij.omschrijving),
+      status: tekst(rij.status) || 'open',
+    })),
     betalingen,
     toewijzingen,
     fout: null,

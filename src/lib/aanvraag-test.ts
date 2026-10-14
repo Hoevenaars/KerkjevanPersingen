@@ -39,7 +39,7 @@ export async function bezettingVoorTest(): Promise<{ start: string; eind?: strin
   }));
 }
 
-export async function bewaarTestAanvraag(a: Aanvraag, mailjob = false): Promise<{ ok: boolean; fouten?: Fouten }> {
+export async function bewaarTestAanvraag(a: Aanvraag, mailjob = false): Promise<{ ok: boolean; id?: number; fouten?: Fouten }> {
   const supabase = client();
   if (!supabase) {
     return { ok: false, fouten: { algemeen: 'Supabase is niet geconfigureerd. De aanvraag is niet naar Sanity geschreven.' } };
@@ -63,9 +63,9 @@ export async function bewaarTestAanvraag(a: Aanvraag, mailjob = false): Promise<
   if (error) {
     return { ok: false, fouten: { algemeen: error.message } };
   }
-  const uit = data as { ok?: boolean; fout?: string } | null;
+  const uit = data as { ok?: boolean; fout?: string; id?: number } | null;
   if (!uit?.ok) {
     return { ok: false, fouten: { algemeen: uit?.fout || 'Aanvraag niet opgeslagen.' } };
   }
-  return { ok: true };
+  return { ok: true, id: uit.id };
 }

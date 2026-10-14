@@ -109,18 +109,43 @@ if (Astro.request.method === 'POST') {
         if (uitkomst.ok) {
           const { sendInterneAanvraagMail } = await import('../../../lib/mail-transport.ts');
           const { bestuurMail } = await import('../../../lib/aanvraag.ts');
+          const { legVerzendingVast } = await import('../../../lib/communicatie-log.ts');
+          const { VAN_ADRES } = await import('../../../lib/mail-adressen.ts');
           const brief = bestuurMail(waarden);
-          await sendInterneAanvraagMail({
-            sleutel: 'aanvraag_bestuur',
-            to: process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'contractbeheer.kvp@gmail.com',
-            subject: 'Nieuwe verhuuraanvraag',
-            text: brief.text,
-            html: brief.html,
-            aanvragerEmail: waarden.email,
-            aanvragerNaam: waarden.naam,
-          }).catch((error) => {
-            console.error('[aanvraag] bestuursnotificatie niet verzonden', error);
-          });
+          const bedoelde = process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'contractbeheer.kvp@gmail.com';
+          let verstuurd = false;
+          try {
+            const mail = await sendInterneAanvraagMail({
+              sleutel: 'aanvraag_bestuur',
+              to: bedoelde,
+              subject: 'Nieuwe verhuuraanvraag',
+              text: brief.text,
+              html: brief.html,
+              aanvragerEmail: waarden.email,
+              aanvragerNaam: waarden.naam,
+            });
+            verstuurd = mail.providerAangeroepen;
+            if (verstuurd || mail.geblokkeerd) {
+              await legVerzendingVast({
+                aanvraagId: uitkomst.id ? String(uitkomst.id) : null,
+                templateSleutel: 'internal_booking_review_required',
+                onderwerp: 'Nieuwe verhuuraanvraag',
+                bedoeldeOntvanger: bedoelde,
+                werkelijkeOntvanger: mail.werkelijkeOntvanger || '',
+                afzender: VAN_ADRES,
+                replyTo: waarden.email,
+                richting: 'uitgaand',
+                status: verstuurd ? 'verzonden' : 'geblokkeerd',
+                providerBerichtId: mail.providerBerichtId,
+                foutmelding: verstuurd ? null : mail.melding || mail.besluit.reden,
+                test: mail.besluit.modus === 'test',
+                dedupSleutel: `aanvraag-bestuur:${uitkomst.id ?? waarden.email}:${waarden.datum}`,
+              });
+            }
+          } catch (error) {
+            if (!verstuurd) console.error('[aanvraag] bestuursnotificatie niet verzonden', error);
+            else console.error('[aanvraag] verzendregel niet opgeslagen, mail niet opnieuw verstuurd', error);
+          }
           return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
         }
         fouten = uitkomst.fouten ?? {};

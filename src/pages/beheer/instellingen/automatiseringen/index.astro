@@ -15,6 +15,8 @@ import {
   type Automatisering,
 } from '../../../../platform/automatisering.ts';
 import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
+import { getTestMailRecipient } from '../../../../lib/testmail-adres.ts';
+import { normaliseerTestmailadres, TESTMAIL_SLEUTEL } from '../../../../platform/testmail.ts';
 
 type Rij = {
   sleutel: string;
@@ -53,14 +55,17 @@ function vanRij(rij: Rij): Automatisering {
 }
 
 const client = maakBeheerAdminClient();
-type Ongetypeerd = {
-  from: (tabel: string) => {
-    select: (kolommen: string) => {
-      order: (kolom: string) => {
-        order: (kolom: string) => Promise<{ data: Rij[] | null; error: { message: string } | null }>;
-      };
+type OngetypedeQuery = {
+  select: (kolommen: string) => {
+    order: (kolom: string) => {
+      order: (kolom: string) => Promise<{ data: Rij[] | null; error: { message: string } | null }>;
     };
   };
+  upsert: (waarden: unknown, opties?: { onConflict?: string }) => Promise<{ error: { message: string } | null }>;
+  insert: (rij: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+};
+type Ongetypeerd = {
+  from: (tabel: string) => OngetypedeQuery;
   rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
 };
 const db = client as unknown as Ongetypeerd | null;
@@ -77,8 +82,38 @@ async function lees(): Promise<Automatisering[]> {
   return rijen.length > 0 ? rijen.map(vanRij) : STANDAARD_AUTOMATISERINGEN;
 }
 
+let testmailadres = await getTestMailRecipient().catch(() => null);
+
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
+  if (String(form.get('actie') ?? '') === 'testmailadres') {
+    const superAdmin = Astro.locals.beheer?.rechten.isSuperAdmin === true;
+    const nieuw = normaliseerTestmailadres(String(form.get('testmailadres') ?? ''));
+    if (!superAdmin) fout = 'Alleen een super admin mag het testmailadres wijzigen.';
+    else if (!nieuw.ok) fout = 'Ongeldig testmailadres. Vul één adres in, zonder komma of puntkomma.';
+    else if (!db) fout = 'Geen databaseclient. Er is niets opgeslagen.';
+    else {
+      const opgeslagen = await db.from('instellingen').upsert(
+        { sleutel: TESTMAIL_SLEUTEL, groep: 'mail', waarde: nieuw.adres, toelichting: 'Alle echte testmails gaan uitsluitend naar dit adres.' },
+        { onConflict: 'sleutel' },
+      );
+      if (opgeslagen.error) fout = opgeslagen.error.message;
+      else {
+        await db.from('auditlog').insert({
+          actor_naam: Astro.locals.beheer?.gebruiker.naam || 'super admin',
+          actor_type: 'gebruiker',
+          onderwerp_type: 'instelling',
+          onderwerp_id: TESTMAIL_SLEUTEL,
+          actie: 'testmailadres',
+          van: testmailadres,
+          naar: nieuw.adres,
+          dedup_sleutel: `testmailadres:${testmailadres}:${nieuw.adres}:${Date.now()}`,
+        });
+        testmailadres = nieuw.adres;
+        melding = 'Testmailadres opgeslagen.';
+      }
+    }
+  } else {
   const sleutel = String(form.get('sleutel') ?? '');
   const status = String(form.get('status') ?? '');
   const bevestigd = String(form.get('bevestig') ?? '') === 'ja';
@@ -108,6 +143,7 @@ if (Astro.request.method === 'POST') {
   } catch (error) {
     fout = error instanceof Error ? error.message : 'Opslaan mislukt.';
   }
+  }
 }
 
 try {
@@ -133,6 +169,23 @@ const groepen = [
       </p>
     </div>
   </header>
+
+  <section class="bh-kaart">
+    <h2>Testmailadres</h2>
+    <p>Alle echte testmails worden uitsluitend naar dit adres verstuurd. De oorspronkelijke ontvanger ontvangt tijdens een test niets.</p>
+    <p><strong>{testmailadres || 'Geen geldig testmailadres ingesteld.'}</strong></p>
+    {
+      Astro.locals.beheer?.rechten.isSuperAdmin ? (
+        <form method="post" class="bh-form">
+          <label for="testmailadres">Testmailadres</label>
+          <input id="testmailadres" name="testmailadres" type="email" required value={testmailadres ?? ''} />
+          <button class="bh-btn" type="submit" name="actie" value="testmailadres">Testmailadres bewaren</button>
+        </form>
+      ) : (
+        <p class="bh-muted">Alleen een super admin kan dit adres wijzigen.</p>
+      )
+    }
+  </section>
 
   {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash" role="alert">{fout}</p>}

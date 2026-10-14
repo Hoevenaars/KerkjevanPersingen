@@ -65,6 +65,12 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   ) {
     return 'templates';
   }
+  if (pad.startsWith('/beheer/instellingen/gastheren')) return 'gastheerbeheer';
+  if (pad.startsWith('/beheer/instellingen/finance')) return 'finance_instellingen';
+  if (pad.startsWith('/beheer/instellingen/automatiseringen')) return 'automatiseringen';
+  if (pad.startsWith('/beheer/instellingen/sanity-bridge')) return 'bridge';
+  if (pad.startsWith('/beheer/instellingen/systeem')) return 'systeembeheer';
+  if (pad.startsWith('/beheer/migratie')) return 'migratie';
   if (pad.startsWith('/beheer/instellingen')) return 'instellingen';
   if (pad.startsWith('/beheer/aanvragen')) return 'aanvragen';
   if (pad.startsWith('/beheer/boekingen')) return 'boekingen';
@@ -76,7 +82,7 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   if (pad.startsWith('/beheer/vrienden')) return 'vrienden';
   if (pad.startsWith('/beheer/nieuwsbrief')) return 'nieuwsbrief';
   if (pad.startsWith('/beheer/analytics')) return 'analytics';
-  if (pad === '/beheer' || pad === '/beheer/zoeken' || pad === '/beheer/migratie') {
+  if (pad === '/beheer' || pad === '/beheer/zoeken') {
     return 'dashboard';
   }
   if (pad.startsWith('/beheer')) return 'onbekend';

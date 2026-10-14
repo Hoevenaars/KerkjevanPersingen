@@ -32,6 +32,8 @@ export interface Verzendbesluit {
   provider: boolean;
   reden: string;
   status: AutomatiseringStatus | 'onbekend';
+  /** uit en dry-run: geen provider. test: provider alleen naar het testmailadres. aan: echte ontvanger. */
+  modus: 'uit' | 'dry-run' | 'test' | 'aan';
 }
 
 export class MailGeblokkeerd extends Error {
@@ -77,12 +79,12 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
   {
     sleutel: 'aanvraag_bevestiging',
     naam: 'Bevestiging aan de aanvrager',
-    omschrijving: 'Template booking_request_received. Gaat niet mee met de bestuursnotificatie.',
+    omschrijving: 'Template booking_request_received. Gaat niet mee met de bestuursnotificatie. De schakelaar blijft uit.',
     categorie: 'automatisering',
     status: 'uit',
     mailcategorie: 'automatisering',
     trigger: 'Nieuwe aanvraag',
-    actieveTrigger: false,
+    actieveTrigger: true,
     ontvangerstype: 'Huurder',
     risicovol: true,
     laatsteRun: null,
@@ -221,12 +223,12 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
   {
     sleutel: 'reservelijst_mail',
     naam: 'Reservelijst',
-    omschrijving: 'Bericht bij een vrijgekomen expositieweekend. Blijft handmatig en staat uit.',
+    omschrijving: 'Bericht bij een vrijgekomen expositieweekend. Alleen na handmatige selectie of een begrensde batch. Staat uit.',
     categorie: 'handmatig',
     status: 'uit',
     mailcategorie: 'handmatig',
     trigger: 'Weekend vrijgegeven',
-    actieveTrigger: false,
+    actieveTrigger: true,
     ontvangerstype: 'Reservelijst',
     risicovol: true,
     laatsteRun: null,
@@ -237,12 +239,12 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
   {
     sleutel: 'handmatige_template',
     naam: 'Losse template uit beheer',
-    omschrijving: 'Contractbegeleiding en andere templates zonder automatische caller.',
+    omschrijving: 'Handmatig mailconcept vanuit een dossier. Concept en preview werken altijd. Verzenden volgt deze schakelaar en staat uit.',
     categorie: 'handmatig',
     status: 'uit',
     mailcategorie: 'handmatig',
     trigger: 'Handmatige beheeractie',
-    actieveTrigger: false,
+    actieveTrigger: true,
     ontvangerstype: 'Huurder',
     risicovol: true,
     laatsteRun: null,
@@ -253,7 +255,7 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
   {
     sleutel: 'mailtemplate_test',
     naam: 'Testmail van een template',
-    omschrijving: 'De testknop bij een mailtemplate. Testmodus doet geen provider-call.',
+    omschrijving: 'De testknop bij een mailtemplate. Een echte provider-call gaat alleen naar het centrale testmailadres.',
     categorie: 'handmatig',
     status: 'test',
     mailcategorie: 'handmatig',
@@ -383,7 +385,7 @@ export const TEMPLATES_LEGACY = [
 const GEKOPPELDE_FLOW: Record<string, string> = {
   contact_bestuur: 'Geen formulier',
   aanvraag_bestuur: 'Verhuurformulier',
-  aanvraag_bevestiging: 'Geen route',
+  aanvraag_bevestiging: 'Verhuurformulier',
   workflow: 'Cron /api/cron/workflow',
   nieuwsbrief: 'Nieuwsbriefcron',
   betaalherinnering: 'Planner',
@@ -392,8 +394,8 @@ const GEKOPPELDE_FLOW: Record<string, string> = {
   herinnering: 'Planner',
   gastheer_mail: 'Planner',
   nazorg: 'Planner',
-  reservelijst_mail: 'Geen verzendroute',
-  handmatige_template: 'Geen verzendroute',
+  reservelijst_mail: 'Handmatige selectie',
+  handmatige_template: 'Dossieractie',
   mailtemplate_test: 'Knop Testmail',
   gebruiker_uitnodiging: 'Uitnodigen of opnieuw',
 };
@@ -416,21 +418,24 @@ export function magAutomatiseringUitvoeren(
 ): Verzendbesluit {
   const item = register.find((rij) => rij.sleutel === sleutel);
   if (!item) {
-    return { uitvoeren: false, provider: false, reden: 'onbekende automatisering', status: 'onbekend' };
+    return { uitvoeren: false, provider: false, reden: 'onbekende automatisering', status: 'onbekend', modus: 'uit' };
   }
   if (!(MAILCATEGORIEEN as readonly string[]).includes(item.mailcategorie)) {
-    return { uitvoeren: false, provider: false, reden: 'onbekende mailcategorie', status: item.status };
+    return { uitvoeren: false, provider: false, reden: 'onbekende mailcategorie', status: item.status, modus: 'uit' };
   }
   if (item.status === 'uit') {
-    return { uitvoeren: false, provider: false, reden: 'automatisering uit', status: 'uit' };
+    return { uitvoeren: false, provider: false, reden: 'automatisering uit', status: 'uit', modus: 'uit' };
   }
   if (item.status === 'test') {
-    return { uitvoeren: true, provider: false, reden: 'testmodus, geen provider', status: 'test' };
+    if (item.sleutel === 'gebruiker_uitnodiging') {
+      return { uitvoeren: true, provider: false, reden: 'testmodus, geen auth-uitnodiging', status: 'test', modus: 'test' };
+    }
+    return { uitvoeren: true, provider: true, reden: 'testmodus, alleen testmailadres', status: 'test', modus: 'test' };
   }
   if (item.status === 'actief') {
-    return { uitvoeren: true, provider: true, reden: 'actief', status: 'actief' };
+    return { uitvoeren: true, provider: true, reden: 'actief', status: 'actief', modus: 'aan' };
   }
-  return { uitvoeren: false, provider: false, reden: 'onbekende status', status: 'onbekend' };
+  return { uitvoeren: false, provider: false, reden: 'onbekende status', status: 'onbekend', modus: 'uit' };
 }
 
 export function statusLabel(status: AutomatiseringStatus): string {
@@ -447,21 +452,12 @@ export interface FunctioneelOordeel {
   toelichting: string;
 }
 
-/** Sleutels waarvan de code ook bij Aan geen provider-mail verstuurt. */
-const DRY_RUN_SLEUTELS = new Set(['nieuwsbrief']);
-
 /**
  * Functionele stand, los van de opgeslagen schakelaar Aan/Test/Uit.
  * Een schakelaar op Aan zonder caller is niet actief.
+ * DRY-RUN is een expliciete runmodus zonder provider, geen vaste schakelaarstand.
  */
 export function functioneleStatus(item: Automatisering): FunctioneelOordeel {
-  if (DRY_RUN_SLEUTELS.has(item.sleutel)) {
-    return {
-      status: 'dry-run',
-      label: 'DRY-RUN',
-      toelichting: 'Cron en opbouw zijn aanwezig. Verzending blijft een dry-run en is nog niet live.',
-    };
-  }
   if (!item.actieveTrigger) {
     return {
       status: 'niet-aangesloten',
@@ -476,7 +472,7 @@ export function functioneleStatus(item: Automatisering): FunctioneelOordeel {
     return {
       status: 'test',
       label: 'TEST',
-      toelichting: 'De knop mag draaien, maar er gaat geen provider-call uit.',
+      toelichting: 'Echte provider-call, uitsluitend naar het centrale testmailadres. Productie-CC en BCC gaan niet mee.',
     };
   }
   if (item.status === 'actief') {
@@ -485,8 +481,8 @@ export function functioneleStatus(item: Automatisering): FunctioneelOordeel {
       label: 'ACTIEF',
       toelichting:
         item.sleutel === 'aanvraag_bestuur'
-          ? 'Een nieuwe verhuuraanvraag kan mail naar het bestuur sturen. Die mail schrijft nog geen verzendregel.'
-          : 'Caller en schakelaar staan aan.',
+          ? 'Een nieuwe verhuuraanvraag kan mail naar het bestuur sturen. De verzending wordt gelogd.'
+          : 'Caller en schakelaar staan aan. Ontvangers volgen de echte flow.',
     };
   }
   return {

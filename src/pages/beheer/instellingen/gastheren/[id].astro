@@ -4,6 +4,9 @@ export const prerender = false;
 import Beheer from '../../../../layouts/Beheer.astro';
 import { formatNl } from '../../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
+import { actorVanSessie } from '../../../../lib/operatie/runtime.ts';
+import { werkGastheerBij } from '../../../../lib/operatie/gastheer-stam.ts';
+import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -11,7 +14,12 @@ const gastheer = snapshot.gastheren.find((g) => g.id === id);
 
 if (Astro.request.method === 'POST') {
   const doel = new URL(Astro.url.pathname, Astro.url.origin);
-  doel.searchParams.set('fout', 'Gastheer bewerken is nog niet beschikbaar. Er is niets opgeslagen.');
+  const sessie = sessieSupabaseUitAstro(Astro);
+  if (!sessie) doel.searchParams.set('fout', 'Geen ingelogde sessie. Er is niets opgeslagen.');
+  else {
+    const uit = await werkGastheerBij(sessie as never, Number(id), await Astro.request.formData(), actorVanSessie(Astro.locals.beheer));
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+  }
   return Astro.redirect(doel.toString());
 }
 
@@ -21,6 +29,7 @@ if (!gastheer) {
 
 const flash = Astro.url.searchParams.get('demo') === '1';
 const fout = Astro.url.searchParams.get('fout');
+const melding = Astro.url.searchParams.get('melding');
 const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
 ---
 
@@ -36,6 +45,7 @@ const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <section class="bh-kaart">
@@ -47,10 +57,14 @@ const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
       <input id="email" name="email" type="email" value={gastheer.email} />
       <label for="telefoon">Telefoon</label>
       <input id="telefoon" name="telefoon" value={gastheer.telefoon} />
+      <label for="actief">Status</label>
+      <select id="actief" name="actief">
+        <option value="ja" selected={gastheer.actief}>Actief</option>
+        <option value="nee" selected={!gastheer.actief}>Inactief</option>
+      </select>
+      <p class="bh-muted">Deactiveren verwijdert geen historische toewijzing en stuurt geen mail.</p>
       <div class="bh-acties">
-        <button class="bh-btn" type="button" disabled>
-          Gastheer bewerken — nog niet beschikbaar
-        </button>
+        <button class="bh-btn" type="submit">Gastheer bewaren</button>
       </div>
     </form>
   </section>

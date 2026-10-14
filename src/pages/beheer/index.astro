@@ -14,6 +14,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, snapshotDashboard } from '../
 import { dashboardVoor } from '../../platform/dashboard.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { magZien } from '../../platform/rechten.ts';
+import { actiepuntenKomendeWeken } from '../../platform/actiepunten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
@@ -27,6 +28,30 @@ const opties = snapshot.boekingen.filter((b) => b.status === 'optie' || b.status
 const maand = vandaag.slice(0, 7);
 const live = snapshot.bron === 'sanity';
 const supabase = snapshot.bron === 'supabase';
+const actiepunten = actiepuntenKomendeWeken({
+  vandaag,
+  boekingen: snapshot.boekingen.map((boeking) => ({
+    id: boeking.id,
+    titel: boeking.interneTitel,
+    start: boeking.start,
+    eind: boeking.eind,
+    status: boeking.status,
+    soort: boeking.soort,
+    gastheerId: boeking.gastheerId,
+    optieEind: boeking.optieEind,
+  })),
+  activiteiten: snapshot.agenda.map((item) => ({
+    boekingId: item.boekingId,
+    titel: item.titel,
+    start: item.start,
+    eind: item.eind,
+    gepubliceerd: item.status === 'online',
+    contentstatus: item.contentstatus,
+    levenscyclus: item.levenscyclus,
+    trigger: item.trigger,
+  })),
+  incidenten: snapshot.incidenten,
+});
 ---
 
 <Beheer titel="Dashboard">
@@ -67,6 +92,35 @@ const supabase = snapshot.bron === 'supabase';
       )
     }
   </ul>
+
+  <section class="bh-kaart">
+    <h2>Komende 8 weken</h2>
+    <p class="bh-muted">Aandachtspunten uit de geladen dossiers. Finance telt niet als blokkade. Er wordt geen mail verstuurd.</p>
+    {
+      actiepunten.length === 0 ? (
+        <p class="bh-leeg">Geen aandachtspunt in de komende 8 weken.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Wanneer</th>
+              <th>Punt</th>
+              <th>Dossier</th>
+            </tr>
+          </thead>
+          <tbody>
+            {actiepunten.map((punt) => (
+              <tr>
+                <td>{formatNl(punt.wanneer)}</td>
+                <td>{punt.toelichting}</td>
+                <td><a href={punt.href}>{punt.titel}</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </section>
 
   {
     zietAanvragen && (

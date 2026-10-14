@@ -23,6 +23,7 @@ export interface DemoAanvraag {
   boekingId?: string;
   afwijsreden?: string;
   relatieId?: string;
+  informatievraag?: string;
 }
 
 export interface DemoBoeking {
@@ -108,8 +109,11 @@ export interface DemoGastheer {
 export interface DemoRelatie {
   id: string;
   naam: string;
+  organisatie?: string;
   email: string;
   telefoon: string;
+  adres?: string;
+  notities?: string;
   rollen: string[];
   reservelijst: boolean;
 }

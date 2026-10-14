@@ -4,9 +4,9 @@
  * Zonder die twee vlaggen blijft Sanity de productiebron.
  */
 
-import { automatiseringVoorTemplate } from '../../platform/automatisering.ts';
-import { bouwResendInhoud, eisProviderToegestaan, verstuurMetResend } from '../mail-transport.ts';
-import { toezichtBcc } from '../toezicht-bcc.ts';
+import { automatiseringVoorTemplate, MailGeblokkeerd } from '../../platform/automatisering.ts';
+import { verstuurGecontroleerd } from '../mail-transport.ts';
+import { grensVoorActivatie } from '../../platform/activatiegrens.ts';
 import type { Activiteit } from '../sanity.ts';
 import { maakBeheerAdminClient } from '../supabase.ts';
 import { huidigeContentBron } from '../../platform/bron.ts';
@@ -235,7 +235,6 @@ async function laadWereld(): Promise<Wereld> {
 }
 
 function mailTransport(env: Record<string, unknown>) {
-  const sleutel = String(env.RESEND_API_KEY ?? '');
   return {
     async verstuur(input: {
       naar: string;
@@ -249,29 +248,29 @@ function mailTransport(env: Record<string, unknown>) {
       richting?: 'intern' | 'aanvrager';
     }) {
       const automatisering = input.templateSleutel ? automatiseringVoorTemplate(input.templateSleutel) : null;
-      await eisProviderToegestaan(automatisering ?? 'workflow', undefined, env);
-      if (!sleutel) throw new Error('RESEND_API_KEY ontbreekt');
-      const bcc = await toezichtBcc(input.naar, env);
-      const inhoud = bouwResendInhoud({
-        naar: input.naar,
-        onderwerp: input.onderwerp,
-        tekst: input.tekst,
-        html: input.html,
-        replyTo: input.replyTo,
-        aanvragerEmail: input.aanvragerEmail,
-        aanvragerNaam: input.aanvragerNaam,
-        templateId: input.templateSleutel,
-        richting: input.richting,
-        bcc,
-      });
-      await verstuurMetResend(inhoud, env as Record<string, string | undefined>);
+      const uit = await verstuurGecontroleerd(
+        {
+          sleutel: automatisering ?? 'workflow',
+          naar: input.naar,
+          onderwerp: input.onderwerp,
+          tekst: input.tekst,
+          html: input.html,
+          replyTo: input.replyTo,
+          aanvragerEmail: input.aanvragerEmail,
+          aanvragerNaam: input.aanvragerNaam,
+          templateId: input.templateSleutel,
+          richting: input.richting,
+        },
+        { env },
+      );
+      if (!uit.providerAangeroepen) throw new MailGeblokkeerd(uit.melding || uit.besluit.reden);
     },
   };
 }
 
 export async function voerOperationeel(
   opdracht: Opdracht,
-  opties: { env?: Record<string, unknown>; actor: Actor; basisUrl: string; nu?: Date },
+  opties: { env?: Record<string, unknown>; actor: Actor; basisUrl: string; nu?: Date; actiefVanaf?: string | null },
 ): Promise<{ ok: boolean; melding: string; links?: { doel: string; url: string }[] }> {
   const env = opties.env ?? process.env;
   const wereld = await laadWereld();
@@ -281,6 +280,7 @@ export async function voerOperationeel(
     actor: opties.actor,
     basisUrl: opties.basisUrl,
     internEmail: String(env.CONTACT_FALLBACK_EMAIL ?? env.MAIL_STAGING_OVERRIDE ?? ''),
+    actiefVanaf: opties.actiefVanaf,
   }, mailTransport(env));
   if (!uit.resultaat.ok || uit.mutaties.length === 0) return uit.resultaat;
   const client = maakBeheerAdminClient(env);
@@ -294,12 +294,34 @@ export async function draaiWorkflow(env: Record<string, unknown> = process.env, 
   if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: productie blijft op Sanity.' };
   const { besluitVoor } = await import('../automatisering-register.ts');
   const besluit = await besluitVoor('workflow', undefined, env);
-  if (!besluit.provider) return { ok: true, melding: `Workflowmail geblokkeerd: ${besluit.reden}` };
+  if (besluit.modus === 'uit' || besluit.modus === 'dry-run' || !besluit.provider) {
+    return { ok: true, melding: `Workflowmail geblokkeerd: ${besluit.reden}` };
+  }
+  const vandaag = ymdInAmsterdam(new Date());
+  const grens = grensVoorActivatie(await leesActiefVanaf('workflow', env), vandaag);
   return voerOperationeel({ soort: 'scheduler' }, {
     env,
     actor: { type: 'systeem', naam: 'planner' },
     basisUrl,
+    actiefVanaf: grens,
   });
+}
+
+async function leesActiefVanaf(sleutel: string, env: Record<string, unknown>): Promise<string | null> {
+  const client = maakBeheerAdminClient(env);
+  if (!client) return null;
+  const db = client as unknown as {
+    from: (tabel: string) => {
+      select: (kolommen: string) => {
+        eq: (kolom: string, waarde: string) => {
+          maybeSingle: () => Promise<{ data: { actief_vanaf?: string | null } | null; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+  const { data, error } = await db.from('automatiseringen').select('actief_vanaf').eq('sleutel', sleutel).maybeSingle();
+  if (error || !data?.actief_vanaf) return null;
+  return String(data.actief_vanaf).slice(0, 10);
 }
 
 function fotoUrl(pad: string, env: Record<string, unknown>): string {
@@ -501,6 +523,7 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
   if ((actie === 'optie' || actie === 'akkoord') && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'goedkeuren' };
   if (actie === 'weiger' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'afwijzen', reden };
   if (actie === 'meer' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'meer_informatie', vraag: String(data.get('vraag') ?? '') };
+  if (actie === 'meer_verstuur' && aanvraagId) return { soort: 'verstuur_informatie', aanvraagId };
   if (actie === 'behandeling' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'in_behandeling' };
   if ((actie === 'check' || actie === 'betaling') && boekingId) return { soort: 'betaling', boekingId };
   if ((actie === 'gastheer' || actie === 'bewaar') && boekingId && data.has('gastheerId')) {

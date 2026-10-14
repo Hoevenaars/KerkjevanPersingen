@@ -3,6 +3,7 @@ export const prerender = false;
 
 import Base from '../../layouts/Base.astro';
 import { operationeelSupabase, voerOperationeel } from '../../lib/operatie/runtime';
+import { portaalMagPubliceren, portaalTeVaak, uploadToegestaan, valideerAanlevering } from '../../platform/exposant-portaal';
 
 const token = Astro.url.searchParams.get('token') ?? '';
 const actief = operationeelSupabase();
@@ -11,22 +12,47 @@ let fout = '';
 
 if (Astro.request.method === 'POST' && actief) {
   const data = await Astro.request.formData();
+  const tokenWaarde = String(data.get('token') ?? '');
+  if (portaalTeVaak(Astro.clientAddress || tokenWaarde || 'anoniem')) {
+    fout = 'Te veel pogingen. Probeer het later opnieuw.';
+  } else if (portaalMagPubliceren()) {
+    fout = 'Publiceren vanuit deze link is niet mogelijk.';
+  } else {
+  const korte = String(data.get('korte') ?? '').trim();
+  const lange = String(data.get('lange') ?? data.get('omschrijving') ?? '').trim();
+  const extra = Number(data.get('extra') ?? 0);
+  const bestand = data.get('hoofdafbeelding');
+  const controle = valideerAanlevering({
+    titel: String(data.get('titel') ?? '').trim(),
+    korteTekst: korte,
+    langeTekst: lange,
+    praktisch: String(data.get('praktisch') ?? '').trim(),
+    hoofdafbeelding: bestand instanceof File && bestand.size > 0,
+    extraFotos: Number.isFinite(extra) ? extra : 99,
+  });
+  if (bestand instanceof File && bestand.size > 0 && !uploadToegestaan(bestand.type, bestand.size)) {
+    fout = 'De hoofdafbeelding moet een jpeg, png of webp zijn van maximaal 8 MB.';
+  } else if (!controle.ok) {
+    fout = controle.reden;
+  } else {
   const uit = await voerOperationeel(
     {
       soort: 'content_indienen',
-      token: String(data.get('token') ?? ''),
+      token: tokenWaarde,
       titel: String(data.get('titel') ?? '').trim(),
-      omschrijving: String(data.get('omschrijving') ?? '').trim(),
+      omschrijving: [korte, lange].filter(Boolean).join('\n\n'),
       praktisch: String(data.get('praktisch') ?? '').trim(),
-      foto: data.get('foto') === 'ja',
+      foto: data.get('foto') === 'ja' || (bestand instanceof File && bestand.size > 0),
     },
     {
       actor: { type: 'klant', naam: 'Aanvrager' },
       basisUrl: Astro.url.origin,
     },
   );
-  if (uit.ok) melding = uit.melding;
+  if (uit.ok) melding = `${uit.melding} De activiteit is niet gepubliceerd.`;
   else fout = uit.melding;
+  }
+  }
 }
 ---
 
@@ -50,10 +76,15 @@ if (Astro.request.method === 'POST' && actief) {
           <input type="hidden" name="token" value={token} />
           <label for="titel">Publieke titel</label>
           <input id="titel" name="titel" required />
-          <label for="omschrijving">Omschrijving</label>
-          <textarea id="omschrijving" name="omschrijving" rows="6" required></textarea>
+          <label for="korte">Korte tekst</label>
+          <textarea id="korte" name="korte" rows="3"></textarea>
+          <label for="lange">Lange tekst</label>
+          <textarea id="lange" name="lange" rows="6"></textarea>
           <label for="praktisch">Praktische informatie</label>
           <textarea id="praktisch" name="praktisch" rows="4"></textarea>
+          <label for="hoofdafbeelding">Hoofdafbeelding of flyer</label>
+          <input id="hoofdafbeelding" name="hoofdafbeelding" type="file" accept="image/jpeg,image/png,image/webp" />
+          <p>Je kunt deze activiteit niet zelf publiceren en je ziet geen andere dossiers.</p>
           <label class="klant-check">
             <input type="checkbox" name="foto" value="ja" />
             Er is een foto aangeleverd

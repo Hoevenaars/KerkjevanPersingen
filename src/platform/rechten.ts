@@ -15,12 +15,29 @@ const VOLGORDE: Record<Rechtniveau, number> = {
   schrijven: 2,
 };
 
+/**
+ * Nieuwe modules erven de oude instellingen-recht alleen als er nog geen eigen rij is.
+ * Een expliciet niveau, ook verborgen, wint. Systeembeheer erft niets.
+ */
+const LEGACY_OUDER: Partial<Record<ModuleSleutel, ModuleSleutel>> = {
+  algemene_instellingen: 'instellingen',
+  gastheerbeheer: 'instellingen',
+  finance_instellingen: 'instellingen',
+  automatiseringen: 'instellingen',
+  bridge: 'instellingen',
+  migratie: 'instellingen',
+};
+
 export function rechtVoor(
   rechten: GebruikerRechten,
   module: ModuleSleutel,
 ): Rechtniveau {
   if (rechten.isSuperAdmin) return 'schrijven';
-  return rechten.perModule[module] ?? 'verborgen';
+  const direct = rechten.perModule[module];
+  if (direct) return direct;
+  const ouder = LEGACY_OUDER[module];
+  if (ouder && rechten.perModule[ouder]) return rechten.perModule[ouder] ?? 'verborgen';
+  return 'verborgen';
 }
 
 export const getPermission = rechtVoor;

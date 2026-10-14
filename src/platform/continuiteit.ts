@@ -58,6 +58,8 @@ export interface CommunicatieContext {
   eind?: string;
   /** Boeking of gekoppelde activiteit is geannuleerd. */
   geannuleerd?: boolean;
+  /** Triggers vóór deze dag worden niet alsnog verstuurd. */
+  actiefVanaf?: string | null;
 }
 
 /** Publicatie volgt de bestaande trigger, niet het activiteitstype alleen. */
@@ -327,6 +329,7 @@ export function actueleVerzendingen(ctx: CommunicatieContext): CommunicatieStap[
     for (const item of reeks) {
       if (ctx.verzonden.has(item.templateId)) continue;
       if (!conditieWaar(item, ctx)) continue;
+      if (ctx.actiefVanaf && item.geplandOp < ctx.actiefVanaf) continue;
       if (item.geplandOp > ctx.vandaag) break;
       gekozen.push(item);
       break;

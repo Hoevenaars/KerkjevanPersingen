@@ -1,0 +1,138 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
+import { BEKENDE_CRONROUTES, cronSignaal, resendSignaal, supabaseSignaal, veiligStatusTekst, type SysteemSignaal } from '../../../../platform/systeemstatus.ts';
+
+type Rij = Record<string, unknown>;
+type Query = {
+  select: (kolommen: string) => {
+    limit: (n: number) => Promise<{ data: Rij[] | null; error: { message: string } | null }>;
+    order: (kolom: string, opties?: { ascending: boolean }) => {
+      limit: (n: number) => Promise<{ data: Rij[] | null; error: { message: string } | null }>;
+    };
+    eq: (kolom: string, waarde: string) => {
+      order: (kolom: string, opties?: { ascending: boolean }) => {
+        limit: (n: number) => Promise<{ data: Rij[] | null; error: { message: string } | null }>;
+      };
+    };
+  };
+};
+const db = maakBeheerAdminClient() as unknown as { from: (tabel: string) => Query } | null;
+const signalen: SysteemSignaal[] = [];
+
+async function eerste(tabel: string, kolommen: string, gelijke?: { kolom: string; waarde: string }): Promise<Rij | null> {
+  if (!db) return null;
+  try {
+    const basis = db.from(tabel).select(kolommen);
+    const antwoord = gelijke
+      ? await basis.eq(gelijke.kolom, gelijke.waarde).order('id', { ascending: false }).limit(1)
+      : await basis.order('id', { ascending: false }).limit(1);
+    if (antwoord.error) return null;
+    return antwoord.data?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const databaseRij = db ? await db.from('instellingen').select('sleutel').limit(1) : null;
+const database = db ? !databaseRij?.error : null;
+signalen.push(supabaseSignaal(database));
+signalen.push({
+  naam: 'Auth',
+  staat: database == null ? 'onbekend' : 'ja',
+  toelichting: 'De beheerlogin gebruikt Supabase Auth. Deze pagina toont geen tokens.',
+});
+signalen.push({
+  naam: 'Storage / public-media',
+  staat: process.env.SUPABASE_URL ? 'ja' : 'onbekend',
+  toelichting: process.env.SUPABASE_URL
+    ? 'Publieke mediabucket is geconfigureerd. Er is geen bestandslijst opgehaald.'
+    : 'Geen Supabase-URL om storage te benoemen.',
+});
+
+const laatste = await eerste('communicatie_verzendingen', 'verzonden_op,status');
+const fout = await eerste('communicatie_verzendingen', 'foutmelding', { kolom: 'status', waarde: 'fout' });
+signalen.push(...resendSignaal({
+  sleutelAanwezig: Boolean(process.env.RESEND_API_KEY?.trim()),
+  laatsteVerzending: laatste?.verzonden_op ? String(laatste.verzonden_op) : null,
+  laatsteFout: fout?.foutmelding ? String(fout.foutmelding) : null,
+}));
+
+let runs: Rij[] = [];
+if (db) {
+  try {
+    const antwoord = await db.from('cron_runs').select('route,gestart_op,status').order('id', { ascending: false }).limit(20);
+    runs = antwoord.error ? [] : antwoord.data ?? [];
+  } catch {
+    runs = [];
+  }
+}
+for (const route of BEKENDE_CRONROUTES) {
+  const rij = runs.find((item) => item.route === route);
+  signalen.push(cronSignaal({
+    route,
+    laatsteRun: rij?.gestart_op ? String(rij.gestart_op) : null,
+    status: rij?.status ? String(rij.status) : null,
+  }));
+}
+
+const bridge = await eerste('bridge_sync_log', 'status,received_at,error');
+signalen.push({
+  naam: 'Sanity bridge',
+  staat: bridge ? (bridge.status === 'error' ? 'nee' : 'ja') : 'onbekend',
+  toelichting: bridge
+    ? veiligStatusTekst(`${bridge.status ?? ''} ${bridge.received_at ?? ''}`)
+    : 'Geen bridge-event geregistreerd. Er is niets automatisch verwerkt.',
+});
+
+let pageviewRij: Record<string, unknown> | null = null;
+if (db) {
+  try {
+    const view = await db.from('page_views').select('created_at').order('created_at', { ascending: false }).limit(1);
+    pageviewRij = view.error ? null : view.data?.[0] ?? null;
+  } catch {
+    pageviewRij = null;
+  }
+}
+signalen.push({
+  naam: 'Eigen page_views',
+  staat: pageviewRij?.created_at ? 'ja' : 'onbekend',
+  toelichting: pageviewRij?.created_at
+    ? `Laatste pageview ${veiligStatusTekst(pageviewRij.created_at)}. Vercel Analytics is een aparte meting.`
+    : 'Geen betrouwbare pageview. Vercel Analytics staat hier niet in.',
+});
+signalen.push({
+  naam: 'Migraties',
+  staat: 'onbekend',
+  toelichting: 'Er wordt vanaf deze pagina geen migratie uitgevoerd.',
+});
+---
+
+<Beheer titel="Systeem">
+  <header class="bh-top">
+    <div>
+      <h1>Systeemstatus</h1>
+      <p class="bh-hint">Alleen observeren. Geen geheimen, geen sleutels en geen automatische actie.</p>
+    </div>
+  </header>
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Onderdeel</th>
+        <th>Staat</th>
+        <th>Toelichting</th>
+      </tr>
+    </thead>
+    <tbody>
+      {signalen.map((item) => (
+        <tr>
+          <td>{item.naam}</td>
+          <td>{item.staat}</td>
+          <td>{item.toelichting}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</Beheer>
