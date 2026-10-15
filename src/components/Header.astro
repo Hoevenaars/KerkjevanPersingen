@@ -13,6 +13,8 @@ const nav = [
   { href: '/contact/', label: 'Contact' },
 ];
 
+const FACEBOOK_MENU_URL = 'https://www.facebook.com/share/1LuH8m8ToB/?mibextid=wwXIfr';
+
 const isActive = (href: string) => path === href || path.startsWith(href);
 ---
 
@@ -52,6 +54,21 @@ const isActive = (href: string) => path === href || path.startsWith(href);
               </li>
             ))
         }
+        <li class="facebook-item">
+          <a
+            class="facebook"
+            href={FACEBOOK_MENU_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"
+              ></path>
+            </svg>
+            <span class="visually-hidden">Facebook</span>
+          </a>
+        </li>
       </ul>
       <a class="reserve" href="/verhuur/aanvragen/">Reserveren</a>
     </nav>
@@ -139,6 +156,28 @@ const isActive = (href: string) => path === href || path.startsWith(href);
 
   .reserve:hover {
     background: var(--brick-dark);
+  }
+
+  /* Klein en gedempt, zodat het niet meedoet met de tekstlinks of de reserveringsknop. */
+  .facebook-item {
+    display: flex;
+    align-items: center;
+  }
+
+  .nav a.facebook {
+    display: inline-flex;
+    align-items: center;
+    color: var(--ink-mute);
+    border-bottom: none;
+    padding-block: 0;
+    opacity: 0.72;
+    line-height: 0;
+  }
+
+  .nav a.facebook:hover {
+    color: var(--pine);
+    border-bottom-color: transparent;
+    opacity: 1;
   }
 
   .heeft-submenu {
@@ -253,6 +292,14 @@ const isActive = (href: string) => path === href || path.startsWith(href);
       padding: var(--s-4) 0;
       border-bottom: 1px solid var(--sand);
       font-size: var(--t-base);
+    }
+
+    .nav ul a.facebook {
+      display: inline-flex;
+      width: auto;
+      padding: var(--s-4) 0;
+      border-bottom: none;
+      font-size: 0;
     }
 
     /* Op mobiel altijd zichtbaar onder "Het kerkje" — geen hover op een telefoon,
