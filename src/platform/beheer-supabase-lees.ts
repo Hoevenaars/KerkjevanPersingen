@@ -197,10 +197,13 @@ export async function leesSupabaseBeheer(
     rollenPerRelatie.set(id, lijst);
   }
   const rolActief = new Map<string, boolean>();
+  const hostRollen = new Set(['gastheer', 'gastbegeleider']);
   for (const rij of rolRijen) {
-    if (tekst(rij.rol) !== 'gastheer') continue;
+    if (!hostRollen.has(tekst(rij.rol))) continue;
     const id = tekst(rij.relatie_id);
-    rolActief.set(id, rij.actief == null ? true : Boolean(rij.actief));
+    const deze = rij.actief == null ? true : Boolean(rij.actief);
+    const vorige = rolActief.get(id);
+    rolActief.set(id, vorige === undefined ? deze : vorige && deze);
     const lijst = rollenPerRelatie.get(id) ?? [];
     if (!lijst.includes('gastheer')) lijst.push('gastheer');
     rollenPerRelatie.set(id, lijst);

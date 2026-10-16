@@ -13,6 +13,9 @@ function mag(actor: Actor): boolean {
   return magSchrijven(rechten, 'gastheerbeheer') || magSchrijven(rechten, 'instellingen');
 }
 
+/** Zelfde actief-vlag. Productie gebruikt gastbegeleider; nieuw aangemaakte gastheren gebruiken gastheer. */
+const HOST_ROLLEN = new Set(['gastheer', 'gastbegeleider']);
+
 type RolClient = DossierSessie & {
   from: (tabel: string) => {
     insert: (rij: Record<string, unknown>) => {
@@ -78,6 +81,29 @@ async function koppelBestaande(
   return { ok: true, melding: 'Bestaande relatie gekoppeld als gastheer. Er is geen mail verstuurd.' };
 }
 
+async function schrijfHostActief(db: RolClient, relatieId: number, actief: boolean): Promise<string | null> {
+  const lees = db as unknown as {
+    from: (tabel: string) => {
+      select: (kolommen: string) => {
+        eq: (kolom: string, waarde: unknown) => Promise<{ data: { rol?: string }[] | null; error: { message: string } | null }>;
+      };
+      insert: (rij: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+    };
+  };
+  const bestaand = await lees.from('relatie_rollen').select('rol,actief').eq('relatie_id', relatieId);
+  if (bestaand.error) return leesbareAuthFout(bestaand.error.message);
+  const host = (bestaand.data ?? []).map((rij) => String(rij.rol ?? '')).filter((rol) => HOST_ROLLEN.has(rol));
+  if (host.length === 0) {
+    const insert = await lees.from('relatie_rollen').insert({ relatie_id: relatieId, rol: 'gastheer', actief });
+    return insert.error ? leesbareAuthFout(insert.error.message) : null;
+  }
+  for (const rolNaam of host) {
+    const rol = await db.from('relatie_rollen').update({ actief }).eq('relatie_id', relatieId).eq('rol', rolNaam);
+    if (rol.error) return leesbareAuthFout(rol.error.message);
+  }
+  return null;
+}
+
 export async function werkGastheerBij(
   client: DossierSessie,
   relatieId: number,
@@ -92,8 +118,8 @@ export async function werkGastheerBij(
   const update = await db.from('relaties').update(relatieKolommen(invoer)).eq('id', relatieId).select('id').maybeSingle();
   if (update.error) return { ok: false, melding: leesbareAuthFout(update.error.message) };
   if (!update.data?.id) return { ok: false, melding: 'Gastheer niet gevonden.' };
-  const rol = await db.from('relatie_rollen').update({ actief }).eq('relatie_id', relatieId).eq('rol', 'gastheer');
-  if (rol.error) return { ok: false, melding: leesbareAuthFout(rol.error.message) };
+  const rol = await schrijfHostActief(db, relatieId, actief);
+  if (rol) return { ok: false, melding: rol };
   await audit(client, actor, relatieId, actief ? 'gastheer_actief' : 'gastheer_inactief', '', invoer.naam);
   return {
     ok: true,
@@ -111,9 +137,8 @@ export async function zetGastheerActief(
 ): Promise<DossierResultaat> {
   if (!mag(actor)) return { ok: false, melding: 'Geen schrijfrecht op gastheerbeheer.' };
   if (!Number.isInteger(relatieId) || relatieId <= 0) return { ok: false, melding: 'Gastheer niet gevonden.' };
-  const db = client as RolClient;
-  const rol = await db.from('relatie_rollen').update({ actief }).eq('relatie_id', relatieId).eq('rol', 'gastheer');
-  if (rol.error) return { ok: false, melding: leesbareAuthFout(rol.error.message) };
+  const rol = await schrijfHostActief(client as RolClient, relatieId, actief);
+  if (rol) return { ok: false, melding: rol };
   await audit(client, actor, relatieId, actief ? 'gastheer_actief' : 'gastheer_inactief', actief ? 'niet actief' : 'actief', actief ? 'actief' : 'niet actief');
   return {
     ok: true,

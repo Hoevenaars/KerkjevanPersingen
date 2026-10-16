@@ -74,6 +74,12 @@ test('supabase-leesmodel houdt relaties, annulering, datum en blokkade uit elkaa
   assert.equal(toe.find((item) => item.id === '2')?.datum, null);
   assert.equal(snapshot.gastheren.length, 1);
   assert.equal(snapshot.gastheren[0].naam, 'Gast B');
+  assert.equal(snapshot.gastheren[0].actief, true);
+  const inactief = await leesSupabaseBeheer(clientVan({
+    ...basis,
+    relatie_rollen: [{ relatie_id: 2, rol: 'gastbegeleider', actief: false }],
+  }), { vandaag: '2026-09-30', testmodus: true });
+  assert.equal(inactief.gastheren[0]?.actief, false);
   assert.equal(snapshot.instellingen.openingVan, '11:00');
   assert.equal(snapshot.instellingen.contractbeheerder, '');
   assert.equal(snapshot.instellingen.ontvangstAdres, 'aanvraag@example.test');

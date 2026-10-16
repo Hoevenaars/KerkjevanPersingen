@@ -304,6 +304,10 @@ test('gastheren: filter, historische koppeling en verwijderen', async () => {
   const uit = await zetGastheerActief(client as never, 5, false, actor);
   assert.equal(uit.ok, true);
   assert.equal(audits.includes('gastheer_inactief'), true);
+  rollen = [{ rol: 'gastbegeleider' }];
+  const bestaand = await zetGastheerActief(client as never, 5, false, actor);
+  assert.equal(bestaand.ok, true);
+  assert.equal(verwijderd, false);
   assert.equal(verwijderd, false);
   const aan = await zetGastheerActief(client as never, 5, true, actor);
   assert.equal(aan.ok, true);
