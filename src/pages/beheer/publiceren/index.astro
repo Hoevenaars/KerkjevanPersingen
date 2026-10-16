@@ -23,6 +23,7 @@ import { uploadPublicatieFoto } from '../../../lib/publicatie-foto.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { directeFotoUrl } from '../../../lib/agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { formatActiviteitTitel, isExpositieType, titelVoorInvoer, titelVoorOpslag } from '../../../platform/activiteit-titel.ts';
 import { nuZichtbaarOpWebsite } from '../../../lib/agenda-zichtbaarheid.ts';
 import {
   WERKSTATUS,
@@ -150,7 +151,7 @@ if (Astro.request.method === 'POST') {
     return Astro.redirect(terug.toString());
   }
   const exposanten = String(data.get('exposanten') ?? item.exposanten ?? '');
-  const titel = String(data.get('titel') ?? item.titel);
+  const titel = titelVoorOpslag(item.soort, String(data.get('titel') ?? item.titel));
   const concept: PublicatieBron = {
     ...item,
     titel,
@@ -402,7 +403,7 @@ function stapHref(volgende: number): string {
         <details class="bh-kaart" open={openId === item.id}>
           <summary>
             <strong>{formatNl(item.start)}{item.eind !== item.start ? ` – ${formatNl(item.eind)}` : ''}</strong>
-            {' · '}{item.titel || 'Zonder titel'}
+            {' · '}{formatActiviteitTitel(item.soort, item.titel) || item.titel || 'Zonder titel'}
             {' · '}{item.exposanten || item.organisatie || 'Geen exposant'}
             {' · '}<span class={`bh-badge bh-badge--${status}`}>{WERKSTATUS[status]}</span>
           </summary>
@@ -429,8 +430,21 @@ function stapHref(volgende: number): string {
           {openId === item.id && slugLetOp && <p class="bh-flash bh-flash--fout">{slugLetOp}</p>}
           <form method="post" enctype="multipart/form-data" class="bh-form">
             <input type="hidden" name="id" value={item.id} />
-            <label for={`titel-${item.id}`}>Titel</label>
-            <input id={`titel-${item.id}`} name="titel" value={item.titel} />
+            {isExpositieType(item.soort) ? (
+              <>
+                <label for={`titel-${item.id}`}>Titel van de expositie</label>
+                <p class="bh-muted">Vul alleen de naam van de expositie in. 'Expositie:' staat al vast.</p>
+                <div class="bh-form-rij">
+                  <span>Expositie:</span>
+                  <input id={`titel-${item.id}`} name="titel" value={titelVoorInvoer(item.soort, item.titel)} />
+                </div>
+              </>
+            ) : (
+              <>
+                <label for={`titel-${item.id}`}>Titel</label>
+                <input id={`titel-${item.id}`} name="titel" value={item.titel} />
+              </>
+            )}
             <label for={`exposanten-${item.id}`}>Exposant(en)</label>
             <input id={`exposanten-${item.id}`} name="exposanten" value={item.exposanten || ''} />
             <label for={`kort-${item.id}`}>Korte omschrijving</label>

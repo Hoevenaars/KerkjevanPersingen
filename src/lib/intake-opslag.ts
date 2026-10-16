@@ -108,9 +108,40 @@ export async function bewaarIntakeFoto(
   return { ok: true, hoofd: plan.hoofd, paden: opgeslagen.map((bestand) => bestand.pad) };
 }
 
+export async function leesIntakeFormulier(
+  plain: string,
+  env: Record<string, unknown> = process.env,
+  nu = new Date(),
+): Promise<
+  | { ok: true; boekingId: string; soort: string; titel: string; exposanten: string; korte: string; lange: string }
+  | { ok: false; reden: string }
+> {
+  const dossier = await dossierVanIntakeToken(plain, env, nu);
+  if (!dossier.ok) return dossier;
+  const client = maakBeheerAdminClient(env) as unknown as Db | null;
+  if (!client) return { ok: false, reden: 'geen database' };
+  const boeking = await client.from('boekingen').select('verhuurtype_sleutel').eq('id', Number(dossier.boekingId)).maybeSingle();
+  const publiek = await client
+    .from('publieke_activiteiten')
+    .select('titel,exposanten,korte_omschrijving,volledige_omschrijving')
+    .eq('boeking_id', Number(dossier.boekingId))
+    .maybeSingle();
+  if (boeking.error || publiek.error) return { ok: false, reden: 'ongeldig' };
+  return {
+    ok: true,
+    boekingId: dossier.boekingId,
+    soort: String(boeking.data?.verhuurtype_sleutel ?? ''),
+    titel: String(publiek.data?.titel ?? ''),
+    exposanten: String(publiek.data?.exposanten ?? ''),
+    korte: String(publiek.data?.korte_omschrijving ?? ''),
+    lange: String(publiek.data?.volledige_omschrijving ?? ''),
+  };
+}
+
 export async function lijstIntake(
   boekingId: string,
   env: Record<string, unknown> = process.env,
+  seconden = 600,
 ): Promise<{ rol: string; pad: string; url: string }[]> {
   const client = maakBeheerAdminClient(env) as unknown as Db | null;
   if (!client) return [];
@@ -120,7 +151,7 @@ export async function lijstIntake(
     const links = [];
     for (const rij of huidig.data) {
       const pad = String(rij.storage_pad ?? '');
-      const getekend = await client.storage.from(INTAKE_BUCKET).createSignedUrl(pad, 600);
+      const getekend = await client.storage.from(INTAKE_BUCKET).createSignedUrl(pad, seconden);
       links.push({ rol: String(rij.rol ?? 'extra'), pad, url: getekend.data?.signedUrl ?? '' });
     }
     return links;

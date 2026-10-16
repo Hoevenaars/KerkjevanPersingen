@@ -21,6 +21,7 @@ import {
 import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, leesbareTitel } from '../../../platform/verhuur-classificatie.ts';
 import { nuZichtbaarOpWebsite } from '../../../lib/agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
 
 if (Astro.request.method === 'POST') {
   const operationeel = await postAlsSupabase({
@@ -83,8 +84,6 @@ const exposities = snapshot.boekingen
     nummer: b.nummer,
   }, { ...selectie, vandaag, filter: 'alles' }))
   .sort((a, b) => a.start.localeCompare(b.start) || a.interneTitel.localeCompare(b.interneTitel));
-const actief = snapshot.gastheren.filter((g) => g.actief);
-
 function namenVan(boekingId?: string): string {
   if (!boekingId) return '';
   return gastNamen.get(boekingId) ?? '';
@@ -336,9 +335,9 @@ function weergave(item: { titel: string; huurder?: string; type: string; status:
                 </label>
                 <select id={`g-${b.id}`} name="gastheerId">
                   <option value="">Nog niet ingepland</option>
-                  {actief.map((g) => (
+                  {gastherenVoorKoppeling(snapshot.gastheren, b.gastheerId).map((g) => (
                     <option value={g.id} selected={g.id === b.gastheerId}>
-                      {g.naam}
+                      {g.actief ? g.naam : `${g.naam} (niet actief)`}
                     </option>
                   ))}
                 </select>

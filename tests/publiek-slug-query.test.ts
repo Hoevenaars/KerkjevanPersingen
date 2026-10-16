@@ -47,7 +47,7 @@ test('activiteitdetail vraagt alleen publieke_activiteit_op_slug', async () => {
     const { getActiviteitBySlug } = await import('../src/lib/sanity.ts');
     const activiteit = await getActiviteitBySlug('activiteit-120');
     assert.equal(activiteit?.slug, 'activiteit-120');
-    assert.equal(activiteit?.publiekeTitel, 'Activiteit 120');
+    assert.equal(activiteit?.publiekeTitel, 'Expositie: Activiteit 120');
     assert.equal(hits.length, 1);
     assert.match(hits[0].url, /\/rest\/v1\/rpc\/publieke_activiteit_op_slug$/);
     assert.match(hits[0].body, /activiteit-120/);

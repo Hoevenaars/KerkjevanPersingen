@@ -150,7 +150,7 @@ test('activiteitdetail vindt een slug voorbij de eerste 100 agenda-rijen', () =>
   const lijst = stelPubliekeAgenda(rijen, nu, 100);
   assert.equal(lijst.some((item) => item.slug === 'activiteit-120'), false);
   const detail = activiteitUitSlugRijen('activiteit-120', [rijen[119]], nu);
-  assert.equal(detail?.publiekeTitel, 'Activiteit 120');
+  assert.equal(detail?.publiekeTitel, 'Expositie: Activiteit 120');
   assert.equal(activiteitUitSlugRijen('activiteit-1', [{ ...rijen[0], zichtbaarheid: 'bezet' }], nu), null);
 });
 

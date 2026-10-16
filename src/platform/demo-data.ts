@@ -497,6 +497,7 @@ export const DEMO_INSTELLINGEN = {
   ontvangstAdres: '',
   extraOntvangstAdres: '',
   penningmeesterAdres: '',
+  socialMediaEmail: '',
 };
 
 export type DemoInstellingen = typeof DEMO_INSTELLINGEN;

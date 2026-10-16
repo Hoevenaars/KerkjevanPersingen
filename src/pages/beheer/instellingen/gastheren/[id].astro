@@ -5,8 +5,9 @@ import Beheer from '../../../../layouts/Beheer.astro';
 import { formatNl } from '../../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 import { actorVanSessie } from '../../../../lib/operatie/runtime.ts';
-import { werkGastheerBij } from '../../../../lib/operatie/gastheer-stam.ts';
+import { koppelingenVanGastheer, verwijderGastheer, werkGastheerBij, zetGastheerActief } from '../../../../lib/operatie/gastheer-stam.ts';
 import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
+import { GASTHEER_VERWIJDER_BEVESTIG, GASTHEER_VERWIJDER_GEKOPPELD, beoordeelGastheerVerwijdering } from '../../../../platform/gastheer-lijst.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -15,9 +16,24 @@ const gastheer = snapshot.gastheren.find((g) => g.id === id);
 if (Astro.request.method === 'POST') {
   const doel = new URL(Astro.url.pathname, Astro.url.origin);
   const sessie = sessieSupabaseUitAstro(Astro);
+  const data = await Astro.request.formData();
+  const actie = String(data.get('actie') ?? 'bewaar');
   if (!sessie) doel.searchParams.set('fout', 'Geen ingelogde sessie. Er is niets opgeslagen.');
+  else if (!gastheer) doel.searchParams.set('fout', 'Gastheer niet gevonden.');
   else {
-    const uit = await werkGastheerBij(sessie as never, Number(id), await Astro.request.formData(), actorVanSessie(Astro.locals.beheer));
+    const actor = actorVanSessie(Astro.locals.beheer);
+    const uit = actie === 'deactiveer'
+      ? await zetGastheerActief(sessie as never, Number(id), false, actor)
+      : actie === 'activeer'
+        ? await zetGastheerActief(sessie as never, Number(id), true, actor)
+        : actie === 'verwijderen'
+          ? await verwijderGastheer(sessie as never, Number(id), actor, data.get('bevestig') === 'ja')
+          : await werkGastheerBij(sessie as never, Number(id), data, actor);
+    if (actie === 'verwijderen' && uit.ok) {
+      const lijst = new URL('/beheer/instellingen/gastheren/', Astro.url.origin);
+      lijst.searchParams.set('melding', uit.melding);
+      return Astro.redirect(lijst.toString());
+    }
     doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
   }
   return Astro.redirect(doel.toString());
@@ -30,7 +46,16 @@ if (!gastheer) {
 const flash = Astro.url.searchParams.get('demo') === '1';
 const fout = Astro.url.searchParams.get('fout');
 const melding = Astro.url.searchParams.get('melding');
+const vragen = Astro.url.searchParams.get('verwijderen') === '1';
 const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
+const sessie = sessieSupabaseUitAstro(Astro);
+let verwijderOordeel: { mag: boolean; melding: string } | null = null;
+if (vragen && sessie) {
+  const koppelingen = await koppelingenVanGastheer(sessie as never, Number(id));
+  verwijderOordeel = 'fout' in koppelingen
+    ? { mag: false, melding: koppelingen.fout }
+    : beoordeelGastheerVerwijdering(koppelingen);
+}
 ---
 
 <Beheer titel={gastheer.naam}>
@@ -40,7 +65,11 @@ const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
   <header class="bh-top">
     <div>
       <h1>{gastheer.naam}</h1>
-      <p class="bh-hint">{gastheer.actief ? 'Actief' : 'Inactief'}</p>
+      <p class="bh-hint">
+        <span class={`bh-badge ${gastheer.actief ? 'bh-badge--actief' : 'bh-badge--verborgen'}`}>
+          {gastheer.actief ? 'Actief' : 'Niet actief'}
+        </span>
+      </p>
     </div>
   </header>
 
@@ -57,16 +86,41 @@ const diensten = snapshot.boekingen.filter((b) => b.gastheerId === gastheer.id);
       <input id="email" name="email" type="email" value={gastheer.email} />
       <label for="telefoon">Telefoon</label>
       <input id="telefoon" name="telefoon" value={gastheer.telefoon} />
-      <label for="actief">Status</label>
-      <select id="actief" name="actief">
-        <option value="ja" selected={gastheer.actief}>Actief</option>
-        <option value="nee" selected={!gastheer.actief}>Inactief</option>
-      </select>
-      <p class="bh-muted">Deactiveren verwijdert geen historische toewijzing en stuurt geen mail.</p>
+      <input type="hidden" name="actief" value={gastheer.actief ? 'ja' : 'nee'} />
       <div class="bh-acties">
-        <button class="bh-btn" type="submit">Gastheer bewaren</button>
+        <button class="bh-btn" type="submit" name="actie" value="bewaar">Gastheer bewaren</button>
       </div>
     </form>
+    <form method="post" class="bh-acties">
+      {gastheer.actief ? (
+        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="deactiveer">Niet actief maken</button>
+      ) : (
+        <button class="bh-btn" type="submit" name="actie" value="activeer">Opnieuw activeren</button>
+      )}
+    </form>
+    <p class="bh-muted">Niet actief maken verwijdert geen historische toewijzing en stuurt geen mail.</p>
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Verwijderen</h2>
+    {diensten.length > 0 ? (
+      <p>{GASTHEER_VERWIJDER_GEKOPPELD}</p>
+    ) : vragen && verwijderOordeel && !verwijderOordeel.mag ? (
+      <p>{verwijderOordeel.melding}</p>
+    ) : vragen ? (
+      <form method="post" class="bh-form">
+        <p>{GASTHEER_VERWIJDER_BEVESTIG}</p>
+        <div class="bh-acties">
+          <button class="bh-btn" type="submit" name="actie" value="verwijderen">Ja, definitief verwijderen</button>
+          <input type="hidden" name="bevestig" value="ja" />
+          <a class="bh-btn bh-btn--sec" href={`/beheer/instellingen/gastheren/${encodeURIComponent(gastheer.id)}/`}>Annuleren</a>
+        </div>
+      </form>
+    ) : (
+      <p>
+        <a href={`/beheer/instellingen/gastheren/${encodeURIComponent(gastheer.id)}/?verwijderen=1`}>Definitief verwijderen</a>
+      </p>
+    )}
   </section>
 
   <section class="bh-kaart">

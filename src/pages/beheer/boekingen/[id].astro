@@ -25,6 +25,7 @@ import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts'
 import { CONTRACTBEHEER_EMAIL } from '../../../lib/mail-adressen.ts';
 import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
+import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -165,7 +166,7 @@ const jobs = (snapshot.bron === 'supabase'
     ]
 ).sort((a, b) => (a.wanneer || '').localeCompare(b.wanneer || ''));
 const gastheer = gastheerVan(boeking.gastheerId, snapshot.gastheren);
-const actieveGastheren = snapshot.gastheren.filter((g) => g.actief);
+const actieveGastheren = gastherenVoorKoppeling(snapshot.gastheren, boeking.gastheerId);
 const verleng = statusActieToegestaan(boeking.status, 'verleng');
 const definitief = statusActieToegestaan(boeking.status, 'definitief');
 const afronden = statusActieToegestaan(boeking.status, 'afronden');
@@ -288,7 +289,7 @@ function tabHref(tabNaam: string): string {
                 <option value="">Nog niet ingepland</option>
                 {actieveGastheren.map((g) => (
                   <option value={g.id} selected={g.id === boeking.gastheerId}>
-                    {g.naam}
+                    {g.actief ? g.naam : `${g.naam} (niet actief)`}
                   </option>
                 ))}
               </select>

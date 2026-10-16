@@ -6,6 +6,7 @@ import PlanningNavigatie from '../../../components/beheer/PlanningNavigatie.astr
 import { AGENDA_LABEL, formatNl, gastheerVan } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { formatActiviteitTitel } from '../../../platform/activiteit-titel.ts';
 import {
   beschikbareJaren,
   gastbegeleidersPerBoeking,
@@ -120,7 +121,7 @@ function gastheerLabel(boekingId?: string): string {
             {activiteiten.map((p) => (
               <tr>
                 <td>
-                  <a class="bh-detail-link" href={metTerug(`/beheer/agenda/${encodeURIComponent(p.id)}/`, lijstPad)}>{p.titel}</a>
+                  <a class="bh-detail-link" href={metTerug(`/beheer/agenda/${encodeURIComponent(p.id)}/`, lijstPad)}>{formatActiviteitTitel(p.soort || 'expositie', p.titel) || p.titel}</a>
                 </td>
                 <td>
                   {formatNl(p.start)}

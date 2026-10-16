@@ -44,6 +44,7 @@ const LEEG_INSTELLINGEN: DemoInstellingen = {
   ontvangstAdres: '',
   extraOntvangstAdres: '',
   penningmeesterAdres: '',
+  socialMediaEmail: '',
 };
 
 export function periodeKlasse(start: string, eind: string, vandaag: string): PeriodeKlasse {
@@ -160,6 +161,7 @@ function instellingenUit(rijenIn: Record<string, unknown>[]): DemoInstellingen {
     ontvangstAdres: jsonTekst(map.get('ontvangst_adres')),
     extraOntvangstAdres: jsonTekst(map.get('extra_ontvangst_adres')),
     penningmeesterAdres: jsonTekst(map.get('penningmeester_adres')),
+    socialMediaEmail: jsonTekst(map.get('social_media_content_email')),
   };
 }
 

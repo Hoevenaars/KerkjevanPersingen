@@ -6,6 +6,7 @@
 
 import { createHash } from 'node:crypto';
 import { magStatusZetten } from '../../platform/aanvraag.ts';
+import { titelZonderExpositiePrefix } from '../../platform/activiteit-titel.ts';
 import { MAX_VERZENDPOGINGEN, mailFoutNaPoging } from '../../platform/continuiteit.ts';
 import {
   actueleVerzendingen,
@@ -400,6 +401,9 @@ export function pasToe(wereld: Wereld, mutaties: readonly Mutatie[]): Wereld {
         foto: 'foto_pad' in velden ? Boolean(tekst('foto_pad')) : (bestaand?.foto ?? false),
         fotoPad: 'foto_pad' in velden ? tekst('foto_pad') : (bestaand?.fotoPad ?? ''),
         toelichting: tekst('beoordeling_toelichting', bestaand?.toelichting ?? ''),
+        ...('exposanten' in velden ? { exposanten: tekst('exposanten') } : {}),
+        ...('korte_omschrijving' in velden ? { korteOmschrijving: tekst('korte_omschrijving') } : {}),
+        ...('volledige_omschrijving' in velden ? { volledigeOmschrijving: tekst('volledige_omschrijving') } : {}),
       };
       if (bestaand) Object.assign(bestaand, rij);
       else volgende.publiek.push(rij);
@@ -778,7 +782,19 @@ export type Opdracht =
   | { soort: 'verstuur_informatie'; aanvraagId: string }
   | { soort: 'aanvulling'; token: string; toelichting: string }
   | { soort: 'betaling'; boekingId: string }
-  | { soort: 'content_indienen'; token: string; titel: string; omschrijving: string; praktisch?: string; foto?: boolean; hoofdfoto?: string }
+  | {
+      soort: 'content_indienen';
+      token: string;
+      titel: string;
+      omschrijving: string;
+      /** Genegeerd. De exposant mag praktische informatie niet overschrijven. */
+      praktisch?: string;
+      foto?: boolean;
+      hoofdfoto?: string;
+      exposanten?: string;
+      korteTekst?: string;
+      langeTekst?: string;
+    }
   | { soort: 'content_beoordelen'; boekingId: string; besluit: 'goedkeuren' | 'wijziging'; toelichting?: string }
   | { soort: 'gastheer'; boekingId: string; gastheerId: string }
   | { soort: 'incident'; boekingId: string; omschrijving: string }
@@ -1101,13 +1117,25 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
     const publiek = wereld.publiek.find((item) => item.boekingId === token.boekingId);
     const boeking = wereld.boekingen.find((item) => item.id === token.boekingId);
     if (!publiek || !boeking) return mislukt('Geen contentdossier.');
-    if (publiek.titel === opdracht.titel && publiek.omschrijving === opdracht.omschrijving && publiek.praktisch === (opdracht.praktisch ?? '') && publiek.inhoudStatus === 'ingediend') {
+    const titel = boeking.verhuurtype === 'expositie' ? titelZonderExpositiePrefix(opdracht.titel) : opdracht.titel.trim();
+    const exposanten = opdracht.exposanten;
+    const zelfdeExposanten = exposanten === undefined || (publiek.exposanten ?? '') === exposanten;
+    const zelfdeKort = opdracht.korteTekst === undefined || (publiek.korteOmschrijving ?? '') === opdracht.korteTekst;
+    const zelfdeLang = opdracht.langeTekst === undefined || (publiek.volledigeOmschrijving ?? '') === opdracht.langeTekst;
+    if (
+      publiek.titel === titel
+      && publiek.omschrijving === opdracht.omschrijving
+      && zelfdeExposanten
+      && zelfdeKort
+      && zelfdeLang
+      && publiek.inhoudStatus === 'ingediend'
+    ) {
       return gelukt('Deze content was al ontvangen.', { boekingId: boeking.id, alVerwerkt: true });
     }
     const versie = publiek.versie + 1;
     const publicatie = beoordeelPublicatie({
       gekoppeldeBoekingStatus: boeking.status,
-      publiekeTitel: opdracht.titel,
+      publiekeTitel: titel,
       datum: boeking.start,
       omschrijving: opdracht.omschrijving,
       foto: publiek.foto,
@@ -1120,11 +1148,13 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
         soort: 'upsert_publiek',
         velden: {
           boeking_id: boeking.id,
-          titel: opdracht.titel,
-          slug: publiek.slug || slugVan(opdracht.titel, boeking.id),
+          titel,
+          slug: publiek.slug || slugVan(titel, boeking.id),
           omschrijving: opdracht.omschrijving,
-          praktische_informatie: opdracht.praktisch ?? '',
           foto_pad: fotoPadNaAanlevering(publiek.fotoPad, opdracht.hoofdfoto, Boolean(opdracht.foto)),
+          ...(exposanten !== undefined ? { exposanten } : {}),
+          ...(opdracht.korteTekst !== undefined ? { korte_omschrijving: opdracht.korteTekst } : {}),
+          ...(opdracht.langeTekst !== undefined ? { volledige_omschrijving: opdracht.langeTekst } : {}),
           start_datum: boeking.start,
           eind_datum: boeking.eind,
           publicatie_trigger: publiek.trigger,

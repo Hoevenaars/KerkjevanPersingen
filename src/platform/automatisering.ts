@@ -284,6 +284,22 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
     gewijzigdDoor: null,
     gewijzigdOp: null,
   },
+  {
+    sleutel: 'social_media_content',
+    naam: 'Social media content',
+    omschrijving: 'Goedgekeurde expositiecontent naar het ingestelde social-media-adres. Geen Facebook-koppeling. De schakelaar start uit.',
+    categorie: 'automatisering',
+    status: 'uit',
+    mailcategorie: 'automatisering',
+    trigger: 'Content goedgekeurd',
+    actieveTrigger: true,
+    ontvangerstype: 'Social media ontvanger',
+    risicovol: true,
+    laatsteRun: null,
+    laatsteResultaat: null,
+    gewijzigdDoor: null,
+    gewijzigdOp: null,
+  },
 ];
 
 export const TEMPLATE_AUTOMATISERING: Record<string, string> = {
@@ -398,6 +414,7 @@ const GEKOPPELDE_FLOW: Record<string, string> = {
   handmatige_template: 'Dossieractie',
   mailtemplate_test: 'Knop Testmail',
   gebruiker_uitnodiging: 'Uitnodigen of opnieuw',
+  social_media_content: 'Na goedkeuring van content',
 };
 
 export function gekoppeldeFlow(sleutel: string): string {

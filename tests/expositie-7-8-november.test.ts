@@ -41,7 +41,7 @@ test('de expositie verschijnt op de agenda en blokkeert het verhuurweekend', () 
   };
   const lijst = stelPubliekeAgenda([rij], new Date('2026-10-06T12:00:00Z'));
   assert.equal(lijst.length, 1);
-  assert.equal(lijst[0]?.publiekeTitel, 'Expositie Hans Peters icm Ineke Christiaans');
+  assert.equal(lijst[0]?.publiekeTitel, 'Expositie: Hans Peters icm Ineke Christiaans');
   assert.equal(lijst[0]?.slug, 'expositie-hans-peters-icm-ineke-christiaans');
   assert.equal(lijst[0]?.soort, 'expositie');
   assert.equal(activiteitVanAgendaRij(rij).kunstenaars, 'Hans Peters en Ineke Christiaans');

@@ -2,19 +2,28 @@
 export const prerender = false;
 
 import Base from '../../layouts/Base.astro';
+import ExposantVelden from '../../components/ExposantVelden.astro';
 import { operationeelSupabase, voerOperationeel } from '../../lib/operatie/runtime';
 import { portaalMagPubliceren, portaalTeVaak, valideerAanlevering } from '../../platform/exposant-portaal';
 import { valideerIntakeBestand } from '../../platform/intake-foto';
-import { bewaarIntakeFoto, dossierVanIntakeToken } from '../../lib/intake-opslag';
+import { bewaarIntakeFoto, dossierVanIntakeToken, leesIntakeFormulier } from '../../lib/intake-opslag';
+import { isExpositieType, titelVoorInvoer, titelVoorOpslag } from '../../platform/activiteit-titel';
+import { exposantenUitFormulier, parseExposanten, serializeExposanten } from '../../platform/exposanten';
 
 const token = Astro.url.searchParams.get('token') ?? '';
 const actief = operationeelSupabase();
 let melding = '';
 let fout = '';
+const context = token && actief ? await leesIntakeFormulier(token) : null;
+const soort = context?.ok ? context.soort : '';
+const expositie = isExpositieType(soort);
 
 if (Astro.request.method === 'POST' && actief) {
   const data = await Astro.request.formData();
   const tokenWaarde = String(data.get('token') ?? '');
+  const dossier = tokenWaarde ? await leesIntakeFormulier(tokenWaarde) : null;
+  const soortPost = dossier?.ok ? dossier.soort : '';
+  const isExpositie = isExpositieType(soortPost);
   if (portaalTeVaak(Astro.clientAddress || tokenWaarde || 'anoniem')) {
     fout = 'Te veel pogingen. Probeer het later opnieuw.';
   } else if (portaalMagPubliceren()) {
@@ -22,6 +31,8 @@ if (Astro.request.method === 'POST' && actief) {
   } else {
   const korte = String(data.get('korte') ?? '').trim();
   const lange = String(data.get('lange') ?? data.get('omschrijving') ?? '').trim();
+  const titelInvoer = titelVoorOpslag(isExpositie ? 'expositie' : soortPost, String(data.get('titel') ?? ''));
+  const exposanten = isExpositie ? serializeExposanten(exposantenUitFormulier(data.getAll('exposant'))) : undefined;
   const hoofd = data.get('hoofdafbeelding');
   const extras = data.getAll('extra').filter((item): item is File => item instanceof File && item.size > 0);
   const bestanden = [
@@ -29,10 +40,10 @@ if (Astro.request.method === 'POST' && actief) {
     ...extras.map((file) => ({ file, alsHoofd: false })),
   ];
   const controle = valideerAanlevering({
-    titel: String(data.get('titel') ?? '').trim(),
+    titel: titelInvoer,
     korteTekst: korte,
     langeTekst: lange,
-    praktisch: String(data.get('praktisch') ?? '').trim(),
+    praktisch: '',
     hoofdafbeelding: bestanden.some((item) => item.alsHoofd),
     extraFotos: extras.length,
   });
@@ -44,11 +55,11 @@ if (Astro.request.method === 'POST' && actief) {
   } else {
   let hoofdfoto = '';
   if (bestanden.length > 0) {
-    const dossier = await dossierVanIntakeToken(tokenWaarde);
-    if (!dossier.ok) {
+    const geldig = await dossierVanIntakeToken(tokenWaarde);
+    if (!geldig.ok) {
       fout = 'Deze link is ongeldig, verlopen of ingetrokken. Er is niets opgeslagen.';
     } else {
-      const opgeslagen = await bewaarIntakeFoto(dossier.boekingId, await Promise.all(bestanden.map(async (item) => ({
+      const opgeslagen = await bewaarIntakeFoto(geldig.boekingId, await Promise.all(bestanden.map(async (item) => ({
         bytes: new Uint8Array(await item.file.arrayBuffer()),
         type: item.file.type,
         size: item.file.size,
@@ -65,9 +76,11 @@ if (Astro.request.method === 'POST' && actief) {
     {
       soort: 'content_indienen',
       token: tokenWaarde,
-      titel: String(data.get('titel') ?? '').trim(),
+      titel: titelInvoer,
       omschrijving: [korte, lange].filter(Boolean).join('\n\n'),
-      praktisch: String(data.get('praktisch') ?? '').trim(),
+      korteTekst: korte,
+      langeTekst: lange,
+      ...(exposanten !== undefined ? { exposanten } : {}),
       foto: bestanden.length > 0,
       hoofdfoto,
     },
@@ -82,6 +95,11 @@ if (Astro.request.method === 'POST' && actief) {
   }
   }
 }
+
+const titelVeld = context?.ok ? titelVoorInvoer(soort, context.titel) : '';
+const exposantNamen = context?.ok ? parseExposanten(context.exposanten) : [];
+const korteVeld = context?.ok ? context.korte : '';
+const langeVeld = context?.ok ? context.lange : '';
 ---
 
 <Base
@@ -90,8 +108,12 @@ if (Astro.request.method === 'POST' && actief) {
   noindex={true}
 >
   <article class="wrap prose klant-form">
-    <h1>Gegevens aanleveren</h1>
-    <p>Deze pagina hoort bij één activiteit. Zonder geldige link slaan we niets op.</p>
+    <h1>{expositie ? 'Content voor je expositie' : 'Gegevens aanleveren'}</h1>
+    <p>
+      {expositie
+        ? 'Hier lever je de tekst en beelden aan die het Kerkje kan gebruiken. Het Kerkje bepaalt zelf de praktische bezoekersinformatie en wanneer iets online komt. Jij publiceert niets.'
+        : 'Deze pagina hoort bij één activiteit. Zonder geldige link slaan we niets op. Je kunt de activiteit niet zelf publiceren.'}
+    </p>
     {melding && <p class="klant-ok">{melding}</p>}
     {fout && <p class="klant-fout">{fout}</p>}
     {
@@ -102,23 +124,42 @@ if (Astro.request.method === 'POST' && actief) {
       ) : (
         <form method="post">
           <input type="hidden" name="token" value={token} />
-          <label for="titel">Publieke titel</label>
-          <input id="titel" name="titel" required />
-          <label for="korte">Korte tekst</label>
-          <textarea id="korte" name="korte" rows="3"></textarea>
-          <label for="lange">Lange tekst</label>
-          <textarea id="lange" name="lange" rows="6"></textarea>
-          <label for="praktisch">Praktische informatie</label>
-          <textarea id="praktisch" name="praktisch" rows="4"></textarea>
-          <label for="hoofdafbeelding">Hoofdafbeelding of flyer</label>
+          {expositie ? (
+            <>
+              <label for="titel">Titel van de expositie</label>
+              <p class="hulp">Vul alleen de naam van de expositie in. 'Expositie:' staat al vast.</p>
+              <div class="titel-rij">
+                <span class="prefix">Expositie:</span>
+                <input id="titel" name="titel" required value={titelVeld} />
+              </div>
+              <ExposantVelden
+                namen={exposantNamen}
+                helper="Voeg hier alle exposanten of kunstenaars toe die deelnemen aan deze expositie."
+              />
+              <label for="korte">Korte tekst</label>
+              <p class="hulp">Deze tekst komt op de agenda pagina te staan. Geef in maximaal 5 zinnen een korte en aantrekkelijke omschrijving van de expositie.</p>
+              <textarea id="korte" name="korte" rows="4">{korteVeld}</textarea>
+              <label for="lange">Uitgebreide tekst</label>
+              <p class="hulp">Deze tekst komt op de persoonlijke expositie pagina te staan. Hier kun je uitgebreider vertellen over de expositie, het verhaal erachter, de inspiratie en wat bezoekers kunnen verwachten.</p>
+              <textarea id="lange" name="lange" rows="8">{langeVeld}</textarea>
+              <label for="hoofdafbeelding">Afbeeldingen</label>
+              <p class="hulp">Upload hier de foto's en beelden die gebruikt mogen worden voor de website en communicatie over de expositie. Gebruik bij voorkeur scherpe beelden van goede kwaliteit.</p>
+            </>
+          ) : (
+            <>
+              <label for="titel">Publieke titel</label>
+              <input id="titel" name="titel" required value={titelVeld} />
+              <label for="korte">Korte tekst</label>
+              <textarea id="korte" name="korte" rows="3">{korteVeld}</textarea>
+              <label for="lange">Lange tekst</label>
+              <textarea id="lange" name="lange" rows="6">{langeVeld}</textarea>
+              <label for="hoofdafbeelding">Hoofdafbeelding of flyer</label>
+            </>
+          )}
           <input id="hoofdafbeelding" name="hoofdafbeelding" type="file" accept="image/jpeg,image/png,image/webp" />
           <label for="extra">Extra foto's</label>
           <input id="extra" name="extra" type="file" accept="image/jpeg,image/png,image/webp" multiple />
           <p>Je kunt deze activiteit niet zelf publiceren en je ziet geen andere dossiers.</p>
-          <label class="klant-check">
-            <input type="checkbox" name="foto" value="ja" />
-            Er is een foto aangeleverd
-          </label>
           <button type="submit">Verstuur</button>
         </form>
       )
@@ -142,7 +183,7 @@ if (Astro.request.method === 'POST' && actief) {
     border: 1px solid #1c1917;
     background: #fff;
   }
-  .klant-form button {
+  .klant-form button[type='submit'] {
     margin-top: 0.75rem;
     justify-self: start;
     font: inherit;
@@ -151,19 +192,11 @@ if (Astro.request.method === 'POST' && actief) {
     color: #faf7f2;
     border: 0;
   }
-  .klant-check {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
+  .hulp { margin: 0; color: #4a4a44; font-size: 0.95rem; }
+  .titel-rij { display: grid; grid-template-columns: auto 1fr; gap: 0.6rem; align-items: center; }
+  .prefix { font-weight: 700; }
   .klant-ok,
-  .klant-fout {
-    padding: 0.75rem 1rem;
-  }
-  .klant-ok {
-    background: #e7f0e4;
-  }
-  .klant-fout {
-    background: #f6e4dc;
-  }
+  .klant-fout { padding: 0.75rem 1rem; }
+  .klant-ok { background: #e7f0e4; }
+  .klant-fout { background: #f6e4dc; }
 </style>

@@ -3,6 +3,7 @@
  */
 
 import { gastheerInvoer, relatieKolommen, type RelatieInvoer } from '../../platform/relatie-invoer.ts';
+import { beoordeelGastheerVerwijdering, type GastheerKoppelingen } from '../../platform/gastheer-lijst.ts';
 import { magSchrijven } from '../../platform/rechten.ts';
 import type { Actor } from './kern.ts';
 import { leesbareAuthFout, type DossierResultaat, type DossierSessie } from './dossier-sessie.ts';
@@ -100,6 +101,92 @@ export async function werkGastheerBij(
       ? 'Gastheer opgeslagen. Er is geen mail verstuurd.'
       : 'Gastheer gedeactiveerd. Historische toewijzingen blijven staan. Er is geen mail verstuurd.',
   };
+}
+
+export async function zetGastheerActief(
+  client: DossierSessie,
+  relatieId: number,
+  actief: boolean,
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!mag(actor)) return { ok: false, melding: 'Geen schrijfrecht op gastheerbeheer.' };
+  if (!Number.isInteger(relatieId) || relatieId <= 0) return { ok: false, melding: 'Gastheer niet gevonden.' };
+  const db = client as RolClient;
+  const rol = await db.from('relatie_rollen').update({ actief }).eq('relatie_id', relatieId).eq('rol', 'gastheer');
+  if (rol.error) return { ok: false, melding: leesbareAuthFout(rol.error.message) };
+  await audit(client, actor, relatieId, actief ? 'gastheer_actief' : 'gastheer_inactief', actief ? 'niet actief' : 'actief', actief ? 'actief' : 'niet actief');
+  return {
+    ok: true,
+    melding: actief
+      ? 'Gastheer opnieuw geactiveerd. Er is geen mail verstuurd.'
+      : 'Gastheer op Niet actief gezet. Historische toewijzingen blijven staan. Er is geen mail verstuurd.',
+  };
+}
+
+type TelClient = DossierSessie & {
+  from: (tabel: string) => {
+    select: (kolommen: string) => {
+      eq: (kolom: string, waarde: unknown) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> & {
+        eq: (kolom: string, waarde: unknown) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+      };
+    };
+    delete: () => {
+      eq: (kolom: string, waarde: unknown) => {
+        eq: (kolom: string, waarde: unknown) => Promise<{ error: { message: string } | null }>;
+      } & Promise<{ error: { message: string } | null }>;
+    };
+  };
+};
+
+async function tel(client: TelClient, tabel: string, kolom: string, id: number): Promise<number | { fout: string }> {
+  const antwoord = await client.from(tabel).select('id').eq(kolom, id);
+  if (antwoord.error) return { fout: leesbareAuthFout(antwoord.error.message) };
+  return (antwoord.data ?? []).length;
+}
+
+export async function koppelingenVanGastheer(client: DossierSessie, relatieId: number): Promise<GastheerKoppelingen | { fout: string }> {
+  const db = client as TelClient;
+  const [alsGastheer, toewijzingen, alsHuurder, aanvragen, jobs, verzendingen, rollen] = await Promise.all([
+    tel(db, 'boekingen', 'gastheer_relatie_id', relatieId),
+    tel(db, 'gastbegeleider_toewijzingen', 'relatie_id', relatieId),
+    tel(db, 'boekingen', 'huurder_relatie_id', relatieId),
+    tel(db, 'aanvragen', 'relatie_id', relatieId),
+    tel(db, 'communicatie_jobs', 'relatie_id', relatieId),
+    tel(db, 'communicatie_verzendingen', 'relatie_id', relatieId),
+    db.from('relatie_rollen').select('rol').eq('relatie_id', relatieId),
+  ]);
+  for (const uit of [alsGastheer, toewijzingen, alsHuurder, aanvragen, jobs, verzendingen]) {
+    if (typeof uit !== 'number') return uit;
+  }
+  if (rollen.error) return { fout: leesbareAuthFout(rollen.error.message) };
+  const andereRollen = (rollen.data ?? []).filter((rij) => String(rij.rol) !== 'gastheer').length;
+  return {
+    boekingenAlsGastheer: alsGastheer as number,
+    toewijzingen: toewijzingen as number,
+    overige: (alsHuurder as number) + (aanvragen as number) + (jobs as number) + (verzendingen as number) + andereRollen,
+  };
+}
+
+export async function verwijderGastheer(
+  client: DossierSessie,
+  relatieId: number,
+  actor: Actor,
+  bevestigd: boolean,
+): Promise<DossierResultaat> {
+  if (!mag(actor)) return { ok: false, melding: 'Geen schrijfrecht op gastheerbeheer.' };
+  if (!Number.isInteger(relatieId) || relatieId <= 0) return { ok: false, melding: 'Gastheer niet gevonden.' };
+  const koppelingen = await koppelingenVanGastheer(client, relatieId);
+  if ('fout' in koppelingen) return { ok: false, melding: koppelingen.fout };
+  const oordeel = beoordeelGastheerVerwijdering(koppelingen);
+  if (!oordeel.mag) return { ok: false, melding: oordeel.melding };
+  if (!bevestigd) return { ok: false, melding: 'Bevestig het verwijderen. Er is niets verwijderd.' };
+  const db = client as TelClient;
+  const rol = await db.from('relatie_rollen').delete().eq('relatie_id', relatieId).eq('rol', 'gastheer');
+  if (rol.error) return { ok: false, melding: leesbareAuthFout(rol.error.message) };
+  const relatie = await db.from('relaties').delete().eq('id', relatieId);
+  if (relatie.error) return { ok: false, melding: leesbareAuthFout(relatie.error.message) };
+  await audit(client, actor, relatieId, 'gastheer_verwijderd', 'gastheer', 'verwijderd');
+  return { ok: true, melding: 'Gastheer definitief verwijderd. Er is geen mail verstuurd.' };
 }
 
 async function audit(client: DossierSessie, actor: Actor, id: number, actie: string, van: string, naar: string): Promise<void> {

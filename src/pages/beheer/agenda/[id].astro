@@ -21,6 +21,10 @@ import {
 } from '../../../lib/agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { terugLink } from '../../../platform/planning.ts';
+import { formatActiviteitTitel, isExpositieType, titelVoorInvoer, titelVoorOpslag } from '../../../platform/activiteit-titel.ts';
+import { exposantenUitFormulier, parseExposanten, serializeExposanten } from '../../../platform/exposanten.ts';
+import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
+import ExposantVelden from '../../../components/ExposantVelden.astro';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -38,11 +42,15 @@ if (Astro.request.method === 'POST') {
     if (actie === 'publicatiestatus' || actie === 'bewaar_activiteit') payload.publicatiestatus = String(data.get('publicatiestatus') ?? '');
     if (actie === 'contentstatus' || actie === 'bewaar_activiteit') payload.contentstatus = String(data.get('contentstatus') ?? '');
     if (actie === 'bewaar_activiteit') {
-      payload.titel = String(data.get('titel') ?? '');
+      const soortVeld = String(data.get('soort') ?? '');
+      payload.titel = titelVoorOpslag(soortVeld, String(data.get('titel') ?? ''));
       payload.start = String(data.get('start') ?? '');
       payload.eind = String(data.get('eind') ?? '');
-      payload.soort = String(data.get('soort') ?? '');
-      payload.exposanten = String(data.get('exposanten') ?? '');
+      payload.soort = soortVeld;
+      const losseExposanten = data.getAll('exposant');
+      payload.exposanten = isExpositieType(soortVeld) && losseExposanten.length > 0
+        ? serializeExposanten(exposantenUitFormulier(losseExposanten))
+        : String(data.get('exposanten') ?? '');
       payload.korte_omschrijving = String(data.get('korte_omschrijving') ?? '');
       payload.volledige_omschrijving = String(data.get('volledige_omschrijving') ?? '');
       payload.praktische_informatie = String(data.get('praktische_informatie') ?? '');
@@ -57,6 +65,13 @@ if (Astro.request.method === 'POST') {
       actorNaam: actor.naam,
       actorId: actor.id,
     });
+    if (opgeslagen.ok && String(payload.contentstatus ?? data.get('contentstatus') ?? '') === 'goedgekeurd' && publiek.boekingId) {
+      const { verstuurSocialMediaNaGoedkeuring } = await import('../../../lib/social-media-versturen.ts');
+      await verstuurSocialMediaNaGoedkeuring(publiek.boekingId, {
+        env: omgevingsRecord(),
+        basisUrl: Astro.url.origin,
+      }).catch(() => undefined);
+    }
     const doel = new URL(Astro.url.pathname, Astro.url.origin);
     doel.searchParams.set(opgeslagen.ok ? 'melding' : 'fout', opgeslagen.melding);
     return Astro.redirect(doel.toString());
@@ -82,8 +97,11 @@ const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
 const boeking = publiek?.boekingId ? snapshot.boekingen.find((b) => b.id === publiek.boekingId) : undefined;
 const gastheer = gastheerVan(boeking?.gastheerId, snapshot.gastheren);
-const titel = publiek?.titel ?? intern!.titel;
-const actief = snapshot.gastheren.filter((g) => g.actief);
+const soortNu = publiek?.soort || boeking?.soort || '';
+const titel = formatActiviteitTitel(soortNu, publiek?.titel ?? intern!.titel) || (publiek?.titel ?? intern!.titel);
+const titelInvoer = titelVoorInvoer(soortNu, publiek?.titel ?? '');
+const expositie = isExpositieType(soortNu);
+const gastheerKeuze = gastherenVoorKoppeling(snapshot.gastheren, boeking?.gastheerId);
 const vandaag = ymdInAmsterdam(new Date());
 const geannuleerd = publiek?.levenscyclus === 'geannuleerd';
 const zichtbaar = publiek
@@ -142,8 +160,21 @@ const terug = terugLink(Astro.url.searchParams.get('terug'));
       <section class="bh-kaart">
         <h2>Algemeen</h2>
         <form method="post" class="bh-form">
-          <label for="titel">Titel</label>
-          <input id="titel" name="titel" value={publiek.titel} />
+          {expositie ? (
+            <>
+              <label for="titel">Titel van de expositie</label>
+              <p class="bh-muted">Vul alleen de naam van de expositie in. 'Expositie:' staat al vast.</p>
+              <div class="bh-form-rij">
+                <span>Expositie:</span>
+                <input id="titel" name="titel" value={titelInvoer} />
+              </div>
+            </>
+          ) : (
+            <>
+              <label for="titel">Titel</label>
+              <input id="titel" name="titel" value={publiek.titel} />
+            </>
+          )}
           <div class="bh-form-rij">
             <label for="start">Start<input id="start" name="start" type="date" value={publiek.start.slice(0, 10)} /></label>
             <label for="eind">Einde<input id="eind" name="eind" type="date" value={publiek.eind.slice(0, 10)} /></label>
@@ -154,8 +185,17 @@ const terug = terugLink(Astro.url.searchParams.get('terug'));
               <option value={waarde} selected={(publiek.soort || boeking?.soort) === waarde}>{label}</option>
             ))}
           </select>
-          <label for="exposanten">Exposant of organisatie</label>
-          <input id="exposanten" name="exposanten" value={publiek.exposanten || boeking?.huurder || ''} />
+          {expositie ? (
+            <ExposantVelden
+              namen={parseExposanten(publiek.exposanten)}
+              helper="Voeg hier alle exposanten of kunstenaars toe die deelnemen aan deze expositie."
+            />
+          ) : (
+            <>
+              <label for="exposanten">Exposant of organisatie</label>
+              <input id="exposanten" name="exposanten" value={publiek.exposanten || boeking?.huurder || ''} />
+            </>
+          )}
           <p class="bh-muted">Slug: {publiek.slug || 'nog geen webadres'}</p>
 
           <h2>Content</h2>
@@ -238,8 +278,8 @@ const terug = terugLink(Astro.url.searchParams.get('terug'));
             <input type="hidden" name="boekingId" value={boeking.id} />
             <select id="gastheer" name="gastheerId">
               <option value="">Nog niet ingepland</option>
-              {actief.map((g) => (
-                <option value={g.id} selected={g.id === boeking.gastheerId}>{g.naam}</option>
+              {gastheerKeuze.map((g) => (
+                <option value={g.id} selected={g.id === boeking.gastheerId}>{g.actief ? g.naam : `${g.naam} (niet actief)`}</option>
               ))}
             </select>
             <p class="bh-muted">

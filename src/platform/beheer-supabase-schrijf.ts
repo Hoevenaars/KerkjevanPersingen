@@ -4,6 +4,7 @@
  */
 
 import { websiteMeldingRij, type WebsiteMelding } from '../lib/website-melding.ts';
+import { SOCIAL_MEDIA_EMAIL_SLEUTEL, SOCIAL_MEDIA_HELPER, leesSocialMediaEmail } from './social-media-content.ts';
 import { vrijgekomenWeekendRij, type VrijgekomenWeekendInstelling } from '../lib/vrijgekomen-weekend.ts';
 
 export interface InstellingenInvoer {
@@ -13,6 +14,7 @@ export interface InstellingenInvoer {
   ontvangstAdres: string;
   extraOntvangstAdres: string;
   penningmeesterAdres: string;
+  socialMediaEmail?: string;
 }
 
 export interface UpsertClient {
@@ -25,6 +27,8 @@ export interface UpsertClient {
 }
 
 export function instellingRijen(invoer: InstellingenInvoer): { sleutel: string; groep: string; waarde: unknown; toelichting: string }[] {
+  const social = leesSocialMediaEmail(invoer.socialMediaEmail ?? '');
+  if (!social.ok) throw new Error(social.reden);
   return [
     {
       sleutel: 'expositie_openingstijden',
@@ -56,7 +60,17 @@ export function instellingRijen(invoer: InstellingenInvoer): { sleutel: string; 
       waarde: invoer.penningmeesterAdres.trim(),
       toelichting: 'E-mailadres penningmeester',
     },
+    {
+      sleutel: SOCIAL_MEDIA_EMAIL_SLEUTEL,
+      groep: 'mail',
+      waarde: social.adres,
+      toelichting: SOCIAL_MEDIA_HELPER,
+    },
   ];
+}
+
+export function controleerSocialMediaEmail(ruw: string): { ok: true; adres: string } | { ok: false; reden: string } {
+  return leesSocialMediaEmail(ruw);
 }
 
 export async function bewaarInstellingen(client: UpsertClient, invoer: InstellingenInvoer): Promise<void> {

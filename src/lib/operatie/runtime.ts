@@ -287,7 +287,33 @@ export async function voerOperationeel(
   if (!client) return { ok: false, melding: 'Supabase service-role ontbreekt.' };
   const { error } = await client.rpc('pas_continuiteit_mutaties', { p_mutaties: schoon(uit.mutaties) as unknown as Json });
   if (error) return { ok: false, melding: error.message };
+  if (opdracht.soort === 'content_indienen') {
+    const bijgewerkt = await bewaarIntakeTekst(client, uit.mutaties);
+    if (bijgewerkt) return { ok: true, melding: `${uit.resultaat.melding} ${bijgewerkt}` };
+  }
+  if (opdracht.soort === 'content_beoordelen' && opdracht.besluit === 'goedkeuren') {
+    const { verstuurSocialMediaNaGoedkeuring } = await import('../social-media-versturen.ts');
+    await verstuurSocialMediaNaGoedkeuring(opdracht.boekingId, { env, basisUrl: opties.basisUrl }).catch(() => undefined);
+  }
   return uit.resultaat;
+}
+
+async function bewaarIntakeTekst(
+  client: { from: (tabel: string) => { update: (waarden: Record<string, unknown>) => { eq: (kolom: string, waarde: unknown) => Promise<{ error: { message: string } | null }> } } },
+  mutaties: Mutatie[],
+): Promise<string | null> {
+  const publiek = mutaties.find((mutatie) => mutatie.soort === 'upsert_publiek');
+  const velden = publiek?.velden ?? {};
+  const boekingId = Number(velden.boeking_id);
+  if (!boekingId) return null;
+  const waarden: Record<string, unknown> = {};
+  if ('exposanten' in velden) waarden.exposanten = velden.exposanten ?? '';
+  if ('korte_omschrijving' in velden) waarden.korte_omschrijving = velden.korte_omschrijving ?? '';
+  if ('volledige_omschrijving' in velden) waarden.volledige_omschrijving = velden.volledige_omschrijving ?? '';
+  if (Object.keys(waarden).length === 0) return null;
+  const antwoord = await client.from('publieke_activiteiten').update(waarden).eq('boeking_id', boekingId);
+  if (antwoord.error) return 'De exposantenlijst kon niet worden bijgewerkt. Praktische informatie is niet gewijzigd.';
+  return null;
 }
 
 export async function draaiWorkflow(env: Record<string, unknown> = process.env, basisUrl = 'https://kerkjepersingen.nl'): Promise<{ ok: boolean; melding: string }> {

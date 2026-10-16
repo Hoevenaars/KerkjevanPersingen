@@ -1,0 +1,83 @@
+---
+interface Props {
+  namen: string[];
+  helper?: string;
+}
+const { namen, helper } = Astro.props;
+const regels = namen.length > 0 ? namen : [''];
+---
+
+<div class="exposant-blok">
+  <label>Exposanten</label>
+  {helper && <p class="exposant-hulp">{helper}</p>}
+  <div id="exposanten" class="exposant-lijst">
+    {regels.map((naam, index) => (
+      <div class="exposant-rij" data-exposant>
+        <span class="exposant-nr">{index + 1}.</span>
+        <input name="exposant" value={naam} aria-label={`Naam exposant ${index + 1}`} />
+        <button type="button" data-actie="omhoog">Omhoog</button>
+        <button type="button" data-actie="omlaag">Omlaag</button>
+        <button type="button" data-actie="weg">Verwijderen</button>
+      </div>
+    ))}
+  </div>
+  <button type="button" id="voeg-exposant">+ Exposant toevoegen</button>
+</div>
+
+<script is:inline>
+  (function () {
+    const lijst = document.getElementById('exposanten');
+    const toevoegen = document.getElementById('voeg-exposant');
+    if (!lijst || !toevoegen) return;
+    function nummer() {
+      [...lijst.children].forEach((rij, index) => {
+        const nr = rij.querySelector('.exposant-nr');
+        const veld = rij.querySelector('input');
+        if (nr) nr.textContent = `${index + 1}.`;
+        if (veld) veld.setAttribute('aria-label', `Naam exposant ${index + 1}`);
+      });
+    }
+    function rij(naam) {
+      const el = document.createElement('div');
+      el.className = 'exposant-rij';
+      el.dataset.exposant = '';
+      el.innerHTML = '<span class="exposant-nr"></span><input name="exposant" /><button type="button" data-actie="omhoog">Omhoog</button><button type="button" data-actie="omlaag">Omlaag</button><button type="button" data-actie="weg">Verwijderen</button>';
+      const veld = el.querySelector('input');
+      if (veld) veld.value = naam;
+      return el;
+    }
+    toevoegen.addEventListener('click', function () {
+      lijst.append(rij(''));
+      nummer();
+      const velden = lijst.querySelectorAll('input');
+      velden[velden.length - 1]?.focus();
+    });
+    lijst.addEventListener('click', function (event) {
+      const knop = event.target.closest('button');
+      if (!knop) return;
+      const regel = knop.closest('[data-exposant]');
+      if (!regel) return;
+      if (knop.dataset.actie === 'weg') {
+        if (lijst.children.length > 1) regel.remove();
+        else {
+          const veld = regel.querySelector('input');
+          if (veld) veld.value = '';
+        }
+      }
+      if (knop.dataset.actie === 'omhoog' && regel.previousElementSibling) lijst.insertBefore(regel, regel.previousElementSibling);
+      if (knop.dataset.actie === 'omlaag' && regel.nextElementSibling) lijst.insertBefore(regel.nextElementSibling, regel);
+      nummer();
+    });
+  })();
+</script>
+
+<style>
+  .exposant-blok { display: grid; gap: 0.4rem; }
+  .exposant-hulp { margin: 0; color: #4a4a44; font-size: 0.95rem; }
+  .exposant-lijst { display: grid; gap: 0.4rem; }
+  .exposant-rij { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 0.4rem; align-items: center; }
+  .exposant-nr { min-width: 1.5rem; }
+  .exposant-rij input { font: inherit; padding: 0.6rem 0.7rem; border: 1px solid #1c1917; background: #fff; }
+  .exposant-rij button, #voeg-exposant { font: inherit; padding: 0.4rem 0.6rem; background: #fff; border: 1px solid #1c1917; }
+  #voeg-exposant { justify-self: start; }
+</style>

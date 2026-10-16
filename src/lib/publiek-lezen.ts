@@ -8,6 +8,8 @@ import type { Activiteit } from './sanity';
 import { supabaseLoginUitOmgeving } from './supabase-project.ts';
 import { contentStatusVanInhoud, maandenVanTrigger, nuZichtbaarOpWebsite, timingBereikt } from './agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../platform/datum.ts';
+import { formatActiviteitTitel } from '../platform/activiteit-titel.ts';
+import { formatExposantenWeergave } from '../platform/exposanten.ts';
 import { eerstvolgendeVrijeWeekenden, type VrijWeekend } from './week.ts';
 import { bezetteKalenderDagen } from './datum.ts';
 
@@ -54,7 +56,7 @@ export function activiteitVanAgendaRij(rij: AgendaRij): Activiteit {
     _id: `publiek-${rij.id}`,
     slug: rij.slug ?? '',
     interneTitel: rij.titel ?? '',
-    publiekeTitel: rij.titel ?? '',
+    publiekeTitel: formatActiviteitTitel(rij.soort, rij.titel ?? ''),
     start: dag(rij.start_datum),
     eind: dag(rij.eind_datum),
     soort: rij.soort || 'expositie',
@@ -62,7 +64,7 @@ export function activiteitVanAgendaRij(rij: AgendaRij): Activiteit {
     korteOmschrijving: rij.korte_omschrijving ?? undefined,
     volledigeOmschrijving: rij.volledige_omschrijving ?? undefined,
     praktischeInformatie: rij.praktische_informatie ?? undefined,
-    kunstenaars: rij.exposanten ?? undefined,
+    kunstenaars: formatExposantenWeergave(rij.exposanten) || undefined,
     foto: rij.foto_pad ?? undefined,
     fotoAlt: rij.foto_alt ?? rij.titel ?? undefined,
     aanvullendeAfbeeldingen: Array.isArray(rij.aanvullende_afbeeldingen)

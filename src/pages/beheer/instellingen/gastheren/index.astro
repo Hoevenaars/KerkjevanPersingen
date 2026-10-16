@@ -6,6 +6,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../
 import { actorVanSessie } from '../../../../lib/operatie/runtime.ts';
 import { voegGastheerToe } from '../../../../lib/operatie/gastheer-stam.ts';
 import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
+import { filterGastheren, leesGastheerFilter } from '../../../../platform/gastheer-lijst.ts';
 
 if (Astro.request.method === 'POST') {
   const doel = new URL('/beheer/instellingen/gastheren/', Astro.url.origin);
@@ -23,6 +24,13 @@ const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const flash = Astro.url.searchParams.get('demo') === '1';
 const fout = Astro.url.searchParams.get('fout');
 const melding = Astro.url.searchParams.get('melding');
+const filter = leesGastheerFilter(Astro.url.searchParams.get('filter'));
+const gastheren = filterGastheren(snapshot.gastheren, filter);
+const filters = [
+  { waarde: 'actief', label: 'Actief' },
+  { waarde: 'inactief', label: 'Niet actief' },
+  { waarde: 'alles', label: 'Alles' },
+] as const;
 ---
 
 <Beheer titel="Gastheren">
@@ -30,7 +38,7 @@ const melding = Astro.url.searchParams.get('melding');
     <div>
       <h1>Gastheren</h1>
       <p class="bh-hint">
-        Administratie van gastheren en gastvrouwen. Hans gebruikt deze lijst in Planning.
+        Actieve gastheren kunnen aan nieuwe boekingen worden gekoppeld. Niet actieve gastheren blijven bij historische boekingen staan.
         De 2-wekenmail naar de gastheer is niet actief.
       </p>
     </div>
@@ -39,6 +47,12 @@ const melding = Astro.url.searchParams.get('melding');
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
   {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+
+  <nav class="bh-tabs" aria-label="Filter op status">
+    {filters.map((item) => (
+      <a href={`/beheer/instellingen/gastheren/?filter=${item.waarde}`} aria-current={filter === item.waarde ? 'page' : undefined}>{item.label}</a>
+    ))}
+  </nav>
 
   <table class="bh-tabel">
     <thead>
@@ -51,7 +65,11 @@ const melding = Astro.url.searchParams.get('melding');
     </thead>
     <tbody>
       {
-        snapshot.gastheren.map((g) => (
+        gastheren.length === 0 ? (
+          <tr>
+            <td colspan="4">Geen gastheren in deze selectie.</td>
+          </tr>
+        ) : gastheren.map((g) => (
           <tr>
             <td>
               <a href={`/beheer/instellingen/gastheren/${encodeURIComponent(g.id)}/`}>{g.naam}</a>
@@ -60,7 +78,7 @@ const melding = Astro.url.searchParams.get('melding');
             <td>{g.telefoon}</td>
             <td>
               <span class={`bh-badge ${g.actief ? 'bh-badge--actief' : 'bh-badge--verborgen'}`}>
-                {g.actief ? 'Actief' : 'Inactief'}
+                {g.actief ? 'Actief' : 'Niet actief'}
               </span>
             </td>
           </tr>

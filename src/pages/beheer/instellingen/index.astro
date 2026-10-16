@@ -7,6 +7,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../
 import { bewaarInstellingen } from '../../../platform/beheer-supabase-schrijf.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { huidigeContentBron, standaardBronnen } from '../../../platform/bron.ts';
+import { SOCIAL_MEDIA_HELPER } from '../../../platform/social-media-content.ts';
 
 const supabaseTest = Astro.url.searchParams.get('bron') !== 'demo';
 let schrijfFout = '';
@@ -28,6 +29,7 @@ if (Astro.request.method === 'POST') {
         ontvangstAdres: String(form.get('ontvangstAdres') ?? ''),
         extraOntvangstAdres: String(form.get('extraOntvangstAdres') ?? ''),
         penningmeesterAdres: String(form.get('penningmeesterAdres') ?? ''),
+        socialMediaEmail: String(form.get('socialMediaEmail') ?? ''),
       });
       return Astro.redirect('/beheer/instellingen/?bron=supabase&bewaard=1');
     } catch (error) {
@@ -78,6 +80,9 @@ const inst = snapshot.instellingen;
             <input id="extra" name="extraOntvangstAdres" value={inst.extraOntvangstAdres} readonly={!supabaseTest} />
             <label for="penningmeester">Penningmeester</label>
             <input id="penningmeester" name="penningmeesterAdres" value={inst.penningmeesterAdres} readonly={!supabaseTest} />
+            <label for="social">Ontvanger social media content</label>
+            <input id="social" name="socialMediaEmail" type="email" value={inst.socialMediaEmail} readonly={!supabaseTest} />
+            <p class="bh-muted">{SOCIAL_MEDIA_HELPER}</p>
           </>
         ) : null
       }
