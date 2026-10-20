@@ -9,6 +9,9 @@
  * De live verhuurkalender gebruikt public.publieke_bezetting. Die telt
  * optie, optie_verlopen, definitief, migratie_vastgelegd, interne blokkades
  * en activiteiten met zichtbaarheid publiek of bezet als bezet.
+ * Zichtbaarheid "bezet" blijft de kalender blokkeren zolang er geen expliciete
+ * annulering in lokale_override staat. Alleen de levenscyclus op geannuleerd
+ * zetten is daar niet genoeg voor.
  * Een losse aanvraag, een geannuleerde boeking en een afgeronde boeking niet.
  *
  * `huidigeBezetteDagen` vergelijkt nog met de oude Sanity-zichtbaarheid.
