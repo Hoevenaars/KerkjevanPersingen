@@ -52,9 +52,11 @@ Alleen webmaster ziet de lijst in Studio.
 ## Mailontvangers aanvraag
 
 1. `CONTACT_FALLBACK_EMAIL`, anders `contractbeheer.kvp@gmail.com`
-2. BCC naar `nhoevenaars@gmail.com` op mail die naar iemand van het kerkje gaat
-   (bestuur, gastbegeleider, penningmeester, voorzitter, webmaster, contractbeheer).
-   Uit te zetten met een lege `TOEZICHT_BCC_EMAIL`.
+2. BCC naar `nhoevenaars@gmail.com` en `kerkjevanpersingenhm@gmail.com` op mail die naar iemand van het kerkje gaat
+   (bestuur, gastbegeleider, penningmeester, voorzitter, webmaster, contractbeheer),
+   inclusief de bestuursnotificatie van het aanvraag- en contactformulier.
+   Een lege `TOEZICHT_BCC_EMAIL` zet alleen de kopie naar Nick uit.
+   `kerkjevanpersingenhm@gmail.com` blijft staan.
 3. optioneel extra adressen in `CONTACT_BCC_EMAIL`, alleen op diezelfde interne mail
 
 Mail naar de aanvrager krijgt die BCC niet.

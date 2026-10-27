@@ -1,11 +1,13 @@
 /**
- * Tijdelijke toezichtkopie voor Nick.
- * Mail die via Resend naar iemand van het kerkje gaat, krijgt een BCC.
+ * BCC op mail die via Resend naar iemand van het kerkje gaat.
+ * Dat is ook de bestuursnotificatie van het aanvraag- en contactformulier.
  * Mail naar een aanvrager of andere buitenstaander blijft zonder die kopie.
- * Zet TOEZICHT_BCC_EMAIL leeg om de kopie uit te zetten.
+ * Zet TOEZICHT_BCC_EMAIL leeg om alleen de kopie naar Nick uit te zetten.
+ * De postbus van het kerkje blijft dan staan.
  */
 
 export const STANDAARD_TOEZICHT_BCC = 'nhoevenaars@gmail.com';
+export const STANDAARD_FORMULIER_BCC = 'kerkjevanpersingenhm@gmail.com';
 
 /** Postbussen van het kerkje die niet als relatie met een rol zijn vastgelegd. */
 const VASTE_INTERNE_ADRESSEN = ['contractbeheer.kvp@gmail.com'];
@@ -53,15 +55,18 @@ export function bccVoorKerkjeOntvanger(
   if (fallback) bekend.add(fallback);
   if (!bekend.has(doel)) return [];
 
+  return verzamelBcc(naar, [toezichtBccAdres(env), STANDAARD_FORMULIER_BCC, ...extraAdressen(env)]);
+}
+
+function verzamelBcc(naar: string, adressen: string[]): string[] {
+  const doel = normaliseerEmail(naar);
   const gekozen = new Map<string, string>();
-  const voeg = (adres: string) => {
+  for (const adres of adressen) {
     const schoon = adres.trim();
     const norm = normaliseerEmail(schoon);
-    if (!norm || norm === doel || gekozen.has(norm)) return;
+    if (!norm || norm === doel || gekozen.has(norm)) continue;
     gekozen.set(norm, schoon);
-  };
-  voeg(toezichtBccAdres(env));
-  for (const extra of extraAdressen(env)) voeg(extra);
+  }
   return [...gekozen.values()];
 }
 
