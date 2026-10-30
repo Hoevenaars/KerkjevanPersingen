@@ -15,6 +15,7 @@
     "migratie:dry-run": "node --experimental-strip-types scripts/migratie-dry-run.ts",
     "consolidatie:dry-run": "node --experimental-strip-types scripts/consolidatie-dry-run.ts",
     "huuroverzicht:delta": "node --experimental-strip-types scripts/huuroverzicht-delta-migratie.ts",
+    "import:historical-rentals": "node --experimental-strip-types scripts/import-historische-huur.ts",
     "migratie:staging": "node --experimental-strip-types scripts/migratie-staging.ts",
     "nieuwsbrief:preview": "node --experimental-strip-types scripts/verstuur-nieuwsbrief-preview.ts",
     "seed:second-nature": "node --experimental-strip-types scripts/seed-second-nature.ts"
