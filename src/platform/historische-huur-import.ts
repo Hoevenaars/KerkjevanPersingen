@@ -1050,6 +1050,15 @@ function planBetaling(
 ) {
   if (!ruw || termijn.bedrag == null || termijn.status == null) return;
   const bestaande = werk.db.betalingen.filter((betaling) => betaling.boeking_id === boeking.id && betaling.soort === soort);
+  if (termijn.status !== 'ontvangen' && bestaande.length === 0) {
+    regel.warnings.push(waarschuwing(
+      'termijn_nog_niet_betaald',
+      'De bron noemt een bedrag dat nog betaald moet worden. Er is geen betaalregel van gemaakt; de tekst blijft in de bronpayload.',
+      soort === 'aanbetaling' ? 'installment_1_raw' : 'installment_2_raw',
+      ruw,
+    ));
+    return;
+  }
   if (bestaande.length > 1) {
     regel.conflicten.push({
       veld: soort,

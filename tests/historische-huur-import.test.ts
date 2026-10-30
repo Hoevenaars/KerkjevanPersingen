@@ -314,6 +314,25 @@ describe('historische huurimport', () => {
     const ongeldig = parseTermijn('350,-- te bet voor 31-06-2025*', 'installment_2_raw');
     assert.equal(ongeldig.vervaldatum, null);
     assert.ok(ongeldig.waarschuwingen.some((item) => item.code === 'ongeldige_datum'));
+    const nogNietBetaald = planHistorischeHuur({
+      import_records: [record({
+        source_fingerprint: 'o'.repeat(20),
+        source_row: 46,
+        installment_1_raw: '100 te bet voor 01-02-2026',
+        installment_2_raw: '390 voor 01-06-2026',
+      })],
+    }, legeDb());
+    assert.equal(nogNietBetaald.regels[0].nieuw?.betalingen, undefined);
+    assert.ok(nogNietBetaald.regels[0].warnings.some((item) => item.code === 'termijn_nog_niet_betaald'));
+    const welBetaald = planHistorischeHuur({
+      import_records: [record({
+        source_fingerprint: 'p'.repeat(20),
+        source_row: 47,
+        installment_1_raw: '100 betaald 02-02-2026',
+      })],
+    }, legeDb());
+    assert.equal(welBetaald.regels[0].nieuw?.betalingen?.length, 1);
+    assert.equal(welBetaald.regels[0].nieuw?.betalingen?.[0].status, 'ontvangen');
   });
 
   test('e-mail in het telefoonveld en spaties in een adres', () => {
