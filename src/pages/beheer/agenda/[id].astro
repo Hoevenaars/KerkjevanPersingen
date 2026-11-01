@@ -22,6 +22,7 @@ import {
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { terugLink } from '../../../platform/planning.ts';
 import { formatActiviteitTitel, isExpositieType, titelVoorInvoer, titelVoorOpslag } from '../../../platform/activiteit-titel.ts';
+import { labelGastheer } from '../../../platform/aanvraag-weergave.ts';
 import { exposantenUitFormulier, parseExposanten, serializeExposanten } from '../../../platform/exposanten.ts';
 import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
 import ExposantVelden from '../../../components/ExposantVelden.astro';
@@ -101,6 +102,7 @@ const soortNu = publiek?.soort || boeking?.soort || '';
 const titel = formatActiviteitTitel(soortNu, publiek?.titel ?? intern!.titel) || (publiek?.titel ?? intern!.titel);
 const titelInvoer = titelVoorInvoer(soortNu, publiek?.titel ?? '');
 const expositie = isExpositieType(soortNu);
+const hostLabel = labelGastheer(soortNu);
 const gastheerKeuze = gastherenVoorKoppeling(snapshot.gastheren, boeking?.gastheerId);
 const vandaag = ymdInAmsterdam(new Date());
 const geannuleerd = publiek?.levenscyclus === 'geannuleerd';
@@ -268,13 +270,13 @@ const terug = terugLink(Astro.url.searchParams.get('terug'));
               {' '}
               <span class="bh-badge">{BOEKING_LABEL[boeking.status] ?? boeking.status}</span>
             </dd>
-            <dt>{expositie ? 'Expositiebegeleider' : 'Gastheer'}</dt>
+            <dt>{hostLabel}</dt>
             <dd>{gastheer ? `${gastheer.naam} · ${gastheer.telefoon}` : 'Nog niet ingepland'}</dd>
           </dl>
         )}
         {boeking && (
           <form method="post" class="bh-form">
-            <label for="gastheer">{expositie ? 'Expositiebegeleider' : 'Gastheer'}</label>
+            <label for="gastheer">{hostLabel}</label>
             <input type="hidden" name="boekingId" value={boeking.id} />
             <select id="gastheer" name="gastheerId">
               <option value="">Nog niet ingepland</option>

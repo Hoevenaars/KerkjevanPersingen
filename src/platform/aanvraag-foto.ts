@@ -6,6 +6,10 @@
 export const AANVRAAG_FOTO_BUCKET = 'aanvraag-fotos';
 export const AANVRAAG_FOTO_MAX_BYTES = 8_000_000;
 export const AANVRAAG_FOTO_MAX_AANTAL = 8;
+export const FOTO_RETRY_COOKIE = 'aanvraag_foto_retry';
+export const FOTO_RETRY_SECONDEN = 20 * 60;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const EXTENSIE = {
   'image/jpeg': 'jpg',
@@ -39,6 +43,38 @@ export function aanvraagFotoPad(aanvraagId: number, token: string, id: string, m
   if (!Number.isInteger(aanvraagId) || aanvraagId <= 0) return '';
   if (!/^[0-9a-f-]{36}$/i.test(token) || !/^[0-9a-f-]{36}$/i.test(id)) return '';
   return `aanvragen/${aanvraagId}/${token.toLowerCase()}/${id.toLowerCase()}.${EXTENSIE[mime]}`;
+}
+
+export function fotoPlekken(aanwezig: number, nieuw: number): { ok: true; resterend: number } | { ok: false; reden: string } {
+  if (!Number.isInteger(aanwezig) || aanwezig < 0 || !Number.isInteger(nieuw) || nieuw < 0) {
+    return { ok: false, reden: 'De foto’s konden niet worden gecontroleerd.' };
+  }
+  if (aanwezig > AANVRAAG_FOTO_MAX_AANTAL || aanwezig + nieuw > AANVRAAG_FOTO_MAX_AANTAL) {
+    return { ok: false, reden: `Je kunt maximaal ${AANVRAAG_FOTO_MAX_AANTAL} foto's toevoegen.` };
+  }
+  return { ok: true, resterend: AANVRAAG_FOTO_MAX_AANTAL - aanwezig - nieuw };
+}
+
+/** Alleen een kale uuid. Een pad of een ander aanvraagnummer wordt geweigerd. */
+export function fotoRetryToken(waarde: string | null | undefined): string {
+  const token = (waarde ?? '').trim().toLowerCase();
+  return UUID.test(token) ? token : '';
+}
+
+export function fotoRetryCookieOpties(secure: boolean): {
+  httpOnly: true;
+  sameSite: 'lax';
+  path: '/verhuur/aanvragen/';
+  maxAge: number;
+  secure: boolean;
+} {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/verhuur/aanvragen/',
+    maxAge: FOTO_RETRY_SECONDEN,
+    secure,
+  };
 }
 
 export function schoneBestandsnaam(naam: string): string {

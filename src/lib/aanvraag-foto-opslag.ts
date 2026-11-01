@@ -10,6 +10,7 @@ import {
   AANVRAAG_FOTO_BUCKET,
   AANVRAAG_FOTO_MAX_AANTAL,
   aanvraagFotoPad,
+  fotoRetryToken,
   schoneBestandsnaam,
   valideerAanvraagFoto,
 } from '../platform/aanvraag-foto.ts';
@@ -42,7 +43,7 @@ export async function bewaarAanvraagFotos(
   bestanden: readonly FotoInvoer[],
 ): Promise<{ ok: true; namen: string[] } | { ok: false; reden: string }> {
   if (bestanden.length === 0) {
-    await sluitUpload(aanvraagId, token);
+    await sluitAanvraagFotoUpload(aanvraagId, token);
     return { ok: true, namen: [] };
   }
   if (bestanden.length > AANVRAAG_FOTO_MAX_AANTAL) {
@@ -86,14 +87,57 @@ export async function bewaarAanvraagFotos(
     }
     namen.push(schoneBestandsnaam(bestand.naam));
   }
-  await sluitUpload(aanvraagId, token);
   if (reden) {
     return { ok: false, reden: namen.length > 0 ? 'Niet alle foto’s konden worden opgeslagen.' : reden };
   }
+  await sluitAanvraagFotoUpload(aanvraagId, token);
   return { ok: true, namen };
 }
 
-async function sluitUpload(aanvraagId: number, token: string): Promise<void> {
+export interface OpenFotoUpload {
+  aanvraagId: number;
+  aantal: number;
+  resterend: number;
+}
+
+export async function leesOpenFotoUpload(token: string): Promise<OpenFotoUpload | null> {
+  const supabase = anonClient();
+  if (!supabase || !token) return null;
+  const antwoord = await supabase.rpc('lees_aanvraag_foto_upload', { p_token: token });
+  const uit = jsonObject(antwoord.data);
+  const aanvraagId = Number(uit?.aanvraag_id);
+  const aantal = Number(uit?.aantal);
+  const resterend = Number(uit?.resterend);
+  if (antwoord.error || !uit?.ok || !Number.isInteger(aanvraagId) || aanvraagId <= 0) return null;
+  if (!Number.isInteger(aantal) || aantal < 0 || !Number.isInteger(resterend) || resterend < 0) return null;
+  return { aanvraagId, aantal, resterend };
+}
+
+export async function vernieuwAanvraagFotoUpload(
+  aanvraagId: number,
+  token: string,
+): Promise<{ token: string; aantal: number; resterend: number } | null> {
+  const supabase = anonClient();
+  if (!supabase || !token) return null;
+  const antwoord = await supabase.rpc('vernieuw_aanvraag_foto_upload', {
+    p_aanvraag_id: aanvraagId,
+    p_token: token,
+  });
+  const uit = jsonObject(antwoord.data);
+  const nieuw = fotoRetryToken(typeof uit?.token === 'string' ? uit.token : '');
+  const aantal = Number(uit?.aantal);
+  const resterend = Number(uit?.resterend);
+  if (antwoord.error || !uit?.ok || !nieuw) return null;
+  if (!Number.isInteger(aantal) || !Number.isInteger(resterend)) return null;
+  return { token: nieuw, aantal, resterend };
+}
+
+function jsonObject(waarde: unknown): { ok?: boolean; aanvraag_id?: unknown; aantal?: unknown; resterend?: unknown; token?: unknown } | null {
+  if (!waarde || typeof waarde !== 'object' || Array.isArray(waarde)) return null;
+  return waarde as { ok?: boolean; aanvraag_id?: unknown; aantal?: unknown; resterend?: unknown; token?: unknown };
+}
+
+export async function sluitAanvraagFotoUpload(aanvraagId: number, token: string): Promise<void> {
   const supabase = anonClient();
   if (!supabase || !token) return;
   await supabase.rpc('sluit_aanvraag_foto_upload', { p_aanvraag_id: aanvraagId, p_token: token });

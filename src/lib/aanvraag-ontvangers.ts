@@ -1,7 +1,7 @@
 /**
  * Ontvangers van de interne aanvraagmail.
- * Het extra adres komt uit instellingen (extra_ontvangst_adres).
- * Is dat leeg, dan valt de server terug op de relatie met rol voorzitter.
+ * Het extra adres komt alleen uit instellingen (extra_ontvangst_adres).
+ * Leeg of onleesbaar blijft leeg: geen andere persoon als terugval.
  * Het adres van de aanvrager en interne adressen gaan niet naar de browser.
  */
 
@@ -20,6 +20,14 @@ export function uniekeOntvangers(adressen: Array<string | null | undefined>): st
   return uit;
 }
 
+/** De primaire ontvanger blijft. Een extra adres dat al BCC is, krijgt geen tweede mail. */
+export function ontvangersZonderBcc(ontvangers: readonly string[], bcc: readonly string[]): string[] {
+  const kopie = new Set(
+    bcc.map((adres) => menselijkAdres(adres)).filter((adres): adres is string => Boolean(adres)),
+  );
+  return ontvangers.filter((adres, index) => index === 0 || !kopie.has(adres));
+}
+
 function jsonEmail(waarde: unknown): string {
   if (typeof waarde === 'string') return waarde.trim();
   if (waarde == null) return '';
@@ -35,34 +43,32 @@ interface OntvangerDb {
   from(tabel: string): {
     select(kolommen: string): {
       in(kolom: string, waarden: readonly (string | number)[]): Promise<LeesRij>;
-      eq(kolom: string, waarde: string): Promise<LeesRij>;
     };
   };
 }
 
 export async function leesExtraAanvraagOntvanger(
   env: Record<string, unknown> = process.env,
+  bron?: OntvangerDb | null,
 ): Promise<string> {
-  const admin = maakBeheerAdminClient(env) as unknown as OntvangerDb | null;
-  if (!admin) return '';
-  const instellingen = await admin.from('instellingen').select('sleutel,waarde').in('sleutel', ['extra_ontvangst_adres']);
-  if (!instellingen.error) {
+  try {
+    const admin = bron === undefined ? maakBeheerAdminClient(env) as unknown as OntvangerDb | null : bron;
+    if (!admin) {
+      console.warn('[aanvraag] extra ontvanger niet geconfigureerd: instelling niet leesbaar, alleen de primaire ontvanger');
+      return '';
+    }
+    const instellingen = await admin.from('instellingen').select('sleutel,waarde').in('sleutel', ['extra_ontvangst_adres']);
+    if (instellingen.error) {
+      console.warn('[aanvraag] extra ontvanger niet geconfigureerd: instelling niet leesbaar, alleen de primaire ontvanger');
+      return '';
+    }
     const rij = (instellingen.data ?? []).find((item) => item.sleutel === 'extra_ontvangst_adres');
     const uitInstelling = menselijkAdres(jsonEmail(rij?.waarde));
     if (uitInstelling) return uitInstelling;
+    console.warn('[aanvraag] extra ontvanger niet geconfigureerd');
+    return '';
+  } catch (error) {
+    console.warn('[aanvraag] extra ontvanger niet geconfigureerd: instelling niet leesbaar, alleen de primaire ontvanger', error);
+    return '';
   }
-  const rollen = await admin.from('relatie_rollen').select('relatie_id,actief').eq('rol', 'voorzitter');
-  if (rollen.error) return '';
-  const ids = (rollen.data ?? [])
-    .filter((rij) => rij.actief !== false)
-    .map((rij) => Number(rij.relatie_id))
-    .filter((id) => Number.isInteger(id) && id > 0);
-  if (ids.length === 0) return '';
-  const relaties = await admin.from('relaties').select('id,email').in('id', ids);
-  if (relaties.error) return '';
-  for (const relatie of relaties.data ?? []) {
-    const adres = menselijkAdres(jsonEmail(relatie.email));
-    if (adres) return adres;
-  }
-  return '';
 }
