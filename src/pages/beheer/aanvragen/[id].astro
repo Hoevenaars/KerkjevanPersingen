@@ -3,6 +3,9 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { AANVRAAG_LABEL, SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
+import { labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
+import { toonMedeExposanten } from '../../../platform/mede-exposanten';
+import { lijstAanvraagFotos } from '../../../lib/aanvraag-foto-opslag';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
@@ -80,6 +83,8 @@ const testadres = await getTestMailRecipient().catch(() => null);
 const mailmodus = magAutomatiseringUitvoeren('handmatige_template').modus;
 const mailmodusLabel = mailmodus === 'test' ? 'Test' : mailmodus === 'aan' ? 'Aan' : 'Uit';
 const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam, aanvraag.informatievraag) : null;
+const fotos = aanvraag && sessieClient ? await lijstAanvraagFotos(sessieClient as never, aanvraag.id) : [];
+const medeTekst = toonMedeExposanten(aanvraag?.medeExposanten);
 ---
 
 <Beheer titel={aanvraag.naam}>
@@ -109,11 +114,19 @@ const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam,
         <dt>Telefoon</dt>
         <dd>{aanvraag.telefoon}</dd>
         <dt>Adres</dt>
-        <dd>{aanvraag.adres}</dd>
+        <dd>{aanvraag.adres || '—'}</dd>
         <dt>Personen</dt>
         <dd>{aanvraag.personen || '—'}</dd>
         <dt>Website</dt>
-        <dd>{aanvraag.website ?? '—'}</dd>
+        <dd>{aanvraag.website || '—'}</dd>
+        {(aanvraag.soort === 'expositie' || medeTekst) && (
+          <>
+            <dt>Mede-exposanten</dt>
+            <dd>{medeTekst || '—'}</dd>
+          </>
+        )}
+        <dt>Algemene voorwaarden</dt>
+        <dd>{labelAkkoordVoorwaarden(aanvraag.soort, aanvraag.akkoordVoorwaarden)}</dd>
         <dt>Toelichting</dt>
         <dd>{aanvraag.toelichting}</dd>
         {
@@ -198,6 +211,24 @@ const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam,
     preview={mailPreview}
   />
 
+  {fotos.length > 0 && (
+    <section class="bh-kaart">
+      <h2>Foto’s van het werk</h2>
+      <ul class="bh-fotolijst">
+        {fotos.map((foto) => (
+          <li>
+            {foto.url ? <img src={foto.url} alt="" width="160" height="160" /> : null}
+            {foto.url ? (
+              <a href={foto.url} target="_blank" rel="noopener noreferrer">{foto.naam}</a>
+            ) : (
+              foto.naam
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
   <section class="bh-kaart">
     <h2>Communicatie</h2>
     {
@@ -236,3 +267,28 @@ const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam,
     }
   </section>
 </Beheer>
+
+<style>
+  .bh-fotolijst {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .bh-fotolijst li {
+    display: grid;
+    gap: 0.35rem;
+    max-width: 10rem;
+    font-size: 0.9rem;
+  }
+
+  .bh-fotolijst img {
+    width: 10rem;
+    height: 10rem;
+    object-fit: cover;
+    background: #f4f1ea;
+  }
+</style>

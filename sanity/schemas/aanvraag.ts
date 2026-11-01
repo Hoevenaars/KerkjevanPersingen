@@ -83,7 +83,7 @@ export const aanvraag = defineType({
           { title: 'Expositie', value: 'expositie' },
           { title: 'Bruiloft', value: 'bruiloft' },
           { title: 'Concert', value: 'concert' },
-          { title: 'Diverse bijeenkomsten', value: 'diverse' },
+          { title: 'Overige', value: 'diverse' },
         ],
       },
     }),

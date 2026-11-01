@@ -1266,11 +1266,11 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
   }
 
   if (opdracht.soort === 'gastheer') {
-    if (!actorMag(ctx.actor, 'planning') && !actorMag(ctx.actor, 'boekingen')) return mislukt('Geen recht om een gastheer te koppelen.');
+    if (!actorMag(ctx.actor, 'planning') && !actorMag(ctx.actor, 'boekingen')) return mislukt('Geen recht om een expositiebegeleider te koppelen.');
     const boeking = wereld.boekingen.find((item) => item.id === opdracht.boekingId);
     if (!boeking) return mislukt('Boeking niet gevonden.');
     const gastheer = wereld.relaties.find((item) => item.id === opdracht.gastheerId);
-    if (!gastheer) return mislukt('Gastheer niet gevonden.');
+    if (!gastheer) return mislukt('Expositiebegeleider niet gevonden.');
     const mutaties: Mutatie[] = [
       { soort: 'update_boeking', id: boeking.id, velden: { gastheer_relatie_id: gastheer.id } },
       audit({ dedup: `gastheer:${boeking.id}:${gastheer.id}`, actie: 'gastheer_gekoppeld', type: 'boeking', id: boeking.id, naar: gastheer.id, actor: ctx.actor }),
@@ -1286,7 +1286,7 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
     )) {
       mutaties.push(jobMutatie(boeking, job, { status: 'geannuleerd' }));
     }
-    return gelukt('Gastheer gekoppeld.', { boekingId: boeking.id }, mutaties);
+    return gelukt('Expositiebegeleider gekoppeld.', { boekingId: boeking.id }, mutaties);
   }
 
   if (opdracht.soort === 'incident') {

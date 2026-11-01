@@ -13,6 +13,13 @@ export interface DemoAanvraag {
   email: string;
   telefoon: string;
   adres: string;
+  straat?: string;
+  huisnummer?: string;
+  toevoeging?: string;
+  postcode?: string;
+  woonplaats?: string;
+  medeExposanten?: string;
+  akkoordVoorwaarden?: boolean | null;
   soort: string;
   start: string;
   eind: string;
@@ -416,7 +423,7 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     ontvanger: 'Huurder/exposant',
     onderwerp: 'Over twee weken in het kerkje — praktische info',
     inhoud:
-      'Beste {naam},\n\nOver twee weken is het zover: {soort} op {datum} in het kerkje van Persingen.\n\nUw gastheer of gastvrouw die dienst heeft: {gastheer} ({telefoonGastheer}).\nAdres: Persingensestraat 7, 6575 JA Persingen.\nParkeren: alleen op het terrein aan de overkant.\nOpeningstijden expositie: zaterdag en zondag, 11.00–17.00 uur.',
+      'Beste {naam},\n\nOver twee weken is het zover: {soort} op {datum} in het kerkje van Persingen.\n\nUw expositiebegeleider die dienst heeft: {gastheer} ({telefoonGastheer}).\nAdres: Persingensestraat 7, 6575 JA Persingen.\nParkeren: alleen op het terrein aan de overkant.\nOpeningstijden expositie: zaterdag en zondag, 11.00–17.00 uur.',
   },
   {
     id: 'praktisch_2w_gastheer',
@@ -705,7 +712,7 @@ export function zoekInBron(
   for (const g of bron.gastheren) {
     if (`${g.naam} ${g.email}`.toLowerCase().includes(naald)) {
       treffers.push({
-        soort: 'Gastheer',
+        soort: 'Expositiebegeleider',
         titel: g.naam,
         href: `/beheer/instellingen/gastheren/${encodeURIComponent(g.id)}/`,
         extra: g.telefoon,
@@ -786,7 +793,7 @@ export const SOORT_LABEL: Record<string, string> = {
   bruiloft: 'Bruiloft',
   concert: 'Concert',
   viering: 'Viering of dienst',
-  diverse: 'Diverse bijeenkomst',
+  diverse: 'Overige',
   blokkade: 'Blokkade',
   intern: 'Intern',
 };

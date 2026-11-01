@@ -4,6 +4,7 @@
  */
 
 import { contentstatusVanSanity, type Publicatiestatus } from '../lib/agenda-zichtbaarheid.ts';
+import { toonAdres } from './adres.ts';
 import type { BeheerSnapshot } from './beheer-bron.ts';
 import type { DemoActiviteit, DemoInstellingen, DemoTemplate } from './demo-data.ts';
 
@@ -81,6 +82,13 @@ export function supabaseFoutSnapshot(detail: string): BeheerSnapshot {
 
 function tekst(waarde: unknown): string {
   return waarde == null ? '' : String(waarde);
+}
+
+function boolOf(waarde: unknown): boolean | null {
+  if (waarde === true || waarde === false) return waarde;
+  if (waarde === 'true') return true;
+  if (waarde === 'false') return false;
+  return null;
 }
 
 function publicatiestatusVan(waarde: unknown): Publicatiestatus | null {
@@ -169,7 +177,7 @@ export async function leesSupabaseBeheer(
   client: SupabaseLeesClient,
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
-  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, jobRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
+  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, aanvraagAdresRijen, jobRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
     lees(client, 'relaties', 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst'),
     lees(client, 'relatie_rollen', 'relatie_id,rol,actief'),
     lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
@@ -182,7 +190,8 @@ export async function leesSupabaseBeheer(
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
     lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
-    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id,informatievraag'),
+    lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id,informatievraag,akkoord_voorwaarden,mede_exposanten'),
+    leesZacht(client, 'aanvragen', 'id,straat,huisnummer,huisnummer_toevoeging,postcode,woonplaats'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
     lees(client, 'tarieven', 'id,verhuurtype_sleutel,prijstype,bedrag,geldig_vanaf,geldig_tot,toelichting'),
     lees(client, 'activiteit_bron', 'id,legacy_id,zichtbaarheid,soort,titel,interne_titel,slug,start_datum,eind_datum,publicatie_trigger,content_status,contentstatus,levenscyclus'),
@@ -289,31 +298,48 @@ export async function leesSupabaseBeheer(
     ? 'Beheer leest Supabase, zonder terugval naar Sanity of voorbeelddata. CONTENT_BRON blijft sanity. Er gaat geen mail uit.'
     : 'Supabase is de operationele bron. Sanity en de productiesite worden niet vanuit deze leesactie beschreven.';
 
+  const adresPerAanvraag = new Map(aanvraagAdresRijen.map((rij) => [tekst(rij.id), rij]));
+
   return {
     bron: 'supabase',
     banner,
     reden: opties.testmodus
       ? 'Normale /beheer-runtime op Supabase. CONTENT_BRON is niet gewijzigd.'
       : 'CONTENT_BRON is supabase.',
-    aanvragen: aanvraagRijen.map((rij) => ({
-      id: tekst(rij.id),
-      status: tekst(rij.status) as BeheerSnapshot['aanvragen'][number]['status'],
-      naam: tekst(rij.naam),
-      email: tekst(rij.email),
-      telefoon: tekst(rij.telefoon),
-      adres: tekst(rij.adres),
-      soort: tekst(rij.verhuurtype_sleutel),
-      start: tekst(rij.start_datum),
-      eind: tekst(rij.eind_datum),
-      personen: tekst(rij.aantal_personen),
-      toelichting: tekst(rij.toelichting),
-      binnengekomen: tekst(rij.binnengekomen_op).slice(0, 10),
-      website: tekst(rij.website),
-      boekingId: rij.boeking_id == null ? undefined : tekst(rij.boeking_id),
-      afwijsreden: tekst(rij.afwijsreden),
-      informatievraag: tekst(rij.informatievraag),
-      relatieId: rij.relatie_id == null ? undefined : tekst(rij.relatie_id),
-    })),
+    aanvragen: aanvraagRijen.map((rij) => {
+      const extra = adresPerAanvraag.get(tekst(rij.id));
+      const straat = tekst(extra?.straat);
+      const huisnummer = tekst(extra?.huisnummer);
+      const toevoeging = tekst(extra?.huisnummer_toevoeging);
+      const postcode = tekst(extra?.postcode);
+      const woonplaats = tekst(extra?.woonplaats);
+      return {
+        id: tekst(rij.id),
+        status: tekst(rij.status) as BeheerSnapshot['aanvragen'][number]['status'],
+        naam: tekst(rij.naam),
+        email: tekst(rij.email),
+        telefoon: tekst(rij.telefoon),
+        adres: toonAdres({ adres: tekst(rij.adres), straat, huisnummer, toevoeging, postcode, woonplaats }),
+        straat: straat || undefined,
+        huisnummer: huisnummer || undefined,
+        toevoeging: toevoeging || undefined,
+        postcode: postcode || undefined,
+        woonplaats: woonplaats || undefined,
+        medeExposanten: tekst(rij.mede_exposanten),
+        akkoordVoorwaarden: boolOf(rij.akkoord_voorwaarden),
+        soort: tekst(rij.verhuurtype_sleutel),
+        start: tekst(rij.start_datum),
+        eind: tekst(rij.eind_datum),
+        personen: tekst(rij.aantal_personen),
+        toelichting: tekst(rij.toelichting),
+        binnengekomen: tekst(rij.binnengekomen_op).slice(0, 10),
+        website: tekst(rij.website),
+        boekingId: rij.boeking_id == null ? undefined : tekst(rij.boeking_id),
+        afwijsreden: tekst(rij.afwijsreden),
+        informatievraag: tekst(rij.informatievraag),
+        relatieId: rij.relatie_id == null ? undefined : tekst(rij.relatie_id),
+      };
+    }),
     boekingen,
     agenda: [
       ...agendaRijen.map((rij) => ({

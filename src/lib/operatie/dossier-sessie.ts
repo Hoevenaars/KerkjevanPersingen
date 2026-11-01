@@ -47,6 +47,8 @@ interface AanvraagRij {
   relatie_id: number | null;
   toelichting: string | null;
   aantal_personen: string | null;
+  website: string | null;
+  mede_exposanten: string | null;
 }
 
 type Fout = { message: string; code?: string } | null;
@@ -339,7 +341,7 @@ async function incidentSluiten(client: DossierSessie, incidentId: number, actor:
 async function leesAanvraag(client: DossierSessie, id: number): Promise<AanvraagRij | { fout: string }> {
   const { data, error } = await client
     .from('aanvragen')
-    .select('id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,boeking_id,relatie_id,toelichting,aantal_personen')
+    .select('id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,boeking_id,relatie_id,toelichting,aantal_personen,website,mede_exposanten')
     .eq('id', id)
     .maybeSingle();
   if (error) return { fout: leesbareAuthFout(error.message) };
@@ -402,6 +404,8 @@ async function goedkeuren(client: DossierSessie, id: number, actor: Actor): Prom
     huurder_adres_snapshot: aanvraag.adres,
     aantal_personen: aanvraag.aantal_personen,
     toelichting: aanvraag.toelichting,
+    website: aanvraag.website,
+    mede_exposanten: aanvraag.mede_exposanten,
     optie_aangemaakt_op: optie.optieAangemaaktOp,
     optietermijn_dagen: optie.optietermijnDagen,
     optie_einddatum: optie.optieEinddatum,

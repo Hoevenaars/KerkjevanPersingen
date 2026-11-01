@@ -105,7 +105,7 @@ Even ter herinnering:
 • Persingensestraat 7, 6575 JA Persingen
 • Parkeren aan de overkant van de straat
 • Contact: {contactpersoon} of 06 52 66 84 49
-• Gastheer/gastvrouw: {gastheer}
+• Expositiebegeleider: {gastheer}
 
 Fijne dag, en tot morgen.
 

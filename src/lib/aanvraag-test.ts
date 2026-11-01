@@ -39,12 +39,12 @@ export async function bezettingVoorTest(): Promise<{ start: string; eind?: strin
   }));
 }
 
-export async function bewaarTestAanvraag(a: Aanvraag, mailjob = false): Promise<{ ok: boolean; id?: number; fouten?: Fouten }> {
+export async function bewaarTestAanvraag(a: Aanvraag, mailjob = false): Promise<{ ok: boolean; id?: number; fotoToken?: string; fouten?: Fouten }> {
   const supabase = client();
   if (!supabase) {
     return { ok: false, fouten: { algemeen: 'Supabase is niet geconfigureerd. De aanvraag is niet naar Sanity geschreven.' } };
   }
-  const { data, error } = await supabase.rpc('bewaar_test_aanvraag', {
+  const basis = {
     p_naam: a.naam,
     p_email: a.email,
     p_telefoon: a.telefoon,
@@ -57,15 +57,26 @@ export async function bewaarTestAanvraag(a: Aanvraag, mailjob = false): Promise<
     p_website: a.website ?? '',
     p_eerder: a.eerderGeexposeerd ?? '',
     p_mede: a.medeExposanten ?? '',
-    p_akkoord: a.akkoordVoorwaarden === 'ja',
+    p_akkoord: a.soort === 'expositie' ? a.akkoordVoorwaarden === 'ja' : null,
     p_mailjob: mailjob,
+  };
+  let antwoord = await supabase.rpc('bewaar_test_aanvraag', {
+    ...basis,
+    p_straat: a.straat,
+    p_huisnummer: a.huisnummer,
+    p_toevoeging: a.toevoeging,
+    p_postcode: a.postcode,
+    p_woonplaats: a.woonplaats,
   });
-  if (error) {
-    return { ok: false, fouten: { algemeen: error.message } };
+  if (antwoord.error && /could not find the function|PGRST202/i.test(antwoord.error.message)) {
+    antwoord = await supabase.rpc('bewaar_test_aanvraag', basis);
   }
-  const uit = data as { ok?: boolean; fout?: string; id?: number } | null;
+  if (antwoord.error) {
+    return { ok: false, fouten: { algemeen: antwoord.error.message } };
+  }
+  const uit = antwoord.data as { ok?: boolean; fout?: string; id?: number; foto_token?: string } | null;
   if (!uit?.ok) {
     return { ok: false, fouten: { algemeen: uit?.fout || 'Aanvraag niet opgeslagen.' } };
   }
-  return { ok: true, id: uit.id };
+  return { ok: true, id: uit.id, fotoToken: uit.foto_token || undefined };
 }

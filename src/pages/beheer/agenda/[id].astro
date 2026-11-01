@@ -268,13 +268,13 @@ const terug = terugLink(Astro.url.searchParams.get('terug'));
               {' '}
               <span class="bh-badge">{BOEKING_LABEL[boeking.status] ?? boeking.status}</span>
             </dd>
-            <dt>Gastbegeleider</dt>
+            <dt>{expositie ? 'Expositiebegeleider' : 'Gastheer'}</dt>
             <dd>{gastheer ? `${gastheer.naam} · ${gastheer.telefoon}` : 'Nog niet ingepland'}</dd>
           </dl>
         )}
         {boeking && (
           <form method="post" class="bh-form">
-            <label for="gastheer">Gastheer of gastvrouw</label>
+            <label for="gastheer">{expositie ? 'Expositiebegeleider' : 'Gastheer'}</label>
             <input type="hidden" name="boekingId" value={boeking.id} />
             <select id="gastheer" name="gastheerId">
               <option value="">Nog niet ingepland</option>

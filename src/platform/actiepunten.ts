@@ -127,7 +127,7 @@ export function actiepuntenKomendeWeken(input: {
         titel: boeking.titel,
         wanneer: boeking.start,
         href: '/beheer/planning/',
-        toelichting: 'Gastheer ontbreekt.',
+        toelichting: 'Expositiebegeleider ontbreekt.',
       });
     }
   }

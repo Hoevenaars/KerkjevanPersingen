@@ -33,13 +33,13 @@ const filters = [
 ] as const;
 ---
 
-<Beheer titel="Gastheren">
+<Beheer titel="Expositiebegeleiders">
   <header class="bh-top">
     <div>
-      <h1>Gastheren</h1>
+      <h1>Expositiebegeleiders</h1>
       <p class="bh-hint">
-        Actieve gastheren kunnen aan nieuwe boekingen worden gekoppeld. Niet actieve gastheren blijven bij historische boekingen staan.
-        De 2-wekenmail naar de gastheer is niet actief.
+        Actieve expositiebegeleiders kunnen aan nieuwe exposities worden gekoppeld. Niet actieve expositiebegeleiders blijven bij historische boekingen staan.
+        De 2-wekenmail naar de expositiebegeleider is niet actief.
       </p>
     </div>
   </header>
@@ -67,7 +67,7 @@ const filters = [
       {
         gastheren.length === 0 ? (
           <tr>
-            <td colspan="4">Geen gastheren in deze selectie.</td>
+            <td colspan="4">Geen expositiebegeleiders in deze selectie.</td>
           </tr>
         ) : gastheren.map((g) => (
           <tr>
@@ -88,7 +88,7 @@ const filters = [
   </table>
 
   <section class="bh-kaart">
-    <h2>Nieuwe gastheer</h2>
+    <h2>Nieuwe expositiebegeleider</h2>
     <form method="post" class="bh-form">
       <label for="naam">Naam</label>
       <input id="naam" name="naam" />
@@ -99,7 +99,7 @@ const filters = [
       <label for="relatieId">Bestaande relatie-id, optioneel</label>
       <input id="relatieId" name="relatieId" inputmode="numeric" />
       <div class="bh-acties">
-        <button class="bh-btn" type="submit">Gastheer toevoegen</button>
+        <button class="bh-btn" type="submit">Expositiebegeleider toevoegen</button>
       </div>
     </form>
   </section>

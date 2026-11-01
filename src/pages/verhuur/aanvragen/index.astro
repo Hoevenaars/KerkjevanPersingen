@@ -15,12 +15,21 @@ import {
 } from '../../../lib/aanvraag';
 import { bezettingVoorTest, bewaarTestAanvraag, periodeBeschikbaar } from '../../../lib/aanvraag-test';
 import { bezetteKalenderDagen } from '../../../lib/datum';
+import { kiesTarief } from '../../../platform/finance';
+import { tariefIndicatie } from '../../../platform/tarief-indicatie';
+import { leesTariefregels } from '../../../lib/tarief-lezen';
+import { ymdInAmsterdam } from '../../../platform/datum';
+import { MAX_MEDE_EXPOSANTEN, parseMedeExposanten } from '../../../platform/mede-exposanten';
+import { AANVRAAG_FOTO_MAX_AANTAL, valideerAanvraagFoto } from '../../../platform/aanvraag-foto';
+import { bewaarAanvraagFotos, type FotoInvoer } from '../../../lib/aanvraag-foto-opslag';
+import { leesExtraAanvraagOntvanger, uniekeOntvangers } from '../../../lib/aanvraag-ontvangers';
 
 export const prerender = false;
 
 let waarden: Aanvraag = { ...LEGE_AANVRAAG };
 let fouten: Fouten = {};
 let waarschuwing: string | null = null;
+let fotoOpnieuw = false;
 
 const GELDIGE_SOORTEN = SOORTEN.map((s) => s.waarde);
 
@@ -38,6 +47,8 @@ if (soortVooraf && GELDIGE_SOORTEN.includes(soortVooraf as never)) {
 }
 
 const bezet = await bezettingVoorTest();
+const tariefregels = await leesTariefregels();
+const vandaagTarief = ymdInAmsterdam(new Date());
 const bezetteDagen = bezetteKalenderDagen(bezet);
 
 const nu = new Date();
@@ -80,6 +91,23 @@ if (Astro.request.method === 'POST') {
       };
     } else {
       fouten = valideer(waarden);
+      let fotos: FotoInvoer[] = [];
+      if (waarden.soort === 'expositie') {
+        const gekozen = data.getAll('fotos').filter((item): item is File => item instanceof File && item.size > 0);
+        if (gekozen.length > AANVRAAG_FOTO_MAX_AANTAL) {
+          fouten.fotos = `Je kunt maximaal ${AANVRAAG_FOTO_MAX_AANTAL} foto's toevoegen.`;
+        }
+        for (const bestand of gekozen) {
+          const bytes = new Uint8Array(await bestand.arrayBuffer());
+          const check = valideerAanvraagFoto({ type: bestand.type, size: bestand.size, bytes });
+          if (!check.ok) {
+            fouten.fotos = check.reden;
+            fotos = [];
+            break;
+          }
+          fotos.push({ naam: bestand.name, type: check.mime, bytes });
+        }
+      }
 
       if (!fouten.datum && !fouten.datumTot && waarden.datum) {
         const gevraagdeDagen = alleYmd(waarden.datum, waarden.datumTot || waarden.datum);
@@ -94,6 +122,7 @@ if (Astro.request.method === 'POST') {
 
       if (Object.keys(fouten).length === 0) {
         waarschuwing = weekendWaarschuwing(waarden, isDagBruiloft);
+        if (waarschuwing && waarden.negeerWaarschuwing !== 'ja' && fotos.length > 0) fotoOpnieuw = true;
       }
 
       if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {
@@ -107,48 +136,78 @@ if (Astro.request.method === 'POST') {
       if (Object.keys(fouten).length === 0 && (!waarschuwing || waarden.negeerWaarschuwing === 'ja')) {
         const uitkomst = await bewaarTestAanvraag(waarden, false);
         if (uitkomst.ok) {
+          if (fotos.length > 0) {
+            if (!uitkomst.id || !uitkomst.fotoToken) {
+              fouten = {
+                fotos: 'Je aanvraag is opgeslagen, maar de foto’s konden niet aan deze aanvraag worden gekoppeld. Bel 06 52 66 84 49.',
+              };
+            } else {
+              const opgeslagen = await bewaarAanvraagFotos(uitkomst.id, uitkomst.fotoToken, fotos);
+              if (!opgeslagen.ok) {
+                fouten = { fotos: `Je aanvraag is opgeslagen, maar de foto’s niet. ${opgeslagen.reden}` };
+              } else {
+                waarden.fotoNamen = opgeslagen.namen;
+              }
+            }
+          } else if (uitkomst.fotoToken && uitkomst.id) {
+            await bewaarAanvraagFotos(uitkomst.id, uitkomst.fotoToken, []);
+          }
+          if (fouten.fotos) {
+            /* Aanvraag staat. Geen tweede mail en geen stille redirect zonder de foto’s. */
+          } else {
           const { sendInterneAanvraagMail } = await import('../../../lib/mail-transport.ts');
           const { bestuurMail } = await import('../../../lib/aanvraag.ts');
           const { legVerzendingVast } = await import('../../../lib/communicatie-log.ts');
           const { VAN_ADRES } = await import('../../../lib/mail-adressen.ts');
           const brief = bestuurMail(waarden);
-          const bedoelde = process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'contractbeheer.kvp@gmail.com';
-          let verstuurd = false;
+          const primair = process.env.CONTACT_FALLBACK_EMAIL?.trim() || 'contractbeheer.kvp@gmail.com';
+          let extra = '';
           try {
-            const mail = await sendInterneAanvraagMail({
-              sleutel: 'aanvraag_bestuur',
-              to: bedoelde,
-              subject: 'Nieuwe verhuuraanvraag',
-              text: brief.text,
-              html: brief.html,
-              aanvragerEmail: waarden.email,
-              aanvragerNaam: waarden.naam,
-            });
-            verstuurd = mail.providerAangeroepen;
-            if (verstuurd || mail.geblokkeerd) {
-              await legVerzendingVast({
-                aanvraagId: uitkomst.id ? String(uitkomst.id) : null,
-                templateSleutel: 'internal_booking_review_required',
-                onderwerp: 'Nieuwe verhuuraanvraag',
-                bedoeldeOntvanger: bedoelde,
-                werkelijkeOntvanger: mail.werkelijkeOntvanger || '',
-                afzender: VAN_ADRES,
-                replyTo: waarden.email,
-                richting: 'uitgaand',
-                status: verstuurd ? 'verzonden' : 'geblokkeerd',
-                providerBerichtId: mail.providerBerichtId,
-                foutmelding: verstuurd ? null : mail.melding || mail.besluit.reden,
-                test: mail.besluit.modus === 'test',
-                dedupSleutel: `aanvraag-bestuur:${uitkomst.id ?? waarden.email}:${waarden.datum}`,
-              });
-            }
+            extra = await leesExtraAanvraagOntvanger();
           } catch (error) {
-            if (!verstuurd) console.error('[aanvraag] bestuursnotificatie niet verzonden', error);
-            else console.error('[aanvraag] verzendregel niet opgeslagen, mail niet opnieuw verstuurd', error);
+            console.error('[aanvraag] extra ontvanger niet gelezen', error);
+          }
+          const ontvangers = uniekeOntvangers([primair, extra]);
+          for (const bedoelde of ontvangers) {
+            let verstuurd = false;
+            try {
+              const mail = await sendInterneAanvraagMail({
+                sleutel: 'aanvraag_bestuur',
+                to: bedoelde,
+                subject: 'Nieuwe verhuuraanvraag',
+                text: brief.text,
+                html: brief.html,
+                aanvragerEmail: waarden.email,
+                aanvragerNaam: waarden.naam,
+              });
+              verstuurd = mail.providerAangeroepen;
+              if (verstuurd || mail.geblokkeerd) {
+                await legVerzendingVast({
+                  aanvraagId: uitkomst.id ? String(uitkomst.id) : null,
+                  templateSleutel: 'internal_booking_review_required',
+                  onderwerp: 'Nieuwe verhuuraanvraag',
+                  bedoeldeOntvanger: bedoelde,
+                  werkelijkeOntvanger: mail.werkelijkeOntvanger || '',
+                  afzender: VAN_ADRES,
+                  replyTo: waarden.email,
+                  richting: 'uitgaand',
+                  status: verstuurd ? 'verzonden' : 'geblokkeerd',
+                  providerBerichtId: mail.providerBerichtId,
+                  foutmelding: verstuurd ? null : mail.melding || mail.besluit.reden,
+                  test: mail.besluit.modus === 'test',
+                  dedupSleutel: `aanvraag-bestuur:${uitkomst.id ?? waarden.email}:${waarden.datum}:${bedoelde}`,
+                });
+              }
+            } catch (error) {
+              if (!verstuurd) console.error('[aanvraag] bestuursnotificatie niet verzonden', error);
+              else console.error('[aanvraag] verzendregel niet opgeslagen, mail niet opnieuw verstuurd', error);
+            }
           }
           return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
+          }
+        } else {
+          fouten = uitkomst.fouten ?? {};
         }
-        fouten = uitkomst.fouten ?? {};
       }
     }
   } catch (error) {
@@ -159,6 +218,10 @@ if (Astro.request.method === 'POST') {
 
 const heeftFouten = Object.keys(fouten).length > 0;
 const vandaag = new Date().toISOString().split('T')[0];
+const tariefTekst = waarden.soort
+  ? tariefIndicatie(kiesTarief(tariefregels, waarden.soort, waarden.datum || vandaagTarief))
+  : '';
+const medeNamen = parseMedeExposanten(waarden.medeExposanten).slice(0, MAX_MEDE_EXPOSANTEN);
 ---
 
 <Base
@@ -204,11 +267,14 @@ const vandaag = new Date().toISOString().split('T')[0];
             Je kunt de aanvraag toch versturen — het bestuur beoordeelt hem sowieso
             handmatig — of eerst je datum aanpassen.
           </p>
+          {fotoOpnieuw && (
+            <p class="klein">De gekozen foto’s zijn niet bewaard bij deze controle. Voeg ze opnieuw toe voordat je verstuurt.</p>
+          )}
         </div>
       )
     }
 
-    <form method="POST" action="/verhuur/aanvragen/">
+    <form method="POST" action="/verhuur/aanvragen/" enctype="multipart/form-data">
       <div class="veld">
         <label for="soort">Wat voor bijeenkomst wordt het?</label>
         <select
@@ -228,6 +294,10 @@ const vandaag = new Date().toISOString().split('T')[0];
           }
         </select>
         {fouten.soort && <p class="fout" id="fout-soort">{fouten.soort}</p>}
+        <p class="tarief" id="tarief-indicatie" hidden={!tariefTekst} data-regels={JSON.stringify(tariefregels)} data-vandaag={vandaagTarief}>
+          <span>Tarief</span>
+          <strong id="tarief-waarde">{tariefTekst}</strong>
+        </p>
       </div>
 
       <div class="veld">
@@ -296,20 +366,81 @@ const vandaag = new Date().toISOString().split('T')[0];
           {fouten.naam && <p class="fout" id="fout-naam">{fouten.naam}</p>}
         </div>
 
-        <div class="veld">
-          <label for="adres">Adres <span class="optioneel">(straat, huisnummer, postcode en woonplaats)</span></label>
-          <input
-            type="text"
-            id="adres"
-            name="adres"
-            autocomplete="street-address"
-            value={waarden.adres}
-            required
-            aria-invalid={fouten.adres ? 'true' : undefined}
-            aria-describedby={fouten.adres ? 'fout-adres' : undefined}
-          />
-          {fouten.adres && <p class="fout" id="fout-adres">{fouten.adres}</p>}
+        <div class="adres-rij adres-rij--straat">
+          <div class="veld">
+            <label for="straat">Straat</label>
+            <input
+              type="text"
+              id="straat"
+              name="straat"
+              autocomplete="address-line1"
+              value={waarden.straat}
+              required
+              aria-invalid={fouten.straat ? 'true' : undefined}
+              aria-describedby={fouten.straat ? 'fout-straat' : undefined}
+            />
+            {fouten.straat && <p class="fout" id="fout-straat">{fouten.straat}</p>}
+          </div>
+          <div class="veld">
+            <label for="huisnummer">Huisnummer</label>
+            <input
+              type="text"
+              id="huisnummer"
+              name="huisnummer"
+              inputmode="text"
+              value={waarden.huisnummer}
+              required
+              aria-invalid={fouten.huisnummer ? 'true' : undefined}
+              aria-describedby={fouten.huisnummer ? 'fout-huisnummer' : undefined}
+            />
+            {fouten.huisnummer && <p class="fout" id="fout-huisnummer">{fouten.huisnummer}</p>}
+          </div>
+          <div class="veld">
+            <label for="toevoeging">Toevoeging <span class="optioneel">optioneel</span></label>
+            <input
+              type="text"
+              id="toevoeging"
+              name="toevoeging"
+              value={waarden.toevoeging}
+              maxlength="12"
+              aria-invalid={fouten.toevoeging ? 'true' : undefined}
+              aria-describedby={fouten.toevoeging ? 'fout-toevoeging' : undefined}
+            />
+            {fouten.toevoeging && <p class="fout" id="fout-toevoeging">{fouten.toevoeging}</p>}
+          </div>
         </div>
+
+        <div class="adres-rij adres-rij--plaats">
+          <div class="veld">
+            <label for="postcode">Postcode</label>
+            <input
+              type="text"
+              id="postcode"
+              name="postcode"
+              autocomplete="postal-code"
+              value={waarden.postcode}
+              required
+              aria-invalid={fouten.postcode ? 'true' : undefined}
+              aria-describedby={fouten.postcode ? 'fout-postcode' : undefined}
+            />
+            {fouten.postcode && <p class="fout" id="fout-postcode">{fouten.postcode}</p>}
+          </div>
+          <div class="veld">
+            <label for="woonplaats">Woonplaats</label>
+            <input
+              type="text"
+              id="woonplaats"
+              name="woonplaats"
+              autocomplete="address-level2"
+              value={waarden.woonplaats}
+              required
+              aria-invalid={fouten.woonplaats ? 'true' : undefined}
+              aria-describedby={fouten.woonplaats ? 'fout-woonplaats' : undefined}
+            />
+            {fouten.woonplaats && <p class="fout" id="fout-woonplaats">{fouten.woonplaats}</p>}
+          </div>
+        </div>
+        {fouten.adres && <p class="fout" id="fout-adres">{fouten.adres}</p>}
 
         <div class="veld">
           <label for="telefoon">Telefoonnummer</label>
@@ -347,7 +478,7 @@ const vandaag = new Date().toISOString().split('T')[0];
 
         <div class="veld">
           <label for="website">
-            Website of portfolio <span class="optioneel">(mag je leeg laten)</span>
+            Website <span class="optioneel">optioneel</span>
           </label>
           <input
             type="text"
@@ -355,12 +486,30 @@ const vandaag = new Date().toISOString().split('T')[0];
             name="website"
             value={waarden.website}
             aria-invalid={fouten.website ? 'true' : undefined}
-            aria-describedby={`hint-website${fouten.website ? ' fout-website' : ''}`}
+            aria-describedby={fouten.website ? 'fout-website' : undefined}
           />
-          <p class="hint" id="hint-website">
-            Geen website? Voeg dan een foto van je werk toe bij de opmerkingen onderaan.
-          </p>
           {fouten.website && <p class="fout" id="fout-website">{fouten.website}</p>}
+        </div>
+
+        <div class="veld">
+          <label for="fotos">Foto’s van je werk <span class="optioneel">optioneel</span></label>
+          <p class="hint" id="hint-fotos">
+            Geen website? Voeg hieronder enkele voorbeelden van je werk toe. JPG, PNG of WebP, maximaal 8 MB per foto.
+          </p>
+          <input
+            type="file"
+            id="fotos"
+            name="fotos"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            multiple
+            aria-describedby={`hint-fotos${fouten.fotos ? ' fout-fotos' : ''}`}
+          />
+          <ul class="foto-lijst" id="foto-lijst"></ul>
+          <p class="fout" id="foto-client" hidden></p>
+          {fouten.fotos && <p class="fout" id="fout-fotos">{fouten.fotos}</p>}
+          {fotoOpnieuw && heeftFouten && (
+            <p class="hint">De gekozen foto’s zijn niet bewaard bij deze controle. Voeg ze opnieuw toe voordat je verstuurt.</p>
+          )}
         </div>
 
         <div class="veld">
@@ -372,12 +521,20 @@ const vandaag = new Date().toISOString().split('T')[0];
           </select>
         </div>
 
-        <div class="veld">
-          <label for="medeExposanten">
-            Mede-exposanten <span class="optioneel">(namen, maximaal 5, als je niet alleen exposeert)</span>
-          </label>
-          <textarea id="medeExposanten" name="medeExposanten" rows="2">{waarden.medeExposanten}</textarea>
-          {fouten.medeExposanten && <p class="fout">{fouten.medeExposanten}</p>}
+        <div class="veld" id="medeExposanten">
+          <p class="mede-kop">Mede-exposanten</p>
+          <p class="hint">Je kunt maximaal {MAX_MEDE_EXPOSANTEN} mede-exposanten toevoegen.</p>
+          <div id="mede-lijst">
+            {medeNamen.map((naam, index) => (
+              <div class="mede-rij">
+                <label for={`mede-${index}`}>Mede-exposant {index + 1}</label>
+                <input id={`mede-${index}`} name="medeExposant" value={naam} maxlength="120" />
+                <button type="button" class="tekstknop" data-mede-weg>Verwijderen</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" class="tekstknop" id="mede-toevoegen">+ Mede-exposant toevoegen</button>
+          {fouten.medeExposanten && <p class="fout" id="fout-medeExposanten">{fouten.medeExposanten}</p>}
         </div>
 
         <div class="veld veld--checkbox">
@@ -408,8 +565,7 @@ const vandaag = new Date().toISOString().split('T')[0];
           >{waarden.toelichting}</textarea
         >
         <p class="hint" id="hint-toelichting">
-          Bijvoorbeeld de tijden die je in gedachten hebt, wat je in de ruimte wilt doen, of
-          een link naar foto's van je werk.
+          Bijvoorbeeld de tijden die je in gedachten hebt, of wat je in de ruimte wilt doen.
         </p>
       </div>
 
@@ -446,26 +602,159 @@ const vandaag = new Date().toISOString().split('T')[0];
 </Base>
 
 <script>
+  import { kiesTarief } from '../../../platform/finance.ts';
+  import { tariefIndicatie } from '../../../platform/tarief-indicatie.ts';
+
+  const MAX_FOTO = 8;
+  const MAX_BYTES = 8_000_000;
+  const MAX_MEDE = 4;
   const soortSelect = document.getElementById('soort') as HTMLSelectElement | null;
   const expositieVelden = document.getElementById('expositie-velden');
   const personenVeld = document.getElementById('personen-veld');
   const personenInput = document.getElementById('personen') as HTMLInputElement | null;
+  const datumInput = document.getElementById('datum') as HTMLInputElement | null;
+  const tariefBlok = document.getElementById('tarief-indicatie');
+  const tariefWaarde = document.getElementById('tarief-waarde');
+  const medeLijst = document.getElementById('mede-lijst');
+  const medeKnop = document.getElementById('mede-toevoegen');
+  const fotoInput = document.getElementById('fotos') as HTMLInputElement | null;
+  const fotoLijst = document.getElementById('foto-lijst');
+  const fotoClient = document.getElementById('foto-client');
+  const formulier = fotoInput?.form ?? null;
+  let fotoBestanden: File[] = [];
 
   function bijwerken() {
     const isExpositie = soortSelect?.value === 'expositie';
-    if (expositieVelden) {
-      expositieVelden.style.display = isExpositie ? '' : 'none';
+    if (expositieVelden) expositieVelden.style.display = isExpositie ? '' : 'none';
+    if (personenVeld) personenVeld.style.display = isExpositie ? 'none' : '';
+    if (personenInput) personenInput.required = !isExpositie;
+    toonTarief();
+  }
+
+  function toonTarief() {
+    if (!tariefBlok || !tariefWaarde || !soortSelect) return;
+    let regels: { verhuurtype: string; prijstype: 'vast' | 'vanaf' | 'op_aanvraag'; bedrag: number | null; geldigVanaf: string; geldigTot?: string | null }[] = [];
+    try {
+      regels = JSON.parse(tariefBlok.dataset.regels || '[]') as typeof regels;
+    } catch {
+      regels = [];
     }
-    if (personenVeld) {
-      personenVeld.style.display = isExpositie ? 'none' : '';
-    }
-    if (personenInput) {
-      personenInput.required = !isExpositie;
-    }
+    const datum = datumInput?.value || tariefBlok.dataset.vandaag || '';
+    const tekst = soortSelect.value ? tariefIndicatie(kiesTarief(regels, soortSelect.value, datum)) : '';
+    tariefWaarde.textContent = tekst;
+    tariefBlok.hidden = !tekst;
+  }
+
+  function nummerMede() {
+    if (!medeLijst) return;
+    const rijen = [...medeLijst.querySelectorAll('.mede-rij')];
+    rijen.forEach((rij, index) => {
+      const label = rij.querySelector('label');
+      const input = rij.querySelector('input');
+      const id = `mede-${index}`;
+      if (label) {
+        label.htmlFor = id;
+        label.textContent = `Mede-exposant ${index + 1}`;
+      }
+      if (input) input.id = id;
+    });
+    if (medeKnop) medeKnop.hidden = rijen.length >= MAX_MEDE;
+  }
+
+  function voegMedeToe(naam = '') {
+    if (!medeLijst || medeLijst.querySelectorAll('.mede-rij').length >= MAX_MEDE) return;
+    const rij = document.createElement('div');
+    rij.className = 'mede-rij';
+    rij.innerHTML = '<label></label><input name="medeExposant" maxlength="120" /><button type="button" class="tekstknop" data-mede-weg>Verwijderen</button>';
+    const input = rij.querySelector('input');
+    if (input) input.value = naam;
+    medeLijst.append(rij);
+    nummerMede();
+    input?.focus();
+  }
+
+  function fotoFout(tekst: string) {
+    if (!fotoClient) return;
+    fotoClient.hidden = !tekst;
+    fotoClient.textContent = tekst;
+  }
+
+  function geldigeFoto(bestand: File): string | null {
+    const naam = bestand.name.toLowerCase();
+    const typeOk = ['image/jpeg', 'image/png', 'image/webp'].includes(bestand.type)
+      || /\.(jpe?g|png|webp)$/.test(naam);
+    if (!typeOk) return 'Gebruik een JPG, PNG of WebP.';
+    if (bestand.size <= 0) return 'Het bestand is leeg.';
+    if (bestand.size > MAX_BYTES) return 'Een foto mag maximaal 8 MB zijn.';
+    return null;
+  }
+
+  function tekenFotos() {
+    if (!fotoLijst) return;
+    fotoLijst.replaceChildren();
+    fotoBestanden.forEach((bestand, index) => {
+      const item = document.createElement('li');
+      const naam = document.createElement('span');
+      naam.textContent = bestand.name;
+      const weg = document.createElement('button');
+      weg.type = 'button';
+      weg.className = 'tekstknop';
+      weg.textContent = 'Verwijderen';
+      weg.addEventListener('click', () => {
+        fotoBestanden.splice(index, 1);
+        tekenFotos();
+      });
+      if (bestand.type.startsWith('image/')) {
+        const beeld = document.createElement('img');
+        beeld.alt = '';
+        beeld.src = URL.createObjectURL(bestand);
+        item.append(beeld);
+      }
+      item.append(naam, weg);
+      fotoLijst.append(item);
+    });
+  }
+
+  function zetFotoInput() {
+    if (!fotoInput || typeof DataTransfer === 'undefined') return;
+    const overdracht = new DataTransfer();
+    for (const bestand of fotoBestanden) overdracht.items.add(bestand);
+    fotoInput.files = overdracht.files;
   }
 
   soortSelect?.addEventListener('change', bijwerken);
+  datumInput?.addEventListener('change', toonTarief);
   bijwerken();
+  nummerMede();
+
+  medeKnop?.addEventListener('click', () => voegMedeToe());
+  medeLijst?.addEventListener('click', (event) => {
+    const doel = event.target;
+    if (!(doel instanceof HTMLElement) || !doel.closest('[data-mede-weg]')) return;
+    doel.closest('.mede-rij')?.remove();
+    nummerMede();
+  });
+
+  fotoInput?.addEventListener('change', () => {
+    fotoFout('');
+    const gekozen = [...(fotoInput.files ?? [])];
+    fotoInput.value = '';
+    for (const bestand of gekozen) {
+      if (fotoBestanden.length >= MAX_FOTO) {
+        fotoFout(`Je kunt maximaal ${MAX_FOTO} foto's toevoegen.`);
+        break;
+      }
+      const reden = geldigeFoto(bestand);
+      if (reden) {
+        fotoFout(reden);
+        continue;
+      }
+      fotoBestanden.push(bestand);
+    }
+    tekenFotos();
+  });
+
+  formulier?.addEventListener('submit', () => zetFotoInput());
 
   document.getElementById('foutmelding')?.focus();
   document.getElementById('waarschuwingsmelding')?.focus();
@@ -475,7 +764,82 @@ const vandaag = new Date().toISOString().split('T')[0];
   form {
     display: grid;
     gap: var(--s-6);
-    max-width: 560px;
+    max-width: 640px;
+  }
+
+  .tarief {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s-4);
+    margin: 0;
+    padding: var(--s-3) var(--s-4);
+    border: var(--border);
+    border-radius: var(--radius);
+    background: var(--cream);
+    color: var(--ink);
+    font-size: var(--t-sm);
+  }
+
+  .tarief strong {
+    font-weight: 600;
+  }
+
+  .adres-rij {
+    display: grid;
+    gap: var(--s-4);
+  }
+
+  .adres-rij--straat {
+    grid-template-columns: minmax(0, 1fr) 7.5rem 7.5rem;
+  }
+
+  .adres-rij--plaats {
+    grid-template-columns: 9rem minmax(0, 1fr);
+  }
+
+  .mede-kop {
+    font-weight: 500;
+    margin: 0;
+  }
+
+  .mede-rij {
+    display: grid;
+    gap: var(--s-2);
+  }
+
+  .foto-lijst {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s-3);
+  }
+
+  .foto-lijst li {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    font-size: var(--t-sm);
+  }
+
+  .foto-lijst img {
+    width: 4.5rem;
+    height: 4.5rem;
+    object-fit: cover;
+    border-radius: var(--radius);
+    background: var(--cream);
+  }
+
+  .tekstknop {
+    justify-self: start;
+    font: inherit;
+    font-size: var(--t-sm);
+    color: var(--brick);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
   }
 
   .kalender-sectie {
@@ -492,7 +856,7 @@ const vandaag = new Date().toISOString().split('T')[0];
   }
 
   .samenvatting {
-    max-width: 560px;
+    max-width: 640px;
     background: #fdf2ef;
     border: 1.5px solid var(--error);
     border-radius: var(--radius-lg);
@@ -501,7 +865,7 @@ const vandaag = new Date().toISOString().split('T')[0];
   }
 
   .waarschuwing {
-    max-width: 560px;
+    max-width: 640px;
     background: var(--cream-deep);
     border: 1.5px solid var(--olive);
     border-radius: var(--radius-lg);
@@ -662,6 +1026,13 @@ const vandaag = new Date().toISOString().split('T')[0];
 
   @media (max-width: 860px) {
     .kalender-met-lijst {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .adres-rij--straat,
+    .adres-rij--plaats {
       grid-template-columns: 1fr;
     }
   }

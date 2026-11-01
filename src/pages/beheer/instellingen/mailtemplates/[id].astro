@@ -198,7 +198,7 @@ const previewHtml = renderMailHtml(template, VOORBEELD_VARIABELEN, { voorbeeldUr
     <div>
       <h1>{template.naam}</h1>
       <p class="bh-hint">
-        {template.categorie} · {template.trigger.beschrijving} · {template.verzendwijze} · {template.ontvanger}
+        {template.categorie === 'Gastheer' ? 'Expositiebegeleider' : template.categorie} · {template.trigger.beschrijving} · {template.verzendwijze} · {template.ontvanger === 'Gastheer' ? 'Expositiebegeleider' : template.ontvanger}
       </p>
     </div>
   </header>
@@ -218,8 +218,17 @@ const previewHtml = renderMailHtml(template, VOORBEELD_VARIABELEN, { voorbeeldUr
 
         <label for="categorie">Categorie</label>
         <select id="categorie" name="categorie">
-          {['Aanvraag', 'Betaling', 'Boeking', 'Content', 'Planning', 'Gastheer', 'Nazorg', 'Intern'].map((c) => (
-            <option value={c} selected={c === template.categorie}>{c}</option>
+          {[
+            ['Aanvraag', 'Aanvraag'],
+            ['Betaling', 'Betaling'],
+            ['Boeking', 'Boeking'],
+            ['Content', 'Content'],
+            ['Planning', 'Planning'],
+            ['Gastheer', 'Expositiebegeleider'],
+            ['Nazorg', 'Nazorg'],
+            ['Intern', 'Intern'],
+          ].map(([waarde, label]) => (
+            <option value={waarde} selected={waarde === template.categorie}>{label}</option>
           ))}
         </select>
 

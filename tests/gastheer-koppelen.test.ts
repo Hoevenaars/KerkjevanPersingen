@@ -42,7 +42,7 @@ test('een gekozen gastheer wordt op de boeking gezet', async () => {
   const db = client();
   const uit = await koppelGastheerViaSessie(db, 48, '3', { type: 'gebruiker', naam: 'Nelleke' });
   assert.equal(uit.ok, true);
-  assert.equal(uit.melding, 'Gastheer gekoppeld.');
+  assert.equal(uit.melding, 'Expositiebegeleider gekoppeld.');
   assert.equal(db.status.gastheer, 3);
 });
 
@@ -50,7 +50,7 @@ test('een lege keuze koppelt de gastheer los', async () => {
   const db = client();
   const uit = await koppelGastheerViaSessie(db, 48, '', { type: 'gebruiker', naam: 'Nelleke' });
   assert.equal(uit.ok, true);
-  assert.equal(uit.melding, 'Gastheer losgekoppeld.');
+  assert.equal(uit.melding, 'Expositiebegeleider losgekoppeld.');
   assert.equal(db.status.gastheer, null);
 });
 

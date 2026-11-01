@@ -29,10 +29,10 @@ export function gastherenVoorKoppeling<T extends { id: string; actief: boolean }
 }
 
 export const GASTHEER_VERWIJDER_GEKOPPELD =
-  'Deze gastheer is gekoppeld aan bestaande of historische boekingen en kan daarom niet worden verwijderd. Zet de gastheer op Niet actief om deze niet meer te gebruiken.';
+  'Deze expositiebegeleider is gekoppeld aan bestaande of historische boekingen en kan daarom niet worden verwijderd. Zet de expositiebegeleider op Niet actief om deze niet meer te gebruiken.';
 
 export const GASTHEER_VERWIJDER_BEVESTIG =
-  'Deze gastheer heeft geen boekingen of historische koppelingen. Weet je zeker dat je deze gastheer definitief wilt verwijderen?';
+  'Deze expositiebegeleider heeft geen boekingen of historische koppelingen. Weet je zeker dat je deze expositiebegeleider definitief wilt verwijderen?';
 
 export interface GastheerKoppelingen {
   boekingenAlsGastheer: number;
@@ -49,7 +49,7 @@ export function beoordeelGastheerVerwijdering(
   if (koppelingen.overige > 0) {
     return {
       mag: false,
-      melding: 'Deze gastheer heeft nog andere koppelingen en kan daarom niet worden verwijderd. Zet de gastheer op Niet actief om deze niet meer te gebruiken.',
+      melding: 'Deze expositiebegeleider heeft nog andere koppelingen en kan daarom niet worden verwijderd. Zet de expositiebegeleider op Niet actief om deze niet meer te gebruiken.',
     };
   }
   return { mag: true };

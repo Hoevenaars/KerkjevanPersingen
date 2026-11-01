@@ -19,7 +19,7 @@ if (Astro.request.method === 'POST') {
   const data = await Astro.request.formData();
   const actie = String(data.get('actie') ?? 'bewaar');
   if (!sessie) doel.searchParams.set('fout', 'Geen ingelogde sessie. Er is niets opgeslagen.');
-  else if (!gastheer) doel.searchParams.set('fout', 'Gastheer niet gevonden.');
+  else if (!gastheer) doel.searchParams.set('fout', 'Expositiebegeleider niet gevonden.');
   else {
     const actor = actorVanSessie(Astro.locals.beheer);
     const uit = actie === 'deactiveer'
@@ -60,7 +60,7 @@ if (vragen && sessie) {
 
 <Beheer titel={gastheer.naam}>
   <p class="bh-crumb">
-    <a href="/beheer/instellingen/gastheren/">Gastheren</a> / {gastheer.naam}
+    <a href="/beheer/instellingen/gastheren/">Expositiebegeleiders</a> / {gastheer.naam}
   </p>
   <header class="bh-top">
     <div>
@@ -88,7 +88,7 @@ if (vragen && sessie) {
       <input id="telefoon" name="telefoon" value={gastheer.telefoon} />
       <input type="hidden" name="actief" value={gastheer.actief ? 'ja' : 'nee'} />
       <div class="bh-acties">
-        <button class="bh-btn" type="submit" name="actie" value="bewaar">Gastheer bewaren</button>
+        <button class="bh-btn" type="submit" name="actie" value="bewaar">Expositiebegeleider bewaren</button>
       </div>
     </form>
     <form method="post" class="bh-acties">

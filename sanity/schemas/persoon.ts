@@ -38,7 +38,7 @@ export const persoon = defineType({
       options: {
         list: [
           { title: 'Exposant / huurder', value: 'huurder' },
-          { title: 'Gastheer of gastvrouw', value: 'gastheer' },
+          { title: 'Expositiebegeleider', value: 'gastheer' },
           { title: 'Bestuur / contactpersoon', value: 'bestuur' },
         ],
         layout: 'grid',

@@ -41,10 +41,10 @@ export async function koppelGastheerViaSessie(
   let naam = '';
   if (!leeg) {
     const id = Number(gastheerId);
-    if (!Number.isInteger(id) || id <= 0) return { ok: false, melding: 'Gastheer niet gevonden.' };
+    if (!Number.isInteger(id) || id <= 0) return { ok: false, melding: 'Expositiebegeleider niet gevonden.' };
     const relatie = await client.from('relaties').select('id,naam').eq('id', id).maybeSingle();
     if (relatie.error) return { ok: false, melding: relatie.error.message };
-    if (!relatie.data) return { ok: false, melding: 'Gastheer niet gevonden.' };
+    if (!relatie.data) return { ok: false, melding: 'Expositiebegeleider niet gevonden.' };
     naam = String(relatie.data.naam ?? '');
   }
   const update = await client
@@ -57,7 +57,7 @@ export async function koppelGastheerViaSessie(
     .select('id')
     .maybeSingle();
   if (update.error) return { ok: false, melding: update.error.message };
-  if (!update.data) return { ok: false, melding: 'Gastheer koppelen is niet gelukt.' };
+  if (!update.data) return { ok: false, melding: 'Expositiebegeleider koppelen is niet gelukt.' };
   const actorId = actor.id && UUID.test(actor.id) ? actor.id : null;
   await client.from('auditlog').insert({
     actor_id: actorId,
@@ -70,5 +70,5 @@ export async function koppelGastheerViaSessie(
     reden: naam || null,
     dedup_sleutel: `gastheer:${boekingId}:${leeg ? 'leeg' : gastheerId}:${new Date().toISOString().slice(0, 16)}`,
   });
-  return { ok: true, melding: leeg ? 'Gastheer losgekoppeld.' : 'Gastheer gekoppeld.' };
+  return { ok: true, melding: leeg ? 'Expositiebegeleider losgekoppeld.' : 'Expositiebegeleider gekoppeld.' };
 }

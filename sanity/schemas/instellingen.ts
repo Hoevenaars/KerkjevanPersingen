@@ -111,7 +111,7 @@ export const instellingen = defineType({
                   { title: 'Expositie', value: 'expositie' },
                   { title: 'Bruiloft', value: 'bruiloft' },
                   { title: 'Concert', value: 'concert' },
-                  { title: 'Diverse bijeenkomsten', value: 'diverse' },
+                  { title: 'Overige', value: 'diverse' },
                 ],
               },
               validation: (Rule) => Rule.required(),
