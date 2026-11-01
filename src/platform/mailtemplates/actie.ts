@@ -68,7 +68,7 @@ export function actieBevestigingsTitel(actie: MailActieSoort): string {
     case 'content_aanpassen':
       return 'Aanpassing vragen?';
     case 'gastheer_ja':
-      return 'Gastheerschap bevestigen?';
+      return 'Expositiebegeleiding bevestigen?';
     case 'gastheer_nee':
       return 'Niet beschikbaar melden?';
     case 'post_ok':

@@ -162,7 +162,7 @@ export const activiteit = defineType({
           { title: 'Bruiloft', value: 'bruiloft' },
           { title: 'Concert', value: 'concert' },
           { title: 'Viering of dienst', value: 'viering' },
-          { title: 'Diverse bijeenkomsten', value: 'diverse' },
+          { title: 'Overige', value: 'diverse' },
           { title: 'Blokkade (onderhoud, niet verhuurbaar)', value: 'blokkade' },
         ],
         layout: 'dropdown',
@@ -333,7 +333,7 @@ export const activiteit = defineType({
     }),
     defineField({
       name: 'gastheer',
-      title: 'Gastheer of gastvrouw die dienst heeft',
+      title: 'Expositiebegeleider',
       type: 'reference',
       to: [{ type: 'persoon' }],
       fieldset: 'boeking',

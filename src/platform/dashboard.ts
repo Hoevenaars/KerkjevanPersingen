@@ -52,7 +52,7 @@ const DEFINITIE: {
   { sleutel: 'communicatie_klaar', label: 'Mail klaar', module: 'templates', veld: 'communicatieKlaar' },
   { sleutel: 'nieuwsbrief_voorbereiden', label: 'Nieuwsbrief voorbereiden', module: 'nieuwsbrief', veld: 'nieuwsbriefVoorbereiden' },
   { sleutel: 'activiteiten_7_dagen', label: 'Komende 7 dagen', module: 'kalender', veld: 'activiteiten7Dagen' },
-  { sleutel: 'gastheren_toewijzen', label: 'Gastheer toewijzen', module: 'planning', veld: 'gastherenToewijzen' },
+  { sleutel: 'gastheren_toewijzen', label: 'Expositiebegeleider toewijzen', module: 'planning', veld: 'gastherenToewijzen' },
   { sleutel: 'mail_fout', label: 'Technische verzending mislukt', module: 'templates', veld: 'mailFout' },
 ];
 

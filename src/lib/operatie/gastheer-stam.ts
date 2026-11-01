@@ -50,11 +50,11 @@ export async function voegGastheerToe(
   const insert = await db.from('relaties').insert({ ...relatieKolommen(invoer), naam: invoer.naam }).select('id').maybeSingle();
   if (insert.error) return { ok: false, melding: leesbareAuthFout(insert.error.message) };
   const id = Number(insert.data?.id);
-  if (!id) return { ok: false, melding: 'Gastheer niet opgeslagen.' };
+  if (!id) return { ok: false, melding: 'Expositiebegeleider niet opgeslagen.' };
   const rol = await db.from('relatie_rollen').insert({ relatie_id: id, rol: 'gastheer', actief: true });
   if (rol.error) return { ok: false, melding: leesbareAuthFout(rol.error.message) };
   await audit(client, actor, id, 'gastheer_toegevoegd', '', invoer.naam);
-  return { ok: true, melding: 'Gastheer toegevoegd. Er is geen mail verstuurd.' };
+  return { ok: true, melding: 'Expositiebegeleider toegevoegd. Er is geen mail verstuurd.' };
 }
 
 async function koppelBestaande(
@@ -117,15 +117,15 @@ export async function werkGastheerBij(
   const db = client as RolClient;
   const update = await db.from('relaties').update(relatieKolommen(invoer)).eq('id', relatieId).select('id').maybeSingle();
   if (update.error) return { ok: false, melding: leesbareAuthFout(update.error.message) };
-  if (!update.data?.id) return { ok: false, melding: 'Gastheer niet gevonden.' };
+  if (!update.data?.id) return { ok: false, melding: 'Expositiebegeleider niet gevonden.' };
   const rol = await schrijfHostActief(db, relatieId, actief);
   if (rol) return { ok: false, melding: rol };
   await audit(client, actor, relatieId, actief ? 'gastheer_actief' : 'gastheer_inactief', '', invoer.naam);
   return {
     ok: true,
     melding: actief
-      ? 'Gastheer opgeslagen. Er is geen mail verstuurd.'
-      : 'Gastheer gedeactiveerd. Historische toewijzingen blijven staan. Er is geen mail verstuurd.',
+      ? 'Expositiebegeleider opgeslagen. Er is geen mail verstuurd.'
+      : 'Expositiebegeleider gedeactiveerd. Historische toewijzingen blijven staan. Er is geen mail verstuurd.',
   };
 }
 
@@ -136,15 +136,15 @@ export async function zetGastheerActief(
   actor: Actor,
 ): Promise<DossierResultaat> {
   if (!mag(actor)) return { ok: false, melding: 'Geen schrijfrecht op gastheerbeheer.' };
-  if (!Number.isInteger(relatieId) || relatieId <= 0) return { ok: false, melding: 'Gastheer niet gevonden.' };
+  if (!Number.isInteger(relatieId) || relatieId <= 0) return { ok: false, melding: 'Expositiebegeleider niet gevonden.' };
   const rol = await schrijfHostActief(client as RolClient, relatieId, actief);
   if (rol) return { ok: false, melding: rol };
   await audit(client, actor, relatieId, actief ? 'gastheer_actief' : 'gastheer_inactief', actief ? 'niet actief' : 'actief', actief ? 'actief' : 'niet actief');
   return {
     ok: true,
     melding: actief
-      ? 'Gastheer opnieuw geactiveerd. Er is geen mail verstuurd.'
-      : 'Gastheer op Niet actief gezet. Historische toewijzingen blijven staan. Er is geen mail verstuurd.',
+      ? 'Expositiebegeleider opnieuw geactiveerd. Er is geen mail verstuurd.'
+      : 'Expositiebegeleider op Niet actief gezet. Historische toewijzingen blijven staan. Er is geen mail verstuurd.',
   };
 }
 
@@ -199,7 +199,7 @@ export async function verwijderGastheer(
   bevestigd: boolean,
 ): Promise<DossierResultaat> {
   if (!mag(actor)) return { ok: false, melding: 'Geen schrijfrecht op gastheerbeheer.' };
-  if (!Number.isInteger(relatieId) || relatieId <= 0) return { ok: false, melding: 'Gastheer niet gevonden.' };
+  if (!Number.isInteger(relatieId) || relatieId <= 0) return { ok: false, melding: 'Expositiebegeleider niet gevonden.' };
   const koppelingen = await koppelingenVanGastheer(client, relatieId);
   if ('fout' in koppelingen) return { ok: false, melding: koppelingen.fout };
   const oordeel = beoordeelGastheerVerwijdering(koppelingen);
@@ -211,7 +211,7 @@ export async function verwijderGastheer(
   const relatie = await db.from('relaties').delete().eq('id', relatieId);
   if (relatie.error) return { ok: false, melding: leesbareAuthFout(relatie.error.message) };
   await audit(client, actor, relatieId, 'gastheer_verwijderd', 'gastheer', 'verwijderd');
-  return { ok: true, melding: 'Gastheer definitief verwijderd. Er is geen mail verstuurd.' };
+  return { ok: true, melding: 'Expositiebegeleider definitief verwijderd. Er is geen mail verstuurd.' };
 }
 
 async function audit(client: DossierSessie, actor: Actor, id: number, actie: string, van: string, naar: string): Promise<void> {

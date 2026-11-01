@@ -49,7 +49,7 @@ describe('demo-data voor klikbaar /beheer', () => {
 
   test('zoek “Vos” vindt de gastheer', () => {
     const treffers = zoekDemo('Vos');
-    assert.ok(treffers.some((t) => t.soort === 'Gastheer' && t.href.includes('g-1')));
+    assert.ok(treffers.some((t) => t.soort === 'Expositiebegeleider' && t.href.includes('g-1')));
   });
 
   test('demoDashboardBron telt exposities zonder gastheer', () => {

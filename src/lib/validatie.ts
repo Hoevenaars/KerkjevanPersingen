@@ -1,12 +1,13 @@
 /**
- * Validatie van een verhuuraanvraag. Bewust vrij van imports.
+ * Validatie van een verhuuraanvraag. Geen netwerk, CMS of mail.
  *
  * Deze module raakt geen netwerk, geen CMS en geen mailkoppeling. Daardoor is hij zonder
  * bouwstap of mocks te testen, en dat is precies wat je wilt bij de enige echte logica
  * in dit project: een aanvraag die onterecht wordt afgekeurd, merkt niemand op.
  *
- * Vier soorten (was vijf): "Diverse bijeenkomsten" vervangt "Viering" en "Anders" —
+ * Vier soorten (was vijf): de sleutel "diverse" vervangt "Viering" en "Anders" —
  * dekt onder meer uitvaarten, herdenkingen, lezingen en vergelijkbare bijeenkomsten.
+ * Het zichtbare label is "Overige"; de sleutel blijft "diverse".
  * Expositie staat voorop: dat is de corebusiness.
  *
  * "datumTot" is optioneel: veel verhuur is een heel weekend (zaterdag én zondag),
@@ -20,11 +21,14 @@
  * vooraf niet in te schatten).
  */
 
+import { heeftAdresOnderdelen, normaliseerPostcode, stelAdresSamen, type AdresOnderdelen } from '../platform/adres.ts';
+import { medeExposantenFout, serialiseerMedeExposanten } from '../platform/mede-exposanten.ts';
+
 export const SOORTEN = [
   { waarde: 'expositie', label: 'Expositie' },
   { waarde: 'bruiloft', label: 'Bruiloft' },
   { waarde: 'concert', label: 'Concert' },
-  { waarde: 'diverse', label: 'Diverse bijeenkomsten' },
+  { waarde: 'diverse', label: 'Overige' },
 ] as const;
 
 const GELDIGE_SOORTEN = SOORTEN.map((s) => s.waarde) as readonly string[];
@@ -37,6 +41,11 @@ export interface Aanvraag {
   naam: string;
   email: string;
   adres: string;
+  straat: string;
+  huisnummer: string;
+  toevoeging: string;
+  postcode: string;
+  woonplaats: string;
   telefoon: string;
   toelichting: string;
   // Alleen relevant bij expositie:
@@ -47,9 +56,11 @@ export interface Aanvraag {
   // Interne vlag: gezet nadat iemand de weekend-waarschuwing heeft gezien en
   // toch bewust op "Toch versturen" heeft geklikt.
   negeerWaarschuwing: string; // 'ja' | ''
+  /** Alleen voor de interne mail, niet uit het formulier. */
+  fotoNamen?: string[];
 }
 
-export type Fouten = Partial<Record<keyof Aanvraag | 'algemeen', string>>;
+export type Fouten = Partial<Record<keyof Aanvraag | 'algemeen' | 'fotos', string>>;
 
 export const LEGE_AANVRAAG: Aanvraag = {
   datum: '',
@@ -59,6 +70,11 @@ export const LEGE_AANVRAAG: Aanvraag = {
   naam: '',
   email: '',
   adres: '',
+  straat: '',
+  huisnummer: '',
+  toevoeging: '',
+  postcode: '',
+  woonplaats: '',
   telefoon: '',
   toelichting: '',
   website: '',
@@ -68,8 +84,24 @@ export const LEGE_AANVRAAG: Aanvraag = {
   negeerWaarschuwing: '',
 };
 
+function leesMedeExposanten(data: FormData): string {
+  if (data.has('medeExposant')) {
+    const namen = data.getAll('medeExposant').map((waarde) => String(waarde).trim()).filter(Boolean);
+    return serialiseerMedeExposanten(namen);
+  }
+  return String(data.get('medeExposanten') ?? '').trim();
+}
+
 export function leesFormulier(data: FormData): Aanvraag {
   const lees = (k: keyof Aanvraag) => String(data.get(k) ?? '').trim();
+  const onderdelen: AdresOnderdelen = {
+    straat: lees('straat'),
+    huisnummer: lees('huisnummer'),
+    toevoeging: lees('toevoeging'),
+    postcode: normaliseerPostcode(lees('postcode')),
+    woonplaats: lees('woonplaats'),
+  };
+  const legacyAdres = lees('adres');
   return {
     datum: lees('datum'),
     datumTot: lees('datumTot'),
@@ -77,12 +109,17 @@ export function leesFormulier(data: FormData): Aanvraag {
     personen: lees('personen'),
     naam: lees('naam'),
     email: lees('email'),
-    adres: lees('adres'),
+    straat: onderdelen.straat,
+    huisnummer: onderdelen.huisnummer,
+    toevoeging: onderdelen.toevoeging,
+    postcode: onderdelen.postcode,
+    woonplaats: onderdelen.woonplaats,
+    adres: heeftAdresOnderdelen(onderdelen) ? stelAdresSamen(onderdelen) : legacyAdres,
     telefoon: lees('telefoon'),
     toelichting: lees('toelichting'),
     website: lees('website'),
     eerderGeexposeerd: lees('eerderGeexposeerd'),
-    medeExposanten: lees('medeExposanten'),
+    medeExposanten: leesMedeExposanten(data),
     akkoordVoorwaarden: lees('akkoordVoorwaarden'),
     negeerWaarschuwing: lees('negeerWaarschuwing'),
   };
@@ -127,17 +164,38 @@ export function valideer(a: Aanvraag): Fouten {
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email))
     fouten.email = 'Dit e-mailadres klopt niet. Controleer op een typefout.';
 
-  if (!a.adres) fouten.adres = 'Vul je adres in, inclusief postcode en woonplaats.';
-  else if (a.adres.length > 300) fouten.adres = 'Dit adres is te lang.';
+  if (heeftAdresOnderdelen(a)) {
+    if (!a.straat) fouten.straat = 'Vul je straat in.';
+    else if (a.straat.length > 120) fouten.straat = 'Deze straatnaam is te lang.';
+    if (!a.huisnummer) fouten.huisnummer = 'Vul je huisnummer in.';
+    else if (a.huisnummer.length > 20 || !/\d/.test(a.huisnummer)) fouten.huisnummer = 'Dit huisnummer begrijpen we niet.';
+    if (a.toevoeging.length > 12) fouten.toevoeging = 'Deze toevoeging is te lang.';
+    if (!a.postcode) fouten.postcode = 'Vul je postcode in.';
+    else if (a.postcode.length > 12) fouten.postcode = 'Deze postcode is te lang.';
+    if (!a.woonplaats) fouten.woonplaats = 'Vul je woonplaats in.';
+    else if (a.woonplaats.length > 80) fouten.woonplaats = 'Deze woonplaats is te lang.';
+    if (!fouten.straat && !fouten.huisnummer && !fouten.postcode && !fouten.woonplaats && a.adres.length > 300) {
+      fouten.adres = 'Dit adres is te lang.';
+    }
+  } else if (!a.adres) {
+    fouten.straat = 'Vul je straat in.';
+    fouten.huisnummer = 'Vul je huisnummer in.';
+    fouten.postcode = 'Vul je postcode in.';
+    fouten.woonplaats = 'Vul je woonplaats in.';
+  } else if (a.adres.length > 300) {
+    fouten.adres = 'Dit adres is te lang.';
+  }
 
-if (!a.telefoon) fouten.telefoon = 'Vul je telefoonnummer in.';
+  if (!a.telefoon) fouten.telefoon = 'Vul je telefoonnummer in.';
   else if (a.telefoon.replace(/\D/g, '').length < 8)
     fouten.telefoon = 'Dit telefoonnummer lijkt niet compleet.';
 
   if (a.toelichting.length > 3000) fouten.toelichting = 'Houd de toelichting korter.';
 
   if (a.website && a.website.length > 300) fouten.website = 'Deze link is te lang.';
-  if (a.medeExposanten.length > 500) fouten.medeExposanten = 'Houd dit korter.';
+  const medeFout = medeExposantenFout(a.medeExposanten);
+  if (medeFout) fouten.medeExposanten = medeFout;
+  else if (a.medeExposanten.length > 500) fouten.medeExposanten = 'Houd dit korter.';
 
   // Consent alleen verplicht bij expositie — bruiloften/concerten hebben geen
   // "huishoudelijk reglement voor exposanten" nodig.

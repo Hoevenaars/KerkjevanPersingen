@@ -82,7 +82,7 @@ export const BEHEER_MODULES = {
     groep: 'instellingen',
   },
   gastheerbeheer: {
-    label: 'Gastheerbeheer',
+    label: 'Expositiebegeleiding',
     href: '/beheer/instellingen/gastheren/',
     groep: 'instellingen',
   },
@@ -131,7 +131,7 @@ export const INSTELLINGEN_PAGINAS = [
   { module: 'instellingen', href: '/beheer/instellingen/meldingen/', label: 'Meldingen' },
   { module: 'instellingen', href: '/beheer/instellingen/verhuur/', label: 'Verhuur' },
   { module: 'finance_instellingen', href: '/beheer/instellingen/finance/', label: 'Finance' },
-  { module: 'gastheerbeheer', href: '/beheer/instellingen/gastheren/', label: 'Gastheren' },
+  { module: 'gastheerbeheer', href: '/beheer/instellingen/gastheren/', label: 'Expositiebegeleiders' },
   { module: 'automatiseringen', href: '/beheer/instellingen/automatiseringen/', label: 'Automatiseringen' },
   { module: 'bridge', href: '/beheer/instellingen/sanity-bridge/', label: 'Sanity bridge' },
   { module: 'systeembeheer', href: '/beheer/instellingen/systeem/', label: 'Systeem' },

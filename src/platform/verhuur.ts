@@ -93,7 +93,7 @@ function valideerDoordeweeks(start: string, eind: string): VerhuurUitkomst {
       fouten: [
         {
           veld: 'periode',
-          melding: 'Bruiloften, concerten en diverse bijeenkomsten kunnen alleen maandag t/m vrijdag plaatsvinden.',
+          melding: 'Bruiloften, concerten en overige bijeenkomsten kunnen alleen maandag t/m vrijdag plaatsvinden.',
         },
       ],
     };

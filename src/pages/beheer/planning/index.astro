@@ -301,15 +301,15 @@ function weergave(item: { titel: string; huurder?: string; type: string; status:
     </section>
   )}
 
-  <h2>Gastbegeleider</h2>
-  <p class="bh-hint">Alleen exposities en boekingen die al een gastbegeleider hebben. Ontbreekt staat alleen bij een expositie zonder koppeling. Er worden geen toewijzingen aangemaakt.</p>
+  <h2>Expositiebegeleider</h2>
+  <p class="bh-hint">Alleen exposities en boekingen die al een expositiebegeleider hebben. Ontbreekt staat alleen bij een expositie zonder koppeling. Er worden geen toewijzingen aangemaakt.</p>
   <table class="bh-tabel">
     <thead>
       <tr>
         <th>Boeking</th>
         <th>Datum</th>
         <th>Exposant</th>
-        <th>Gastheer</th>
+        <th>Expositiebegeleider</th>
       </tr>
     </thead>
     <tbody>
@@ -331,7 +331,7 @@ function weergave(item: { titel: string; huurder?: string; type: string; status:
               <form method="post" class="bh-form bh-form-rij">
                 <input type="hidden" name="boekingId" value={b.id} />
                 <label class="visually-hidden" for={`g-${b.id}`}>
-                  Gastheer voor {b.interneTitel}
+                  Expositiebegeleider voor {b.interneTitel}
                 </label>
                 <select id={`g-${b.id}`} name="gastheerId">
                   <option value="">Nog niet ingepland</option>

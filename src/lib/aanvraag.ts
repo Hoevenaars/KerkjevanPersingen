@@ -1,5 +1,6 @@
 import { SOORTEN, type Aanvraag, type Fouten } from './validatie.ts';
 import { kerkjeMail } from './kerkje-mail.ts';
+import { toonMedeExposanten } from '../platform/mede-exposanten.ts';
 
 /**
  * Verzending van een verhuuraanvraag.
@@ -37,6 +38,8 @@ function datumBereik(a: Aanvraag): string {
 export function bestuurMail(a: Aanvraag): { html: string; text: string } {
   const soort = SOORTEN.find((s) => s.waarde === a.soort)?.label ?? a.soort;
   const isExpositie = a.soort === 'expositie';
+  const mede = toonMedeExposanten(a.medeExposanten);
+  const fotos = (a.fotoNamen ?? []).filter(Boolean);
 
   const rij = (label: string, waarde: string) =>
     `<tr><td style="padding:6px 16px 6px 0;color:${INK_SOFT};white-space:nowrap;"><strong>${label}</strong></td><td style="padding:6px 0;">${waarde}</td></tr>`;
@@ -45,7 +48,8 @@ export function bestuurMail(a: Aanvraag): { html: string; text: string } {
     ? `
         ${a.website ? rij('Website', escape(a.website)) : ''}
         ${a.eerderGeexposeerd ? rij('Eerder geëxposeerd', a.eerderGeexposeerd === 'ja' ? 'Ja' : 'Nee') : ''}
-        ${a.medeExposanten ? rij('Mede-exposanten', escape(a.medeExposanten)) : ''}
+        ${mede ? rij('Mede-exposanten', escape(mede)) : ''}
+        ${fotos.length ? rij('Foto’s van het werk', escape(`${fotos.length} bij de aanvraag in beheer`)) : ''}
         ${rij('Akkoord voorwaarden', a.akkoordVoorwaarden === 'ja' ? 'Ja' : 'Nee')}
       `
     : '';
@@ -74,7 +78,8 @@ export function bestuurMail(a: Aanvraag): { html: string; text: string } {
     `E-mail: ${a.email}`,
     a.website ? `Website: ${a.website}` : '',
     a.eerderGeexposeerd ? `Eerder geëxposeerd: ${a.eerderGeexposeerd === 'ja' ? 'Ja' : 'Nee'}` : '',
-    a.medeExposanten ? `Mede-exposanten: ${a.medeExposanten}` : '',
+    mede ? `Mede-exposanten: ${mede}` : '',
+    fotos.length ? `Foto’s van het werk: ${fotos.length} bij de aanvraag in beheer` : '',
     isExpositie ? `Akkoord voorwaarden: ${a.akkoordVoorwaarden === 'ja' ? 'Ja' : 'Nee'}` : '',
     a.toelichting ? `Opmerkingen: ${a.toelichting}` : '',
     'Beantwoorden gaat rechtstreeks naar de aanvrager.',

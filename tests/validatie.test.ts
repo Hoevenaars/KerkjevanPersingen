@@ -28,6 +28,11 @@ const geldig: Aanvraag = {
   naam: 'Kim Jansen',
   email: 'kim@voorbeeld.nl',
   adres: 'Voorbeeldstraat 12, 1234 AB Voorbeeldstad',
+  straat: '',
+  huisnummer: '',
+  toevoeging: '',
+  postcode: '',
+  woonplaats: '',
   telefoon: '0612345678',
   toelichting: 'Ceremonie van 14 tot 16 uur.',
   website: '',
@@ -145,7 +150,11 @@ describe('valideer — naam, e-mail, adres', () => {
   }
 
   test('leeg adres wordt afgekeurd', () => {
-    assert.ok(valideer({ ...geldig, adres: '' }).adres);
+    const fouten = valideer({ ...geldig, adres: '' });
+    assert.ok(fouten.straat);
+    assert.ok(fouten.huisnummer);
+    assert.ok(fouten.postcode);
+    assert.ok(fouten.woonplaats);
   });
 });
 
@@ -185,7 +194,7 @@ describe('valideer — meerdere fouten tegelijk', () => {
     const fouten = valideer(LEGE_AANVRAAG);
     assert.deepEqual(
       Object.keys(fouten).sort(),
-      ['adres', 'datum', 'email', 'naam', 'personen', 'soort', 'telefoon']
+      ['datum', 'email', 'huisnummer', 'naam', 'personen', 'postcode', 'soort', 'straat', 'telefoon', 'woonplaats']
     );
   });
 });

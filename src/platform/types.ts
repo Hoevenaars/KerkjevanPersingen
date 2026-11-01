@@ -121,5 +121,5 @@ export const STANDAARD_VERHUURTYPEN: readonly Verhuurtype[] = [
   { sleutel: 'expositie', naam: 'Expositie', dagregel: 'expositie_weekend', actief: true, volgorde: 1 },
   { sleutel: 'bruiloft', naam: 'Bruiloft', dagregel: 'doordeweeks', actief: true, volgorde: 2 },
   { sleutel: 'concert', naam: 'Concert', dagregel: 'doordeweeks', actief: true, volgorde: 3 },
-  { sleutel: 'diverse', naam: 'Diverse bijeenkomst', dagregel: 'doordeweeks', actief: true, volgorde: 4 },
+  { sleutel: 'diverse', naam: 'Overige', dagregel: 'doordeweeks', actief: true, volgorde: 4 },
 ];

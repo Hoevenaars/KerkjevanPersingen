@@ -184,13 +184,13 @@ test('normale beheer-url laadt de snapshot één keer per request', async () => 
     });
     assert.equal(expliciet, dashboard);
   });
-  assert.equal(selects, 17);
+  assert.equal(selects, 18);
 
   selects = 0;
   resetBeheerBronCache();
   await laadBeheerSnapshot(opties);
   await laadBeheerSnapshot(opties);
-  assert.equal(selects, 34);
+  assert.equal(selects, 36);
 });
 
 test('voorbeelddata deelt de supabase-snapshot van hetzelfde request niet', async () => {

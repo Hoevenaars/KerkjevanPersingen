@@ -3,6 +3,7 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { AANVRAAG_LABEL, SOORT_LABEL, formatNl } from '../../../platform/demo-data';
+import { labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
@@ -58,6 +59,7 @@ const pipeline = [
           <th>Soort</th>
           <th>Datum</th>
           <th>Binnengekomen</th>
+          <th>Voorwaarden</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -65,7 +67,7 @@ const pipeline = [
         {
           lijst.length === 0 ? (
             <tr>
-              <td colspan="5" class="bh-leeg">Geen aanvragen in deze filter.</td>
+              <td colspan="6" class="bh-leeg">Geen aanvragen in deze filter.</td>
             </tr>
           ) : (
             lijst.map((a) => (
@@ -79,6 +81,7 @@ const pipeline = [
                   {a.eind !== a.start ? ` – ${formatNl(a.eind)}` : ''}
                 </td>
                 <td>{a.binnengekomen ? formatNl(a.binnengekomen.slice(0, 10)) : '—'}</td>
+                <td>{labelAkkoordVoorwaarden(a.soort, a.akkoordVoorwaarden)}</td>
                 <td>
                   <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
                 </td>
