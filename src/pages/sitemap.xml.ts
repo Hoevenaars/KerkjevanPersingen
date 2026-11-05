@@ -1,9 +1,8 @@
 import type { APIRoute } from 'astro';
 import { getPubliekeAgenda } from '../lib/sanity';
+import { bouwSitemap } from '../lib/seo';
 
 export const prerender = false;
-
-const SITE = 'https://kerkjepersingen.nl';
 
 const vast = [
   { pad: '/', prioriteit: '1.0' },
@@ -22,17 +21,14 @@ const vast = [
 
 export const GET: APIRoute = async () => {
   const activiteiten = await getPubliekeAgenda(100);
-  const vandaag = new Date().toISOString().split('T')[0];
-
-  const urls = [
-    ...vast.map((v) => `  <url>\n    <loc>${SITE}${v.pad}</loc>\n    <lastmod>${vandaag}</lastmod>\n    <priority>${v.prioriteit}</priority>\n  </url>`),
+  const items = [
+    ...vast,
     ...activiteiten
       .filter((a) => a.slug)
-      .map((a) => `  <url>\n    <loc>${SITE}/agenda/${a.slug}/</loc>\n    <lastmod>${vandaag}</lastmod>\n    <priority>0.5</priority>\n  </url>`),
-  ].join('\n');
+      .map((a) => ({ pad: `/agenda/${a.slug}/`, prioriteit: '0.5' })),
+  ];
 
-  return new Response(
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`,
-    { headers: { 'Content-Type': 'application/xml; charset=utf-8' } }
-  );
+  return new Response(bouwSitemap(items), {
+    headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+  });
 };

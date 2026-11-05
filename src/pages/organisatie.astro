@@ -1,7 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import PageHeader from '../components/PageHeader.astro';
-import { FACEBOOK_URL, SITE_URL, VENUE } from '../lib/seo';
+import { FACEBOOK_URL, SITE_URL, VENUE, jsonLdInScript } from '../lib/seo';
 
 /*
   ANBI-publicatieplicht.
@@ -56,7 +56,7 @@ const jsonLdOrganisatie = {
   title="Organisatie"
   description="Stichting Het Kerkje van Persingen: doelstelling, bestuur, RSIN, KvK-nummer en ANBI-gegevens."
 >
-  <script type="application/ld+json" set:html={JSON.stringify(jsonLdOrganisatie)} is:inline />
+  <script type="application/ld+json" set:html={jsonLdInScript(jsonLdOrganisatie)} is:inline />
 
   <PageHeader eyebrow="Stichting" title="Organisatie" mark="kruis" />
 
