@@ -41,6 +41,110 @@ export const OG_IMAGE = {
   height: 630,
 };
 
+/**
+ * Canonieke URL met afsluitende slash, gelijk aan de interne links.
+ * /contact en /contact/ wijzen zo naar dezelfde URL, zonder redirect.
+ */
+export function canoniekUrl(pathname: string, site = SITE_URL): string {
+  if (!pathname || pathname === '/') return new URL('/', site).href;
+  const zonderQuery = pathname.split('?')[0] ?? '/';
+  const schoon = zonderQuery.replace(/\/+$/, '');
+  if (!schoon) return new URL('/', site).href;
+  return new URL(`${schoon}/`, site).href;
+}
+
+/** Eén regel voor title en description; CMS-tekst mag geen regeleinden in meta zetten. */
+export function metaTekst(waarde: string): string {
+  return waarde.replace(/\s+/g, ' ').trim();
+}
+
+/** Alleen het vaste social-beeld heeft bekende afmetingen. Andere beelden niet verzinnen. */
+export function isStandaardOgBeeld(image: string): boolean {
+  if (image === OG_IMAGE.pad) return true;
+  try {
+    const pad = image.startsWith('http://') || image.startsWith('https://') ? new URL(image).pathname : image;
+    return pad === OG_IMAGE.pad;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * JSON-LD voor een inline script. `<` wordt geëscapet zodat CMS-tekst
+ * de scripttag niet kan sluiten.
+ */
+export function jsonLdInScript(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+const SITEMAP_SITE = SITE_URL;
+
+function xmlTekst(waarde: string): string {
+  return waarde
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Sitemap zonder verzonnen lastmod. Een datum van "vandaag" op elke request
+ * is geen wijzigingsdatum en wordt door Google genegeerd of gewantrouwd.
+ */
+export function bouwSitemap(
+  items: { pad: string; prioriteit: string }[],
+  site = SITEMAP_SITE,
+): string {
+  const urls = items
+    .map((item) => {
+      const loc = xmlTekst(new URL(item.pad, site).href);
+      return `  <url>\n    <loc>${loc}</loc>\n    <priority>${xmlTekst(item.prioriteit)}</priority>\n  </url>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+}
+
+/** Paden die niet in de index horen. Zelfde lijst voor elke user-agent. */
+export const ROBOTS_PRIVE = ['/api/', '/vrienden/', '/admin', '/beheer', '/klant'] as const;
+
+const AI_CRAWLERS = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended'] as const;
+
+function robotsGroep(userAgent: string): string {
+  const regels = ['Allow: /', ...ROBOTS_PRIVE.map((pad) => `Disallow: ${pad}`)];
+  return [`User-agent: ${userAgent}`, ...regels].join('\n');
+}
+
+/**
+ * Openbare robots.txt. Een specifiek User-agent-blok vervangt `*` en neemt
+ * die Disallow-regels niet over, dus de privépaden staan in elk blok.
+ */
+export function robotsBody(afgeschermd: boolean): string {
+  if (afgeschermd) {
+    return `# Site is nog niet openbaar.\nUser-agent: *\nDisallow: /\n`;
+  }
+
+  return [
+    robotsGroep('*'),
+    '',
+    '# AI-crawlers expliciet toegestaan op publieke pagina\'s.',
+    '# Privépaden staan per crawler opnieuw: dit blok vervangt de *-regels.',
+    '',
+    AI_CRAWLERS.map((agent) => robotsGroep(agent)).join('\n\n'),
+    '',
+    '# Samenvatting voor AI-assistenten',
+    '# https://kerkjepersingen.nl/llms.txt',
+    '',
+    'Sitemap: https://kerkjepersingen.nl/sitemap.xml',
+    '',
+  ].join('\n');
+}
+
 export function venueJsonLd() {
   return {
     '@context': 'https://schema.org',

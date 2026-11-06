@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { robotsBody } from '../lib/seo';
 
 export const prerender = false;
 
@@ -7,9 +8,9 @@ export const prerender = false;
  * SITE_PASSWORD én LIVE_VANAF). Zo kan er geen robots.txt achterblijven die de
  * site onzichtbaar houdt nadat de site zelf al open is.
  *
- * AI-crawlers zijn bewust toegestaan (14_SEO_AI_SEARCH.md §5): een verhuurlocatie
- * wint bij vindbaarheid via AI-assistenten. Wil het bestuur dat niet, dan zijn de
- * regels hieronder het enige dat aangepast hoeft te worden.
+ * AI-crawlers zijn bewust toegestaan op publieke pagina's (14_SEO_AI_SEARCH.md §5).
+ * Hun blok herhaalt de privépaden: een specifiek User-agent-blok vervangt `*`
+ * en zou /beheer, /api, /vrienden en /klant anders vrijgeven.
  */
 function isAfgeschermd(): boolean {
   const password = process.env.SITE_PASSWORD ?? import.meta.env.SITE_PASSWORD;
@@ -24,38 +25,7 @@ function isAfgeschermd(): boolean {
 }
 
 export const GET: APIRoute = () => {
-  const body = isAfgeschermd()
-    ? `# Site is nog niet openbaar.\nUser-agent: *\nDisallow: /\n`
-    : `User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /vrienden/
-Disallow: /admin
-Disallow: /beheer
-
-# AI-crawlers expliciet toegestaan (GEO / AI-search)
-User-agent: GPTBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
-# Samenvatting voor AI-assistenten
-# https://kerkjepersingen.nl/llms.txt
-
-Sitemap: https://kerkjepersingen.nl/sitemap.xml
-`;
-
-  return new Response(body, {
+  return new Response(robotsBody(isAfgeschermd()), {
     headers: { 'Content-Type': 'text/plain; charset=utf-8' },
   });
 };
