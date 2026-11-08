@@ -1,0 +1,239 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
+import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { formatMaandNl, SOORT_LABEL } from '../../../platform/demo-data.ts';
+import { magZien } from '../../../platform/rechten.ts';
+import { verhuurOverzichtAan, verhuurVerzoekToegestaan } from '../../../platform/verhuur-vlag.ts';
+import {
+  bolTekst,
+  leesPeriodeKeuze,
+  maakVerhuurOverzicht,
+  rijKlasse,
+  type OverzichtBron,
+} from '../../../platform/verhuur-overzicht.ts';
+
+if (!verhuurOverzichtAan()) return beheerUitResponse();
+if (!verhuurVerzoekToegestaan(Astro.request.method)) {
+  return new Response('Dit scherm wijzigt niets.', { status: 405, headers: { 'Cache-Control': 'no-store' } });
+}
+
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const betaalregelsZichtbaar = magZien(rechten, 'finance');
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const vandaag = ymdInAmsterdam(new Date());
+const keuze = leesPeriodeKeuze(Astro.url.searchParams, vandaag);
+const bronnen: OverzichtBron[] = snapshot.agenda
+  .filter((item) => item.tabel === 'activiteit_bron')
+  .map((item) => ({
+    id: item.activiteitId || item.id,
+    titel: item.titel,
+    start: item.start,
+    eind: item.eind,
+    zichtbaarheid: item.publicatiestatus ?? null,
+    levenscyclus: item.levenscyclus === 'geannuleerd' ? 'geannuleerd' : 'actief',
+  }));
+const overzicht = maakVerhuurOverzicht({
+  jaar: keuze.jaar,
+  maand: keuze.maand,
+  boekingen: snapshot.boekingen,
+  betalingen: snapshot.betalingen ?? [],
+  betaalregelsZichtbaar,
+  blokkades: snapshot.intern.map((item) => ({
+    id: item.id,
+    titel: item.titel,
+    start: item.start,
+    eind: item.eind,
+    blokkeert: item.blokkeert,
+    notities: item.notities ?? '',
+  })),
+  bronnen,
+  aanvragen: snapshot.aanvragen,
+  documenten: snapshot.documenten.map((item) => ({
+    boekingId: item.boekingId,
+    naam: item.naam,
+    soort: item.soort,
+    datum: item.datum,
+  })),
+});
+const bronParam = Astro.url.searchParams.get('bron');
+const maanden = Array.from({ length: 12 }, (_, index) => {
+  const nummer = index + 1;
+  const sleutel = `${keuze.jaar}-${String(nummer).padStart(2, '0')}`;
+  return { waarde: String(nummer), label: formatMaandNl(sleutel).replace(` ${keuze.jaar}`, '') };
+});
+
+function activiteitLabel(waarde: string): string {
+  return SOORT_LABEL[waarde] ?? waarde;
+}
+---
+
+<Beheer titel="Verhuur">
+  <div class="vh-scherm">
+    <header class="bh-top">
+      <div>
+        <p class="bh-label">Verhuur</p>
+        <h1>Verhuuroverzicht</h1>
+        <p class="bh-hint">
+          Alleen lezen. Hier verandert geen boeking, aanvraag, betaling of mail. De bestaande beheerpagina's blijven de plek om te wijzigen.
+        </p>
+      </div>
+    </header>
+
+    <section class="vh-aanvragen" aria-labelledby="vh-aanvragen-kop">
+      <h2 id="vh-aanvragen-kop">Nog te verwerken aanvragen</h2>
+      <p>
+        Een aanvraag zonder boeking is geen bezetting. Zij staat niet als vastgelegd weekend in de tabel hieronder.
+      </p>
+      {
+        overzicht.aanvragen.length === 0 ? (
+          <p>Geen open aanvraag in deze periode.</p>
+        ) : (
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Periode</th>
+                <th>Naam</th>
+                <th>Activiteit</th>
+                <th>Stand</th>
+                <th>Bestaande administratie</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overzicht.aanvragen.map((aanvraag) => (
+                <tr>
+                  <td>{aanvraag.periodeLabel}</td>
+                  <td>{aanvraag.naam}</td>
+                  <td>{activiteitLabel(aanvraag.soort)}</td>
+                  <td>
+                    {aanvraag.statusLabel}
+                    {aanvraag.heeftBoeking ? ' · heeft al een boeking' : ' · nog geen boeking'}
+                  </td>
+                  <td>
+                    <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`}>Open de bestaande aanvraag</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      }
+      {
+        overzicht.aanvragenBuitenPeriode > 0 && (
+          <p>Er {overzicht.aanvragenBuitenPeriode === 1 ? 'is' : 'zijn'} nog {overzicht.aanvragenBuitenPeriode} open {overzicht.aanvragenBuitenPeriode === 1 ? 'aanvraag' : 'aanvragen'} buiten deze periode.</p>
+        )
+      }
+    </section>
+
+    <form class="vh-kies" method="get" action="/beheer/verhuur/">
+      {bronParam === 'demo' && <input type="hidden" name="bron" value="demo" />}
+      <label>
+        Jaar
+        <select name="jaar">
+          {overzicht.jaren.map((jaar) => (
+            <option value={jaar} selected={jaar === keuze.jaar}>{jaar}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Maand
+        <select name="maand">
+          <option value="alle" selected={keuze.maand == null}>Heel het jaar</option>
+          {maanden.map((maand) => (
+            <option value={maand.waarde} selected={String(keuze.maand ?? '') === maand.waarde}>{maand.label}</option>
+          ))}
+        </select>
+      </label>
+      <button class="bh-btn" type="submit">Toon</button>
+    </form>
+
+    <div class="vh-tabel-wrap">
+      <table class="bh-tabel vh-tabel">
+        <thead>
+          <tr>
+            <th>Weekend / periode</th>
+            <th>Huurder</th>
+            <th>Activiteit</th>
+            <th>Contractstatus</th>
+            <th>Aanbetaling</th>
+            <th>Restbetaling</th>
+            <th>Bijzonderheden</th>
+            <th>Details openen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            overzicht.rijen.length === 0 ? (
+              <tr>
+                <td colspan="8">Geen periodes in deze selectie.</td>
+              </tr>
+            ) : (
+              overzicht.rijen.map((rij) => (
+                <tr class={rijKlasse(rij)}>
+                  <td>
+                    {rij.periodeLabel}
+                    <span class="vh-status">{rij.statusLabel}</span>
+                  </td>
+                  <td>
+                    {rij.huurder}
+                    {rij.huurderExtra && <span class="vh-status">Mede-exposant: {rij.huurderExtra}</span>}
+                  </td>
+                  <td>{activiteitLabel(rij.activiteit)}</td>
+                  <td>
+                    {rij.herkomst === 'boeking' ? (
+                      <span class={`vh-bol vh-bol--${rij.contract}`}><span class="vh-bol-stip" aria-hidden="true"></span>{bolTekst(rij.contract, 'contract')}</span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>
+                    {rij.herkomst === 'boeking' ? (
+                      <span class={`vh-bol vh-bol--${rij.aanbetaling}`}><span class="vh-bol-stip" aria-hidden="true"></span>{bolTekst(rij.aanbetaling, 'betaling')}</span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>
+                    {rij.herkomst === 'boeking' ? (
+                      <span class={`vh-bol vh-bol--${rij.rest}`}><span class="vh-bol-stip" aria-hidden="true"></span>{bolTekst(rij.rest, 'betaling')}</span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>{rij.bijzonderheden}</td>
+                  <td>
+                    {rij.boekingId ? (
+                      <a href={`/beheer/verhuur/${encodeURIComponent(rij.boekingId)}/`}>Open dossier</a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              ))
+            )
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <section class="vh-bronnen">
+      <h2>Waar deze tabel vandaan komt</h2>
+      <ul>
+        <li>Bezetting: dezelfde statussen als de publieke functie publieke_bezetting. migratie_vastgelegd telt mee. Een aanvraag niet.</li>
+        <li>Aanbetaling en restbetaling: tabel betalingen. Het veld aanbetaling_ontvangen beslist niet.</li>
+        <li>Contractstatus: Onbekend. Er is geen contractkolom, en de ruwe importtekst wordt niet als status gelezen.</li>
+        <li>Vrije weekenden: zaterdag en zondag die door geen boeking, winterstop of kalenderbron bezet zijn.</li>
+        <li>De Sanity-schaduwagenda zit niet in deze leesactie. Op 8 november 2026 was die tabel leeg.</li>
+      </ul>
+      <h2>Nog niet gekoppeld</h2>
+      <ul>
+        <li>Een boeking verplaatsen, een status wijzigen, een betaling vastleggen of een mail sturen.</li>
+        <li>Refunds, workflow en Sanity.</li>
+        <li>Handmatig een bolletje zetten.</li>
+      </ul>
+    </section>
+  </div>
+</Beheer>

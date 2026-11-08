@@ -50,6 +50,8 @@ describe('route → module', () => {
     assert.equal(moduleVoorPad('/beheer/instellingen/templates/abc/'), 'templates');
     assert.equal(moduleVoorPad('/beheer/instellingen/verhuur/'), 'instellingen');
     assert.equal(moduleVoorPad('/beheer/finance/'), 'finance');
+    assert.equal(moduleVoorPad('/beheer/verhuur/'), 'boekingen');
+    assert.equal(moduleVoorPad('/beheer/verhuur/67/'), 'boekingen');
     assert.equal(moduleVoorPad('/beheer/'), 'dashboard');
   });
 });

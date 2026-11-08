@@ -1631,6 +1631,162 @@ body[data-beheer-modus='preview'] .bh-acties .bh-btn {
   }
 }
 
+.vh-scherm {
+  font-size: 1.125rem;
+  line-height: 1.45;
+}
+
+.vh-scherm h1 {
+  font-size: 2rem;
+}
+
+.vh-scherm h2 {
+  font-size: 1.35rem;
+  margin-bottom: var(--s-3);
+}
+
+.vh-aanvragen {
+  margin-bottom: var(--s-6);
+  padding: var(--s-4);
+  background: var(--white);
+  border: 2px solid var(--brick);
+  border-radius: var(--radius-lg);
+}
+
+.vh-aanvragen p,
+.vh-bronnen li,
+.vh-dossier p {
+  max-width: 46rem;
+}
+
+.vh-kies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  align-items: end;
+  margin: var(--s-4) 0 var(--s-6);
+}
+
+.vh-kies label {
+  display: grid;
+  gap: var(--s-2);
+  font-weight: 600;
+}
+
+.vh-kies select,
+.vh-kies button {
+  min-height: 2.75rem;
+  font-size: 1.05rem;
+}
+
+.vh-tabel-wrap {
+  overflow-x: auto;
+}
+
+.vh-tabel th,
+.vh-tabel td {
+  font-size: 1.05rem;
+  padding: 0.9rem 0.8rem;
+}
+
+.vh-tabel th {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 1rem;
+}
+
+.vh-status {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.vh-rij--vrij td:first-child {
+  border-left: 4px solid var(--sand);
+}
+
+.vh-rij--winter td:first-child {
+  border-left: 4px solid var(--olive);
+}
+
+.vh-rij--bezet td:first-child {
+  border-left: 4px solid var(--pine);
+}
+
+.vh-rij--geannuleerd td:first-child {
+  border-left: 4px solid var(--ink-mute);
+}
+
+.vh-bol {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vh-bol-stip {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.vh-bol--afgerond {
+  color: var(--pine);
+}
+
+.vh-bol--openstaand {
+  color: var(--brick-dark);
+}
+
+.vh-bol--onbekend,
+.vh-bol--niet_zichtbaar {
+  color: var(--ink-mute);
+}
+
+.vh-bol--tegenstrijdig {
+  color: var(--error);
+}
+
+.vh-dossier {
+  margin: 0 0 var(--s-6);
+  padding-bottom: var(--s-4);
+  border-bottom: var(--border);
+}
+
+.vh-dossier dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr;
+  gap: 0.35rem var(--s-4);
+  margin: 0;
+}
+
+.vh-dossier dt {
+  font-weight: 600;
+}
+
+.vh-dossier dd {
+  margin: 0;
+}
+
+.vh-bronnen {
+  margin-top: var(--s-8);
+}
+
+.vh-bestaand {
+  margin-top: var(--s-6);
+}
+
+@media (max-width: 720px) {
+  .vh-dossier dl {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
