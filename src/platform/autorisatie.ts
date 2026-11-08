@@ -73,6 +73,7 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   if (pad.startsWith('/beheer/migratie')) return 'migratie';
   if (pad.startsWith('/beheer/instellingen')) return 'instellingen';
   if (pad.startsWith('/beheer/aanvragen')) return 'aanvragen';
+  if (pad.startsWith('/beheer/verhuur')) return 'boekingen';
   if (pad.startsWith('/beheer/boekingen')) return 'boekingen';
   if (pad.startsWith('/beheer/kalender')) return 'kalender';
   if (pad.startsWith('/beheer/agenda') || pad.startsWith('/beheer/publiceren')) return 'agenda';
