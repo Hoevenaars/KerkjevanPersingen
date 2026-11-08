@@ -186,10 +186,10 @@ export async function leesSupabaseBeheer(
     lees(client, 'gastbegeleider_toewijzingen', 'id,boeking_id,relatie_id,datum,type'),
     lees(client, 'vrienden', 'id,naam,email,actief,frequentie'),
     lees(client, 'nieuwsbrieven', 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd'),
-    lees(client, 'documenten', 'id,boeking_id,bestandsnaam,type,geupload_op'),
+    lees(client, 'documenten', 'id,boeking_id,bestandsnaam,type,geupload_op,storage_pad,mime_type'),
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
-    lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
+    lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,inhoud_versie,beoordeling_toelichting,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
     lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id,informatievraag,akkoord_voorwaarden,mede_exposanten'),
     leesZacht(client, 'aanvragen', 'id,straat,huisnummer,huisnummer_toevoeging,postcode,woonplaats'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
@@ -356,6 +356,12 @@ export async function leesSupabaseBeheer(
         soort: tekst(boekingen.find((boeking) => boeking.id === tekst(rij.boeking_id))?.soort),
         publicatiestatus: publicatiestatusVan(rij.zichtbaarheid),
         contentstatus: tekst(rij.contentstatus) || null,
+        inhoudStatus: tekst(rij.inhoud_status) || null,
+        inhoudVersie: (() => {
+          const versie = Number(rij.inhoud_versie);
+          return Number.isFinite(versie) && versie > 0 ? versie : null;
+        })(),
+        beoordelingToelichting: tekst(rij.beoordeling_toelichting),
         levenscyclus: tekst(rij.levenscyclus) === 'geannuleerd' ? 'geannuleerd' as const : 'actief' as const,
         annuleringsreden: tekst(rij.annuleringsreden),
         geannuleerdOp: tekst(rij.geannuleerd_op),
@@ -440,6 +446,8 @@ export async function leesSupabaseBeheer(
       naam: tekst(rij.bestandsnaam),
       soort: tekst(rij.type),
       datum: tekst(rij.geupload_op).slice(0, 10),
+      pad: tekst(rij.storage_pad),
+      mime: tekst(rij.mime_type),
     })),
     migratie: null,
     incidenten: incidentRijen.map((rij) => ({

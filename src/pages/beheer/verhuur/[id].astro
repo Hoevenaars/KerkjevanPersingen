@@ -1,121 +1,23 @@
 ---
 export const prerender = false;
 
-import Beheer from '../../../layouts/Beheer.astro';
 import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
-import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
-import { ymdInAmsterdam } from '../../../platform/datum.ts';
-import { SOORT_LABEL } from '../../../platform/demo-data.ts';
-import { magZien } from '../../../platform/rechten.ts';
-import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+import { beheerId } from '../../../platform/beheer-bron.ts';
 import { verhuurOverzichtAan, verhuurVerzoekToegestaan } from '../../../platform/verhuur-vlag.ts';
-import { leesDossierSporen } from '../../../platform/verhuur-dossier-lees.ts';
-import { leesPeriodeKeuze, maakDossier, type OverzichtBron } from '../../../platform/verhuur-overzicht.ts';
+import { verhuurQuery } from '../../../platform/verhuur-scherm.ts';
 
 if (!verhuurOverzichtAan()) return beheerUitResponse();
 if (!verhuurVerzoekToegestaan(Astro.request.method)) {
-  return new Response('Dit scherm wijzigt niets.', { status: 405, headers: { 'Cache-Control': 'no-store' } });
+  return new Response('Open het dossier vanuit de verhuuragenda.', {
+    status: 405,
+    headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+  });
 }
 
-const sessie = Astro.locals.beheer;
-const rechten = sessie?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
-const betaalregelsZichtbaar = magZien(rechten, 'finance');
-const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
-const id = beheerId(Astro.params.id);
-const boeking = snapshot.boekingen.find((item) => item.id === id);
-const vandaag = ymdInAmsterdam(new Date());
-const keuze = leesPeriodeKeuze(Astro.url.searchParams, boeking?.start || vandaag);
-const terug = `/beheer/verhuur/?jaar=${keuze.jaar}`;
-
-let blokken = null;
-if (boeking) {
-  const relatie = snapshot.relaties.find((item) => item.id === boeking.relatieId) ?? null;
-  const activiteit = snapshot.agenda.find((item) => item.boekingId === boeking.id && item.tabel !== 'activiteit_bron') ?? null;
-  const auditZichtbaar = Boolean(sessie?.rechten.isSuperAdmin && !sessie.viewAs);
-  const sporen = await leesDossierSporen(sessieSupabaseUitAstro(Astro), boeking.id, auditZichtbaar);
-  const bronnen: OverzichtBron[] = [];
-  blokken = maakDossier(
-    boeking,
-    {
-      jaar: keuze.jaar,
-      maand: null,
-      boekingen: snapshot.boekingen,
-      betalingen: snapshot.betalingen ?? [],
-      betaalregelsZichtbaar,
-      blokkades: [],
-      bronnen,
-      aanvragen: snapshot.aanvragen,
-      documenten: snapshot.documenten.map((item) => ({
-        boekingId: item.boekingId,
-        naam: item.naam,
-        soort: item.soort,
-        datum: item.datum,
-      })),
-    },
-    relatie
-      ? {
-          naam: relatie.naam,
-          organisatie: relatie.organisatie ?? '',
-          email: relatie.email,
-          telefoon: relatie.telefoon,
-          adres: relatie.adres ?? '',
-        }
-      : null,
-    activiteit
-      ? {
-          titel: activiteit.titel,
-          zichtbaarheid: activiteit.publicatiestatus ?? '',
-          levenscyclus: activiteit.levenscyclus ?? 'actief',
-        }
-      : null,
-    sporen,
-  );
-}
-
-function label(waarde: string): string {
-  return SOORT_LABEL[waarde] ?? waarde;
-}
+const doel = verhuurQuery(Astro.url.searchParams, {
+  dossier: beheerId(Astro.params.id),
+  rij: null,
+  weg: null,
+});
+return Astro.redirect(doel);
 ---
-
-<Beheer titel={boeking ? `Dossier ${boeking.nummer}` : 'Dossier'}>
-  <div class="vh-scherm">
-    <p><a href={terug}>Terug naar het verhuuroverzicht</a></p>
-    {
-      !boeking ? (
-        <header class="bh-top">
-          <div>
-            <h1>Deze boeking staat niet in de leesweergave</h1>
-            <p class="bh-hint">Er is niets gewijzigd.</p>
-          </div>
-        </header>
-      ) : (
-        <>
-          <header class="bh-top">
-            <div>
-              <p class="bh-label">Dossier · alleen lezen</p>
-              <h1>{boeking.huurder || boeking.nummer}</h1>
-              <p class="bh-hint">De gegevens staan onder elkaar. Dit scherm heeft geen knoppen die iets opslaan, mailen of betalen.</p>
-            </div>
-          </header>
-          {blokken?.map((blok) => (
-            <section class="vh-dossier">
-              <h2>{blok.titel}</h2>
-              {blok.toelichting && <p>{blok.toelichting}</p>}
-              <dl>
-                {blok.regels.map((regel) => (
-                  <>
-                    <dt>{regel.label}</dt>
-                    <dd>{label(regel.waarde)}</dd>
-                  </>
-                ))}
-              </dl>
-            </section>
-          ))}
-          <p class="vh-bestaand">
-            <a href={`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`}>Open dezelfde boeking in de bestaande administratie</a>
-          </p>
-        </>
-      )
-    }
-  </div>
-</Beheer>

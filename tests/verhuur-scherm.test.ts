@@ -1,0 +1,323 @@
+import { describe, test } from 'node:test';
+import assert from 'node:assert/strict';
+import type { DemoBoeking } from '../src/platform/demo-data.ts';
+import { maakVerhuurOverzicht, type OverzichtBetaling, type OverzichtInvoer } from '../src/platform/verhuur-overzicht.ts';
+import {
+  STUK_BEOORDELING_BLOKKADE,
+  aandachtVan,
+  beoordeelGastheerActie,
+  bouwSchermRijen,
+  leesSchermFilter,
+  maakDossierWeergave,
+  mobielStatus,
+  staatKleur,
+  stukKanBeoordelen,
+  stukkenStand,
+  stukkenTekst,
+  veiligeBestandsUrl,
+  verhuurQuery,
+  type SchermRij,
+} from '../src/platform/verhuur-scherm.ts';
+
+function boeking(deel: Partial<DemoBoeking> & Pick<DemoBoeking, 'id' | 'status' | 'start' | 'eind'>): DemoBoeking {
+  return {
+    nummer: deel.id,
+    interneTitel: '',
+    soort: '',
+    huurder: '',
+    email: '',
+    tarief: '',
+    aanbetaling: '',
+    aanbetalingBinnen: false,
+    publiek: false,
+    notities: '',
+    relatieId: '',
+    ...deel,
+  };
+}
+
+function betaling(deel: Partial<OverzichtBetaling> & Pick<OverzichtBetaling, 'boekingId' | 'soort' | 'status'>): OverzichtBetaling {
+  return { id: `${deel.boekingId}-${deel.soort}`, bedrag: 0, vervaldatum: '', ontvangenOp: '', ...deel };
+}
+
+function invoer(deel: Partial<OverzichtInvoer> & Pick<OverzichtInvoer, 'jaar'>): OverzichtInvoer {
+  return {
+    maand: null,
+    boekingen: [],
+    betalingen: [],
+    betaalregelsZichtbaar: true,
+    blokkades: [],
+    bronnen: [],
+    aanvragen: [],
+    documenten: [],
+    ...deel,
+  };
+}
+
+function params(waarden: Record<string, string>): { get(naam: string): string | null } {
+  return { get: (naam) => waarden[naam] ?? null };
+}
+
+describe('stukken', () => {
+  test('ontbrekend bewijs blijft onbekend en wordt nooit groen', () => {
+    assert.equal(stukkenStand({}), 'onbekend');
+    assert.equal(stukkenStand({ contentstatus: '', inhoudStatus: null }), 'onbekend');
+    assert.equal(stukkenTekst('onbekend'), 'Onbekend');
+    assert.equal(staatKleur('onbekend'), 'unknown');
+    assert.equal(staatKleur('compleet'), 'ok');
+    assert.equal(stukKanBeoordelen(), false);
+    assert.match(STUK_BEOORDELING_BLOKKADE, /nog niet opgeslagen/);
+  });
+
+  test('een expliciete indiening vraagt beoordeling en een akkoord is compleet', () => {
+    assert.equal(stukkenStand({ inhoudStatus: 'ingediend' }), 'te_beoordelen');
+    assert.equal(stukkenStand({ contentstatus: 'goedgekeurd' }), 'compleet');
+    assert.equal(stukkenStand({ inhoudStatus: 'gevraagd' }), 'niet_aangeleverd');
+    assert.equal(stukkenStand({ contentstatus: 'goedgekeurd', inhoudStatus: 'ingediend' }), 'te_beoordelen');
+    assert.equal(stukkenStand({ inhoudStatus: 'niet_vereist' }), 'onbekend');
+  });
+
+  test('onbekend telt niet als open taak, een open restant en een expositie zonder gastheer wel', () => {
+    assert.deepEqual(
+      aandachtVan({
+        herkomst: 'boeking',
+        bezet: true,
+        soort: 'concert',
+        heeftGastheer: false,
+        aanbetaling: 'onbekend',
+        rest: 'onbekend',
+        stukken: 'onbekend',
+      }),
+      { nodig: false, taken: [] },
+    );
+    const open = aandachtVan({
+      herkomst: 'boeking',
+      bezet: true,
+      soort: 'expositie',
+      heeftGastheer: false,
+      aanbetaling: 'afgerond',
+      rest: 'openstaand',
+      stukken: 'te_beoordelen',
+    });
+    assert.equal(open.nodig, true);
+    assert.equal(open.taken.length, 3);
+    assert.equal(
+      aandachtVan({
+        herkomst: 'vrij',
+        bezet: false,
+        soort: '',
+        heeftGastheer: false,
+        aanbetaling: 'openstaand',
+        rest: 'openstaand',
+        stukken: 'te_beoordelen',
+      }).nodig,
+      false,
+    );
+  });
+});
+
+describe('gastheeractie', () => {
+  test('alleen koppelen of bevestigd losmaken, nooit een duplicaat', () => {
+    assert.equal(beoordeelGastheerActie({ actie: 'annuleer', gekozenId: '1', huidigeId: '', bevestig: '' }).ok, false);
+    assert.equal(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '4', huidigeId: '4', bevestig: '' }).ok, false);
+    assert.deepEqual(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '5', huidigeId: '4', bevestig: '' }), {
+      ok: true,
+      gastheerId: '5',
+    });
+    assert.equal(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '', huidigeId: '4', bevestig: '' }).ok, false);
+    assert.deepEqual(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '', huidigeId: '4', bevestig: 'ja' }), {
+      ok: true,
+      gastheerId: '',
+    });
+  });
+});
+
+describe('agendaweergave', () => {
+  const withaar = boeking({
+    id: '67',
+    status: 'migratie_vastgelegd',
+    start: '2027-07-10',
+    eind: '2027-07-11',
+    huurder: 'Mirjam Withaar',
+    medeExposanten: 'Mede-exposant',
+    soort: 'expositie',
+    notities: 'Verplaatst',
+  });
+  const hovell = boeking({
+    id: '76',
+    status: 'geannuleerd',
+    start: '2027-07-10',
+    eind: '2027-07-11',
+    huurder: 'Mariet van Hovell tot Westerflier',
+  });
+
+  test('4 november 2026: mei blijft vrij en de geannuleerde huur is niet bezet', () => {
+    const overzicht = maakVerhuurOverzicht(invoer({
+      jaar: 2027,
+      maand: 5,
+      boekingen: [withaar, hovell],
+      betalingen: [
+        betaling({ boekingId: '67', soort: 'aanbetaling', status: 'ontvangen', bedrag: 100 }),
+        betaling({ boekingId: '67', soort: 'restant', status: 'open', bedrag: 50 }),
+      ],
+    }));
+    const scherm = bouwSchermRijen({
+      overzicht,
+      boekingen: [withaar, hovell],
+      gastheren: [],
+      toewijzingen: [],
+      activiteiten: [],
+      zoek: '',
+      alleenAandacht: false,
+    });
+    const mei = scherm.rijen.find((rij) => rij.start === '2027-05-08');
+    assert.equal(mei?.herkomst, 'vrij');
+    assert.equal(mei?.huurder, 'Vrij weekend');
+    assert.equal(mei?.bezet, false);
+    assert.equal(mei?.aandacht, false);
+    assert.equal(scherm.rijen.some((rij) => rij.huurder.includes('Withaar')), false);
+    assert.equal(scherm.rijen.some((rij) => rij.huurder.includes('Hovell')), false);
+  });
+
+  test('zoeken en alleen aandacht filteren de maand, een aanvraag vult geen rij', () => {
+    const overzicht = maakVerhuurOverzicht(invoer({
+      jaar: 2027,
+      maand: 7,
+      boekingen: [withaar, hovell],
+      aanvragen: [{
+        id: 'a1',
+        status: 'nieuw',
+        naam: 'Nieuwe aanvraag',
+        email: 'a@example.test',
+        telefoon: '',
+        adres: '',
+        soort: 'expositie',
+        start: '2027-07-17',
+        eind: '2027-07-18',
+        personen: '',
+        toelichting: '',
+        binnengekomen: '2026-11-01',
+      }],
+      betalingen: [
+        betaling({ boekingId: '67', soort: 'aanbetaling', status: 'ontvangen', bedrag: 100 }),
+        betaling({ boekingId: '67', soort: 'restant', status: 'open', bedrag: 390 }),
+      ],
+    }));
+    const scherm = bouwSchermRijen({
+      overzicht,
+      boekingen: [withaar, hovell],
+      gastheren: [{ id: 'g', naam: 'Hans', actief: true }],
+      toewijzingen: [],
+      activiteiten: [{ boekingId: '67', inhoudStatus: 'ingediend', tabel: 'publieke_activiteiten' }],
+      zoek: 'withaar',
+      alleenAandacht: true,
+    });
+    assert.equal(scherm.rijen.length, 1);
+    assert.equal(scherm.rijen[0].huurder, 'Mirjam Withaar');
+    assert.match(scherm.rijen[0].activiteit, /Expositie/);
+    assert.match(scherm.rijen[0].activiteit, /Mede-exposant/);
+    assert.equal(scherm.rijen[0].stukkenTekst, 'Te beoordelen');
+    assert.equal(scherm.rijen[0].restTekst, 'Open');
+    assert.equal(scherm.rijen[0].contractTekst, 'Onbekend');
+    assert.equal(scherm.rijen[0].aandacht, true);
+    assert.equal(scherm.aandachtAantal >= 1, true);
+    assert.equal(overzicht.aanvragen.length, 1);
+    assert.equal(overzicht.rijen.some((rij) => rij.huurder === 'Nieuwe aanvraag'), false);
+    const geannuleerd = bouwSchermRijen({
+      overzicht,
+      boekingen: [withaar, hovell],
+      gastheren: [],
+      toewijzingen: [],
+      activiteiten: [],
+      zoek: 'hovell',
+      alleenAandacht: false,
+    }).rijen[0];
+    assert.equal(geannuleerd.bezet, false);
+    assert.match(geannuleerd.activiteit, /Geannuleerd/);
+    assert.equal(mobielStatus(geannuleerd), 'Geannuleerd');
+  });
+
+  test('het dossier toont de ledger en geen verzonnen contract of beoordelknop', () => {
+    const overzicht = maakVerhuurOverzicht(invoer({
+      jaar: 2027,
+      maand: 7,
+      boekingen: [{ ...withaar, gastheerId: 'g' }],
+      betalingen: [
+        betaling({ boekingId: '67', soort: 'aanbetaling', status: 'ontvangen', bedrag: 100, ontvangenOp: '2026-01-02' }),
+        betaling({ boekingId: '67', soort: 'restant', status: 'open', bedrag: 390 }),
+      ],
+    }));
+    const rij = bouwSchermRijen({
+      overzicht,
+      boekingen: [{ ...withaar, gastheerId: 'g' }],
+      gastheren: [{ id: 'g', naam: 'Hans', actief: true }],
+      toewijzingen: [{ boekingId: '67', relatieId: 'n', relatieNaam: 'Nelleke' }],
+      activiteiten: [{
+        boekingId: '67',
+        tabel: 'publieke_activiteiten',
+        inhoudStatus: 'ingediend',
+        volledigeOmschrijving: 'Schilderijen over de Waal.',
+        fotoPad: '/foto/expositie.jpg',
+        inhoudVersie: 2,
+      }],
+      zoek: 'withaar',
+      alleenAandacht: false,
+    }).rijen[0] as SchermRij;
+    const dossier = maakDossierWeergave({
+      rij,
+      boeking: { ...withaar, gastheerId: 'g', email: 'mirjam@example.test', notities: 'Verplaatst' },
+      relatie: { naam: 'Mirjam Withaar', organisatie: '', email: 'anders@example.test', telefoon: '06 00000000', adres: 'Dorp 1' },
+      activiteit: {
+        boekingId: '67',
+        inhoudStatus: 'ingediend',
+        volledigeOmschrijving: 'Schilderijen over de Waal.',
+        fotoPad: '/foto/expositie.jpg',
+        inhoudVersie: 2,
+      },
+      gastheren: [{ id: 'g', naam: 'Hans', actief: true }, { id: 'n', naam: 'Nelleke', actief: true }],
+      toewijzingen: [{ boekingId: '67', relatieId: 'n', relatieNaam: 'Nelleke' }],
+      documenten: [{ boekingId: '67', naam: 'contract.pdf', soort: 'contract', datum: '2026-01-01', url: 'javascript:alert(1)' }],
+      betalingen: [
+        { boekingId: '67', soort: 'aanbetaling', bedrag: 100, status: 'ontvangen' },
+        { boekingId: '67', soort: 'restant', bedrag: 390, status: 'open' },
+      ],
+      betaalregelsZichtbaar: true,
+      intake: [{ naam: 'foto.jpg', url: 'https://example.test/bestand' }],
+    });
+    assert.equal(dossier.gastheerNaam, 'Hans');
+    assert.deepEqual(dossier.historie, ['Nelleke']);
+    assert.match(dossier.stukTekst, /Schilderijen/);
+    assert.equal(dossier.fotoUrl, '/foto/expositie.jpg');
+    assert.equal(dossier.documenten[0].url, null);
+    assert.equal(dossier.intake[0].url, 'https://example.test/bestand');
+    assert.match(dossier.contractTekst, /Onbekend/);
+    assert.equal(dossier.betalingen[0].tekst, 'Ontvangen');
+    assert.match(dossier.betalingen[1].detail, /390/);
+    assert.match(dossier.betaalToelichting, /aanbetaling_ontvangen beslist niet/);
+    assert.equal(stukKanBeoordelen(), false);
+  });
+});
+
+describe('adres en filter', () => {
+  test('zonder maand opent de huidige maand en de query bewaart het dossier', () => {
+    assert.deepEqual(leesSchermFilter(params({ jaar: '2027' }), '2026-11-08'), {
+      jaar: 2027,
+      maand: 11,
+      zoek: '',
+      aandacht: false,
+    });
+    assert.equal(leesSchermFilter(params({ jaar: '2027', maand: 'alle' }), '2026-11-08').maand, null);
+    assert.equal(
+      verhuurQuery(params({ jaar: '2027', maand: '5', q: 'marieke', bron: 'demo' }), { dossier: '67', aandacht: '1' }),
+      '/beheer/verhuur/?jaar=2027&maand=5&q=marieke&aandacht=1&bron=demo&dossier=67',
+    );
+    assert.equal(verhuurQuery(params({ dossier: '67', melding: 'weg' }), { dossier: null }).includes('melding'), false);
+  });
+
+  test('een onveilig bestandspad wordt geen link', () => {
+    assert.equal(veiligeBestandsUrl('javascript:alert(1)'), null);
+    assert.equal(veiligeBestandsUrl('//evil.test/a.jpg'), null);
+    assert.equal(veiligeBestandsUrl('/foto/a.jpg'), '/foto/a.jpg');
+    assert.equal(veiligeBestandsUrl('https://cdn.example/a.jpg'), 'https://cdn.example/a.jpg');
+  });
+});

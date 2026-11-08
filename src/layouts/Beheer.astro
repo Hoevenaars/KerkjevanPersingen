@@ -31,6 +31,9 @@ const rolAantal = snapshot.relaties.reduce((som, relatie) => som + relatie.rolle
 const hoofd = (Object.keys(BEHEER_MODULES) as Array<keyof typeof BEHEER_MODULES>)
   .filter((sleutel) => BEHEER_MODULES[sleutel].groep === 'hoofd' && magZien(rechten, sleutel))
   .map((sleutel) => ({ href: BEHEER_MODULES[sleutel].href, label: BEHEER_MODULES[sleutel].label }));
+if (verhuurOverzichtAan() && magZien(rechten, 'agenda')) {
+  hoofd.unshift({ href: '/beheer/website/', label: 'Website' });
+}
 if (verhuurOverzichtAan() && magZien(rechten, 'boekingen')) {
   hoofd.unshift({ href: '/beheer/verhuur/', label: 'Verhuur' });
 }

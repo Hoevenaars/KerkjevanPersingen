@@ -1,0 +1,75 @@
+---
+import '../styles/beheer-concept.css';
+import { magZien } from '../platform/rechten.ts';
+
+interface Props {
+  titel: string;
+  actief: 'verhuur' | 'website';
+}
+
+const { titel, actief } = Astro.props;
+const sessie = Astro.locals.beheer;
+const rechten = sessie?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const naam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? '';
+const toonVerhuur = magZien(rechten, 'boekingen');
+const toonWebsite = magZien(rechten, 'agenda');
+---
+
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#faf8f3" />
+    <title>{titel} — Kerkje van Persingen</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Work+Sans:wght@400;500;600;700&display=swap"
+    />
+  </head>
+  <body>
+    <div class="kc">
+      {
+        sessie?.viewAs && (
+          <p class="kc-fout" role="status">
+            Je bekijkt de omgeving als {sessie.viewAs.naam}. Wijzigen is uitgeschakeld.
+          </p>
+        )
+      }
+      <header class="kc-balk">
+        <div class="kc-balk-binnen">
+          <a class="kc-merk" href={toonVerhuur ? '/beheer/verhuur/' : '/beheer/'}>
+            <img src="/favicon.svg" width="37" height="37" alt="" />
+            Kerkje van Persingen
+          </a>
+          <nav class="kc-nav" aria-label="Hoofdmenu">
+            {
+              toonVerhuur && (
+                <a href="/beheer/verhuur/" aria-current={actief === 'verhuur' ? 'page' : undefined}>
+                  Verhuur
+                </a>
+              )
+            }
+            {
+              toonWebsite && (
+                <a href="/beheer/website/" aria-current={actief === 'website' ? 'page' : undefined}>
+                  Website
+                </a>
+              )
+            }
+          </nav>
+          <p class="kc-gebruiker">
+            <a href="/beheer/">Beheeromgeving</a>
+            {naam && <small>{naam}</small>}
+          </p>
+        </div>
+      </header>
+      <slot />
+    </div>
+  </body>
+</html>

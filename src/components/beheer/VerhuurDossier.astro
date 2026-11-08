@@ -1,0 +1,290 @@
+---
+import StatusMarkering from './StatusMarkering.astro';
+import { STUK_BEOORDELING_BLOKKADE, staatKleur, type DossierWeergave } from '../../platform/verhuur-scherm.ts';
+
+interface Props {
+  dossier: DossierWeergave;
+  sluitHref: string;
+  bevestigHref: string;
+  formulierActie: string;
+  magSchrijven: boolean;
+  demo: boolean;
+  weg: boolean;
+  correspondentie: { label: string; waarde: string }[];
+  correspondentieToelichting: string;
+  audit: { label: string; waarde: string }[];
+  oudHref: string;
+}
+
+const {
+  dossier,
+  sluitHref,
+  bevestigHref,
+  formulierActie,
+  magSchrijven,
+  demo,
+  weg,
+  correspondentie,
+  correspondentieToelichting,
+  audit,
+  oudHref,
+} = Astro.props;
+const aantal = dossier.taken.length;
+---
+
+<div class="kc-overlay">
+  <a class="kc-achter" href={sluitHref}><span>Sluit het dossier</span></a>
+  <aside class="kc-lade" role="dialog" aria-modal="true" aria-labelledby="kc-dossier-naam" tabindex="-1" data-kc-dossier>
+    <div class="kc-lade-kop">
+      <div class="kc-lade-top">
+        <p class="kc-wenkbrauw">Boeking · {dossier.periode}</p>
+        <a class="kc-sluit" id="kc-sluit" href={sluitHref} aria-label="Sluit dossier">×</a>
+      </div>
+      <h2 id="kc-dossier-naam">{dossier.naam}</h2>
+      <p class="kc-sub">{dossier.activiteit}</p>
+    </div>
+    <div class="kc-lade-lichaam">
+      <div class="kc-oproep">
+        <div aria-hidden="true">{aantal ? '✧' : '✓'}</div>
+        <div>
+          <strong>{aantal ? `Nog ${aantal} ${aantal === 1 ? 'zaak' : 'zaken'} te controleren` : 'Geen openstaande actie'}</strong>
+          <p>
+            {
+              aantal
+                ? dossier.taken.join(' ')
+                : 'Er is geen open betaling, geen ontbrekende gastheer en geen inhoud die op beoordeling wacht.'
+            }
+          </p>
+        </div>
+      </div>
+
+      <section class="kc-kaart">
+        <h3>Gegevens huurder</h3>
+        <div class="kc-kaart-inhoud">
+          <div class="kc-rooster">
+            {
+              dossier.velden.map((veld) => (
+                <div>
+                  <p class="kc-bijschrift">{veld.label}</p>
+                  <p class="kc-waarde">{veld.waarde}</p>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <section class="kc-kaart">
+        <h3>Aangeleverde stukken</h3>
+        <div class="kc-kaart-inhoud">
+          <div class="kc-stuk">
+            <div class="kc-stuk-kop">
+              <div class="kc-stuk-icoon" aria-hidden="true">▤</div>
+              <div>
+                <b>Tekst voor de website</b>
+                {dossier.versie && <small> · {dossier.versie}</small>}
+                <div style="margin-top:7px">
+                  <StatusMarkering kleur={staatKleur(dossier.stukken)} tekst={dossier.stukkenLabel} />
+                </div>
+                {
+                  dossier.stukTekst ? (
+                    <p>{dossier.stukTekst}</p>
+                  ) : (
+                    <p>Er is geen aangeleverde tekst gevonden.</p>
+                  )
+                }
+              </div>
+            </div>
+          </div>
+          <div class="kc-stuk">
+            <div class="kc-stuk-kop">
+              <div class="kc-stuk-icoon" aria-hidden="true">▣</div>
+              <div>
+                <b>Foto voor de website</b>
+                {
+                  dossier.fotoUrl ? (
+                    <img class="kc-foto" src={dossier.fotoUrl} alt="Aangeleverde foto voor de website" />
+                  ) : (
+                    <p>Er is geen publieke foto gekoppeld.</p>
+                  )
+                }
+              </div>
+            </div>
+          </div>
+          {
+            dossier.intake.map((bestand) => (
+              <div class="kc-stuk">
+                <div class="kc-stuk-kop">
+                  <div class="kc-stuk-icoon" aria-hidden="true">▣</div>
+                  <div>
+                    <b>{bestand.naam}</b>
+                    <p>Privé aangeleverd bestand. Dit staat niet op de website.</p>
+                    {
+                      bestand.url && (
+                        <p><a href={bestand.url} target="_blank" rel="noopener noreferrer">Bekijken</a></p>
+                      )
+                    }
+                  </div>
+                </div>
+              </div>
+            ))
+          }
+          <p class="kc-blokkade">{STUK_BEOORDELING_BLOKKADE}</p>
+        </div>
+      </section>
+
+      <section class="kc-kaart">
+        <h3>Contract en documenten</h3>
+        <div class="kc-kaart-inhoud">
+          <StatusMarkering kleur="unknown" tekst="Onbekend" />
+          <p>{dossier.contractTekst}</p>
+          {
+            dossier.documenten.length === 0 ? (
+              <p>Er staat geen document bij deze boeking.</p>
+            ) : (
+              dossier.documenten.map((document) => (
+                <div class="kc-stuk">
+                  <b>{document.naam}</b>
+                  <p class="kc-bijschrift">{document.soort}{document.datum ? ` · ${document.datum}` : ''}</p>
+                  {
+                    document.url ? (
+                      <p><a href={document.url} target="_blank" rel="noopener noreferrer">Bekijken</a></p>
+                    ) : (
+                      <p>Geen veilige voorbeeldlink. Het bestand blijft privé.</p>
+                    )
+                  }
+                </div>
+              ))
+            )
+          }
+        </div>
+      </section>
+
+      <section class="kc-kaart">
+        <h3>Gastheren</h3>
+        <div class="kc-kaart-inhoud">
+          <p class="kc-bijschrift">Wie ontvangt de bezoekers bij deze activiteit?</p>
+          {
+            dossier.gastheerNaam ? (
+              <span class="kc-pil">{dossier.gastheerNaam}</span>
+            ) : (
+              <p>Nog geen gastheer gekoppeld.</p>
+            )
+          }
+          {
+            dossier.historie.length > 0 && (
+              <p>Ook genoemd in de planninghistorie: {dossier.historie.join(', ')}. Die regels wijzigt deze knop niet.</p>
+            )
+          }
+          {
+            magSchrijven && dossier.gastheerKeuze.length === 0 ? (
+              <p>
+                Er zijn geen gastheren om te kiezen.
+                <a href="/beheer/instellingen/gastheren/"> Beheer de expositiebegeleiders</a>.
+              </p>
+            ) : magSchrijven ? (
+              <>
+                <form class="kc-gastheer-kies" method="post" action={formulierActie}>
+                  <input type="hidden" name="actie" value="gastheer" />
+                  <input type="hidden" name="boekingId" value={dossier.id} />
+                  <label class="kc-verborgen" for={`gastheer-${dossier.id}`}>Kies een gastheer</label>
+                  <select id={`gastheer-${dossier.id}`} name="gastheerId" required>
+                    <option value="">Kies een gastheer</option>
+                    {
+                      dossier.gastheerKeuze.map((gastheer) => (
+                        <option value={gastheer.id}>
+                          {gastheer.actief ? gastheer.naam : `${gastheer.naam} (niet actief)`}
+                        </option>
+                      ))
+                    }
+                  </select>
+                  <button class="kc-knop kc-knop--olijf" type="submit">+ Toevoegen</button>
+                </form>
+                <p class="kc-bijschrift">
+                  Er kan één gastheer op de boeking staan. Een nieuwe keuze vervangt de huidige. Er gaat geen mail uit.
+                  {demo ? ' Dit is een voorbeeld: er wordt niets opgeslagen.' : ''}
+                </p>
+                {
+                  dossier.gastheerNaam && !weg && (
+                    <p><a href={bevestigHref}>Gastheer verwijderen</a></p>
+                  )
+                }
+                {
+                  dossier.gastheerNaam && weg && (
+                    <form method="post" action={formulierActie}>
+                      <input type="hidden" name="actie" value="gastheer" />
+                      <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="gastheerId" value="" />
+                      <input type="hidden" name="bevestig" value="ja" />
+                      <button class="kc-knop" type="submit">Ja, verwijder {dossier.gastheerNaam}</button>
+                    </form>
+                  )
+                }
+              </>
+            ) : (
+              <p>Je kunt de gastheer bekijken. Wijzigen vraagt schrijfrecht op boekingen.</p>
+            )
+          }
+        </div>
+      </section>
+
+      <section class="kc-kaart">
+        <h3>Betalingen</h3>
+        <div class="kc-kaart-inhoud">
+          {
+            dossier.betalingen.map((regel) => (
+              <div class="kc-betaling">
+                <div>
+                  <strong>{regel.label}</strong>
+                  {regel.detail && <div class="kc-bijschrift">{regel.detail}</div>}
+                </div>
+                <StatusMarkering kleur={staatKleur(regel.stand)} tekst={regel.tekst} />
+              </div>
+            ))
+          }
+          <p class="kc-bijschrift">{dossier.betaalToelichting}</p>
+        </div>
+      </section>
+
+      <section class="kc-kaart">
+        <h3>Bijzonderheden</h3>
+        <div class="kc-kaart-inhoud">
+          <p style="white-space:pre-wrap;margin:0">{dossier.notities}</p>
+        </div>
+      </section>
+
+      <section class="kc-kaart">
+        <h3>Correspondentie en audit</h3>
+        <div class="kc-kaart-inhoud">
+          <p>{correspondentieToelichting}</p>
+          {
+            correspondentie.map((regel) => (
+              <p><span class="kc-bijschrift">{regel.label}</span><br /><span class="kc-waarde">{regel.waarde}</span></p>
+            ))
+          }
+          {
+            audit.map((regel) => (
+              <p><span class="kc-bijschrift">{regel.label}</span><br />{regel.waarde}</p>
+            ))
+          }
+        </div>
+      </section>
+
+      <p><a href={oudHref}>Open dezelfde boeking in de bestaande administratie</a></p>
+    </div>
+    <div class="kc-lade-voet">
+      <span class="kc-bijschrift">{demo ? 'Voorbeeld · niets wordt opgeslagen' : 'Sluiten bewaart je jaar, maand en zoekopdracht.'}</span>
+      <a class="kc-knop kc-knop--primair" href={sluitHref}>Sluiten</a>
+    </div>
+  </aside>
+</div>
+
+<style>
+  .kc-verborgen {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+</style>
