@@ -180,7 +180,7 @@ export async function leesSupabaseBeheer(
   const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, aanvraagAdresRijen, jobRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
     lees(client, 'relaties', 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst'),
     lees(client, 'relatie_rollen', 'relatie_id,rol,actief'),
-    lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
+    lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,aanvraag_id,huurder_naam_snapshot,huurder_email_snapshot,huurder_telefoon_snapshot,huurder_adres_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
     lees(client, 'betalingen', 'id,boeking_id,soort,bedrag,status,vervaldatum,ontvangen_op'),
     lees(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender,notities'),
     lees(client, 'gastbegeleider_toewijzingen', 'id,boeking_id,relatie_id,datum,type'),
@@ -189,7 +189,7 @@ export async function leesSupabaseBeheer(
     lees(client, 'documenten', 'id,boeking_id,bestandsnaam,type,geupload_op'),
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
-    lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
+    lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,inhoud_versie,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
     lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id,informatievraag,akkoord_voorwaarden,mede_exposanten'),
     leesZacht(client, 'aanvragen', 'id,straat,huisnummer,huisnummer_toevoeging,postcode,woonplaats'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
@@ -279,6 +279,9 @@ export async function leesSupabaseBeheer(
       periode: periodeKlasse(tekst(rij.start_datum), tekst(rij.eind_datum), opties.vandaag),
       medeExposanten: tekst(rij.mede_exposanten),
       toelichting: tekst(rij.toelichting),
+      aanvraagId: rij.aanvraag_id == null ? undefined : tekst(rij.aanvraag_id),
+      telefoon: tekst(rij.huurder_telefoon_snapshot),
+      adres: tekst(rij.huurder_adres_snapshot),
     };
   });
 
@@ -355,7 +358,9 @@ export async function leesSupabaseBeheer(
         omschrijving: tekst(rij.omschrijving),
         soort: tekst(boekingen.find((boeking) => boeking.id === tekst(rij.boeking_id))?.soort),
         publicatiestatus: publicatiestatusVan(rij.zichtbaarheid),
-        contentstatus: tekst(rij.contentstatus) || null,
+        contentstatus: tekst(rij.contentstatus) || tekst(rij.inhoud_status) || null,
+        inhoudStatus: tekst(rij.inhoud_status) || null,
+        inhoudVersie: tekst(rij.inhoud_versie),
         levenscyclus: tekst(rij.levenscyclus) === 'geannuleerd' ? 'geannuleerd' as const : 'actief' as const,
         annuleringsreden: tekst(rij.annuleringsreden),
         geannuleerdOp: tekst(rij.geannuleerd_op),

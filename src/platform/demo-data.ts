@@ -65,6 +65,8 @@ export interface DemoBoeking {
   periode?: 'verleden' | 'lopend' | 'komend';
   medeExposanten?: string;
   toelichting?: string;
+  telefoon?: string;
+  adres?: string;
 }
 
 export interface DemoActiviteit {
@@ -94,6 +96,8 @@ export interface DemoActiviteit {
   aanvullende?: string[];
   legacyId?: string;
   bronLabel?: string;
+  inhoudStatus?: string | null;
+  inhoudVersie?: string;
 }
 
 export interface DemoIntern {

@@ -1,9 +1,10 @@
 ---
 import '../styles/global.css';
 import '../styles/beheer.css';
-import { laadBeheerSnapshot, beheerSnapshotOpties } from '../platform/beheer-bron';
+import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord } from '../platform/beheer-bron';
 import { leesSanityOproepen } from '../platform/sanity-registratie';
 import { BEHEER_MODULES, INSTELLINGEN_PAGINAS, SNEL_NIEUW } from '../platform/modules.ts';
+import { verhuurOverzichtAan } from '../platform/verhuur-vlag.ts';
 import { magZien } from '../platform/rechten.ts';
 import { beheerModus } from '../platform/beheer-sessie.ts';
 import { moduleVoorPad } from '../platform/autorisatie.ts';
@@ -38,6 +39,12 @@ const rolAantal = snapshot.relaties.reduce((som, relatie) => som + relatie.rolle
 const hoofd = (Object.keys(BEHEER_MODULES) as Array<keyof typeof BEHEER_MODULES>)
   .filter((sleutel) => BEHEER_MODULES[sleutel].groep === 'hoofd' && magZien(rechten, sleutel))
   .map((sleutel) => ({ href: BEHEER_MODULES[sleutel].href, label: BEHEER_MODULES[sleutel].label }));
+if (verhuurOverzichtAan(omgevingsRecord()) && magZien(rechten, 'boekingen')) {
+  const naDashboard = hoofd.findIndex((item) => item.href === '/beheer/');
+  const verhuur = { href: '/beheer/verhuur/', label: 'Verhuur' };
+  if (naDashboard >= 0) hoofd.splice(naDashboard + 1, 0, verhuur);
+  else hoofd.unshift(verhuur);
+}
 if (magZien(rechten, 'agenda')) {
   const naPlanning = hoofd.findIndex((item) => item.href === '/beheer/planning/');
   const publiceren = { href: '/beheer/publiceren/', label: 'Publiceren' };

@@ -1,0 +1,15 @@
+---
+import type { StatusWeergave } from '../../platform/verhuur-overzicht.ts';
+
+interface Props {
+  status: StatusWeergave;
+}
+
+const { status } = Astro.props;
+const icoon = { klaar: '✓', open: '○', actie: '!', onbekend: '?', leeg: '' }[status.toon];
+---
+
+<span class={`vh-status vh-status--${status.toon}`}>
+  {icoon && <span class="vh-icoon" aria-hidden="true">{icoon}</span>}
+  <span>{status.tekst}</span>
+</span>

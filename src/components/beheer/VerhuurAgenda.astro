@@ -1,0 +1,100 @@
+---
+import VerhuurStatus from './VerhuurStatus.astro';
+import type { AgendaRij } from '../../platform/verhuur-overzicht.ts';
+
+interface Props {
+  rijen: AgendaRij[];
+  jaren: number[];
+  jaar: number;
+  maand: number | 'alle';
+  label: string;
+  basis: string;
+  vorige: string;
+  volgende: string;
+  melding: string;
+  fout: string;
+}
+
+const { rijen, jaren, jaar, maand, label, basis, vorige, volgende, melding, fout } = Astro.props;
+const maanden = [
+  [1, 'januari'], [2, 'februari'], [3, 'maart'], [4, 'april'], [5, 'mei'], [6, 'juni'],
+  [7, 'juli'], [8, 'augustus'], [9, 'september'], [10, 'oktober'], [11, 'november'], [12, 'december'],
+] as const;
+
+function href(rij: AgendaRij): string {
+  if (!rij.openDossier) return '';
+  const params = new URLSearchParams(basis);
+  params.set('dossier', rij.boekingId);
+  params.set('rij', rij.sleutel);
+  return `/beheer/verhuur/?${params.toString()}#${rij.sleutel}`;
+}
+---
+
+<section class="vh" aria-label="Verhuuragenda">
+  <header class="bh-top">
+    <div>
+      <p class="bh-label">Verhuur</p>
+      <h1>{label}</h1>
+      <p>Klik op de naam van de huurder. U ziet dan alle gegevens van die boeking.</p>
+    </div>
+  </header>
+
+  {melding && <p class="vh-melding" role="status">{melding}</p>}
+  {fout && <p class="vh-fout" role="alert">{fout}</p>}
+
+  <form class="vh-kies" method="get" action="/beheer/verhuur/">
+    {basis.includes('bron=') && <input type="hidden" name="bron" value={new URLSearchParams(basis).get('bron') ?? ''} />}
+    <label>
+      Jaar
+      <select name="jaar">
+        {jaren.map((item) => <option value={item} selected={item === jaar}>{item}</option>)}
+      </select>
+    </label>
+    <label>
+      Maand
+      <select name="maand">
+        <option value="alle" selected={maand === 'alle'}>Hele jaar</option>
+        {maanden.map(([nummer, naam]) => <option value={nummer} selected={nummer === maand}>{naam}</option>)}
+      </select>
+    </label>
+    <button class="vh-knop" type="submit">Toon</button>
+    <a class="vh-knop vh-knop--sec" href={vorige}>Vorige</a>
+    <a class="vh-knop vh-knop--sec" href={volgende}>Volgende</a>
+  </form>
+
+  <div class="vh-scroll" tabindex="0">
+    <table class="vh-tabel">
+      <caption class="visually-hidden">Verhuur in {label}. Elke regel is een weekend, een verhuur of een blokkade.</caption>
+      <thead>
+        <tr>
+          <th>Weekend / datum</th>
+          <th>Naam huurder</th>
+          <th>Activiteit</th>
+          <th>Contract</th>
+          <th>Aangeleverde stukken</th>
+          <th>Aanbetaling</th>
+          <th>Restbetaling</th>
+          <th>Gastheer</th>
+          <th>Bijzonderheden</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rijen.map((rij) => (
+          <tr id={rij.sleutel} data-dossier={rij.openDossier ? href(rij) : undefined}>
+            <td>{rij.datum}</td>
+            <td>
+              {rij.openDossier ? <a href={href(rij)}>{rij.huurder}</a> : rij.huurder}
+            </td>
+            <td>{rij.activiteit}</td>
+            <td><VerhuurStatus status={rij.contract} /></td>
+            <td><VerhuurStatus status={rij.stukken} /></td>
+            <td><VerhuurStatus status={rij.aanbetaling} /></td>
+            <td><VerhuurStatus status={rij.restant} /></td>
+            <td>{rij.gastheer}</td>
+            <td>{rij.bijzonderheid}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</section>

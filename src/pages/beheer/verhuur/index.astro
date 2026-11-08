@@ -1,0 +1,246 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import VerhuurAgenda from '../../../components/beheer/VerhuurAgenda.astro';
+import VerhuurDossier from '../../../components/beheer/VerhuurDossier.astro';
+import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
+import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord } from '../../../platform/beheer-bron.ts';
+import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
+import { verhuurOverzichtAan } from '../../../platform/verhuur-vlag.ts';
+import {
+  beschikbareJaren,
+  bronUitSnapshot,
+  bouwAgenda,
+  bouwDossier,
+  gastheerBesluit,
+  gastheerOverlappen,
+  gastheerVraagTekst,
+  leesVerhuurSelectie,
+  periodeLabel,
+} from '../../../platform/verhuur-overzicht.ts';
+import { beoordeelStukViaSessie } from '../../../lib/operatie/stuk-beoordeling.ts';
+import { voerDossierViaSessie } from '../../../lib/operatie/dossier-sessie.ts';
+import { actorVanSessie } from '../../../lib/operatie/runtime.ts';
+import { leesVerhuurBijlagen, type VerhuurBijlagen } from '../../../lib/operatie/verhuur-bijlagen.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+
+if (!verhuurOverzichtAan(omgevingsRecord())) {
+  return beheerUitResponse();
+}
+
+const sessie = Astro.locals.beheer;
+const rechten = sessie?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const schrijven = Boolean(sessie && !sessie.viewAs && magSchrijven(rechten, 'boekingen'));
+const vandaag = ymdInAmsterdam(new Date());
+const selectie = leesVerhuurSelectie(Astro.url.searchParams, vandaag);
+
+function doelUrl(url: URL): URL {
+  const doel = new URL(url.pathname, url.origin);
+  for (const sleutel of ['jaar', 'maand', 'dossier', 'bron', 'rij']) {
+    const waarde = url.searchParams.get(sleutel);
+    if (!waarde) continue;
+    if (sleutel === 'bron' && waarde !== 'demo' && waarde !== 'supabase') continue;
+    if (sleutel === 'maand' && waarde !== 'alle' && !/^\d{1,2}$/.test(waarde)) continue;
+    doel.searchParams.set(sleutel, waarde);
+  }
+  if (!doel.searchParams.has('jaar')) doel.searchParams.set('jaar', String(selectie.jaar));
+  if (!doel.searchParams.has('maand')) doel.searchParams.set('maand', String(selectie.maand));
+  return doel;
+}
+
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const client = sessieSupabaseUitAstro(Astro);
+const dossierId = Astro.url.searchParams.get('dossier') ?? '';
+const aanvraagNaarBoeking: Record<string, string> = {};
+for (const boeking of snapshot.boekingen) {
+  if (boeking.aanvraagId) aanvraagNaarBoeking[boeking.aanvraagId] = boeking.id;
+}
+for (const aanvraag of snapshot.aanvragen) {
+  if (aanvraag.boekingId) aanvraagNaarBoeking[aanvraag.id] = aanvraag.boekingId;
+}
+
+let bijlagen: VerhuurBijlagen = {
+  stukken: [],
+  beoordelingen: [],
+  verzendingen: [],
+  audit: [],
+  documentUrls: {},
+  stukkenGeladen: snapshot.bron !== 'supabase',
+  beoordelingOpslag: false,
+};
+if (client && snapshot.bron === 'supabase') {
+  const gelezen = await leesVerhuurBijlagen(client as never, {
+    aanvraagNaarBoeking,
+    dossierBoekingId: dossierId,
+    magAudit: Boolean(sessie?.effectieveRechten.isSuperAdmin && !sessie.viewAs),
+  });
+  bijlagen = gelezen;
+}
+
+if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  const doel = doelUrl(Astro.url);
+  const klaar = () => Astro.redirect(`${doel.pathname}${doel.search}`);
+  if (!schrijven || snapshot.bron !== 'supabase' || !client || !sessie) {
+    doel.searchParams.set('fout', 'U kunt dit alleen bekijken. Er is niets gewijzigd en er is geen e-mail verstuurd.');
+    return klaar();
+  }
+  const actie = String(data.get('actie') ?? '');
+  const boekingId = String(data.get('boekingId') ?? dossierId);
+  const boeking = snapshot.boekingen.find((item) => item.id === boekingId);
+  if (!boeking) {
+    doel.searchParams.set('fout', 'Boeking niet gevonden. Er is niets gewijzigd.');
+    return klaar();
+  }
+  doel.searchParams.set('dossier', boeking.id);
+  const actor = actorVanSessie(sessie);
+  if (actie === 'gastheer_toevoegen' || actie === 'gastheer_verwijderen' || actie === 'gastheer_bevestigen') {
+    const bron = bronUitSnapshot(snapshot, {
+      vandaag,
+      ...selectie,
+      ...bijlagen,
+      magAudit: false,
+    });
+    const huidig = bron.boekingen.find((item) => item.id === boeking.id);
+    const gekozenId = actie === 'gastheer_verwijderen' ? '' : String(data.get('gastheerId') ?? '');
+    const overlap = huidig ? gastheerOverlappen(bron, huidig, gekozenId) : [];
+    const besluit = gastheerBesluit({
+      actie: actie === 'gastheer_verwijderen' ? 'verwijderen' : actie === 'gastheer_bevestigen' ? 'bevestigen' : 'toevoegen',
+      gekozenId,
+      huidigeId: boeking.gastheerId ?? '',
+      overlap: overlap.length > 0,
+      bevestigd: String(data.get('bevestig') ?? '') === 'ja',
+    });
+    if (besluit.doen === 'niets') {
+      doel.searchParams.set('fout', besluit.melding);
+      return klaar();
+    }
+    if (besluit.doen === 'vragen') {
+      doel.searchParams.set('vraag', besluit.vraag);
+      if (besluit.gastheerId) doel.searchParams.set('keuze', besluit.gastheerId);
+      return klaar();
+    }
+    const uit = await voerDossierViaSessie(client as never, {
+      soort: 'gastheer',
+      boekingId: boeking.id,
+      gastheerId: besluit.gastheerId,
+    }, actor);
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    return klaar();
+  }
+  if (actie === 'stuk_goedkeuren' || actie === 'stuk_afkeuren') {
+    const uit = await beoordeelStukViaSessie(client as never, {
+      boekingId: boeking.id,
+      bron: String(data.get('bron') ?? ''),
+      bronId: String(data.get('bronId') ?? ''),
+      versie: String(data.get('versie') ?? ''),
+      besluit: actie === 'stuk_goedkeuren' ? 'goedgekeurd' : 'afgekeurd',
+      reden: String(data.get('reden') ?? ''),
+    }, actor);
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    return klaar();
+  }
+  doel.searchParams.set('fout', 'Deze actie is hier niet beschikbaar. Er is niets gewijzigd en er is geen e-mail verstuurd.');
+  return klaar();
+}
+
+const bron = bronUitSnapshot(snapshot, {
+  vandaag,
+  ...selectie,
+  ...bijlagen,
+  magAudit: Boolean(sessie?.effectieveRechten.isSuperAdmin && !sessie.viewAs),
+});
+const rijen = bouwAgenda(bron);
+const jaren = beschikbareJaren(bron);
+const dossier = dossierId ? bouwDossier(bron, dossierId) : null;
+const vraagWaarde = Astro.url.searchParams.get('vraag') ?? '';
+const vraag = vraagWaarde === 'vervangen' || vraagWaarde === 'overlap' || vraagWaarde === 'vervangen-overlap' || vraagWaarde === 'verwijderen'
+  ? vraagWaarde
+  : '';
+const keuzeId = Astro.url.searchParams.get('keuze') ?? '';
+const huidig = bron.boekingen.find((item) => item.id === dossierId);
+const overlapNamen = huidig && keuzeId ? gastheerOverlappen(bron, huidig, keuzeId) : [];
+const basisParams = new URLSearchParams({ jaar: String(selectie.jaar), maand: String(selectie.maand) });
+const bronParam = Astro.url.searchParams.get('bron');
+if (bronParam === 'demo' || bronParam === 'supabase') basisParams.set('bron', bronParam);
+const basis = basisParams.toString();
+const formParams = new URLSearchParams(basis);
+if (dossierId) formParams.set('dossier', dossierId);
+const rijParam = Astro.url.searchParams.get('rij');
+if (rijParam && /^[a-z0-9-]+$/i.test(rijParam)) formParams.set('rij', rijParam);
+const actieHref = `/beheer/verhuur/?${formParams.toString()}`;
+const sluitHref = `/beheer/verhuur/?${basis}${rijParam && /^[a-z0-9-]+$/i.test(rijParam) ? `#${rijParam}` : ''}`;
+
+function buur(delta: number): string {
+  if (selectie.maand === 'alle') return `/beheer/verhuur/?jaar=${selectie.jaar + delta}&maand=alle`;
+  const datum = new Date(Date.UTC(selectie.jaar, selectie.maand - 1 + delta, 1));
+  return `/beheer/verhuur/?jaar=${datum.getUTCFullYear()}&maand=${datum.getUTCMonth() + 1}`;
+}
+---
+
+<Beheer titel="Verhuur">
+  <VerhuurAgenda
+    rijen={rijen}
+    jaren={jaren}
+    jaar={selectie.jaar}
+    maand={selectie.maand}
+    label={periodeLabel(selectie.jaar, selectie.maand)}
+    basis={basis}
+    vorige={buur(-1)}
+    volgende={buur(1)}
+    melding={Astro.url.searchParams.get('melding') ?? ''}
+    fout={Astro.url.searchParams.get('fout') ?? ''}
+  />
+  {dossier && (
+    <VerhuurDossier
+      dossier={dossier}
+      schrijven={schrijven && snapshot.bron === 'supabase'}
+      actieHref={actieHref}
+      sluitHref={sluitHref}
+      vraagTekst={gastheerVraagTekst(vraag, overlapNamen)}
+      keuzeId={keuzeId}
+    />
+  )}
+</Beheer>
+
+<script>
+  const sleutel = 'vh-agenda-scroll';
+  const vak = document.querySelector('.vh-scroll');
+  const bewaard = sessionStorage.getItem(sleutel);
+  if (vak instanceof HTMLElement && bewaard && !location.hash) vak.scrollTop = Number(bewaard);
+  document.querySelectorAll('a[href*="dossier="]').forEach((link) => {
+    link.addEventListener('click', () => {
+      if (vak instanceof HTMLElement) sessionStorage.setItem(sleutel, String(vak.scrollTop));
+    });
+  });
+  document.querySelectorAll('tr[data-dossier]').forEach((rij) => {
+    rij.addEventListener('click', (event) => {
+      const doel = event.target;
+      if (doel instanceof Element && doel.closest('a')) return;
+      const href = rij.getAttribute('data-dossier');
+      if (href) {
+        if (vak instanceof HTMLElement) sessionStorage.setItem(sleutel, String(vak.scrollTop));
+        location.href = href;
+      }
+    });
+  });
+  const sluiten = document.getElementById('vh-sluiten');
+  if (sluiten) sluiten.focus();
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && sluiten instanceof HTMLAnchorElement) sluiten.click();
+  });
+  document.querySelectorAll('[data-vuil]').forEach((veld) => {
+    veld.addEventListener('change', () => {
+      const note = veld.closest('form')?.querySelector('.vh-vuil');
+      if (note instanceof HTMLElement) note.hidden = false;
+    });
+  });
+  document.querySelectorAll('form').forEach((form) => {
+    form.addEventListener('submit', () => {
+      const knop = form.querySelector('button[type="submit"]');
+      if (knop) window.setTimeout(() => knop.setAttribute('disabled', 'disabled'), 0);
+    });
+  });
+</script>

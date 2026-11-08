@@ -1,0 +1,192 @@
+---
+import VerhuurStatus from './VerhuurStatus.astro';
+import type { DossierModel } from '../../platform/verhuur-overzicht.ts';
+
+interface Props {
+  dossier: DossierModel;
+  schrijven: boolean;
+  actieHref: string;
+  sluitHref: string;
+  vraagTekst: string;
+  keuzeId: string;
+}
+
+const { dossier, schrijven, actieHref, sluitHref, vraagTekst, keuzeId } = Astro.props;
+const gekozenNaam = dossier.gastheren.keuzes.find((item) => item.id === keuzeId)?.naam ?? 'de gekozen gastheer';
+---
+
+<aside class="vh-dossier" role="dialog" aria-modal="true" aria-labelledby="vh-dossier-titel">
+  <a class="vh-sluiten" id="vh-sluiten" href={sluitHref}>Sluiten en terug naar de agenda</a>
+  <h2 id="vh-dossier-titel">{dossier.titel}</h2>
+  <div class="vh-samenvatting">
+    <p>{dossier.samenvatting}</p>
+    {dossier.aandacht.length > 0 && (
+      <ul>
+        {dossier.aandacht.map((punt) => (
+          <li><a href={`#${punt.anker}`}>{punt.tekst}</a></li>
+        ))}
+      </ul>
+    )}
+  </div>
+
+  <section class="vh-blok" id="vh-huurder">
+    <h3>Gegevens huurder</h3>
+    <div class="vh-definitie">
+      {dossier.huurder.map((regel) => (
+        <div>
+          <p class="vh-veldlabel">{regel.label}</p>
+          <p>{regel.waarde}</p>
+        </div>
+      ))}
+    </div>
+    {dossier.relatieHistorie.length > 0 && (
+      <>
+        <h3>Eerdere boekingen van deze relatie</h3>
+        <ul>
+          {dossier.relatieHistorie.map((regel) => <li>{regel}</li>)}
+        </ul>
+      </>
+    )}
+  </section>
+
+  <section class="vh-blok" id="vh-boeking">
+    <h3>Gegevens boeking</h3>
+    <div class="vh-definitie">
+      {dossier.boeking.map((regel) => (
+        <div>
+          <p class="vh-veldlabel">{regel.label}</p>
+          <p>{regel.waarde}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="vh-blok" id="vh-stukken">
+    <h3>Aangeleverde stukken</h3>
+    <p>{dossier.stukkenToelichting}</p>
+    {dossier.opslagMelding && <p class="vh-fout" role="status">{dossier.opslagMelding}</p>}
+    {dossier.stukken.length === 0 && <p>Er zijn geen digitale stukken bij deze boeking.</p>}
+    {dossier.stukken.map((stuk) => (
+      <article class="vh-stuk">
+        <h3>{stuk.titel}</h3>
+        <p><VerhuurStatus status={stuk.status} /></p>
+        {stuk.door && <p>Door {stuk.door}{stuk.op ? ` op ${stuk.op}` : ''}.</p>}
+        {stuk.reden && <p>Reden: {stuk.reden}</p>}
+        {stuk.soort === 'foto' && stuk.url && <img src={stuk.url} alt={stuk.titel} />}
+        {stuk.soort === 'foto' && !stuk.url && stuk.status.tekst !== 'Niet aangeleverd' && <p>De foto is aangeleverd. Openen lukt op dit moment niet.</p>}
+        {stuk.soort === 'document' && stuk.url && <p><a class="vh-open" href={stuk.url} target="_blank" rel="noopener">Open document</a></p>}
+        {stuk.soort === 'document' && !stuk.url && <p>Het document staat bij de boeking. Openen lukt op dit moment niet.</p>}
+        {stuk.soort === 'tekst' && <p style="white-space: pre-wrap;">{stuk.tekst}</p>}
+        {schrijven && stuk.kanBeoordelen && !dossier.opslagMelding && (
+          <div class="vh-acties">
+            <form method="post" action={actieHref}>
+              <input type="hidden" name="actie" value="stuk_goedkeuren" />
+              <input type="hidden" name="boekingId" value={dossier.boekingId} />
+              <input type="hidden" name="bron" value={stuk.bron} />
+              <input type="hidden" name="bronId" value={stuk.bronId} />
+              <input type="hidden" name="versie" value={stuk.versie} />
+              <button class="vh-knop" type="submit">Goedkeuren</button>
+            </form>
+            <form method="post" action={actieHref}>
+              <input type="hidden" name="actie" value="stuk_afkeuren" />
+              <input type="hidden" name="boekingId" value={dossier.boekingId} />
+              <input type="hidden" name="bron" value={stuk.bron} />
+              <input type="hidden" name="bronId" value={stuk.bronId} />
+              <input type="hidden" name="versie" value={stuk.versie} />
+              <label>
+                Reden bij afkeuren
+                <textarea class="vh-veld" name="reden" rows="3" maxlength="500" data-vuil required></textarea>
+              </label>
+              <p class="vh-vuil" hidden>Deze reden is nog niet opgeslagen.</p>
+              <button class="vh-knop vh-knop--sec" type="submit">Afkeuren</button>
+            </form>
+          </div>
+        )}
+      </article>
+    ))}
+  </section>
+
+  <section class="vh-blok" id="vh-contract">
+    <h3>Contract</h3>
+    <p><VerhuurStatus status={dossier.contract.status} /></p>
+    <p>{dossier.contract.toelichting}</p>
+    {dossier.contract.documenten.length === 0 && <p>Geen contractdocument gekoppeld.</p>}
+    <ul>
+      {dossier.contract.documenten.map((doc) => (
+        <li>
+          {doc.naam}
+          {doc.url && <> · <a class="vh-open" href={doc.url} target="_blank" rel="noopener">Open document</a></>}
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="vh-blok" id="vh-gastheren">
+    <h3>Gastheren</h3>
+    {dossier.gastheren.leeg && <p>{dossier.gastheren.leeg}</p>}
+    {dossier.gastheren.toegewezen.map((gast) => (
+      <article class="vh-gast">
+        <p><strong>{gast.naam}</strong></p>
+        <p>{gast.toelichting}</p>
+        {schrijven && gast.primair && !vraagTekst && (
+          <form method="post" action={actieHref}>
+            <input type="hidden" name="actie" value="gastheer_verwijderen" />
+            <input type="hidden" name="boekingId" value={dossier.boekingId} />
+            <button class="vh-knop vh-knop--sec" type="submit">Gastheer verwijderen</button>
+          </form>
+        )}
+      </article>
+    ))}
+    {schrijven && vraagTekst && (
+      <form class="vh-letop" method="post" action={actieHref}>
+        <p>{vraagTekst}{keuzeId ? ` Het gaat om ${gekozenNaam}.` : ''}</p>
+        <input type="hidden" name="actie" value="gastheer_bevestigen" />
+        <input type="hidden" name="bevestig" value="ja" />
+        <input type="hidden" name="boekingId" value={dossier.boekingId} />
+        <input type="hidden" name="gastheerId" value={keuzeId} />
+        <button class="vh-knop" type="submit">Opslaan</button>
+        <a class="vh-knop vh-knop--sec" href={actieHref}>Annuleren</a>
+      </form>
+    )}
+    {schrijven && !vraagTekst && (
+      <form method="post" action={actieHref}>
+        <input type="hidden" name="actie" value="gastheer_toevoegen" />
+        <input type="hidden" name="boekingId" value={dossier.boekingId} />
+        <label>
+          Kies een gastheer
+          <select name="gastheerId" data-vuil required>
+            <option value="">Kies een gastheer</option>
+            {dossier.gastheren.keuzes.map((gast) => <option value={gast.id}>{gast.naam}</option>)}
+          </select>
+        </label>
+        <p class="vh-vuil" hidden>Deze keuze is nog niet opgeslagen.</p>
+        <button class="vh-knop" type="submit">Gastheer toevoegen</button>
+      </form>
+    )}
+    {!schrijven && <p>U kunt de gastheer bekijken. Wijzigen kan alleen een beheerder die mag schrijven.</p>}
+  </section>
+
+  <section class="vh-blok" id="vh-betaling">
+    <h3>Betalingen</h3>
+    <p>Aanbetaling: <VerhuurStatus status={dossier.betaling.aanbetaling} /></p>
+    <p>Restbetaling: <VerhuurStatus status={dossier.betaling.restant} /></p>
+    <div class="vh-definitie">
+      {dossier.betaling.regels.map((regel) => (
+        <div>
+          <p class="vh-veldlabel">{regel.label}</p>
+          <p>{regel.waarde}</p>
+        </div>
+      ))}
+    </div>
+    <p>{dossier.betaling.toelichting}</p>
+  </section>
+
+  <section class="vh-blok" id="vh-historie">
+    <h3>Communicatie en historie</h3>
+    <p>{dossier.historieToelichting}</p>
+    {dossier.historie.length === 0 && <p>Geen vastgelegde berichten of wijzigingen.</p>}
+    <ul>
+      {dossier.historie.map((item) => <li>{item.wanneer ? `${item.wanneer}: ` : ''}{item.tekst}</li>)}
+    </ul>
+  </section>
+</aside>
