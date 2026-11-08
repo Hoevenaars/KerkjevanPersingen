@@ -81,17 +81,56 @@ Op deze branch leest `/api/bridge/sanity` de body niet en roept `pas_sanity_brid
 
 De live site draait deze branch nog niet. Tot de deploy kan een webhook op de oude productiecode nog schrijven. Na de deploy krijgt diezelfde URL 410 en wijzigt geen rij.
 
+## Preview van 8 november 2026, 19:45 Europe/Rome
+
+Vercel heeft voor commit `a3fbf0f` een Preview gemaakt, geen Production:
+
+`https://kerkje-van-persingen-2zga8huc6-hoevenaars12.vercel.app`
+
+`VERHUUR_OVERZICHT` staat niet in de code of in `vercel.json`. Het verhuurscherm hoort niet bij deze branch.
+
+| Controle | Resultaat |
+| --- | --- |
+| Publieke pagina's | 401, tekst "Deze site is nog niet openbaar." Preview heeft `SITE_PASSWORD`. Dat wachtwoord staat hier niet. De HTML van agenda, kalender en activiteiten is daardoor niet gezien. |
+| Beeldbeleid | De antwoordheader noemt `cdn.sanity.io` niet. Alleen de eigen site en Supabase Storage. |
+| `/beheer/login` | 200, inlogformulier, geen Sanity-adres, geen link naar het nieuwe verhuurscherm. |
+| `/beheer/` | 302 naar de login. Er is niet ingelogd en niets opgeslagen. |
+| Webhook-POST | 401 van het sitewachtwoord, vóór de applicatie. De 410-handler is op deze preview daardoor niet bereikt. Lokaal, zonder dat wachtwoord, antwoordt dezelfde route 410 en schrijft niets. |
+| 4 november | Boeking 67, 10–11 juli 2027, `migratie_vastgelegd`, mede-exposant gevuld, aanbetaling ontvangen en restant open. Boeking 76, dezelfde dagen, `geannuleerd`, dezelfde betaalstand. 8–9 mei 2027: 0 bezettingsrijen. 10–11 juli 2027: 1 bezettingsrij. |
+| Mutaties | Geen mail, geen betaling, geen schrijfactie. `bridge_sync_log` is niet gevuld door deze controle. |
+
+## Dataset-export
+
+`tests/fixtures/sanity-dump.json` is 2,6 kB: 2 aanvragen, 4 activiteiten, 1 persoon, 2 vrienden, 1 nieuwsbrief. Dat is een testfixture, geen volledige of herstelbare dataset-export. Er ligt ook geen `production.tar.gz` in de repository of in de lokale back-upmap.
+
+Dit is een blokkade voor het verwijderen van het Sanity-project. Het is geen blokkade voor het bekijken van de preview, wel een reden om het project nog niet op te zeggen.
+
+Handmatig, door iemand met toegang tot project `8le5jso9`:
+
+1. Log in op sanity.io/manage, dataset `production`.
+2. Exporteer het dataset, of lokaal na `npx sanity@latest login`: `npx sanity@latest dataset export production ./production.tar.gz --project 8le5jso9`.
+3. Bewaar het bestand buiten de repository en controleer dat het uitpakt en documenten bevat.
+4. Gebruik eventueel het bestaande GitHub-secret `SANITY_AUTH_TOKEN`. De waarde is hier niet gelezen. Wis dat secret pas nadat het archief binnen en gecontroleerd is.
+
 ## Release, pas na akkoord
 
 1. Back-up: de zestien archiefbestanden staan in `sanity-archief` en zijn op sha256 gecontroleerd. De zes `raw_sanity`-objecten staan ongewijzigd in `publieke_activiteiten`. Een volledige Sanity-dataset-export is de handmatige stap hierboven.
-2. Preview: deploy deze branch als Vercel Preview, niet als Production. Zet `VERHUUR_OVERZICHT` niet aan.
+2. Preview: gedaan, alleen Vercel Preview, niet Production. `VERHUUR_OVERZICHT` blijft uit. De publieke HTML wacht nog op iemand met `SITE_PASSWORD`.
 3. Publiek: homepage, `/agenda/`, een agendaslug, `/verhuur/` en `/verhuur/aanvragen/`. Geen verzoek naar `cdn.sanity.io` of `sanity.studio`.
 4. Beheer: `/beheer/` vraagt om login. `/admin` legt uit dat Studio weg is. `/beheer/instellingen/sanity-bridge/` heeft geen synchronisatieknop.
 5. Verhuur: een bestaande boeking openen, de kalender van juli 2027 bekijken. 8 en 9 mei 2027 blijven vrij, 10 en 11 juli 2027 blijven de vastgelegde en de geannuleerde boeking. Niets opslaan.
 6. Publicatie: `/beheer/publiceren/` opent. Geen publicatie klikken in de previewcontrole, tenzij het een bewust testdocument is.
-7. Rollback: de vorige Production-deployment in Vercel terugzetten. De database hoeft niet terug, omdat deze release geen boeking, betaling, activiteit of relatie wijzigt. De bucket `sanity-archief` mag blijven staan.
-8. Deploy naar Production alleen na expliciet akkoord.
-9. Na deploy: dezelfde publieke URL’s, een webhook-POST verwacht 410, en de agenda toont dezelfde slugs.
+7. Rollback: in Vercel de vorige Production-deployment terugzetten. De database hoeft niet terug, omdat deze release geen boeking, betaling, activiteit of relatie wijzigt. De bucket `sanity-archief` mag blijven staan. Rollback zet ook de oude webhookcode terug. Zolang in Sanity nog een webhook naar `/api/bridge/sanity` staat, kan die na rollback weer `pas_sanity_bridge` aanroepen en Supabase schrijven. Zet die webhook daarom uit vóór de productie-deploy, of meteen als een rollback nodig is. Het project en het abonnement blijven daarbij bestaan.
+8. Deploy naar Production alleen na expliciet akkoord, en pas nadat iemand met `SITE_PASSWORD` de publieke previewpagina's heeft gezien.
+9. Na deploy: dezelfde publieke URL's, een webhook-POST verwacht 410 zodra het sitewachtwoord die route niet onderschept, en de agenda toont dezelfde slugs.
+
+## Go / no-go, 8 november 2026
+
+| Besluit | Oordeel | Waarom |
+| --- | --- | --- |
+| Preview | Gedeployed | Alleen Preview, URL hierboven. Geen productie. |
+| Productie-deploy | No-go | De publieke previewpagina's zitten achter `SITE_PASSWORD`. Zonder dat wachtwoord is de agenda, de kalender en de activiteiten-HTML niet gecontroleerd. |
+| Sanity-project verwijderen | No-go | Er is geen volledige, herstelbare dataset-export. |
 
 ## Definitieve verwijdering, nog niet uitvoeren
 
