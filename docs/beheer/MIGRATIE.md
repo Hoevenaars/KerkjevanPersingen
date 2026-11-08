@@ -21,12 +21,7 @@ Per datatype is er maar één schrijvende bron. Die staat in `public.bronnen`.
 
 ## Snapshot vóór import
 
-```bash
-chmod +x scripts/sanity-snapshot.sh
-./scripts/sanity-snapshot.sh
-```
-
-Of: `npm run sanity:export`. Bewaar het `.tar.gz` buiten de repo.
+De Sanity-exportopdracht is uit de applicatie gehaald. Een historische dump, als die nog nodig is, komt uit een back-up buiten deze repository. De site leest die dump niet.
 
 ## Veldmapping
 
