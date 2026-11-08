@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getPubliekeAgenda } from '../lib/sanity';
+import { getPubliekeAgenda } from '../lib/content';
 import { bouwSitemap } from '../lib/seo';
 
 export const prerender = false;

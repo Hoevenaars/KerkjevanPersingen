@@ -1,5 +1,5 @@
 /**
- * HTML van de vriendenmail. Geen Resend of Sanity hier, zodat de opmaak
+ * HTML van de vriendenmail. Geen Resend hier, zodat de opmaak
  * zonder netwerk te testen is. Afbeeldingen zijn absolute URL's: e-mail
  * kan relatieve paden niet tonen.
  */

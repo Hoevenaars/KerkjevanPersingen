@@ -1,6 +1,6 @@
 /**
  * Operationeel overzicht voor /beheer/planning.
- * Boeking, publieke activiteit, Sanity-bron en interne bezetting blijven aparte records.
+ * Boeking, publieke activiteit, bronrij en interne bezetting blijven aparte records.
  * Dezelfde periode wordt één keer getoond.
  */
 
@@ -33,7 +33,7 @@ export interface PlanningInvoer {
   zichtbaarOpWebsite: boolean;
   huurder?: string;
   gastbegeleiders?: string;
-  bron: 'boeking' | 'activiteit' | 'sanity' | 'intern';
+  bron: 'boeking' | 'activiteit' | 'bron' | 'intern';
   geannuleerd?: boolean;
   boekingId?: string;
   legacyId?: string;
@@ -57,7 +57,7 @@ export interface PlanningItem extends PlanningInvoer {
 const PRIORITEIT: Record<PlanningInvoer['bron'], number> = {
   boeking: 0,
   activiteit: 1,
-  sanity: 2,
+  bron: 2,
   intern: 3,
 };
 

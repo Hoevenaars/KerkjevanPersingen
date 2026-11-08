@@ -252,7 +252,7 @@ const terug = terugLink(Astro.url.searchParams.get('terug'));
           )}
 
           <h2>Bron</h2>
-          <p>{publiek.bronLabel || (publiek.legacyId ? 'Sanity/bridge' : 'Lokaal beheer')}</p>
+          <p>{publiek.bronLabel || (publiek.legacyId ? 'Import' : 'Lokaal beheer')}</p>
 
           {publiek.activiteitId && (
             <div class="bh-acties">

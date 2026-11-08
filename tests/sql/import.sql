@@ -1,4 +1,4 @@
--- Tweede import van dezelfde Sanity-batch mag geen extra rijen maken.
+-- Tweede import van dezelfde batch mag geen extra rijen maken.
 
 do $$
 declare

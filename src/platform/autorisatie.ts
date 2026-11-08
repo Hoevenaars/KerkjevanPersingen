@@ -68,7 +68,6 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   if (pad.startsWith('/beheer/instellingen/gastheren')) return 'gastheerbeheer';
   if (pad.startsWith('/beheer/instellingen/finance')) return 'finance_instellingen';
   if (pad.startsWith('/beheer/instellingen/automatiseringen')) return 'automatiseringen';
-  if (pad.startsWith('/beheer/instellingen/sanity-bridge')) return 'bridge';
   if (pad.startsWith('/beheer/instellingen/systeem')) return 'systeembeheer';
   if (pad.startsWith('/beheer/migratie')) return 'migratie';
   if (pad.startsWith('/beheer/instellingen')) return 'instellingen';

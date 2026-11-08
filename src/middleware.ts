@@ -14,7 +14,7 @@ import {
 import { VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
 import { bouwSessie } from './lib/beheer-auth.ts';
 import { beheerWeigering, loginRedirect, metBeheerHeaders, zelfdeOorsprong } from './lib/beheer-http.ts';
-import { koppelSupabaseClient, metSanityRegistratie } from './platform/sanity-registratie.ts';
+import { koppelSupabaseClient, metRequestContext } from './platform/request-context.ts';
 import { maakBeheerServerClient, supabaseGeconfigureerd } from './lib/supabase.ts';
 import { volgPubliekePageview } from './analytics/volg.ts';
 import { analyticsTeVaak } from './analytics/rate-limit.ts';
@@ -183,7 +183,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   if (isBeheerPad(pad)) {
     // Eén requestcontext voor elke beheer-URL. Pagina en layout delen zo
     // dezelfde Supabase-snapshot, ook zonder ?bron=supabase.
-    return metSanityRegistratie(() => beheerMiddleware(context, next));
+    return metRequestContext(() => beheerMiddleware(context, next));
   }
 
   const password = import.meta.env.SITE_PASSWORD ?? process.env.SITE_PASSWORD;

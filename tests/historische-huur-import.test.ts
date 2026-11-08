@@ -453,7 +453,7 @@ describe('historische huurimport', () => {
   });
 });
 
-describe('bronbestand sanity', () => {
+describe('bronbestand controle', () => {
   const pad = '/home/ubuntu/.cursor/projects/workspace/uploads/kerkje_persingen_import_2026_2029_26b7.json';
   test('244 importrecords, 154 huurders, 29 winterstops en 2 notities', { skip: existsSync(pad) ? false : 'bronbestand ontbreekt' }, () => {
     const bestand = JSON.parse(readFileSync(pad, 'utf8'));

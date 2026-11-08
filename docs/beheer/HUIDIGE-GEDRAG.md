@@ -5,7 +5,7 @@ Tijdens bouwen mag bestaande functionaliteit niet ongemerkt verdwijnen
 
 ## Beschikbaarheidskalender
 
-Bron: `getBezetteData()` in `src/lib/sanity.ts` + `src/components/Kalender.astro`.
+Bron: `getBezetteData()` in `src/lib/content.ts` + `src/components/Kalender.astro`.
 
 - Bezet = `zichtbaarheid != 'verborgen'` (dus `bezet` én `publiek`).
 - Optie met zichtbaarheid `verborgen` blokkeert **niet**.
@@ -47,7 +47,7 @@ Nieuw: origineel → websitevariant → nieuwsbriefvariant. Nog niet aangesloten
 ## Vrienden
 
 Aanmelden reactiveert een bestaand adres. Afmeldtoken in de mail.
-Alleen webmaster ziet de lijst in Studio.
+Alleen de webmaster ziet de lijst in `/beheer`.
 
 ## Mailontvangers aanvraag
 
@@ -74,8 +74,5 @@ blokkade. Nieuw (nog niet op het formulier): harde za+zo / ma–vr-regels in
 
 ## Environment
 
-Zie README. Nieuwe vlaggen (`BEHEER_ENABLED`, `CONTENT_BRON`,
-`ALLOW_SUPABASE_CONTENT`) doen de publieke website niets zolang de contentvlaggen
-leeg blijven. `/beheer` gaat via Supabase-login op `/beheer/login`. `LIVE_VANAF`
-en `SITE_PASSWORD` zetten die deur niet open. Live Sanity alleen ná inloggen.
-Schrijven niet.
+Zie README. `/beheer` gaat via Supabase-login op `/beheer/login`. `LIVE_VANAF`
+en `SITE_PASSWORD` zetten die deur niet open. Schrijven gebeurt in Supabase.

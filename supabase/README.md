@@ -1,12 +1,6 @@
 # Supabase — beheerplatform
 
-`/beheer` logt in via Supabase Auth. De publieke website leest en schrijft
-nog **Sanity**. Content uit Supabase komt pas als beide vlaggen bewust aan staan:
-
-```text
-CONTENT_BRON=supabase
-ALLOW_SUPABASE_CONTENT=true
-```
+`/beheer` logt in via Supabase Auth. De publieke website leest en schrijft Supabase.
 
 Zie `docs/beheer/ARCHITECTUUR.md`.
 

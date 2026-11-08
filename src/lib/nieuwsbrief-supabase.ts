@@ -3,7 +3,7 @@
  * Dry-run bepaalt ontvangers, kiest de template en legt testverzendingen vast.
  */
 
-import type { Activiteit, AgendaOverzicht } from './sanity.ts';
+import type { Activiteit, AgendaOverzicht } from './content.ts';
 import { maandagVanWeekIso } from './week.ts';
 import { mailMeta } from './nieuwsbrief-frequentie.ts';
 import { nieuwsbriefEnvelop, NIEUWSBRIEF_REPLY_TO } from './nieuwsbrief-html.ts';
@@ -137,7 +137,7 @@ function briefVoor(
 
 export function supabaseNieuwsbrief(): NieuwsbriefBron {
   const client = maakBeheerAdminClient();
-  if (!client) throw new Error('Supabase service-role ontbreekt. De nieuwsbrief leest Sanity niet.');
+  if (!client) throw new Error('Supabase service-role ontbreekt. De nieuwsbrief kan niet worden gelezen.');
   return {
     async week(maandag) {
       const { data, error } = await client.from('nieuwsbrieven').select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd').eq('week_maandag', maandag).maybeSingle();

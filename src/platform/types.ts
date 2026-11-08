@@ -1,9 +1,6 @@
 /**
  * Domeinmodel voor het beheerplatform.
- *
- * Dit is de technische vertaling van Functioneel Ontwerp v1.0.
- * Nog niet gekoppeld aan de publieke website: Sanity blijft de schrijvende
- * en lezende bron tot de gecontroleerde omschakeling.
+ * Supabase is de schrijvende en lezende bron van de publieke website en van /beheer.
  */
 
 export const TIJDZONE = 'Europe/Amsterdam';
@@ -96,8 +93,8 @@ export const DATATYPEN = [
 ] as const;
 export type Datatype = (typeof DATATYPEN)[number];
 
-export type SchrijvendeBron = 'sanity' | 'beheer';
-export type ContentBron = 'sanity' | 'supabase';
+export type SchrijvendeBron = 'beheer';
+export type ContentBron = 'supabase';
 
 export interface Verhuurtype {
   sleutel: string;

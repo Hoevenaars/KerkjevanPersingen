@@ -1,5 +1,5 @@
 /**
- * Vriendenflows op Supabase. Geen Sanity-fallback.
+ * Vriendenflows op Supabase.
  * Bestaande tokens blijven staan tot iemand zich opnieuw aanmeldt na afmelden.
  */
 
@@ -93,7 +93,7 @@ function vanRij(rij: Rij): Vriend {
 export function supabaseVrienden(): VriendenBron {
   const client = maakBeheerAdminClient();
   if (!client) {
-    throw new Error('Supabase service-role ontbreekt. Vrienden worden niet naar Sanity geschreven.');
+    throw new Error('Supabase service-role ontbreekt. De vriend is niet opgeslagen.');
   }
   return {
     async zoekOpEmail(email) {

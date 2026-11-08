@@ -26,7 +26,6 @@ const zietAgenda = magZien(rechten, 'agenda');
 const nieuwe = snapshot.aanvragen.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling');
 const opties = snapshot.boekingen.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');
 const maand = vandaag.slice(0, 7);
-const live = snapshot.bron === 'sanity';
 const supabase = snapshot.bron === 'supabase';
 const actiepunten = actiepuntenKomendeWeken({
   vandaag,
@@ -63,9 +62,7 @@ const actiepunten = actiepuntenKomendeWeken({
         {
           supabase
             ? 'Projectie van de Supabase-dossiers. Dezelfde staat als de keten, niet een aparte dashboardwaarheid.'
-            : live
-              ? 'Aandachtspunten uit Sanity. Klik een kaart of een naam — schrijven blijft in Studio.'
-              : 'Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.'
+            : 'Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.'
         }
       </p>
     </div>

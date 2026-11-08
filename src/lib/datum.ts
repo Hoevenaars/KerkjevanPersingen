@@ -24,9 +24,8 @@ function volgendeYmd(ymd: string): string {
 /**
  * Kalenderdagen die een boeking blokkeert, in Nederlandse tijd.
  *
- * Sanity slaat datetimes in UTC op. Middernacht in Amsterdam is de avond
- * ervoor in UTC — zonder vaste tijdzone werd 8 november "bezet" op 7 november,
- * terwijl Studio (Amsterdam) 8 november toonde.
+ * Datetimes staan in UTC. Middernacht in Amsterdam is de avond
+ * ervoor in UTC — zonder vaste tijdzone werd 8 november "bezet" op 7 november.
  *
  * Bij een zaterdag-expositie zonder aparte zondag telt zondag mee, net als in
  * de agenda-tekst (`eindVoorWeergave`).

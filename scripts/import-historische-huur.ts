@@ -111,7 +111,7 @@ function main() {
   const bestand = JSON.parse(readFileSync(bestandPad, 'utf8')) as BronBestand;
   const fouten = controleerBron(bestand);
   if (fouten.length) {
-    console.error('Bronbestand wijkt af van de sanity-check:');
+    console.error('Bronbestand wijkt af van de controle:');
     for (const fout of fouten) console.error(`- ${fout}`);
     process.exit(1);
   }

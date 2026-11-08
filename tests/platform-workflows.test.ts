@@ -15,7 +15,6 @@ import { naTestVerzending, isEchteVerzending, overslaan } from '../src/platform/
 import { dashboardVoor } from '../src/platform/dashboard.ts';
 import { huidigeContentBron, beheerIngeschakeld, beheerZichtbaar, standaardBronnen } from '../src/platform/bron.ts';
 import { beheerUitResponse } from '../src/platform/beheer-gate.ts';
-import { sanityAanvraagStatus } from '../src/platform/migratie.ts';
 import type { GebruikerRechten } from '../src/platform/types.ts';
 
 const finance: GebruikerRechten = { isSuperAdmin: false, perModule: { finance: 'schrijven' } };
@@ -202,11 +201,9 @@ describe('dashboard en bronnen', () => {
     );
   });
 
-  test('website blijft Sanity tot beide vlaggen aan staan', () => {
-    assert.equal(huidigeContentBron({}), 'sanity');
-    assert.equal(huidigeContentBron({ CONTENT_BRON: 'supabase' }), 'sanity');
-    assert.equal(huidigeContentBron({ ALLOW_SUPABASE_CONTENT: 'true', CONTENT_BRON: 'supabase' }), 'supabase');
-    assert.equal(huidigeContentBron({ ALLOW_SUPABASE_CONTENT: true, CONTENT_BRON: 'supabase' }), 'supabase');
+  test('Supabase is de enige contentbron', () => {
+    assert.equal(huidigeContentBron({}), 'supabase');
+    assert.equal(huidigeContentBron({ CONTENT_BRON: 'supabase' }), 'supabase');
     assert.equal(beheerIngeschakeld({}), false);
     assert.equal(beheerIngeschakeld({ BEHEER_ENABLED: true }), true);
     assert.equal(beheerZichtbaar({}), false);
@@ -214,7 +211,7 @@ describe('dashboard en bronnen', () => {
     assert.equal(beheerZichtbaar({ VERCEL_ENV: 'preview' }), true);
     assert.equal(beheerZichtbaar({ VERCEL_ENV: 'production' }), false);
     assert.equal(beheerZichtbaar({ DEV: true }), true);
-    assert.equal(standaardBronnen().boekingen, 'sanity');
+    assert.equal(standaardBronnen().boekingen, 'beheer');
   });
 
   test('beheer-uit is een HTML-404, geen leeg bestand om te downloaden', async () => {
@@ -227,9 +224,4 @@ describe('dashboard en bronnen', () => {
     assert.ok(html.includes('Naar de voorpagina'));
   });
 
-  test('Sanity ja/nee wordt goedgekeurd/afgewezen', () => {
-    assert.equal(sanityAanvraagStatus('ja'), 'goedgekeurd');
-    assert.equal(sanityAanvraagStatus('nee'), 'afgewezen');
-    assert.equal(sanityAanvraagStatus('nieuw'), 'nieuw');
-  });
 });

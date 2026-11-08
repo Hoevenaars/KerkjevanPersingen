@@ -11,8 +11,6 @@ import { bezetteKalenderDagen } from '../src/lib/datum.ts';
 import { annuleerActiviteit, wijzigContentstatus, wijzigPublicatiestatus, zichtbaarEnBezet, type ActiviteitRecord } from '../src/platform/activiteit-mutatie.ts';
 import { huidigeBezetteDagen } from '../src/platform/kalender.ts';
 import { dedupliceerPlanning, stelPlanning, type PlanningInvoer } from '../src/platform/planning.ts';
-import { legeSnapshot, planBridge } from '../src/platform/sanity-bridge.ts';
-
 const basis: ActiviteitRecord = {
   id: '12',
   titel: 'Second Nature',
@@ -170,9 +168,9 @@ test('A gemigreerde boeking blijft zichtbaar en een activiteit op andere dagen o
     zichtbaarOpWebsite: false, huurder: 'Monika Loster', bron: 'boeking', boekingId: '40',
   };
   const concert: PlanningInvoer = {
-    sleutel: 'sanity:9', href: '/beheer/agenda/bron:9/', start: '2026-12-11', eind: '2026-12-11',
+    sleutel: 'bron:9', href: '/beheer/agenda/bron:9/', start: '2026-12-11', eind: '2026-12-11',
     titel: 'Concert: Lian van den Berg', type: 'concert', status: 'concept', publicatiestatus: 'verborgen',
-    zichtbaarOpWebsite: false, bron: 'sanity',
+    zichtbaarOpWebsite: false, bron: 'bron',
   };
   const zelfdeDag: PlanningInvoer = {
     sleutel: 'activiteit:3', href: '/beheer/agenda/3/', start: '2028-02-19', eind: '2028-02-20',
@@ -201,9 +199,9 @@ test('A gemigreerde boeking blijft zichtbaar en een activiteit op andere dagen o
   assert.equal(lijst[3]?.type, 'expositie');
   assert.equal(stelPlanning([boeking], { vandaag: '2026-10-01', filter: 'definitief' }).length, 1);
   const verborgen: PlanningInvoer = {
-    sleutel: 'sanity:17', href: '/beheer/agenda/bron:17/', start: '2026-11-07', eind: '2026-11-08',
+    sleutel: 'bron:17', href: '/beheer/agenda/bron:17/', start: '2026-11-07', eind: '2026-11-08',
     titel: 'expositie Evelien Bannenberg', type: 'expositie', status: 'concept', publicatiestatus: 'verborgen',
-    zichtbaarOpWebsite: false, bron: 'sanity',
+    zichtbaarOpWebsite: false, bron: 'bron',
   };
   const nov: PlanningInvoer = {
     ...boeking,
@@ -217,56 +215,6 @@ test('A gemigreerde boeking blijft zichtbaar en een activiteit op andere dagen o
   assert.equal(samen.length, 1);
   assert.equal(samen[0]?.titel, 'November 7/8');
   assert.match(samen[0]?.aandacht ?? '', /Evelien Bannenberg/);
-});
-
-test('K een lokale annulering wordt door de bridge niet opnieuw actief', () => {
-  const plan = planBridge('update', {
-    _id: 'sanity-1',
-    _type: 'activiteit',
-    start: '2026-10-03T09:00:00.000Z',
-    eind: '2026-10-04T16:00:00.000Z',
-    zichtbaarheid: 'publiek',
-    publiekeTitel: 'Second Nature',
-    interneTitel: 'Second Nature',
-  }, {
-    ...legeSnapshot(),
-    heeftPubliek: true,
-    heeftBron: true,
-    hash: 'oud',
-    lokaleOverride: { ...legeSnapshot().lokaleOverride, geannuleerd: true },
-  });
-  assert.equal(plan.mail, false);
-  assert.equal(plan.workflow, false);
-  assert.equal(plan.status, 'review');
-  const publiek = plan.stappen.find((stap) => stap.soort === 'publiek');
-  assert.equal(publiek?.velden.zichtbaarheid, undefined);
-  assert.equal(publiek?.velden.gepubliceerd, false);
-  assert.equal(publiek?.velden.levenscyclus, 'geannuleerd');
-  assert.equal(plan.stappen.some((stap) => stap.soort === 'conflict' && stap.velden.veld === 'annulering'), true);
-});
-
-test('L een lokale publicatiestatus wordt niet stil overschreven', () => {
-  const plan = planBridge('update', {
-    _id: 'sanity-2',
-    _type: 'activiteit',
-    start: '2026-11-07T09:00:00.000Z',
-    eind: '2026-11-08T16:00:00.000Z',
-    zichtbaarheid: 'publiek',
-    publiekeTitel: 'Titel',
-    interneTitel: 'Titel',
-  }, {
-    ...legeSnapshot(),
-    heeftPubliek: true,
-    heeftBron: true,
-    hash: 'oud',
-    lokaleOverride: { ...legeSnapshot().lokaleOverride, publicatiestatus: 'verborgen' },
-  });
-  const publiek = plan.stappen.find((stap) => stap.soort === 'publiek');
-  assert.equal(publiek?.velden.zichtbaarheid, undefined);
-  const conflict = plan.stappen.find((stap) => stap.soort === 'conflict' && stap.velden.veld === 'publicatiestatus');
-  assert.equal(conflict?.velden.lokaal, 'verborgen');
-  assert.equal(conflict?.velden.inkomend, 'publiek');
-  assert.equal(plan.mail, false);
 });
 
 test('M en N bestaande publieke en bezette regels blijven gelijk zonder expliciete contentstatus', () => {

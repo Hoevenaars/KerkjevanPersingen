@@ -78,15 +78,6 @@ for (const route of BEKENDE_CRONROUTES) {
   }));
 }
 
-const bridge = await eerste('bridge_sync_log', 'status,received_at,error');
-signalen.push({
-  naam: 'Sanity bridge',
-  staat: bridge ? (bridge.status === 'error' ? 'nee' : 'ja') : 'onbekend',
-  toelichting: bridge
-    ? veiligStatusTekst(`${bridge.status ?? ''} ${bridge.received_at ?? ''}`)
-    : 'Geen bridge-event geregistreerd. Er is niets automatisch verwerkt.',
-});
-
 let pageviewRij: Record<string, unknown> | null = null;
 if (db) {
   try {

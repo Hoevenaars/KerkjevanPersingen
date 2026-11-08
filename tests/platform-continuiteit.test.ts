@@ -270,10 +270,9 @@ test('incident houdt het dossier open', async () => {
   assert.equal(wereld.boekingen[0].status, 'afgerond');
 });
 
-test('productie zonder vlaggen blijft Sanity', () => {
-  assert.equal(huidigeContentBron({}), 'sanity');
-  assert.equal(huidigeContentBron({ VERCEL_ENV: 'production', CONTENT_BRON: 'supabase' }), 'sanity');
-  assert.equal(huidigeContentBron({ ALLOW_SUPABASE_CONTENT: 'true', CONTENT_BRON: 'supabase' }), 'supabase');
+test('Supabase blijft de contentbron', () => {
+  assert.equal(huidigeContentBron({}), 'supabase');
+  assert.equal(huidigeContentBron({ VERCEL_ENV: 'production' }), 'supabase');
 });
 
 test('sql-migraties en mutatie-rpc', () => {

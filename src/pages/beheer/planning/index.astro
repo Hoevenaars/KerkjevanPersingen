@@ -155,7 +155,7 @@ const planningBron: PlanningInvoer[] = [
       zichtbaarOpWebsite: websiteZichtbaar(activiteit),
       huurder: activiteit.exposanten || boeking?.huurder || '',
       gastbegeleiders: namenVan(activiteit.boekingId),
-      bron: activiteit.tabel === 'activiteit_bron' ? 'sanity' as const : 'activiteit' as const,
+      bron: activiteit.tabel === 'activiteit_bron' ? 'bron' as const : 'activiteit' as const,
       geannuleerd: activiteit.levenscyclus === 'geannuleerd',
       boekingId: activiteit.boekingId,
       legacyId: activiteit.legacyId,

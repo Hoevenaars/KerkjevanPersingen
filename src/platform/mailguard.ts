@@ -1,7 +1,7 @@
 /**
  * Staging mag geen echte klanten mailen.
  * Productie (VERCEL_ENV=production, zonder MAIL_GUARD=staging) blijft ongewijzigd.
- * De 3.0-verzendlaag gebruikt dit; de bestaande Sanity-aanvraagmail niet.
+ * De 3.0-verzendlaag gebruikt dit.
  */
 
 export interface MailGuardUitkomst {

@@ -78,7 +78,7 @@ describe('canonieke URL', () => {
 
   test('og-afmetingen alleen voor het vaste beeld', () => {
     assert.equal(isStandaardOgBeeld('/og-default.jpg'), true);
-    assert.equal(isStandaardOgBeeld('https://cdn.sanity.io/images/x.jpg'), false);
+    assert.equal(isStandaardOgBeeld('https://example.invalid/images/x.jpg'), false);
   });
 });
 

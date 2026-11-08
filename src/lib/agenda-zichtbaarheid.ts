@@ -1,5 +1,5 @@
 /**
- * Zichtbaarheid van Sanity-activiteiten in de Supabase-agenda.
+ * Zichtbaarheid van activiteiten in de Supabase-agenda.
  * De publieke site toont alleen zichtbaarheid=publiek, daarna nog toonVanafMaanden.
  * Bezet en verborgen blijven buiten die agenda.
  */
@@ -66,7 +66,7 @@ export function contentStatusVanInhoud(status: InhoudStatus): 'ontbreekt' | 'gev
   return undefined;
 }
 
-const SANITY_CONTENT: Record<string, ContentstatusBeheer> = {
+const CONTENTSTATUS_NAAR_BEHEER: Record<string, ContentstatusBeheer> = {
   ontbreekt: 'niet_aangeleverd',
   niet_gestart: 'niet_aangeleverd',
   niet_aangeleverd: 'niet_aangeleverd',
@@ -81,10 +81,10 @@ const SANITY_CONTENT: Record<string, ContentstatusBeheer> = {
   aanpassing_nodig: 'aanpassing_nodig',
 };
 
-/** Sanity-contentstatus naar de bestuursstatus. Leeg blijft leeg, zodat legacy-agenda niet verschuift. */
-export function contentstatusVanSanity(waarde: unknown): ContentstatusBeheer | null {
+/** Oude contentstatus naar de bestuursstatus. Leeg blijft leeg. */
+export function contentstatusNaarBeheer(waarde: unknown): ContentstatusBeheer | null {
   if (waarde == null || waarde === '') return null;
-  return SANITY_CONTENT[String(waarde)] ?? null;
+  return CONTENTSTATUS_NAAR_BEHEER[String(waarde)] ?? null;
 }
 
 const TRIGGER_VAN_MAANDEN: Record<string, string> = {
@@ -96,7 +96,7 @@ const TRIGGER_VAN_MAANDEN: Record<string, string> = {
   '12': 'uiterlijk_12_maanden',
 };
 
-/** Sanity toonVanafMaanden naar de bestaande publicatie_trigger. Leeg betekent: niet overschrijven. */
+/** toonVanafMaanden naar de bestaande publicatie_trigger. Leeg betekent: niet overschrijven. */
 export function triggerVanToonVanaf(waarde: unknown): string | null {
   if (waarde == null || waarde === '') return null;
   return TRIGGER_VAN_MAANDEN[String(waarde)] ?? null;

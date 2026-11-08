@@ -1,32 +1,18 @@
 /**
- * Requestcontext voor de Supabase-testmodus.
- * Buiten een registratie is noteer een no-op, zodat de publieke site niets bijhoudt.
+ * Requestcontext zodat pagina en layout dezelfde Supabase-snapshot delen.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { SupabaseLeesClient } from './beheer-supabase-lees.ts';
 
-export interface SanityOproep {
-  plek: string;
-}
-
 interface RequestContext {
-  oproepen: SanityOproep[];
   client: SupabaseLeesClient | null;
   snapshot: Promise<unknown> | null;
 }
 
 const opslag = new AsyncLocalStorage<RequestContext>();
 
-export function metSanityRegistratie<T>(fn: () => Promise<T>): Promise<T> {
-  return opslag.run({ oproepen: [], client: null, snapshot: null }, fn);
-}
-
-export function noteerSanityOproep(plek: string): void {
-  opslag.getStore()?.oproepen.push({ plek });
-}
-
-export function leesSanityOproepen(): SanityOproep[] {
-  return [...(opslag.getStore()?.oproepen ?? [])];
+export function metRequestContext<T>(fn: () => Promise<T>): Promise<T> {
+  return opslag.run({ client: null, snapshot: null }, fn);
 }
 
 export function koppelSupabaseClient(client: SupabaseLeesClient | null): void {

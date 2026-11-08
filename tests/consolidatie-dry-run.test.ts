@@ -212,7 +212,7 @@ describe('dry-run zonder database', () => {
       geboortedatum: '', geboortedatum_raw: '', naam_bronwaarden: '', email_bronwaarden: '', telefoon_bronwaarden: '', bronreferenties: '', review_status: 'OK',
     });
     const bestaand: BestaandeRij[] = [{
-      tabel: 'relaties', externalId: 'db-1', legacyId: 'sanity-1', email: 'gijs@example.test', telefoon: '+31655555555', naam: 'Gijs Hof',
+      tabel: 'relaties', externalId: 'db-1', legacyId: 'import-1', email: 'gijs@example.test', telefoon: '+31655555555', naam: 'Gijs Hof',
       velden: { naam: 'Gijs Hof', email: 'gijs@example.test', telefoon: '+31655555555', adres: '' },
     }];
     const uit = consolidatieDryRun(pakket, bestaand);

@@ -1,9 +1,9 @@
 /**
  * Alleen-lezen snapshot voor /beheer?bron=supabase.
- * Lege queryresultaten blijven leeg. Een fout wordt niet aangevuld met voorbeelddata of Sanity.
+ * Lege queryresultaten blijven leeg. Een fout wordt niet aangevuld met voorbeelddata.
  */
 
-import { contentstatusVanSanity, type Publicatiestatus } from '../lib/agenda-zichtbaarheid.ts';
+import { contentstatusNaarBeheer, type Publicatiestatus } from '../lib/agenda-zichtbaarheid.ts';
 import { toonAdres } from './adres.ts';
 import type { BeheerSnapshot } from './beheer-bron.ts';
 import type { DemoActiviteit, DemoInstellingen, DemoTemplate } from './demo-data.ts';
@@ -58,7 +58,7 @@ export function supabaseFoutSnapshot(detail: string): BeheerSnapshot {
   return {
     bron: 'supabase',
     banner: `Supabase-fout: ${detail}`,
-    reden: 'De Supabase-testmodus toont geen voorbeelddata en valt niet terug op Sanity.',
+    reden: 'De Supabase-testmodus toont geen voorbeelddata.',
     aanvragen: [],
     boekingen: [],
     agenda: [],
@@ -295,8 +295,8 @@ export async function leesSupabaseBeheer(
   }));
 
   const banner = opties.testmodus
-    ? 'Beheer leest Supabase, zonder terugval naar Sanity of voorbeelddata. CONTENT_BRON blijft sanity. Er gaat geen mail uit.'
-    : 'Supabase is de operationele bron. Sanity en de productiesite worden niet vanuit deze leesactie beschreven.';
+    ? 'Beheer leest Supabase. Er gaat geen mail uit.'
+    : 'Supabase is de operationele bron.';
 
   const adresPerAanvraag = new Map(aanvraagAdresRijen.map((rij) => [tekst(rij.id), rij]));
 
@@ -304,8 +304,8 @@ export async function leesSupabaseBeheer(
     bron: 'supabase',
     banner,
     reden: opties.testmodus
-      ? 'Normale /beheer-runtime op Supabase. CONTENT_BRON is niet gewijzigd.'
-      : 'CONTENT_BRON is supabase.',
+      ? 'Normale /beheer-runtime op Supabase.'
+      : 'Supabase is de operationele bron.',
     aanvragen: aanvraagRijen.map((rij) => {
       const extra = adresPerAanvraag.get(tekst(rij.id));
       const straat = tekst(extra?.straat);
@@ -368,7 +368,7 @@ export async function leesSupabaseBeheer(
         praktisch: tekst(rij.praktische_informatie),
         aanvullende: tekstlijst(rij.aanvullende_afbeeldingen),
         legacyId: tekst(rij.legacy_id),
-        bronLabel: tekst(rij.legacy_id) ? 'Sanity/bridge' : 'lokaal beheer',
+        bronLabel: tekst(rij.legacy_id) ? 'import' : 'lokaal beheer',
       })),
       ...bronRijen
         .filter((rij) => !agendaRijen.some((publiek) => tekst(publiek.legacy_id) && tekst(publiek.legacy_id) === tekst(rij.legacy_id)))
@@ -384,11 +384,11 @@ export async function leesSupabaseBeheer(
           omschrijving: '',
           soort: tekst(rij.soort),
           publicatiestatus: publicatiestatusVan(rij.zichtbaarheid),
-          contentstatus: tekst(rij.contentstatus) || contentstatusVanSanity(rij.content_status),
+          contentstatus: tekst(rij.contentstatus) || contentstatusNaarBeheer(rij.content_status),
           levenscyclus: tekst(rij.levenscyclus) === 'geannuleerd' ? 'geannuleerd' : 'actief',
           trigger: tekst(rij.publicatie_trigger) || null,
           legacyId: tekst(rij.legacy_id),
-          bronLabel: 'Sanity/bridge',
+          bronLabel: 'import',
         })),
     ],
     intern: internRijen.map((rij) => ({

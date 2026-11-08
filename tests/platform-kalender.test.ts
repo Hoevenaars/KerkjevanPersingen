@@ -50,7 +50,7 @@ describe('kalender — nieuwe regels', () => {
   });
 });
 
-describe('kalender — huidige Sanity-gedrag (voor parallelcontrole)', () => {
+describe('kalender — oude zichtbaarheid', () => {
   test('zichtbaarheid verborgen telt niet als bezet', () => {
     const dagen = huidigeBezetteDagen([
       { startYmd: '2026-09-12', eindYmd: '2026-09-13', zichtbaarheid: 'verborgen' },

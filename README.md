@@ -1,6 +1,6 @@
 # Kerkje van Persingen
 
-Website van Stichting Het Kerkje van Persingen. Astro + Sanity, gehost op Vercel.
+Website van Stichting Het Kerkje van Persingen. Astro en Supabase, gehost op Vercel.
 
 - Canoniek domein: **kerkjepersingen.nl**
 - Redirects (308): `www.kerkjepersingen.nl`, `kerkjevanpersingen.com`, `persingen-verhuur.nl`,
@@ -81,10 +81,9 @@ geen bescherming tegen misbruik van de domeinnaam.
 | --- | --- | --- |
 | `SITE_PASSWORD` | nee | Gevuld = site afgeschermd én `noindex`. Leeg = openbaar. |
 | `RESEND_API_KEY` | ja | Zonder deze sleutel wordt geen aanvraag verstuurd. |
-| `CONTACT_FALLBACK_EMAIL` | ja | Terugval als het Sanity-veld leeg of ongeldig is. |
+| `CONTACT_FALLBACK_EMAIL` | ja | Terugval als het ontvangstadres in Supabase leeg of ongeldig is. |
 | `CONTACT_BCC_EMAIL` | nee | Extra BCC, alleen op mail naar mensen van het kerkje. |
 | `TOEZICHT_BCC_EMAIL` | nee | Tijdelijke BCC op diezelfde interne mail. Standaard `nhoevenaars@gmail.com`. Leeg = alleen die kopie uit. `kerkjevanpersingenhm@gmail.com` blijft BCC, ook op aanvraag- en contactnotificaties. |
-| `SANITY_PROJECT_ID`, `SANITY_DATASET`, `SANITY_API_TOKEN` | nee | Niet meer gebruikt. De site en het beheer lezen Supabase. Het Sanity-project zelf blijft staan tot een aparte vrijgave. |
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
 | `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Staat aan in `vercel.json`. Preview en lokaal tonen `/beheer` altijd. Website wijzigt niet. |
@@ -92,9 +91,6 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `SUPABASE_PUBLISHABLE_KEY` | nee | Publieke sleutel voor de login. Staat in `vercel.json`. Geen service-role. |
 | `SUPABASE_SERVICE_ROLE_KEY` | voor uitnodigen | Alleen server-side, in het Vercel-dashboard. Zonder deze sleutel kun je wel inloggen, niet uitnodigen. |
 | `SUPER_ADMIN_EMAIL` | nee | Standaard `nhoevenaars@gmail.com`. Wordt bij login Super Admin zodra de service-role key er is. |
-| `BEHEER_LIVE_SANITY` | nee | `false` houdt `/beheer` op voorbeelddata, ook als Sanity-tokens aanwezig zijn. |
-| `CONTENT_BRON` | nee | Alleen samen met `ALLOW_SUPABASE_CONTENT`. Standaard blijft Sanity leidend. |
-| `ALLOW_SUPABASE_CONTENT` | nee | Tweede slot. Zonder `true` leest de website nooit Supabase. |
 
 ---
 
@@ -188,13 +184,13 @@ keuze: het bestuur wil geen professionele fotoshoot, dus het ontwerp moet wissel
 fotokwaliteit opvangen in plaats van erop leunen. Lever de foto's zo groot mogelijk aan;
 bijsnijden gebeurt in de layout.
 
-Foto's uit het CMS worden door Sanity automatisch verkleind en naar WebP omgezet.
+Foto's van activiteiten staan in Supabase Storage of in `public/foto/`.
 
 ---
 
 ## Content beheren
 
-Het bestuur beheert de agenda via Sanity Studio. Eén contenttype, `Activiteit`, voedt drie
+Het bestuur beheert de agenda in `/beheer`. Een activiteit voedt drie
 weergaven:
 
 | Zichtbaarheid | Beschikbaarheidskalender | Agenda | Home |
@@ -204,12 +200,12 @@ weergaven:
 | `publiek` | ja | ja | ja, als eerstvolgende |
 
 Standaard is `bezet`: de datum wordt geblokkeerd zonder dat er details naar buiten gaan.
-Gevolg van deze opzet: **het CMS is tegelijk de boekingsadministratie.** Elke reservering
+Gevolg van deze opzet: **de agenda is tegelijk de boekingsadministratie.** Elke reservering
 moet erin, ook die zonder publiciteit. Wordt er daarnaast een eigen agenda bijgehouden,
 dan wordt de kalender op de site onbetrouwbaar.
 
 Het e-mailadres voor aanvragen staat onder **Instellingen** en is te wijzigen door iedereen
-met CMS-toegang, zonder deploy.
+met toegang tot `/beheer`, zonder deploy.
 
 Onder Instellingen zitten ook (ingeklapt, nog niet live): tarieven voor een later
 contract, het adres van de penningmeester, termijnen voor aanbetaling en content, en
@@ -222,21 +218,15 @@ telefoon, adres, toelichting, bij expositie ook portfolio). Dat is de bron voor 
 mails; het komt niet op de website. Nieuwe aanvragen maken automatisch zo'n boeking
 (status "aanvraag", zichtbaarheid "verborgen" tot het bestuur ja zegt).
 
-### CMS-rollen (privacy vriendenlijst)
+### Rollen (privacy vriendenlijst)
 
-De vriendenlijst (namen en e-mailadressen) is **alleen zichtbaar voor de webmaster**.
-Nelleke en overig bestuur moeten in [Sanity manage](https://www.sanity.io/manage) de rol
-**Editor** hebben, niet Administrator. Als Editor zien zij de nieuwsbrieftekst wel, de
-ontvangerslijst niet.
-
-Studio-verbergen is geen echte API-blokkade. Een Editor kan in theorie nog via GROQ bij
-dezelfde documenten. Echte ACL vereist custom roles (Sanity Growth). Tot die tijd: geen
-Administrator-rol aan het bestuur geven.
+De vriendenlijst (namen en e-mailadressen) is **alleen zichtbaar voor de webmaster**
+in `/beheer`. Andere rollen zien de ontvangerslijst niet.
 
 ### Vriendenmail
 
 Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) staat in
-Sanity onder **Vrienden van het kerkje**. De ontvangerslijst ziet alleen de webmaster.
+Supabase. De ontvangerslijst ziet alleen de webmaster.
 
 - Aanmelden: `/vrienden/aanmelden/` — bewust niet in navigatie of footer, alleen via
   een gedeelde link. Of dat zo blijft, is nog een bestuursbesluit.
@@ -260,25 +250,18 @@ Zonder ingevuld nieuwsbrief-document gaat de mail tóch, met alleen het agenda-b
 
 ### Back-up
 
-```bash
-npm run sanity:export
-```
-
-Content staat bij Sanity, niet in deze repo. Draai deze export periodiek, zodat je bij een
-storing of prijswijziging niet zonder content zit.
+Agenda, boekingen en vrienden staan in Supabase, niet in deze repo.
 
 ---
 
-## Beheerplatform (voorbereiding)
+## Beheer
 
-Sanity blijft de enige bron voor de website. Er is een fundering klaargezet voor
-later `/beheer` + Supabase, zonder cutover:
+Supabase is de bron voor de website en voor `/beheer`.
 
-- Bedrijfsregels in `src/platform/` (getest, nog nergens aan de publieke site gekoppeld)
+- Bedrijfsregels in `src/platform/`
 - Databaseschema in `supabase/migrations/`
 - **`BEHEER_ENABLED=true`** staat in `vercel.json` — `/beheer` is bereikbaar op Production
 - Lokaal (`npm run dev`) en Vercel Preview werken ook zonder die vlag
-- Website leest Sanity tot `CONTENT_BRON=supabase` **én** `ALLOW_SUPABASE_CONTENT=true`
 
 ### Naar beheer
 
@@ -286,7 +269,7 @@ later `/beheer` + Supabase, zonder cutover:
 | --- | --- |
 | Lokaal | http://localhost:4321/beheer/ |
 | Productie | https://kerkjepersingen.nl/beheer/ |
-| Sanity Studio (agenda/content) | `/admin` → Sanity Studio |
+| Oude beheer-URL | `/admin` verwijst naar `/beheer/` |
 
 `/beheer` gebruikt individuele Supabase-accounts (`/beheer/login`). Er is geen
 gedeeld wachtwoord meer. `LIVE_VANAF` opent `/beheer` niet.
@@ -294,9 +277,7 @@ gedeeld wachtwoord meer. `LIVE_VANAF` opent `/beheer` niet.
 De eerste Super Admin is `SUPER_ADMIN_EMAIL` (standaard `nhoevenaars@gmail.com`).
 Uitnodigen gaat vanuit `/beheer/instellingen/gebruikers/` en heeft
 `SUPABASE_SERVICE_ROLE_KEY` in Vercel nodig. Zonder login: redirect naar
-`/beheer/login`, geen data. Na inloggen: Sanity alleen-lezen. Schrijven van
-content gaat nog via Studio (`/admin`).
-Migratiecontrole: `/beheer/migratie/` en `npm run migratie:dry-run`.
+`/beheer/login`, geen data.
 
 Documentatie: `docs/beheer/`.
 

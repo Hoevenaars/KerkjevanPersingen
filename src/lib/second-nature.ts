@@ -1,4 +1,4 @@
-import type { Activiteit } from './sanity';
+import type { Activiteit } from './content';
 
 /** Vaste poster in de site. De activiteit in Supabase gebruikt hetzelfde adres. */
 export const SECOND_NATURE: Activiteit = {
@@ -22,7 +22,7 @@ Second Nature gaat niet alleen over natuur als onderwerp, maar ook over de manie
   fotoAlt: 'Expositieposter Second Nature met werk van vier kunstenaars',
 };
 
-/** Poster in /public. Wint altijd van de Sanity-foto — Studio-upload is onbetrouwbaar. */
+/** Poster in /public. */
 export const SECOND_NATURE_POSTER = '/foto/exposities/second-nature.jpg';
 export const SECOND_NATURE_POSTER_ABSOLUUT = `https://kerkjepersingen.nl${SECOND_NATURE_POSTER}`;
 

@@ -188,7 +188,7 @@ function clientVan(tabellen: Record<string, Record<string, unknown>[]>): Supabas
 test('beheer zonder queryparameter leest de meegegeven Supabase-client', async () => {
   resetBeheerBronCache();
   const snapshot = await laadBeheerSnapshot({
-    env: { CONTENT_BRON: 'sanity' },
+    env: {},
     client: clientVan({
       relaties: [{ id: 9, naam: 'Uit database', email: 'db@example.test', telefoon: '', adres: '', op_reservelijst: false }],
       relatie_rollen: [],
@@ -217,6 +217,6 @@ test('beheer zonder queryparameter leest de meegegeven Supabase-client', async (
   assert.equal(snapshot.tarieven?.[0].bedrag, 550);
   assert.equal(snapshot.templates[0].id, 'afwijzing');
   assert.equal(snapshot.vrienden[0].email, 'v@example.test');
-  assert.equal(huidigeContentBron({ CONTENT_BRON: 'sanity' }), 'sanity');
+  assert.equal(huidigeContentBron({}), 'supabase');
   resetBeheerBronCache();
 });

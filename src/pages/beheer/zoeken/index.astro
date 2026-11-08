@@ -8,7 +8,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/behe
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const q = Astro.url.searchParams.get('q') ?? '';
 const treffers = zoekInBron(snapshot, q);
-const bronLabel = snapshot.bron === 'sanity' ? 'Sanity' : snapshot.bron === 'supabase' ? 'Supabase' : 'de voorbeelddata';
+const bronLabel = snapshot.bron === 'supabase' ? 'Supabase' : 'de voorbeelddata';
 ---
 
 <Beheer titel="Zoeken">
