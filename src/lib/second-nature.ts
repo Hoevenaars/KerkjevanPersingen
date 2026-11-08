@@ -1,6 +1,6 @@
 import type { Activiteit } from './sanity';
 
-/** Vaste content tot de boeking in Sanity staat — zelfde tekst als scripts/seed-second-nature.ts */
+/** Vaste poster in de site. De activiteit in Supabase gebruikt hetzelfde adres. */
 export const SECOND_NATURE: Activiteit = {
   _id: 'fallback-second-nature',
   slug: 'second-nature',

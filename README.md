@@ -84,9 +84,7 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `CONTACT_FALLBACK_EMAIL` | ja | Terugval als het Sanity-veld leeg of ongeldig is. |
 | `CONTACT_BCC_EMAIL` | nee | Extra BCC, alleen op mail naar mensen van het kerkje. |
 | `TOEZICHT_BCC_EMAIL` | nee | Tijdelijke BCC op diezelfde interne mail. Standaard `nhoevenaars@gmail.com`. Leeg = alleen die kopie uit. `kerkjevanpersingenhm@gmail.com` blijft BCC, ook op aanvraag- en contactnotificaties. |
-| `SANITY_PROJECT_ID` | ja | Zonder dit blijft de agenda leeg (site blijft werken). |
-| `SANITY_DATASET` | ja | `production` |
-| `SANITY_API_TOKEN` | ja | **Schrijfrechten (Editor)** — nodig om vrienden aan te maken en verzendstatus te zetten. Alleen lezen is niet genoeg. |
+| `SANITY_PROJECT_ID`, `SANITY_DATASET`, `SANITY_API_TOKEN` | nee | Niet meer gebruikt. De site en het beheer lezen Supabase. Het Sanity-project zelf blijft staan tot een aparte vrijgave. |
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
 | `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Staat aan in `vercel.json`. Preview en lokaal tonen `/beheer` altijd. Website wijzigt niet. |

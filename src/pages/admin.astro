@@ -1,6 +1,20 @@
 ---
-// Doorverwijzing naar Sanity Studio. Geen echte proxy (te fragiel, te veel
-// onderhoud) — gewoon een korte, onthoudbare weg naar de beheeromgeving.
 export const prerender = false;
-return Astro.redirect('https://kerkje-van-persingen.sanity.studio/', 302);
 ---
+
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Beheer — Kerkje van Persingen</title>
+  </head>
+  <body>
+    <main>
+      <h1>Het contentbeheer zit in de eigen beheeromgeving</h1>
+      <p>Sanity Studio wordt niet meer gebruikt.</p>
+      <p><a href="/beheer/">Naar beheer</a></p>
+    </main>
+  </body>
+</html>
