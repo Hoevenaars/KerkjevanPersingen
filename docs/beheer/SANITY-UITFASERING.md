@@ -130,13 +130,20 @@ Handmatig, door iemand met toegang tot project `8le5jso9`:
 | --- | --- | --- |
 | Preview | Gedeployed | Alleen Preview, URL hierboven. Geen productie. |
 | Productie-deploy | No-go | De publieke previewpagina's zitten achter `SITE_PASSWORD`. Zonder dat wachtwoord is de agenda, de kalender en de activiteiten-HTML niet gecontroleerd. |
-| Sanity-project verwijderen | No-go | Er is geen volledige, herstelbare dataset-export. |
+| Sanity-project verwijderen | Vrijgegeven, nog niet uitgevoerd | Op 8 november 2026, 20:54 Europe/Rome, is het project vrijgegeven met de mededeling dat alles wat bewaard moet blijven in Supabase staat. Een volledige dataset-export is er niet. Verwijderen kon hier niet: er is geen Sanity-login en geen token. |
 
-## Definitieve verwijdering, nog niet uitvoeren
+## Definitieve verwijdering
 
-- [ ] Vercel: verwijder `SANITY_PROJECT_ID`, `SANITY_DATASET`, `SANITY_API_TOKEN`, `SANITY_BRIDGE_SECRET`, `SANITY_STUDIO_PROJECT_ID` en `SANITY_AUTH_TOKEN` als ze er staan.
-- [ ] GitHub: verwijder de secrets `SANITY_AUTH_TOKEN` en `SANITY_PROJECT_ID` nadat de dataset-export binnen is.
-- [ ] Sanity manage: verwijder de webhook die naar `/api/bridge/sanity` wijst.
-- [ ] Sanity manage: verwijder dataset `production` en daarna project `8le5jso9`.
-- [ ] Sanity-facturatie: zeg het abonnement op en controleer de eerstvolgende factuur op nul.
-- [ ] Pas deze lijst afvinken na de productiecontrole hierboven. Niet eerder.
+Het project is vrijgegeven. Uitvoeren lukte vanuit deze omgeving niet: geen Sanity-login, geen `SANITY_API_TOKEN` en geen `SANITY_AUTH_TOKEN`. GitHub-secrets zijn hier niet leesbaar (403). Een Vercel-token ontbreekt, dus de variabelen in het dashboard zijn niet gewist.
+
+Doe dit zelf, in deze volgorde. Supabase blijft onaangeroerd.
+
+1. Open https://www.sanity.io/manage/project/8le5jso9
+2. Verwijder de webhook die naar `https://kerkjepersingen.nl/api/bridge/sanity` wijst. Na een rollback van de site zou die webhook anders weer kunnen schrijven.
+3. Verwijder dataset `production`. Sanity vraagt om de naam ter bevestiging.
+4. Verwijder project `8le5jso9`.
+5. Open het organisatieplan op sanity.io/manage en zeg het abonnement op. Controleer de eerstvolgende factuur op nul.
+6. In Vercel, project Kerkje van Persingen, Environment Variables: verwijder `SANITY_PROJECT_ID`, `SANITY_DATASET`, `SANITY_API_TOKEN`, `SANITY_BRIDGE_SECRET` en `SANITY_STUDIO_PROJECT_ID` voor Production, Preview en Development. Geen nieuwe deploy nodig om de site te laten werken. De huidige productie leest die variabelen niet meer voor de agenda.
+7. In GitHub, repository Hoevenaars/KerkjevanPersingen, Settings, Secrets: verwijder `SANITY_AUTH_TOKEN` en `SANITY_PROJECT_ID`.
+
+Daarna zijn er geen Sanity-kosten meer vanuit dit project. De gegevens in Supabase, inclusief bucket `sanity-archief` en de zes `raw_sanity`-kopieën, blijven staan.
