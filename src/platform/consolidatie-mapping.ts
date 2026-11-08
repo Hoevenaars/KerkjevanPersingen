@@ -103,7 +103,7 @@ const HERKOMST_KOLOMMEN = `migration_source text,
 export const SCHEMA_WIJZIGINGEN: readonly SchemaWijziging[] = [
   {
     id: 'migratiekolommen',
-    nodigVoor: 'Herkomst op de domeinrij, naast legacy_id. legacy_id en raw_sanity blijven Sanity. Externe id is uniek per migration_source, niet wereldwijd.',
+    nodigVoor: 'Herkomst op de domeinrij, naast legacy_id. Externe id is uniek per migration_source, niet wereldwijd.',
     voorstel: `kolommen op relaties, relatie_rollen, boekingen, betalingen, interne_activiteiten en gastbegeleider_toewijzingen:
   ${HERKOMST_KOLOMMEN},
   unique (migration_source, migration_external_id).

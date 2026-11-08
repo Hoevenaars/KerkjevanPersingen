@@ -53,7 +53,7 @@ describe('bouwNieuwsbriefHtml', () => {
     titel: 'Expositie Licht en Steen',
     datumTekst: 'zaterdag 15 en zondag 16 augustus 2026',
     omschrijving: 'Schilderijen in het kerkje.',
-    fotoUrl: 'https://cdn.sanity.io/images/voorbeeld.jpg',
+    fotoUrl: 'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/voorbeeld.jpg',
     fotoAlt: 'Expositie in het kerkje',
     agendaUrl: 'https://kerkjepersingen.nl/agenda/licht-en-steen/',
     kop: 'Dit weekend',
@@ -118,14 +118,14 @@ describe('bouwNieuwsbriefHtml', () => {
     const metFoto = bouwNieuwsbriefHtml(
       {
         kortNieuws: 'Het bord is vervangen.',
-        kortNieuwsFotoUrl: 'https://cdn.sanity.io/images/nieuws.jpg',
+        kortNieuwsFotoUrl: 'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/nieuws.jpg',
         kortNieuwsFotoAlt: 'Nieuw informatiebord',
       },
       [blok],
       'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
       mailMeta('wekelijks'),
     );
-    assert.equal(metFoto.includes('https://cdn.sanity.io/images/nieuws.jpg'), true);
+    assert.equal(metFoto.includes('https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/nieuws.jpg'), true);
     assert.equal(metFoto.includes('Nieuw informatiebord'), true);
   });
 

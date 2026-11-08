@@ -1,21 +1,18 @@
-# Beheerplatform — architectuur (voorbereiding)
+# Beheerplatform — architectuur
 
 Leidende specificatie: **Functioneel Ontwerp v1.0**.
 
-Dit document beschrijft wat er klaarstaat. Het beschrijft **niet** een live
-cutover. De publieke website en Sanity blijven werken zoals nu.
+Supabase is de bron van de publieke website en van `/beheer`.
 
-## Huidige runtime
+## Runtime
 
 ```text
-PUBLIEKE WEBSITE  ──leest/schrijft──►  SANITY
-/admin            ──redirect────────►  Sanity Studio
+PUBLIEKE WEBSITE  ──leest──────────────►  SUPABASE
+/admin            ──verwijst───────────►  /beheer
 /beheer           ──Supabase-login, tenzij BEHEER_ENABLED=false
 ```
 
-Supabase Auth is gekoppeld aan `/beheer`. De publieke website leest nog Sanity.
-
-## Doelarchitectuur (ná gecontroleerde migratie)
+## Opslag
 
 ```text
 PUBLIEKE WEBSITE  ──alleen publieke data──►  SUPABASE
@@ -27,20 +24,12 @@ PUBLIEKE WEBSITE  ──alleen publieke data──►  SUPABASE
 /beheer  ───────────────────────────────────────────┘
 ```
 
-## Dubbele slot op de website
-
-`src/platform/bron.ts` leest twee vlaggen. Alleen als **beide** waar zijn, zou
-de website Supabase mogen lezen. De website gebruikt deze functie nog nergens.
-
 | Variabele | Standaard | Effect |
 | --- | --- | --- |
-| `CONTENT_BRON` | (leeg) | `supabase` alleen samen met de vlag hieronder |
-| `ALLOW_SUPABASE_CONTENT` | (leeg) | moet `true` zijn |
 | `BEHEER_ENABLED` | (leeg) | `/beheer` is 404 op Production tot dit `true` is. Vercel Preview toont `/beheer` altijd. |
 | `SUPABASE_URL` | project-URL | Login op `/beheer` via Supabase Auth. Geen gedeeld wachtwoord. |
-| `BEHEER_LIVE_SANITY` | (leeg) | `false` = /beheer blijft voorbeelddata, ook met token. |
 
-Per datatype houdt tabel `bronnen` bij wie mag schrijven. Seed: alles `sanity`.
+Per datatype houdt tabel `bronnen` bij dat beheer de schrijvende bron is.
 
 ## Scheiding privé / publiek
 

@@ -1,10 +1,10 @@
 /**
  * Voorbeelddata voor de klikbare /beheer-bouwplaats.
- * Staat los van Sanity en van de publieke website. Niets hiervan is écht.
+ * Staat los van de publieke website. Niets hiervan is écht.
  */
 
 export const DEMO_BANNER =
-  'Voorbeelddata — niet gekoppeld aan de website, agenda of Sanity. Nelleke en het bestuur merken hier niets van.';
+  'Voorbeelddata — niet gekoppeld aan de website of de agenda. Nelleke en het bestuur merken hier niets van.';
 
 export interface DemoAanvraag {
   id: string;

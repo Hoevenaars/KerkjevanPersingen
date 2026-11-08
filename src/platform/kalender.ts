@@ -14,7 +14,7 @@
  * zetten is daar niet genoeg voor.
  * Een losse aanvraag, een geannuleerde boeking en een afgeronde boeking niet.
  *
- * `huidigeBezetteDagen` vergelijkt nog met de oude Sanity-zichtbaarheid.
+ * `huidigeBezetteDagen` vergelijkt nog met de oude zichtbaarheid.
  * De website leest die functie niet als bron voor verhuurbezetting.
  */
 
@@ -87,7 +87,7 @@ export function publiekeStatusVoorDag(
 }
 
 /**
- * Legacy-vergelijking met de oude Sanity-kalender.
+ * Legacy-vergelijking met de oude kalender.
  * Dit is niet de live verhuurbezetting. Die staat in public.publieke_bezetting.
  */
 export function huidigeBezetteDagen(

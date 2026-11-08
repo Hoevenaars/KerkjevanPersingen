@@ -1,13 +1,11 @@
 /**
  * Supabase-uitvoering van de dossierdienst.
- * Alleen wanneer CONTENT_BRON=supabase én ALLOW_SUPABASE_CONTENT=true.
- * Zonder die twee vlaggen blijft Sanity de productiebron.
  */
 
 import { automatiseringVoorTemplate, MailGeblokkeerd } from '../../platform/automatisering.ts';
 import { verstuurGecontroleerd } from '../mail-transport.ts';
 import { grensVoorActivatie } from '../../platform/activatiegrens.ts';
-import type { Activiteit } from '../sanity.ts';
+import type { Activiteit } from '../content.ts';
 import { maakBeheerAdminClient } from '../supabase.ts';
 import { huidigeContentBron } from '../../platform/bron.ts';
 import { DEMO_INSTELLINGEN } from '../../platform/demo-data.ts';
@@ -317,7 +315,7 @@ async function bewaarIntakeTekst(
 }
 
 export async function draaiWorkflow(env: Record<string, unknown> = process.env, basisUrl = 'https://kerkjepersingen.nl'): Promise<{ ok: boolean; melding: string }> {
-  if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: productie blijft op Sanity.' };
+  if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: Supabase is niet de operationele bron.' };
   const { besluitVoor } = await import('../automatisering-register.ts');
   const besluit = await besluitVoor('workflow', undefined, env);
   if (besluit.modus === 'uit' || besluit.modus === 'dry-run' || !besluit.provider) {
@@ -440,7 +438,7 @@ export async function beheerSnapshotUitSupabase(env: Record<string, unknown>): P
   }));
   return {
     bron: 'supabase',
-    banner: 'Supabase-staging. Dit is de toekomstige dossierstroom. Productie en Sanity worden niet geraakt.',
+    banner: 'Supabase is de dossierstroom.',
     reden: 'Operationele bron is Supabase.',
     aanvragen: wereld.aanvragen.map((aanvraag) => ({
       id: aanvraag.id,

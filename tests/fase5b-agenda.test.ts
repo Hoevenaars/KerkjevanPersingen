@@ -9,7 +9,7 @@ const basis = {
   trigger: 'uiterlijk_12_maanden',
 };
 
-test('publieke Sanity-activiteit blijft op de agendaset zonder goedgekeurde content', () => {
+test('publieke activiteit blijft op de agendaset zonder goedgekeurde content', () => {
   assert.equal(hoortOpPubliekeAgenda({ ...basis, zichtbaarheid: 'publiek' }, '2026-09-30'), true);
   assert.equal(maandenVanTrigger('uiterlijk_12_maanden'), '12');
   assert.equal(maandenVanTrigger('uiterlijk_3_maanden'), '3');
@@ -20,7 +20,7 @@ test('bezet en verborgen komen niet op de publieke agenda', () => {
   assert.equal(hoortOpPubliekeAgenda({ ...basis, zichtbaarheid: 'verborgen' }, '2026-09-30'), false);
 });
 
-test('een directe url raakt de Sanity-assetbuilder niet', () => {
+test('een directe url blijft een directe url', () => {
   assert.equal(directeFotoUrl('https://cdn.example.test/foto.jpg'), 'https://cdn.example.test/foto.jpg');
   assert.equal(directeFotoUrl('/foto/geen-foto.jpg'), '/foto/geen-foto.jpg');
   assert.equal(directeFotoUrl(null), null);

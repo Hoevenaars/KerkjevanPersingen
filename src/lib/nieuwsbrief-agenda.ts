@@ -1,4 +1,4 @@
-import type { Activiteit, AgendaOverzicht } from './sanity';
+import type { Activiteit, AgendaOverzicht } from './content';
 import type { VriendFrequentie } from './nieuwsbrief-frequentie.ts';
 import { formatDatumBereik } from './datum.ts';
 import { directeFotoUrl } from './agenda-zichtbaarheid.ts';

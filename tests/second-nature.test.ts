@@ -8,12 +8,12 @@ import {
 } from '../src/lib/second-nature.ts';
 
 describe('secondNaturePoster', () => {
-  test('geeft de lokale poster voor Second Nature, ook als Sanity een foto heeft', () => {
-    const uitSanity = { slug: 'second-nature', foto: { _ref: 'image-oud' } };
-    assert.equal(isSecondNature(uitSanity), true);
-    assert.equal(secondNaturePoster(uitSanity), SECOND_NATURE_POSTER);
+  test('geeft de lokale poster voor Second Nature', () => {
+    const activiteit = { slug: 'second-nature', foto: '/foto/anders.jpg' };
+    assert.equal(isSecondNature(activiteit), true);
+    assert.equal(secondNaturePoster(activiteit), SECOND_NATURE_POSTER);
     assert.equal(
-      secondNaturePoster(uitSanity, { absoluut: true }),
+      secondNaturePoster(activiteit, { absoluut: true }),
       SECOND_NATURE_POSTER_ABSOLUUT,
     );
   });

@@ -25,7 +25,7 @@ if (Astro.request.method === 'POST') {
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         fout = 'Vul een geldig e-mailadres in.';
       } else {
-        // Direct naar Sanity, niet via een interne HTTP-call. Die extra hop
+        // Direct in Supabase, niet via een interne HTTP-call. Die extra hop
         // faalde achter basic-auth / Vercel (401 of 404) terwijl het formulier
         // zelf wel bereikbaar was.
         await maakVriendAan({ naam, email });

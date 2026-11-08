@@ -1,6 +1,6 @@
 # Aanvulling: websitecontentbeheer
 
-Onderzoek op 8 november 2026 (Europe/Rome), tegen de code op `main` plus het verhuuroverzicht achter `VERHUUR_OVERZICHT`. Geen contentproces is vervangen, Sanity is niet uitgezet, en er is geen schrijfscherm omgezet.
+Onderzoek op 8 november 2026 (Europe/Rome), tegen de code op `main` plus het verhuuroverzicht achter `VERHUUR_OVERZICHT`. Geen contentproces is vervangen, het contentbeheer is niet uitgezet, en er is geen schrijfscherm omgezet.
 
 Dit rapport vult `docs/beheer/AUDIT-2026-11-08.md` aan. Die audit staat op de onderzoeksbranch. De tellingen hieronder komen uit die lezing van dezelfde dag: 18 publieke activiteiten, 7 nieuwsbrieven, 2 vrienden, 16 mediabestanden, 0 nieuwsbriefverzendingen. De nieuwsbriefschakelaar stond uit.
 
@@ -32,21 +32,21 @@ Een functie die hier niet staat, is in de repository niet aangetroffen. Die is n
 ### Activiteit (expositie, concert, overige)
 
 1. Opgeslagen in `publieke_activiteiten`. Oudere of bridgerijen kunnen ook in `activiteit_bron` staan. De beheerleeslaag voegt die samen in `snapshot.agenda` (`src/platform/beheer-supabase-lees.ts`).
-2. De publieke site leest Supabase zolang `CONTENT_BRON=supabase` en `ALLOW_SUPABASE_CONTENT=true`. Dat staat in `vercel.json`. `src/lib/sanity.ts` is dan een façade naar `src/lib/publiek-lezen.ts`.
+2. De publieke site leest Supabase zolang `CONTENT_BRON=supabase` en `ALLOW_SUPABASE_CONTENT=true`. Dat staat in `vercel.json`. `src/lib/content.ts` is dan een façade naar `src/lib/publiek-lezen.ts`.
 3. Bewerken: `/beheer/agenda/[id]/` en de werklijst `/beheer/publiceren/`.
-4. Opslaan gaat via `voerActiviteitActie` en `voerPublicatie` naar Supabase (`src/lib/activiteit-schrijf.ts`). Niet terug naar Sanity.
+4. Opslaan gaat via `voerActiviteitActie` en `voerPublicatie` naar Supabase (`src/lib/activiteit-schrijf.ts`). Niet terug naar het contentbeheer.
 5. Publiceren zet zichtbaarheid op `publiek` en de trigger op `direct` (`HANDMATIGE_PUBLICATIE_TRIGGER` in `src/platform/publiceren.ts`). “Toch publiceren” bestaat als de tekstchecks niet groen zijn. Verbergen zet de activiteit van de site. Een concept zonder record krijgt zichtbaarheid `verborgen` en blokkeert de verhuurkalender niet.
-6. Foto-upload op publiceren schrijft naar `public-media` (`src/lib/publicatie-foto.ts`). De site toont het pad. Een http- of sitepad gaat niet langs de Sanity-CDN (`directeFotoUrl` in `src/lib/agenda-zichtbaarheid.ts`). Ontbreekt de foto, dan valt de site terug op `/foto/geen-foto.jpg` of het standaardbeeld.
+6. Foto-upload op publiceren schrijft naar `public-media` (`src/lib/publicatie-foto.ts`). De site toont het pad. Een http- of sitepad gaat niet langs de het contentbeheer-CDN (`directeFotoUrl` in `src/lib/agenda-zichtbaarheid.ts`). Ontbreekt de foto, dan valt de site terug op `/foto/geen-foto.jpg` of het standaardbeeld.
 7. Automatisch: de trigger “uiterlijk N maanden” toont de activiteit pas als dat moment bereikt is (`timingBereikt`). Er is geen cron die op een klokdatum publiceert. Goedkeuren van content kan een social-mediaconcept starten (`agenda/[id].astro` regel 69–74). Die schakelaar `social_media_content` stond uit.
 8. De route `/beheer/agenda` en `/beheer/publiceren` horen bij module `agenda` (`src/platform/autorisatie.ts`). Schrijven vereist schrijfrecht. De publieke RPC’s zijn `SECURITY DEFINER` en geven alleen de publieke velden.
-9. Behouden: zichtbaarheid, levenscyclus, trigger, slug, koppeling `boeking_id`, lokale override tegen een latere Sanity-brug, en de regel dat een boeking niet vanzelf een pagina is.
-10. Om Sanity uit te zetten ontbreekt geen tweede activiteiten-CMS. Wel: controleren of geen `foto_pad` nog naar `cdn.sanity.io` wijst, de webhook uit, en de hardcoded Second Nature-uitzondering bewust houden of in de activiteit zetten.
+9. Behouden: zichtbaarheid, levenscyclus, trigger, slug, koppeling `boeking_id`, lokale override tegen een latere het contentbeheer-brug, en de regel dat een boeking niet vanzelf een pagina is.
+10. Om het contentbeheer uit te zetten ontbreekt geen tweede activiteiten-CMS. Wel: controleren of geen `foto_pad` nog naar `` wijst, de webhook uit, en de hardcoded Second Nature-uitzondering bewust houden of in de activiteit zetten.
 
 Een bevestigde boeking en een publieke activiteit zijn twee dingen. `publieke_bezetting()` zet een boeking met status optie, definitief, migratie_vastgelegd of optie_verlopen op bezet, zonder titel op de site. Op de agenda komt alleen een activiteit met zichtbaarheid `publiek`, niet geannuleerd, en waarvan de trigger niet `niet_publiceren` is (`hoortOpPubliekeAgenda`, `src/lib/agenda-zichtbaarheid.ts` regel 125–131). Ontbrekende tekst blokkeert die poort niet.
 
 ### Vaste pagina’s, menu, footer, SEO
 
-1. Opgeslagen in de Astro-bron. Niet in Supabase en niet in Sanity.
+1. Opgeslagen in de Astro-bron. Niet in Supabase en niet in het contentbeheer.
 2. De site leest die bestanden bij elke build.
 3. Er is geen beheerscherm. Wijzigen is een codewijziging.
 4. Nergens in de database.
@@ -55,12 +55,12 @@ Een bevestigde boeking en een publieke activiteit zijn twee dingen. `publieke_be
 7. Geen.
 8. De pagina’s zijn openbaar. Beheer heeft er geen rol op.
 9. URL’s in `src/pages/sitemap.xml.ts` (de vaste lijst plus agendaslugs). Canonieke URL en JSON-LD in `src/lib/seo.ts`.
-10. Dit hoeft niet uit Sanity te komen, want het zit er niet. Een beheerder kan deze teksten nu niet zelf wijzigen. Dat is een gat ten opzichte van een volledig CMS, geen Sanity-rest.
+10. Dit hoeft niet uit het contentbeheer te komen, want het zit er niet. Een beheerder kan deze teksten nu niet zelf wijzigen. Dat is een gat ten opzichte van een volledig CMS, geen het contentbeheer-rest.
 
 ### Nieuwsbrief en vrienden
 
 1. `nieuwsbrieven` (week, kort nieuws, donatie-update, overgeslagen, verstuurd) en `vrienden`.
-2. Lezen in beheer komt uit Supabase. De donderdag- en vrijdagcron gebruiken `src/lib/nieuwsbrief.ts` en `nieuwsbrief-supabase.ts`, niet Sanity, zolang de contentvlaggen aan staan.
+2. Lezen in beheer komt uit Supabase. De donderdag- en vrijdagcron gebruiken `src/lib/nieuwsbrief.ts` en `nieuwsbrief-supabase.ts`, niet het contentbeheer, zolang de contentvlaggen aan staan.
 3. `/beheer/nieuwsbrief/` en `/beheer/nieuwsbrief/[id]/` tonen de week en een HTML-voorbeeld. `/beheer/vrienden/` toont de lijst. Exporteren mag alleen de super-admin.
 4. Bewaren vanuit het nieuwsscherm is geblokkeerd. De cron schrijft verzendingen als hij echt verstuurt. Die tabel had 0 rijen.
 5. Er is geen “publiceer op de site”. De nieuwsbrief is e-mail. De site heeft geen nieuwsarchief.
@@ -68,7 +68,7 @@ Een bevestigde boeking en een publieke activiteit zijn twee dingen. `publieke_be
 7. Vercel-cron: preview donderdag 15:00 UTC, verzending vrijdag 09:30 UTC (`vercel.json`). Beide respecteren de schakelaar `nieuwsbrief`, die uit staat. Frequentie per vriend: wekelijks, tweewekelijks, maandelijks (`src/lib/nieuwsbrief-frequentie.ts`).
 8. Module `nieuwsbrief` en `vrienden`.
 9. Afmeldtoken, frequentie, en de regel dat een testverzending de vriendenlijst niet raakt.
-10. De beheerder kan een week nog niet opslaan of zelf verzenden. Dat gat zit in het beheer, niet in Sanity. De Studio-schema’s `nieuwsbrief` en `vriend` zijn de oude kopie.
+10. De beheerder kan een week nog niet opslaan of zelf verzenden. Dat gat zit in het beheer, niet in het contentbeheer. De Studio-schema’s `nieuwsbrief` en `vriend` zijn de oude kopie.
 
 ### Homepage-melding en banner
 
@@ -81,22 +81,22 @@ Een bevestigde boeking en een publieke activiteit zijn twee dingen. `publieke_be
 7. Geen.
 8. Module `instellingen` respectievelijk `agenda`.
 9. De publieke RPC.
-10. Niets uit Sanity.
+10. Niets uit het contentbeheer.
 
-## 3. Sanity die nog mee kan doen
+## 3. het contentbeheer die nog mee kan doen
 
-De brug is eenrichting en was op 8 november 2026 leeg: `bridge_sync_log` en `sanity_bridge_agenda` hadden 0 rijen. De site leest Sanity dan niet.
+De brug is eenrichting en was op 8 november 2026 leeg: `oude_bruglog` en `oude_brugagenda` hadden 0 rijen. De site leest het contentbeheer dan niet.
 
-Wat blijft hangen als Sanity uit gaat zonder voorbereiding:
+Wat blijft hangen als het contentbeheer uit gaat zonder voorbereiding:
 
 | Blijft | Stopt of blijft een los eind |
 | --- | --- |
 | Agenda, kalender, aanvragen, nieuwsbriefdata, melding, publiceren | `/admin` opent Studio |
-| Foto’s die al een Supabase- of sitepad hebben | Een fotopad dat nog op `cdn.sanity.io` staat. Dat is per rij niet nagelopen. |
-| | De beheerpagina Sanity-brug en de webhook `/api/bridge/sanity` |
+| Foto’s die al een Supabase- of sitepad hebben | Een fotopad dat nog op `` staat. Dat is per rij niet nagelopen. |
+| | De beheerpagina het contentbeheer-brug en de webhook `/beheer` |
 | | Second Nature blijft werken, want die poster staat in de repository |
 
-Studio-typen die geen eigen Supabase-scherm meer nodig hebben voor de site: `activiteit`, `aanvraag`, `vriend`, `nieuwsbrief`. `persoon` gaat niet door de brug. `instellingen` in Sanity, inclusief de oude mailteksten, is niet de bron van de 27 mailtemplates in Supabase.
+Studio-typen die geen eigen Supabase-scherm meer nodig hebben voor de site: `activiteit`, `aanvraag`, `vriend`, `nieuwsbrief`. `persoon` gaat niet door de brug. `instellingen` in het contentbeheer, inclusief de oude mailteksten, is niet de bron van de 27 mailtemplates in Supabase.
 
 Supabase bevat dus de gepubliceerde activiteiten én de velden om ze te bewerken: tekst, zichtbaarheid, trigger, slug, foto, exposanten, koppeling naar de boeking. Het is geen leeg publicatiekanaal. Wat Supabase niet bevat, zijn de vaste paginateksten, het menu en de footer.
 
@@ -115,7 +115,7 @@ Dit legt geen scherm vast. Bestaande knoppen blijven tot er een akkoord is om ze
 | Nieuwsbrief | Week, concept of verstuurd, voorbeeld | Het bestaande voorbeeld. Opslaan en verzenden pas als de geblokkeerde actie bewust wordt aangesloten. |
 | Meldingen | Homepage-melding en vrijgekomen weekend | De twee bestaande formulieren. |
 
-**Instellingen**, niet dagelijks: gebruikers, rechten, mailtemplates, automatiseringen, tarieven, systeem, Sanity-brug tot die uit is.
+**Instellingen**, niet dagelijks: gebruikers, rechten, mailtemplates, automatiseringen, tarieven, systeem, het contentbeheer-brug tot die uit is.
 
 Geen derde activiteiten-tab voor concert of expositie. Dat is een filter op soort in dezelfde lijst. Exposanten blijven velden op die activiteit.
 
@@ -137,7 +137,7 @@ Knoppen die er al zijn en zo moeten terugkomen: Opslaan, Publiceer, Toch publice
 | Vrienden | `/beheer/vrienden/` | Website → Nieuwsbrief, of Instellingen als de lijst privacygevoelig moet blijven |
 | Vaste pagina’s, menu, footer, SEO-tekst | code | Website → Pagina’s, eerst alleen-lezen, later bewerkbaar zonder URL-wijziging |
 | Second Nature-poster | code | Blijft tot de activiteit zelf die foto draagt |
-| Sanity-brug | `/beheer/instellingen/sanity-bridge/` | Instellingen, tot de webhook uit is |
+| het contentbeheer-brug | `/beheer/instellingen/` | Instellingen, tot de webhook uit is |
 | Mailtemplates en workflow | instellingen | Instellingen. Niet in het website-dagmenu |
 | Audit op een publicatie | `auditlog` | Op het activiteitdossier, zoals bij verhuur alleen voor de super-admin |
 
@@ -145,24 +145,24 @@ Knoppen die er al zijn en zo moeten terugkomen: Opslaan, Publiceer, Toch publice
 
 | Soort | Bevinding |
 | --- | --- |
-| Aangetoond | De beheerder kan vaste paginatekst niet wijzigen. Dat is geen verborgen Sanity-functie. |
+| Aangetoond | De beheerder kan vaste paginatekst niet wijzigen. Dat is geen verborgen het contentbeheer-functie. |
 | Aangetoond | Nieuwsberichten bestaan niet. Een nieuwsmodule bouwen zou nieuw zijn. |
 | Aangetoond | Nieuwsbrief opslaan en verzenden vanuit het scherm is bewust dicht. De cron bestaat wel. |
 | Aangetoond | Second Nature toont een vaste poster, ook als de activiteit een andere foto heeft. |
 | Aangetoond | Publiceren en een boeking zijn gescheiden. Een vereenvoudigd scherm dat die twee gelijktrekt, zet huurgegevens op de site of haalt een bezet weekend van de kalender. |
-| Aangetoond | Een Sanity-webhook kan velden zonder lokale override nog overschrijven. De bruglog was leeg. |
-| Niet gecontroleerd | Of een van de 18 activiteiten nog een Sanity-fotoadres heeft. |
-| Niet gecontroleerd | Of de webhook in het Sanity-project nog op `/api/bridge/sanity` staat. |
+| Aangetoond | Een het contentbeheer-webhook kan velden zonder lokale override nog overschrijven. De bruglog was leeg. |
+| Niet gecontroleerd | Of een van de 18 activiteiten nog een het contentbeheer-fotoadres heeft. |
+| Niet gecontroleerd | Of de webhook in het het contentbeheer-project nog op `/beheer` staat. |
 
 ## 7. Veilig vervolg
 
-Pas na akkoord, en zonder de verhuurvlag of de contentvlaggen te gebruiken als excuus om Sanity uit te zetten.
+Pas na akkoord, en zonder de verhuurvlag of de contentvlaggen te gebruiken als excuus om het contentbeheer uit te zetten.
 
 1. Website-lijst alleen lezen, achter een eigen vlag, met de bestaande snapshot. Geen nieuwe tabel. De huidige publicatiepagina blijft de schrijfplek.
 2. Het activiteitformulier hernoemen en onder elkaar zetten, nog steeds via `voerActiviteitActie` en `voerPublicatie`. Slug blijft bewaard, alleen de zichtbare naam wordt “Adres op de site”.
 3. Nieuwsbrief: eerst het voorbeeld houden. Opslaan pas als vaststaat dat de cron niet tegelijk dezelfde week verstuurt.
 4. Vaste pagina’s: pas een tabel als de tekst letterlijk uit de Astro-bestanden is overgenomen en de URL’s in de sitemap gelijk blijven.
-5. Sanity uit: webhook leeg, fotopaden gecontroleerd, `/admin` geeft een rustige melding. De Second Nature-poster blijft in de site staan.
+5. het contentbeheer uit: webhook leeg, fotopaden gecontroleerd, `/admin` geeft een rustige melding. De Second Nature-poster blijft in de site staan.
 
 Elke stap laat `publieke_agenda` en `publieke_bezetting` dezelfde rijen teruggeven als ervoor, behalve waar een beheerder zelf publiceert of verbergt.
 

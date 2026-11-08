@@ -44,7 +44,7 @@ test('activiteitdetail vraagt alleen publieke_activiteit_op_slug', async () => {
   process.env.SUPABASE_URL = `http://127.0.0.1:${port}`;
   process.env.SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_audit';
   try {
-    const { getActiviteitBySlug } = await import('../src/lib/sanity.ts');
+    const { getActiviteitBySlug } = await import('../src/lib/content.ts');
     const activiteit = await getActiviteitBySlug('activiteit-120');
     assert.equal(activiteit?.slug, 'activiteit-120');
     assert.equal(activiteit?.publiekeTitel, 'Expositie: Activiteit 120');

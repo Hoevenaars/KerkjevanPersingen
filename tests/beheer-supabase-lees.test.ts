@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { kiesBeheerLezer, laadBeheerSnapshot, resetBeheerBronCache } from '../src/platform/beheer-bron.ts';
 import { leesSupabaseBeheer, periodeKlasse, supabaseFoutSnapshot, type SupabaseLeesClient } from '../src/platform/beheer-supabase-lees.ts';
-import { leesSanityOproepen, metSanityRegistratie, noteerSanityOproep } from '../src/platform/sanity-registratie.ts';
+import { metRequestContext } from '../src/platform/request-context.ts';
 
 function clientVan(tabellen: Record<string, Record<string, unknown>[]>): SupabaseLeesClient {
   return {
@@ -167,7 +167,7 @@ test('normale beheer-url laadt de snapshot één keer per request', async () => 
     cookies,
   };
 
-  await metSanityRegistratie(async () => {
+  await metRequestContext(async () => {
     const dashboard = await laadBeheerSnapshot(opties);
     const planning = await laadBeheerSnapshot({ ...opties, url: new URL('http://localhost/beheer/planning/') });
     const kalender = await laadBeheerSnapshot({ ...opties, url: new URL('http://localhost/beheer/kalender/') });
@@ -197,7 +197,7 @@ test('voorbeelddata deelt de supabase-snapshot van hetzelfde request niet', asyn
   resetBeheerBronCache();
   const cookies = { set() {} };
   const client = clientVan(basis);
-  await metSanityRegistratie(async () => {
+  await metRequestContext(async () => {
     const live = await laadBeheerSnapshot({
       url: new URL('http://localhost/beheer/'),
       env: {},
@@ -218,12 +218,3 @@ test('voorbeelddata deelt de supabase-snapshot van hetzelfde request niet', asyn
   });
 });
 
-test('testmodus registreert een sanity-call en blijft anders op nul', async () => {
-  const leeg = await metSanityRegistratie(async () => leesSanityOproepen());
-  assert.equal(leeg.length, 0);
-  const gezien = await metSanityRegistratie(async () => {
-    noteerSanityOproep('beheer.sanity-dump');
-    return leesSanityOproepen();
-  });
-  assert.deepEqual(gezien.map((oproep) => oproep.plek), ['beheer.sanity-dump']);
-});

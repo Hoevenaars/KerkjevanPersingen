@@ -19,7 +19,7 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const client = sessieSupabaseUitAstro(Astro);
   if (!client) {
-    schrijfFout = 'Geen Supabase-sessie. Instellingen zijn niet opgeslagen en er is niet teruggeschreven naar Sanity.';
+    schrijfFout = 'Geen Supabase-sessie. Instellingen zijn niet opgeslagen.';
   } else {
     try {
       await bewaarInstellingen(client as never, {
@@ -52,7 +52,7 @@ const inst = snapshot.instellingen;
       <p class="bh-hint">
         {
           supabaseTest
-            ? 'Instellingen worden gelezen en geschreven in Supabase. Een fout valt niet terug op Sanity.'
+            ? 'Instellingen worden gelezen en geschreven in Supabase.'
             : 'Voorbeelddata. Bewaren slaat niets op.'
         }
       </p>
@@ -103,8 +103,8 @@ const inst = snapshot.instellingen;
     <p class="bh-muted">
       {
         cutover
-          ? 'Supabase is de enige schrijvende bron. De databasewaarde heet beheer. Er is geen dual-write naar Sanity.'
-          : 'De vlaggen staan nog op de rollbackbron Sanity.'
+          ? 'Supabase is de enige schrijvende bron. De databasewaarde heet beheer.'
+          : 'Supabase is de enige schrijvende bron.'
       }
     </p>
     <table class="bh-tabel">

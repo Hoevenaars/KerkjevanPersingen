@@ -1,5 +1,5 @@
 /**
- * Databron voor /beheer: Supabase. Geen Sanity-fallback.
+ * Databron voor /beheer: Supabase.
  * Voorbeelddata alleen via ?bron=demo.
  */
 
@@ -7,7 +7,7 @@ import { supabaseLoginUitOmgeving, STANDAARD_SUPER_ADMIN_EMAIL, STANDAARD_SUPABA
 import { huidigeContentBron } from './bron.ts';
 import { ymdInAmsterdam } from './datum.ts';
 import { leesSupabaseBeheer, supabaseFoutSnapshot, type SupabaseLeesClient } from './beheer-supabase-lees.ts';
-import { bewaarRequestSnapshot, gekoppeldeSupabaseClient, leesRequestSnapshot } from './sanity-registratie.ts';
+import { bewaarRequestSnapshot, gekoppeldeSupabaseClient, leesRequestSnapshot } from './request-context.ts';
 import {
   DEMO_AANVRAGEN,
   DEMO_AGENDA,
@@ -34,10 +34,9 @@ import {
   type DemoTemplate,
   type DemoVriend,
 } from './demo-data.ts';
-import type { MigratieResultaat } from './migratie-transform.ts';
 import { laadMailtemplates, mailtemplatesNaarDemo } from './mailtemplates/index.ts';
 
-export type BeheerBronSoort = 'demo' | 'sanity' | 'supabase';
+export type BeheerBronSoort = 'demo' | 'supabase';
 
 export interface BeheerSnapshot {
   bron: BeheerBronSoort;
@@ -55,7 +54,7 @@ export interface BeheerSnapshot {
   instellingen: DemoInstellingen;
   communicatie: { id: string; boekingId: string; template: string; status: string; wanneer: string; ontvanger: string }[];
   documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string }[];
-  migratie: MigratieResultaat | null;
+  migratie: null;
   betalingen?: import('./beheer-supabase-lees.ts').BeheerBetaling[];
   toewijzingen?: import('./beheer-supabase-lees.ts').BeheerToewijzing[];
   fout?: string | null;
@@ -93,9 +92,6 @@ export interface BeheerSnapshot {
   }[];
 }
 
-const LIVE_BANNER =
-  'Live Sanity, alleen lezen. Schrijven blijft in Studio. Niets wordt opgeslagen, gemaild of naar de website gestuurd.';
-
 export function omgevingsRecord(): Record<string, unknown> {
   const runtime = typeof process !== 'undefined' ? process.env : {};
   const meta = (typeof import.meta !== 'undefined' ? import.meta.env : {}) as Record<string, unknown>;
@@ -110,18 +106,7 @@ export function omgevingsRecord(): Record<string, unknown> {
   return samen;
 }
 
-/**
- * Live Sanity in /beheer mag alleen als individuele Supabase-login aan staat.
- * BEHEER_LIVE_SANITY=false forceert voorbeelddata. Een gedeeld sitewachtwoord telt niet.
- */
-export function magLiveSanityLezen(env: Record<string, unknown> = omgevingsRecord()): boolean {
-  if (env.BEHEER_LIVE_SANITY === false || env.BEHEER_LIVE_SANITY === 'false') return false;
-  const projectId = String(env.SANITY_PROJECT_ID ?? '').trim();
-  if (!projectId) return false;
-  return supabaseLoginUitOmgeving(env) !== null;
-}
-
-export async function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan Sanity of de live site.'): Promise<BeheerSnapshot> {
+export async function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan de live site.'): Promise<BeheerSnapshot> {
   const mailtemplates = await laadMailtemplates();
   return {
     bron: 'demo',
@@ -143,33 +128,8 @@ export async function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan
   };
 }
 
-export async function snapshotVanMigratie(resultaat: MigratieResultaat): Promise<BeheerSnapshot> {
-  const mailtemplates = await laadMailtemplates();
-  return {
-    bron: 'sanity',
-    banner: LIVE_BANNER,
-    reden: 'Sanity-productiedata, alleen-lezen mapping naar het beheerdatamodel.',
-    aanvragen: resultaat.aanvragen,
-    boekingen: resultaat.boekingen,
-    agenda: resultaat.agenda,
-    intern: resultaat.intern,
-    relaties: resultaat.relaties,
-    gastheren: resultaat.gastheren,
-    vrienden: resultaat.vrienden,
-    nieuwsbrieven: resultaat.nieuwsbrieven,
-    templates: mailtemplatesNaarDemo(mailtemplates),
-    instellingen: resultaat.instellingen,
-    communicatie: [],
-    documenten: [],
-    migratie: resultaat,
-  };
-}
-
 export function schrijfActieFlash(bron: BeheerBronSoort): string {
   if (bron === 'supabase') return 'Opgeslagen in Supabase. Er is geen mail verstuurd.';
-  if (bron === 'sanity') {
-    return 'Actie niet uitgevoerd — /beheer schrijft nog niet. Wijzigingen gaan via Sanity Studio.';
-  }
   return DEMO_FLASH;
 }
 

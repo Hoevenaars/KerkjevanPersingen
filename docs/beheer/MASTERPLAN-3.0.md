@@ -19,7 +19,7 @@ De huidige applicatie bevat al veel bouwstenen: aanvragen, boekingen, kalender, 
 3. operationele state persistent maken;
 4. workflows daadwerkelijk laten uitvoeren;
 5. uitzonderingen zichtbaar maken;
-6. productie uiteindelijk van Sanity naar Supabase verplaatsen.
+6. productie uiteindelijk van het contentbeheer naar Supabase verplaatsen.
 
 ### Kernbelofte
 
@@ -104,9 +104,9 @@ Alleen de productieschakelaar blijft uit totdat het bestuur definitief GO geeft.
 
 ### Voor de bestuurlijke GO
 
-- productie blijft op Sanity;
+- productie blijft op het contentbeheer;
 - 3.0 draait veilig in preview/staging op Supabase;
-- Sanity blijft productiebron en rollbackmogelijkheid;
+- het contentbeheer blijft productiebron en rollbackmogelijkheid;
 - geen echte klanten worden onbedoeld vanuit staging gemaild.
 
 ### Na bestuurlijke GO
@@ -116,7 +116,7 @@ Alleen de productieschakelaar blijft uit totdat het bestuur definitief GO geeft.
 - smoke tests;
 - bron-switch naar Supabase;
 - stabilisatie;
-- pas daarna Sanity verwijderen.
+- pas daarna het contentbeheer verwijderen.
 
 Daarmee is de GO een **cutover-besluit**, geen startschot voor het echte technische werk.
 
@@ -146,8 +146,8 @@ Aangetroffen of eerder vastgesteld zijn onder meer:
 - mailtemplates;
 - datumgestuurde communicatieplanning;
 - Supabase voor auth/rechten en reeds voorbereid schema;
-- bronabstractie/feature flags voor Sanity versus Supabase;
-- Sanity als huidige productie-contentbron.
+- bronabstractie/feature flags voor het contentbeheer versus Supabase;
+- het contentbeheer als huidige productie-contentbron.
 
 ### Belangrijkste huidige gap
 
@@ -938,7 +938,7 @@ PRODUCTION
 
 Tot GO:
 
-- huidige productiebron / Sanity blijft leidend;
+- huidige productiebron / het contentbeheer blijft leidend;
 - geen productieverkeer naar nieuwe 3.0 write-path.
 
 Na GO:
@@ -947,7 +947,7 @@ Na GO:
 
 ### Geen dual-write als standaardstrategie
 
-Vermijd tegelijk naar Sanity én Supabase schrijven tenzij er een expliciet migratiedoel is. Dual write creëert reconciliatieproblemen en onduidelijke waarheid.
+Vermijd tegelijk naar het contentbeheer én Supabase schrijven tenzij er een expliciet migratiedoel is. Dual write creëert reconciliatieproblemen en onduidelijke waarheid.
 
 ---
 
@@ -1028,21 +1028,21 @@ Geen complexe event-sourcingarchitectuur zonder noodzaak.
 
 ---
 
-# 26. Sanity-strategie
+# 26. Contentstrategie
 
 ## Nu
 
-Sanity blijft productiebron.
+het contentbeheer blijft productiebron.
 
 Nieuwe ontwikkeling:
 
-- geen nieuwe onnodige Sanity-afhankelijkheden;
+- geen nieuwe onnodige het contentbeheer-afhankelijkheden;
 - Supabasepad volledig ontwikkelen;
 - source adapters netjes scheiden.
 
 ## Voorbereiden
 
-Idempotente Sanity → Supabase migratieroute.
+Idempotente het contentbeheer → Supabase migratieroute.
 
 ### Dry run
 
@@ -1072,7 +1072,7 @@ Idempotente Sanity → Supabase migratieroute.
 5. preview/smoke test;
 6. bron-switch;
 7. monitoring;
-8. Sanity tijdelijk readonly/fallback;
+8. het contentbeheer tijdelijk readonly/fallback;
 9. pas na stabilisatie dependency verwijderen.
 
 ---
@@ -1222,7 +1222,7 @@ De bestuurlijke preview is pas overtuigend wanneer de volgende flow echt werkt:
 18. incident voorkomt automatische afsluiting;
 19. dashboard gebruikt dezelfde state;
 20. audit toont besluiten en overrides;
-21. productie blijft onaangeraakt op Sanity.
+21. productie blijft onaangeraakt op het contentbeheer.
 
 ---
 
@@ -1247,7 +1247,7 @@ Minimaal:
 15. Unauthorized mutation → server-side geblokkeerd.
 16. Verlopen magic link → geen data uitlekken.
 17. Staging e-mail → niet-allowlisted adres geblokkeerd/omgeleid.
-18. Productie-isolatie → staging heeft geen effect op productie/Sanity.
+18. Productie-isolatie → staging heeft geen effect op productie/het contentbeheer.
 
 ---
 
@@ -1259,7 +1259,7 @@ Minimaal:
 **Waarom:** het bestuur moet de werkelijke toekomstige omgeving ervaren.  
 **Randvoorwaarde:** geen productie-cutover.
 
-## Besluit 2 — Sanity nog niet verwijderen
+## Besluit 2 — het contentbeheer nog niet verwijderen
 
 **Besluit:** behouden tot GO en succesvolle cutover.  
 **Waarom:** productiecontinuïteit, rollback en datamigratie.
@@ -1301,7 +1301,7 @@ Minimaal:
 
 ## Besluit 10 — Geen dual write als standaard
 
-**Besluit:** productie blijft Sanity, staging Supabase.  
+**Besluit:** productie blijft het contentbeheer, staging Supabase.  
 **Waarom:** dual write creëert synchronisatieproblemen.
 
 ## Besluit 11 — Migrations zijn verplicht
@@ -1346,7 +1346,7 @@ Technische keuzes die veilig uit bestaande architectuur volgen hoeven niet steed
 7. **Geen lokale JSON als duurzame operationele state.**
 8. **Geen service-role secret in de client.**
 9. **Geen productiecutover vóór expliciete GO.**
-10. **Geen Sanity verwijderen vóór bewezen migratie en rollback.**
+10. **Geen het contentbeheer verwijderen vóór bewezen migratie en rollback.**
 11. **Geen “groene build” door tests of typechecks uit te schakelen.**
 12. **Geen extra architectuur alleen omdat het technisch interessant is.**
 
@@ -1379,7 +1379,7 @@ Dit masterplan is samengesteld uit:
 
 - **Kerkje van Persingen 3.0 | Procesdocument — continuïteit van aanvraag tot afronding**;
 - de eerdere Cursor delta-analyse van de huidige codebase;
-- de besproken keuzes rondom Supabase, Sanity, workflow, content, communicatie en menselijke maat;
+- de besproken keuzes rondom Supabase, het contentbeheer, workflow, content, communicatie en menselijke maat;
 - eerdere inspectie van de publieke repository `Hoevenaars/KerkjevanPersingen`.
 
 **Belangrijk:** repositorydetails zijn een momentopname. Voor implementatie moet Cursor de actuele codebase en actuele Supabase-migrations opnieuw verifiëren. Dit document bepaalt de **richting en principes**, niet dat een genoemde tabel blind opnieuw moet worden aangemaakt.

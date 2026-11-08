@@ -1,10 +1,9 @@
 /**
  * Publieke agenda en verhuurkalender op Supabase.
- * CONTENT_BRON blijft sanity; deze leespaden vallen niet terug op Sanity.
  */
 
 import { createClient } from '@supabase/supabase-js';
-import type { Activiteit } from './sanity';
+import type { Activiteit } from './content';
 import { supabaseLoginUitOmgeving } from './supabase-project.ts';
 import { contentStatusVanInhoud, maandenVanTrigger, nuZichtbaarOpWebsite, timingBereikt } from './agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../platform/datum.ts';
@@ -130,7 +129,7 @@ function leesClient() {
 
 export async function leesAgendaRijen(): Promise<AgendaRij[]> {
   const supabase = leesClient();
-  if (!supabase) throw new Error('Supabase is niet geconfigureerd. De agenda leest Sanity niet.');
+  if (!supabase) throw new Error('Supabase is niet geconfigureerd. De agenda kan niet worden gelezen.');
   const { data, error } = await supabase.rpc('publieke_agenda');
   if (error) throw new Error(error.message);
   return (data ?? []) as AgendaRij[];
@@ -138,7 +137,7 @@ export async function leesAgendaRijen(): Promise<AgendaRij[]> {
 
 export async function leesBezetRijen(): Promise<BezetRij[]> {
   const supabase = leesClient();
-  if (!supabase) throw new Error('Supabase is niet geconfigureerd. De kalender leest Sanity niet.');
+  if (!supabase) throw new Error('Supabase is niet geconfigureerd. De kalender kan niet worden gelezen.');
   const { data, error } = await supabase.rpc('publieke_bezetting');
   if (error) throw new Error(error.message);
   return (data ?? []) as BezetRij[];
@@ -146,7 +145,7 @@ export async function leesBezetRijen(): Promise<BezetRij[]> {
 
 async function leesAgendaRijOpSlug(slug: string): Promise<AgendaRij[]> {
   const supabase = leesClient();
-  if (!supabase) throw new Error('Supabase is niet geconfigureerd. De agenda leest Sanity niet.');
+  if (!supabase) throw new Error('Supabase is niet geconfigureerd. De agenda kan niet worden gelezen.');
   const { data, error } = await supabase.rpc('publieke_activiteit_op_slug', { p_slug: slug });
   if (error) throw new Error(error.message);
   return (data ?? []) as AgendaRij[];

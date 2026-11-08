@@ -1,6 +1,6 @@
 /**
  * Schrijven in de expliciete testmodus (?bron=supabase).
- * Geen mail, geen Sanity-fallback, geen wijziging van CONTENT_BRON.
+ * Geen mail.
  */
 
 import { websiteMeldingRij, type WebsiteMelding } from '../lib/website-melding.ts';

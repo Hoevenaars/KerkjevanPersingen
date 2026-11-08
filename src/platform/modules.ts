@@ -101,11 +101,6 @@ export const BEHEER_MODULES = {
     href: '/beheer/instellingen/systeem/',
     groep: 'instellingen',
   },
-  bridge: {
-    label: 'Sanity bridge',
-    href: '/beheer/instellingen/sanity-bridge/',
-    groep: 'instellingen',
-  },
   migratie: {
     label: 'Migratie',
     href: '/beheer/migratie/',
@@ -133,7 +128,6 @@ export const INSTELLINGEN_PAGINAS = [
   { module: 'finance_instellingen', href: '/beheer/instellingen/finance/', label: 'Finance' },
   { module: 'gastheerbeheer', href: '/beheer/instellingen/gastheren/', label: 'Expositiebegeleiders' },
   { module: 'automatiseringen', href: '/beheer/instellingen/automatiseringen/', label: 'Automatiseringen' },
-  { module: 'bridge', href: '/beheer/instellingen/sanity-bridge/', label: 'Sanity bridge' },
   { module: 'systeembeheer', href: '/beheer/instellingen/systeem/', label: 'Systeem' },
   { module: 'templates', href: '/beheer/instellingen/mailtemplates/', label: 'Mailtemplates' },
   { module: 'gebruikers', href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },

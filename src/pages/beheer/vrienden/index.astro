@@ -8,7 +8,7 @@ import { magVriendenExporteren } from '../../../platform/rechten.ts';
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const magExport = magVriendenExporteren(rechten);
-const live = snapshot.bron === 'supabase' || snapshot.bron === 'sanity';
+const live = snapshot.bron === 'supabase';
 
 if (Astro.request.method === 'POST') {
   const data = await Astro.request.formData();
@@ -43,9 +43,7 @@ const fout = Astro.url.searchParams.get('fout');
         {
           snapshot.bron === 'supabase'
             ? 'Vriendenlijst uit Supabase. Export is voor Super Admin.'
-            : live
-              ? 'Vriendenlijst uit Sanity (alleen lezen). Export is voor Super Admin. Toevoegen slaat niets op.'
-              : 'Voorbeeldlijst — niet de echte vrienden van de website. Export is voor Super Admin en downloadt alleen deze nepdata.'
+            : 'Voorbeeldlijst — niet de echte vrienden van de website. Export is voor Super Admin en downloadt alleen deze nepdata.'
         }
       </p>
     </div>

@@ -1,6 +1,6 @@
 /**
  * Schrijft een bestuurshandeling naar Supabase.
- * De bridge blijft Sanity naar Supabase. Deze functie mailt niet.
+ * Schrijft een activiteit in Supabase. Deze functie mailt niet.
  */
 
 import { leesbarePublicatieFout } from './publicatie-foto.ts';
