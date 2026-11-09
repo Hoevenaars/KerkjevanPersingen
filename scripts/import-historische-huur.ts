@@ -15,6 +15,7 @@ import {
   controleerBron,
   formatConflictenCsv,
   formatRapport,
+  applyGeblokkeerdDoorConflict,
   planHistorischeHuur,
   sqlIsVeilig,
   type BronBestand,
@@ -132,6 +133,11 @@ function main() {
   writeFileSync(`${map}/historische-huur-apply.sql`, plan.sql.join('\n\n'));
   if (onveilig.length) {
     console.error(`SQL geweigerd: ${onveilig.join(', ')}`);
+    process.exit(1);
+  }
+  const conflict = applyGeblokkeerdDoorConflict(plan.regels.map((regel) => regel.uitkomst));
+  if (apply && conflict) {
+    console.error(conflict);
     process.exit(1);
   }
   if (dry) {

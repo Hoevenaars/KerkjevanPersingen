@@ -718,7 +718,7 @@ export function maakDossierWeergave(input: {
       url: veiligeBestandsUrl(document.url),
     })),
     intake: input.intake.map((bestand) => ({ naam: bestand.naam, url: veiligeBestandsUrl(bestand.url) })),
-    contractTekst: 'Onbekend. Er is geen contractstatus. Een oude tekst uit de import wordt niet als status gelezen.',
+    contractTekst: 'De status volgt een bestand, of een handmatige keuze zonder upload. Een oude importtekst telt niet als status.',
     gastheerId: input.boeking.gastheerId ?? '',
     gastheerNaam: operationeel?.naam ?? '',
     historie,
@@ -729,7 +729,7 @@ export function maakDossierWeergave(input: {
     })),
     betalingen,
     betaalToelichting: input.betaalregelsZichtbaar
-      ? 'De status komt uit de betaalregels. Het oudere veld aanbetaling_ontvangen beslist niet. Een status is geen knop om een betaling te registreren.'
+      ? 'De status komt uit de betaalregels. Het oudere veld aanbetaling_ontvangen beslist niet. Aanbetaling of volledige betaling zet je handmatig op ontvangen. Er gaat niets naar de bank en er gaat geen mail uit.'
       : 'Betaalregels zijn alleen zichtbaar met leesrecht op finance.',
     notities: [input.boeking.notities, input.boeking.toelichting, input.rij.bijzonderheden]
       .map((deel) => (deel ?? '').trim())

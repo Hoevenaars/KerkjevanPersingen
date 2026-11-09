@@ -2016,6 +2016,12 @@ export function formatConflictenCsv(plan: HistorischPlan): string {
   return `${regels.join('\n')}\n`;
 }
 
+export function applyGeblokkeerdDoorConflict(uitkomsten: readonly string[]): string | null {
+  const aantal = uitkomsten.filter((uitkomst) => uitkomst === 'CONFLICT_REVIEW_REQUIRED').length;
+  if (aantal === 0) return null;
+  return `${aantal} importregel${aantal === 1 ? '' : 's'} staan op CONFLICT_REVIEW_REQUIRED. Apply is gestopt. Er is niets geschreven.`;
+}
+
 export function sqlIsVeilig(sql: string[]): string[] {
   const fouten: string[] = [];
   const tekstSql = sql.join('\n').toLowerCase();

@@ -322,10 +322,10 @@ describe('agendaweergave', () => {
     assert.equal(dossier.fotoUrl, '/foto/expositie.jpg');
     assert.equal(dossier.documenten[0].url, null);
     assert.equal(dossier.intake[0].url, 'https://example.test/bestand');
-    assert.match(dossier.contractTekst, /Onbekend/);
+    assert.match(dossier.contractTekst, /handmatige keuze/);
     assert.equal(dossier.betalingen[0].tekst, 'Ontvangen');
     assert.match(dossier.betalingen[1].detail, /390/);
-    assert.match(dossier.betaalToelichting, /aanbetaling_ontvangen beslist niet/);
+    assert.match(dossier.betaalToelichting, /niets naar de bank/);
     assert.equal(stukKanBeoordelen(), false);
     const bron = dossierUitBron({
       boeking: { ...withaar, gastheerId: 'g', email: 'mirjam@example.test' },
