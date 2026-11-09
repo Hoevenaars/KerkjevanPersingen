@@ -53,7 +53,7 @@ export interface BeheerSnapshot {
   templates: DemoTemplate[];
   instellingen: DemoInstellingen;
   communicatie: { id: string; boekingId: string; template: string; status: string; wanneer: string; ontvanger: string }[];
-  documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string }[];
+  documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string; pad?: string; mime?: string }[];
   migratie: null;
   betalingen?: import('./beheer-supabase-lees.ts').BeheerBetaling[];
   toewijzingen?: import('./beheer-supabase-lees.ts').BeheerToewijzing[];
@@ -125,6 +125,14 @@ export async function demoSnapshot(reden = 'Voorbeelddata — niet gekoppeld aan
     communicatie: [...DEMO_COMMUNICATIE],
     documenten: [...DEMO_DOCUMENTEN],
     migratie: null,
+    betalingen: [
+      { id: 'demo-1', boekingId: 'b-042', soort: 'aanbetaling', bedrag: 100, status: 'ontvangen', vervaldatum: '', ontvangenOp: '2026-09-01' },
+      { id: 'demo-2', boekingId: 'b-042', soort: 'restant', bedrag: 390, status: 'open', vervaldatum: '2026-09-20', ontvangenOp: '' },
+      { id: 'demo-3', boekingId: 'b-040', soort: 'aanbetaling', bedrag: 100, status: 'ontvangen', vervaldatum: '', ontvangenOp: '2026-08-20' },
+      { id: 'demo-4', boekingId: 'b-040', soort: 'restant', bedrag: 390, status: 'ontvangen', vervaldatum: '', ontvangenOp: '2026-09-10' },
+      { id: 'demo-5', boekingId: 'b-043', soort: 'aanbetaling', bedrag: 100, status: 'ontvangen', vervaldatum: '', ontvangenOp: '2026-08-13' },
+      { id: 'demo-6', boekingId: 'b-043', soort: 'restant', bedrag: 450, status: 'ontvangen', vervaldatum: '', ontvangenOp: '2026-09-01' },
+    ],
   };
 }
 

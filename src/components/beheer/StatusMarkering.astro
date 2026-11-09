@@ -1,0 +1,20 @@
+---
+interface Props {
+  kleur: 'ok' | 'pending' | 'unknown' | 'no' | 'leeg';
+  tekst: string;
+}
+
+const { kleur, tekst } = Astro.props;
+const teken = kleur === 'ok' ? '✓' : kleur === 'pending' ? '!' : kleur === 'no' ? '×' : '?';
+---
+
+{
+  kleur === 'leeg' || tekst === '—' ? (
+    <span class="kc-staat kc-staat--unknown">—</span>
+  ) : (
+    <span class={`kc-staat kc-staat--${kleur}`}>
+      <span class="kc-staat-teken" aria-hidden="true">{teken}</span>
+      {tekst}
+    </span>
+  )
+}

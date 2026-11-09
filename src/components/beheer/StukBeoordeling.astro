@@ -1,0 +1,21 @@
+---
+import { STUK_BEOORDELING_BLOKKADE, stukKanBeoordelen } from '../../platform/verhuur-scherm.ts';
+
+const actief = stukKanBeoordelen();
+---
+
+<div class="kc-beoordeel" data-stuk-actief={actief ? 'ja' : 'nee'}>
+  <p class="kc-bijschrift">Beoordelaar: nog niet vastgelegd</p>
+  <p class="kc-bijschrift">Datum beoordeling: nog niet vastgelegd</p>
+  <label>
+    Reden bij afkeuren
+    <textarea name="reden" rows="2" disabled={!actief} placeholder="De reden wordt bewaard zodra de opslag is goedgekeurd."></textarea>
+  </label>
+  <div class="kc-beoordeel-knoppen">
+    <button class="kc-knop kc-knop--olijf" type="button" disabled={!actief}>Goedkeuren</button>
+    <button class="kc-knop" type="button" disabled={!actief}>Afkeuren</button>
+  </div>
+  <p class="kc-bijschrift">
+    {STUK_BEOORDELING_BLOKKADE} Na een nieuwe upload kan opnieuw worden beoordeeld. De eerdere beslissing blijft dan staan en geldt niet voor de nieuwe versie.
+  </p>
+</div>

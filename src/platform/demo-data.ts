@@ -81,6 +81,9 @@ export interface DemoActiviteit {
   soort?: string;
   publicatiestatus?: 'publiek' | 'bezet' | 'verborgen' | null;
   contentstatus?: string | null;
+  inhoudStatus?: string | null;
+  inhoudVersie?: number | null;
+  beoordelingToelichting?: string;
   levenscyclus?: 'actief' | 'geannuleerd';
   annuleringsreden?: string;
   geannuleerdOp?: string;
@@ -344,7 +347,9 @@ export const DEMO_AGENDA: DemoActiviteit[] = [
     start: '2026-09-19',
     eind: '2026-09-20',
     status: 'mist_content',
-    omschrijving: '',
+    omschrijving: 'Keramiek uit de Ooijpolder.',
+    inhoudStatus: 'goedgekeurd',
+    fotoPad: '/foto/verhuur-ruimte.jpg',
   },
   {
     id: 'p-042',
@@ -355,6 +360,8 @@ export const DEMO_AGENDA: DemoActiviteit[] = [
     eind: '2026-09-13',
     status: 'wacht_op_definitief',
     omschrijving: 'Schilderijen over de Ooijpolder.',
+    inhoudStatus: 'ingediend',
+    inhoudVersie: 1,
   },
 ];
 

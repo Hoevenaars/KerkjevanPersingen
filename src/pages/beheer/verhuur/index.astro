@@ -1,31 +1,55 @@
 ---
 export const prerender = false;
 
-import Beheer from '../../../layouts/Beheer.astro';
+import BeheerConcept from '../../../layouts/BeheerConcept.astro';
+import StatusMarkering from '../../../components/beheer/StatusMarkering.astro';
+import VerhuurDossier from '../../../components/beheer/VerhuurDossier.astro';
 import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { formatMaandNl, SOORT_LABEL } from '../../../platform/demo-data.ts';
-import { magZien } from '../../../platform/rechten.ts';
+import { magSchrijven, magZien } from '../../../platform/rechten.ts';
 import { verhuurOverzichtAan, verhuurVerzoekToegestaan } from '../../../platform/verhuur-vlag.ts';
+import { maakVerhuurOverzicht, type DossierSporen, type OverzichtBron } from '../../../platform/verhuur-overzicht.ts';
+import { leesDossierSporen } from '../../../platform/verhuur-dossier-lees.ts';
 import {
-  bolTekst,
-  leesPeriodeKeuze,
-  maakVerhuurOverzicht,
-  rijKlasse,
-  type OverzichtBron,
-} from '../../../platform/verhuur-overzicht.ts';
+  bouwSchermRijen,
+  dossierUitBron,
+  leesSchermFilter,
+  maakDossierWeergave,
+  mobielStatus,
+  staatKleur,
+  verhuurQuery,
+  type SchermActiviteit,
+  type SchermRij,
+} from '../../../platform/verhuur-scherm.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+import { lijstIntake } from '../../../lib/intake-opslag.ts';
+import { documentLinks } from '../../../lib/verhuur-document-link.ts';
 
 if (!verhuurOverzichtAan()) return beheerUitResponse();
 if (!verhuurVerzoekToegestaan(Astro.request.method)) {
-  return new Response('Dit scherm wijzigt niets.', { status: 405, headers: { 'Cache-Control': 'no-store' } });
+  return new Response('Dit scherm wijzigt niets. Een gastheer kies je via de aparte knop in het dossier.', {
+    status: 405,
+    headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+  });
 }
 
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const magGastheer = magSchrijven(rechten, 'boekingen') && !Astro.locals.beheer?.viewAs;
+const vandaag = ymdInAmsterdam(new Date());
+
+function adres(wijziging: Parameters<typeof verhuurQuery>[1] = {}): string {
+  return verhuurQuery(Astro.url.searchParams, wijziging);
+}
+
+function activiteitLabel(waarde: string): string {
+  return SOORT_LABEL[waarde] ?? waarde;
+}
+
 const betaalregelsZichtbaar = magZien(rechten, 'finance');
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
-const vandaag = ymdInAmsterdam(new Date());
-const keuze = leesPeriodeKeuze(Astro.url.searchParams, vandaag);
+const filter = leesSchermFilter(Astro.url.searchParams, vandaag);
 const bronnen: OverzichtBron[] = snapshot.agenda
   .filter((item) => item.tabel === 'activiteit_bron')
   .map((item) => ({
@@ -36,20 +60,21 @@ const bronnen: OverzichtBron[] = snapshot.agenda
     zichtbaarheid: item.publicatiestatus ?? null,
     levenscyclus: item.levenscyclus === 'geannuleerd' ? 'geannuleerd' : 'actief',
   }));
+const blokkades = snapshot.intern.map((item) => ({
+  id: item.id,
+  titel: item.titel,
+  start: item.start,
+  eind: item.eind,
+  blokkeert: item.blokkeert,
+  notities: item.notities ?? '',
+}));
 const overzicht = maakVerhuurOverzicht({
-  jaar: keuze.jaar,
-  maand: keuze.maand,
+  jaar: filter.jaar,
+  maand: filter.maand,
   boekingen: snapshot.boekingen,
   betalingen: snapshot.betalingen ?? [],
   betaalregelsZichtbaar,
-  blokkades: snapshot.intern.map((item) => ({
-    id: item.id,
-    titel: item.titel,
-    start: item.start,
-    eind: item.eind,
-    blokkeert: item.blokkeert,
-    notities: item.notities ?? '',
-  })),
+  blokkades,
   bronnen,
   aanvragen: snapshot.aanvragen,
   documenten: snapshot.documenten.map((item) => ({
@@ -59,180 +84,365 @@ const overzicht = maakVerhuurOverzicht({
     datum: item.datum,
   })),
 });
-const bronParam = Astro.url.searchParams.get('bron');
-const maanden = Array.from({ length: 12 }, (_, index) => {
-  const nummer = index + 1;
-  const sleutel = `${keuze.jaar}-${String(nummer).padStart(2, '0')}`;
-  return { waarde: String(nummer), label: formatMaandNl(sleutel).replace(` ${keuze.jaar}`, '') };
+const activiteiten: SchermActiviteit[] = snapshot.agenda;
+const schermBron = {
+  boekingen: snapshot.boekingen,
+  gastheren: snapshot.gastheren,
+  toewijzingen: (snapshot.toewijzingen ?? []).map((item) => ({
+    boekingId: item.boekingId,
+    relatieId: item.relatieId,
+    relatieNaam: item.relatieNaam,
+  })),
+  activiteiten,
+};
+const scherm = bouwSchermRijen({
+  overzicht,
+  ...schermBron,
+  zoek: filter.zoek,
+  alleenAandacht: filter.aandacht,
 });
 
-function activiteitLabel(waarde: string): string {
-  return SOORT_LABEL[waarde] ?? waarde;
+const dossierId = Astro.url.searchParams.get('dossier');
+const rijSleutel = Astro.url.searchParams.get('rij');
+let dossierRij: SchermRij | null = scherm.rijen.find((rij) => rij.boekingId === dossierId) ?? null;
+if (dossierId && !dossierRij) {
+  const buiten = maakVerhuurOverzicht({
+    jaar: filter.jaar,
+    maand: null,
+    boekingen: snapshot.boekingen,
+    betalingen: snapshot.betalingen ?? [],
+    betaalregelsZichtbaar,
+    blokkades,
+    bronnen,
+    aanvragen: snapshot.aanvragen,
+    documenten: [],
+  });
+  dossierRij = bouwSchermRijen({ overzicht: buiten, ...schermBron, zoek: '', alleenAandacht: false }).rijen.find((rij) => rij.boekingId === dossierId) ?? null;
 }
+const paneelRij = !dossierRij && rijSleutel ? scherm.rijen.find((rij) => rij.sleutel === rijSleutel) ?? null : null;
+const boeking = dossierRij?.boekingId ? snapshot.boekingen.find((item) => item.id === dossierRij?.boekingId) ?? null : null;
+const activiteit = boeking
+  ? snapshot.agenda.find((item) => item.boekingId === boeking.id && item.tabel !== 'activiteit_bron') ?? null
+  : null;
+const relatie = boeking ? snapshot.relaties.find((item) => item.id === boeking.relatieId) ?? null : null;
+
+let dossier = null;
+let bronWeergave: ReturnType<typeof dossierUitBron> | null = null;
+if (boeking && dossierRij) {
+  const docs = snapshot.documenten.filter((item) => item.boekingId === boeking.id);
+  const links = snapshot.bron === 'supabase' ? await documentLinks(sessieSupabaseUitAstro(Astro), docs) : {};
+  const intake = snapshot.bron === 'supabase'
+    ? (await lijstIntake(boeking.id).catch(() => [])).map((bestand, index) => ({
+        naam: bestand.rol === 'hoofd' ? 'Hoofdfoto, privé aangeleverd' : `Extra bestand ${index + 1}`,
+        url: bestand.url,
+      }))
+    : [];
+  const relatieKaart = relatie
+    ? {
+        naam: relatie.naam,
+        organisatie: relatie.organisatie ?? '',
+        email: relatie.email,
+        telefoon: relatie.telefoon,
+        adres: relatie.adres ?? '',
+      }
+    : null;
+  dossier = maakDossierWeergave({
+    rij: dossierRij,
+    boeking,
+    relatie: relatieKaart,
+    activiteit,
+    gastheren: snapshot.gastheren,
+    toewijzingen: schermBron.toewijzingen.filter((item) => item.boekingId === boeking.id),
+    documenten: docs.map((item) => ({ ...item, url: links[item.id] ?? null })),
+    betalingen: (snapshot.betalingen ?? []).filter((item) => item.boekingId === boeking.id),
+    betaalregelsZichtbaar,
+    intake,
+  });
+  const auditZichtbaar = Boolean(Astro.locals.beheer?.rechten.isSuperAdmin && !Astro.locals.beheer.viewAs);
+  const leeg: DossierSporen = { verzendingen: [], verzendingFout: null, audit: [], auditFout: null, auditZichtbaar };
+  const sporen = snapshot.bron === 'supabase'
+    ? await leesDossierSporen(sessieSupabaseUitAstro(Astro), boeking.id, auditZichtbaar)
+    : leeg;
+  bronWeergave = dossierUitBron({
+    boeking,
+    invoer: {
+      jaar: filter.jaar,
+      maand: filter.maand,
+      boekingen: snapshot.boekingen,
+      betalingen: snapshot.betalingen ?? [],
+      betaalregelsZichtbaar,
+      blokkades,
+      bronnen,
+      aanvragen: snapshot.aanvragen,
+      documenten: snapshot.documenten.map((item) => ({
+        boekingId: item.boekingId,
+        naam: item.naam,
+        soort: item.soort,
+        datum: item.datum,
+      })),
+    },
+    relatie: relatieKaart,
+    activiteit: activiteit
+      ? {
+          titel: activiteit.titel,
+          zichtbaarheid: activiteit.publicatiestatus ?? '',
+          levenscyclus: activiteit.levenscyclus ?? 'actief',
+        }
+      : null,
+    sporen,
+  });
+}
+
+const maanden = Array.from({ length: 12 }, (_, index) => {
+  const nummer = index + 1;
+  const sleutel = `${filter.jaar}-${String(nummer).padStart(2, '0')}`;
+  return { waarde: String(nummer), label: formatMaandNl(sleutel).replace(` ${filter.jaar}`, '') };
+});
+const melding = Astro.url.searchParams.get('melding');
+const fout = Astro.url.searchParams.get('fout');
+const bronParam = Astro.url.searchParams.get('bron');
+const sluitHref = adres({ dossier: null, rij: null, weg: null });
+const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null });
 ---
 
-<Beheer titel="Verhuur">
-  <div class="vh-scherm">
-    <header class="bh-top">
+<BeheerConcept titel="Verhuuragenda" actief="verhuur">
+  <main class="kc-pagina" id="kc-lijst">
+    <div class="kc-kop">
       <div>
-        <p class="bh-label">Verhuur</p>
-        <h1>Verhuuroverzicht</h1>
-        <p class="bh-hint">
-          Alleen lezen. Hier verandert geen boeking, aanvraag, betaling of mail. De bestaande beheerpagina's blijven de plek om te wijzigen.
-        </p>
+        <p class="kc-wenkbrauw">Beheer · Kerkje van Persingen</p>
+        <h1>Verhuuragenda</h1>
+        <p class="kc-inleiding">Alle weekenden onder elkaar. Klik op een huurder om het dossier te openen.</p>
       </div>
-    </header>
+      {magGastheer && <a class="kc-knop kc-knop--primair" href="/beheer/boekingen/nieuw/">+ Nieuwe boeking</a>}
+    </div>
 
-    <section class="vh-aanvragen" aria-labelledby="vh-aanvragen-kop">
-      <h2 id="vh-aanvragen-kop">Nog te verwerken aanvragen</h2>
-      <p>
-        Een aanvraag zonder boeking is geen bezetting. Zij staat niet als vastgelegd weekend in de tabel hieronder.
-      </p>
+    {melding && <p class="kc-melding" role="status">{melding}</p>}
+    {fout && <p class="kc-fout" role="alert">{fout}</p>}
+
+    {
+      scherm.aandachtAantal > 0 && (
+        <div class="kc-aandacht">
+          <span aria-hidden="true">✧</span>
+          <div>
+            <strong>Er zijn dossiers die aandacht vragen</strong>
+            <p>
+              {scherm.aandachtAantal} {scherm.aandachtAantal === 1 ? 'rij' : 'rijen'} in deze periode: open betaling, inhoud of een ontbrekende gastheer.
+            </p>
+          </div>
+          <a class="kc-knop" href={aandachtHref}>Bekijk aandachtspunten →</a>
+        </div>
+      )
+    }
+
+    <section class="kc-aanvragen" aria-labelledby="kc-aanvragen-kop">
+      <h2 id="kc-aanvragen-kop">Nog te verwerken aanvragen</h2>
+      <p>Een aanvraag zonder boeking is geen bezetting. Zij staat niet als vastgelegd weekend in de lijst hieronder.</p>
       {
         overzicht.aanvragen.length === 0 ? (
           <p>Geen open aanvraag in deze periode.</p>
         ) : (
-          <table class="bh-tabel">
-            <thead>
-              <tr>
-                <th>Periode</th>
-                <th>Naam</th>
-                <th>Activiteit</th>
-                <th>Stand</th>
-                <th>Bestaande administratie</th>
-              </tr>
-            </thead>
-            <tbody>
-              {overzicht.aanvragen.map((aanvraag) => (
-                <tr>
-                  <td>{aanvraag.periodeLabel}</td>
-                  <td>{aanvraag.naam}</td>
-                  <td>{activiteitLabel(aanvraag.soort)}</td>
-                  <td>
+          <div>
+            {
+              overzicht.aanvragen.map((aanvraag) => (
+                <div class="kc-aanvraag">
+                  <span>{aanvraag.periodeLabel}</span>
+                  <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`}>{aanvraag.naam}</a>
+                  <span>{activiteitLabel(aanvraag.soort)}</span>
+                  <span>
                     {aanvraag.statusLabel}
                     {aanvraag.heeftBoeking ? ' · heeft al een boeking' : ' · nog geen boeking'}
-                  </td>
-                  <td>
-                    <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`}>Open de bestaande aanvraag</a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </span>
+                </div>
+              ))
+            }
+          </div>
         )
       }
       {
         overzicht.aanvragenBuitenPeriode > 0 && (
-          <p>Er {overzicht.aanvragenBuitenPeriode === 1 ? 'is' : 'zijn'} nog {overzicht.aanvragenBuitenPeriode} open {overzicht.aanvragenBuitenPeriode === 1 ? 'aanvraag' : 'aanvragen'} buiten deze periode.</p>
+          <p>
+            Er {overzicht.aanvragenBuitenPeriode === 1 ? 'is' : 'zijn'} nog {overzicht.aanvragenBuitenPeriode} open {overzicht.aanvragenBuitenPeriode === 1 ? 'aanvraag' : 'aanvragen'} buiten deze periode.
+            {' '}
+            <a href="/beheer/aanvragen/">Alle aanvragen</a>
+          </p>
         )
       }
     </section>
 
-    <form class="vh-kies" method="get" action="/beheer/verhuur/">
+    <form class="kc-filters" method="get" action="/beheer/verhuur/">
       {bronParam === 'demo' && <input type="hidden" name="bron" value="demo" />}
-      <label>
-        Jaar
-        <select name="jaar">
+      <div class="kc-veld">
+        <label for="jaar">Jaar</label>
+        <select id="jaar" name="jaar" onchange="this.form.requestSubmit()">
           {overzicht.jaren.map((jaar) => (
-            <option value={jaar} selected={jaar === keuze.jaar}>{jaar}</option>
+            <option value={jaar} selected={jaar === filter.jaar}>{jaar}</option>
           ))}
         </select>
-      </label>
-      <label>
-        Maand
-        <select name="maand">
-          <option value="alle" selected={keuze.maand == null}>Heel het jaar</option>
+      </div>
+      <div class="kc-veld">
+        <label for="maand">Maand</label>
+        <select id="maand" name="maand" onchange="this.form.requestSubmit()">
+          <option value="alle" selected={filter.maand == null}>Heel het jaar</option>
           {maanden.map((maand) => (
-            <option value={maand.waarde} selected={String(keuze.maand ?? '') === maand.waarde}>{maand.label}</option>
+            <option value={maand.waarde} selected={String(filter.maand ?? '') === maand.waarde}>{maand.label}</option>
           ))}
         </select>
+      </div>
+      <div class="kc-veld kc-veld--zoek">
+        <label for="query">Zoek huurder of activiteit</label>
+        <input id="query" class="kc-zoek" name="q" type="search" placeholder="Bijvoorbeeld: Marieke Jansen" value={filter.zoek} />
+      </div>
+      <label class="kc-vink">
+        <input type="checkbox" name="aandacht" value="1" checked={filter.aandacht} onchange="this.form.requestSubmit()" />
+        Alleen aandachtspunten
       </label>
-      <button class="bh-btn" type="submit">Toon</button>
+      <button class="kc-knop" type="submit">Toon</button>
     </form>
 
-    <div class="vh-tabel-wrap">
-      <table class="bh-tabel vh-tabel">
-        <thead>
-          <tr>
-            <th>Weekend / periode</th>
-            <th>Huurder</th>
-            <th>Activiteit</th>
-            <th>Contractstatus</th>
-            <th>Aanbetaling</th>
-            <th>Restbetaling</th>
-            <th>Bijzonderheden</th>
-            <th>Details openen</th>
-          </tr>
-        </thead>
-        <tbody>
-          {
-            overzicht.rijen.length === 0 ? (
-              <tr>
-                <td colspan="8">Geen periodes in deze selectie.</td>
-              </tr>
-            ) : (
-              overzicht.rijen.map((rij) => (
-                <tr class={rijKlasse(rij)}>
-                  <td>
-                    {rij.periodeLabel}
-                    <span class="vh-status">{rij.statusLabel}</span>
-                  </td>
-                  <td>
-                    {rij.huurder}
-                    {rij.huurderExtra && <span class="vh-status">Mede-exposant: {rij.huurderExtra}</span>}
-                  </td>
-                  <td>{activiteitLabel(rij.activiteit)}</td>
-                  <td>
-                    {rij.herkomst === 'boeking' ? (
-                      <span class={`vh-bol vh-bol--${rij.contract}`}><span class="vh-bol-stip" aria-hidden="true"></span>{bolTekst(rij.contract, 'contract')}</span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    {rij.herkomst === 'boeking' ? (
-                      <span class={`vh-bol vh-bol--${rij.aanbetaling}`}><span class="vh-bol-stip" aria-hidden="true"></span>{bolTekst(rij.aanbetaling, 'betaling')}</span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    {rij.herkomst === 'boeking' ? (
-                      <span class={`vh-bol vh-bol--${rij.rest}`}><span class="vh-bol-stip" aria-hidden="true"></span>{bolTekst(rij.rest, 'betaling')}</span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>{rij.bijzonderheden}</td>
-                  <td>
-                    {rij.boekingId ? (
-                      <a href={`/beheer/verhuur/${encodeURIComponent(rij.boekingId)}/`}>Open dossier</a>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
-              ))
-            )
-          }
-        </tbody>
-      </table>
+    <div class="kc-lijst">
+      <div class="kc-koprij">
+        <span>Weekend</span>
+        <span>Huurder / activiteit</span>
+        <span>Contract</span>
+        <span>Stukken</span>
+        <span>Aanbetaling</span>
+        <span>Restant</span>
+        <span class="kc-gastheer-kolom">Gastheer</span>
+        <span></span>
+      </div>
+      {
+        scherm.rijen.length === 0 ? (
+          <p class="kc-leeg">Geen periodes gevonden. Pas de maand of de zoekopdracht aan.</p>
+        ) : (
+          scherm.rijen.map((rij) => {
+            const open = rij.boekingId ? adres({ dossier: rij.boekingId, rij: null, weg: null }) : adres({ rij: rij.sleutel, dossier: null, weg: null });
+            const gekozen = rij.boekingId === dossierId || rij.sleutel === rijSleutel;
+            return (
+              <a
+                class:list={[
+                  'kc-rij',
+                  rij.herkomst === 'vrij' && 'kc-rij--vrij',
+                  rij.herkomst === 'winterstop' && 'kc-rij--winter',
+                  rij.herkomst === 'boeking' && !rij.bezet && 'kc-rij--geannuleerd',
+                  gekozen && 'kc-rij--open',
+                ]}
+                href={open}
+                data-kc-open
+                aria-current={gekozen ? 'true' : undefined}
+                aria-label={`Open ${rij.huurder}, ${rij.datum}`}
+              >
+                <span class="kc-datum">{rij.datum}<small>{rij.jaar}</small></span>
+                <span class="kc-huurder">
+                  {rij.huurder}
+                  <small>{rij.activiteit}</small>
+                  <small class="kc-mobiel">{mobielStatus(rij)}</small>
+                </span>
+                <span class="kc-kolom">
+                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.contract)} tekst={rij.contractTekst} /> : '—'}
+                </span>
+                <span class="kc-kolom">
+                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.stukken)} tekst={rij.stukkenTekst} /> : '—'}
+                </span>
+                <span class="kc-kolom">
+                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.aanbetaling)} tekst={rij.aanbetalingTekst} /> : '—'}
+                </span>
+                <span class="kc-kolom">
+                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.rest)} tekst={rij.restTekst} /> : '—'}
+                </span>
+                <span class="kc-kolom kc-gastheer-kolom">{rij.herkomst === 'boeking' ? (rij.gastheer || 'Nog kiezen') : '—'}</span>
+                <span class="kc-pijl" aria-hidden="true">›</span>
+              </a>
+            );
+          })
+        )
+      }
     </div>
 
-    <section class="vh-bronnen">
-      <h2>Waar deze tabel vandaan komt</h2>
-      <ul>
-        <li>Bezetting: dezelfde statussen als de publieke functie publieke_bezetting. migratie_vastgelegd telt mee. Een aanvraag niet.</li>
-        <li>Aanbetaling en restbetaling: tabel betalingen. Het veld aanbetaling_ontvangen beslist niet.</li>
-        <li>Contractstatus: Onbekend. Er is geen contractkolom, en de ruwe importtekst wordt niet als status gelezen.</li>
-        <li>Vrije weekenden: zaterdag en zondag die door geen boeking, winterstop of kalenderbron bezet zijn.</li>
-      </ul>
-      <h2>Nog niet gekoppeld</h2>
-      <ul>
-        <li>Een boeking verplaatsen, een status wijzigen, een betaling vastleggen of een mail sturen.</li>
-        <li>Refunds en workflow.</li>
-        <li>Handmatig een bolletje zetten.</li>
-      </ul>
-    </section>
-  </div>
-</Beheer>
+    <div class="kc-legenda">
+      <span><i style="background:#6b9562"></i> Afgerond</span>
+      <span><i style="background:#d7a14d"></i> Actie nodig</span>
+      <span><i style="background:#8f8b82"></i> Onbekend</span>
+      <span><i style="background:#b8cab3"></i> Vrij weekend</span>
+    </div>
+    <p class="kc-noot">
+      Bezetting volgt de publieke verhuurkalender. Een aanvraag zonder boeking is niet bezet. Een geannuleerde boeking telt niet als bezet.
+      Betalingen komen uit de betaalregels. Contractstatus blijft Onbekend zolang er geen betrouwbaar veld is.
+      De bestaande beheerpagina's blijven beschikbaar via Beheeromgeving.
+    </p>
+  </main>
+
+  {
+    dossier && (
+      <VerhuurDossier
+        dossier={dossier}
+        sluitHref={sluitHref}
+        bevestigHref={adres({ dossier: dossier.id, weg: '1', rij: null })}
+        formulierActie="/beheer/verhuur/gastheer"
+        terug={adres({ dossier: dossier.id, weg: null, rij: null })}
+        magSchrijven={magGastheer}
+        demo={snapshot.bron !== 'supabase'}
+        weg={Astro.url.searchParams.get('weg') === '1'}
+        gegevens={bronWeergave?.gegevens ?? []}
+        betaalregels={bronWeergave?.betaling ?? []}
+        geschiedenis={bronWeergave?.geschiedenis ?? []}
+        geschiedenisToelichting={bronWeergave?.geschiedenisToelichting ?? ''}
+        oudHref={`/beheer/boekingen/${encodeURIComponent(dossier.id)}/`}
+      />
+    )
+  }
+
+  {
+    paneelRij && (
+      <div class="kc-overlay">
+        <a class="kc-achter" href={sluitHref}><span>Sluit</span></a>
+        <aside class="kc-lade" role="dialog" aria-modal="true" aria-labelledby="kc-vrij-naam" tabindex="-1" data-kc-dossier>
+          <div class="kc-lade-kop">
+            <div class="kc-lade-top">
+              <p class="kc-wenkbrauw">{paneelRij.datum} {paneelRij.jaar}</p>
+              <a class="kc-sluit" id="kc-sluit" href={sluitHref} aria-label="Sluit">×</a>
+            </div>
+            <h2 id="kc-vrij-naam">{paneelRij.huurder}</h2>
+            <p class="kc-sub">{paneelRij.activiteit}</p>
+          </div>
+          <div class="kc-lade-lichaam">
+            <div class="kc-oproep">
+              <div>
+                <strong>{paneelRij.herkomst === 'vrij' ? 'Dit weekend is vrij' : paneelRij.huurder}</strong>
+                <p>{paneelRij.bijzonderheden || 'Er is geen boeking op deze periode.'}</p>
+              </div>
+            </div>
+            {paneelRij.herkomst === 'vrij' && magGastheer && (
+              <p><a class="kc-knop kc-knop--primair" href="/beheer/boekingen/nieuw/">+ Nieuwe boeking</a></p>
+            )}
+          </div>
+          <div class="kc-lade-voet">
+            <span class="kc-bijschrift">Niets wordt gewijzigd.</span>
+            <a class="kc-knop kc-knop--primair" href={sluitHref}>Sluiten</a>
+          </div>
+        </aside>
+      </div>
+    )
+  }
+
+  <script>
+    const sleutel = 'kc-verhuur-scroll';
+    const lade = document.querySelector('[data-kc-dossier]');
+    const opgeslagen = sessionStorage.getItem(sleutel);
+    if (!lade && opgeslagen) {
+      const y = Number(opgeslagen);
+      if (Number.isFinite(y)) requestAnimationFrame(() => window.scrollTo(0, y));
+      sessionStorage.removeItem(sleutel);
+    }
+    const bewaar = () => sessionStorage.setItem(sleutel, String(window.scrollY));
+    document.querySelectorAll('[data-kc-open]').forEach((element) => {
+      element.addEventListener('click', bewaar);
+    });
+    document.querySelectorAll('form[data-kc-bewaar]').forEach((element) => {
+      element.addEventListener('submit', bewaar);
+    });
+    if (lade instanceof HTMLElement) lade.focus();
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') document.getElementById('kc-sluit')?.click();
+    });
+  </script>
+</BeheerConcept>

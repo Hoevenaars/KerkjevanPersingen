@@ -52,6 +52,8 @@ describe('route → module', () => {
     assert.equal(moduleVoorPad('/beheer/finance/'), 'finance');
     assert.equal(moduleVoorPad('/beheer/verhuur/'), 'boekingen');
     assert.equal(moduleVoorPad('/beheer/verhuur/67/'), 'boekingen');
+    assert.equal(moduleVoorPad('/beheer/verhuur/gastheer'), 'boekingen');
+    assert.equal(moduleVoorPad('/beheer/website/'), 'agenda');
     assert.equal(moduleVoorPad('/beheer/'), 'dashboard');
   });
 });
@@ -111,6 +113,28 @@ describe('server-side toegang', () => {
   });
 
   test('lezen blokkeert mutaties, schrijven niet', () => {
+    assert.equal(
+      beheerToegang({
+        methode: 'POST',
+        module: moduleVoorPad('/beheer/verhuur/gastheer'),
+        ingelogd: true,
+        actief: true,
+        rechten: paul,
+        viewAsActief: false,
+      }),
+      'alleen_lezen',
+    );
+    assert.equal(
+      beheerToegang({
+        methode: 'GET',
+        module: moduleVoorPad('/beheer/verhuur/'),
+        ingelogd: true,
+        actief: true,
+        rechten: paul,
+        viewAsActief: false,
+      }),
+      'ok',
+    );
     assert.equal(
       beheerToegang({
         methode: 'POST',
