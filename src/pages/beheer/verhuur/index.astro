@@ -7,13 +7,14 @@ import VerhuurDossier from '../../../components/beheer/VerhuurDossier.astro';
 import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
-import { formatMaandNl, SOORT_LABEL } from '../../../platform/demo-data.ts';
+import { BOEKING_LABEL, formatMaandNl, SOORT_LABEL } from '../../../platform/demo-data.ts';
 import { magSchrijven, magZien } from '../../../platform/rechten.ts';
 import { verhuurOverzichtAan, verhuurVerzoekToegestaan } from '../../../platform/verhuur-vlag.ts';
 import { maakVerhuurOverzicht, type DossierSporen, type OverzichtBron } from '../../../platform/verhuur-overzicht.ts';
 import { leesDossierSporen } from '../../../platform/verhuur-dossier-lees.ts';
 import {
   bouwSchermRijen,
+  dossierActiesZichtbaar,
   dossierUitBron,
   leesSchermFilter,
   maakDossierWeergave,
@@ -366,7 +367,7 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
     </div>
     <p class="kc-noot">
       Bezetting volgt de publieke verhuurkalender. Een aanvraag zonder boeking is niet bezet. Een geannuleerde boeking telt niet als bezet.
-      Betalingen komen uit de betaalregels. Contractstatus blijft Onbekend zolang er geen betrouwbaar veld is.
+      Betalingen komen uit de betaalregels. Een betaling registreren en een stuk goedkeuren blijven uit: die paden mailen of publiceren. Contractstatus blijft Onbekend zolang er geen betrouwbaar veld is. Dossieracties in dit scherm sturen geen mail.
       De bestaande beheerpagina's blijven beschikbaar via Beheeromgeving.
     </p>
   </main>
@@ -378,10 +379,16 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
         sluitHref={sluitHref}
         bevestigHref={adres({ dossier: dossier.id, weg: '1', rij: null })}
         formulierActie="/beheer/verhuur/gastheer"
+        dossierActie="/beheer/verhuur/dossier"
         terug={adres({ dossier: dossier.id, weg: null, rij: null })}
         magSchrijven={magGastheer}
         demo={snapshot.bron !== 'supabase'}
         weg={Astro.url.searchParams.get('weg') === '1'}
+        status={(boeking && BOEKING_LABEL[boeking.status]) || boeking?.status || 'onbekend'}
+        acties={dossierActiesZichtbaar(boeking?.status ?? '')}
+        incidenten={(snapshot.incidenten ?? [])
+          .filter((item) => item.boekingId === boeking?.id && item.status !== 'gesloten')
+          .map((item) => ({ id: item.id, omschrijving: item.omschrijving }))}
         gegevens={bronWeergave?.gegevens ?? []}
         betaalregels={bronWeergave?.betaling ?? []}
         geschiedenis={bronWeergave?.geschiedenis ?? []}

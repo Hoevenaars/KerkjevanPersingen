@@ -1,17 +1,21 @@
 ---
 import StatusMarkering from './StatusMarkering.astro';
 import StukBeoordeling from './StukBeoordeling.astro';
-import { staatKleur, type DossierWeergave } from '../../platform/verhuur-scherm.ts';
+import { staatKleur, type DossierActieZichtbaar, type DossierWeergave } from '../../platform/verhuur-scherm.ts';
 
 interface Props {
   dossier: DossierWeergave;
   sluitHref: string;
   bevestigHref: string;
   formulierActie: string;
+  dossierActie: string;
   terug: string;
   magSchrijven: boolean;
   demo: boolean;
   weg: boolean;
+  status: string;
+  acties: DossierActieZichtbaar;
+  incidenten: { id: string; omschrijving: string }[];
   gegevens: { label: string; waarde: string }[];
   betaalregels: { label: string; waarde: string }[];
   geschiedenis: { label: string; waarde: string }[];
@@ -24,10 +28,14 @@ const {
   sluitHref,
   bevestigHref,
   formulierActie,
+  dossierActie,
   terug,
   magSchrijven,
   demo,
   weg,
+  status,
+  acties,
+  incidenten,
   gegevens,
   betaalregels,
   geschiedenis,
@@ -266,6 +274,129 @@ const aantal = dossier.taken.length;
               </>
             ) : (
               <p>Je kunt de gastheer bekijken. Wijzigen vraagt schrijfrecht op boekingen.</p>
+            )
+          }
+        </div>
+      </section>
+
+      <section class="kc-kaart">
+        <h3>Dossieracties</h3>
+        <div class="kc-kaart-inhoud">
+          <p class="kc-bijschrift">Huidige status: {status || 'onbekend'}</p>
+          <p>
+            Dit zijn de acties van de bestaande boekingspagina. Zij gebruiken je ingelogde sessie.
+            Er gaat geen mail uit en er start geen workflow.
+            {demo ? ' Dit is een voorbeeld: er wordt niets opgeslagen.' : ''}
+          </p>
+          {
+            acties.migratie && (
+              <p>Een vastgelegde migratieboeking kan niet via deze knoppen definitief worden of terug naar een optie.</p>
+            )
+          }
+          {
+            magSchrijven ? (
+              <>
+                {
+                  acties.definitief && (
+                    <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                      <input type="hidden" name="actie" value="definitief" />
+                      <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="terug" value={terug} />
+                      <label>
+                        Reden bij definitief zetten
+                        <input name="reden" type="text" required maxlength="240" />
+                      </label>
+                      <p class="kc-bijschrift">
+                        Aanbetaling is geen voorwaarde. Een bestaande activiteit blijft staan. Ontbreekt die, dan wordt de periode als bezet vastgelegd en niet als pagina op de site.
+                      </p>
+                      <label class="kc-vink">
+                        <input type="checkbox" name="bevestig" value="ja" required />
+                        Zet definitief. Er gaat geen mail uit.
+                      </label>
+                      <button class="kc-knop kc-knop--olijf" type="submit">Zet definitief</button>
+                    </form>
+                  )
+                }
+                {
+                  acties.verleng && (
+                    <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                      <input type="hidden" name="actie" value="verleng" />
+                      <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="terug" value={terug} />
+                      <label class="kc-vink">
+                        <input type="checkbox" name="bevestig" value="ja" required />
+                        Verleng de optie. Er gaat geen mail uit.
+                      </label>
+                      <button class="kc-knop kc-knop--olijf" type="submit">Verleng optie</button>
+                    </form>
+                  )
+                }
+                {
+                  acties.annuleer && (
+                    <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                      <input type="hidden" name="actie" value="annuleer" />
+                      <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="terug" value={terug} />
+                      <label>
+                        Reden annulering
+                        <textarea name="reden" rows="3" maxlength="500" placeholder="Bijvoorbeeld: weg afgesloten"></textarea>
+                      </label>
+                      <p class="kc-bijschrift">
+                        Een gekoppelde activiteit gaat van de publieke agenda. Open betaalregels blijven staan. Er gaat geen mail uit.
+                      </p>
+                      <label class="kc-vink">
+                        <input type="checkbox" name="bevestig" value="ja" required />
+                        Annuleer deze boeking.
+                      </label>
+                      <button class="kc-knop" type="submit">Annuleer</button>
+                    </form>
+                  )
+                }
+                <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                  <input type="hidden" name="actie" value="incident" />
+                  <input type="hidden" name="boekingId" value={dossier.id} />
+                  <input type="hidden" name="terug" value={terug} />
+                  <label>
+                    Incident
+                    <textarea name="omschrijving" rows="3" required maxlength="500"></textarea>
+                  </label>
+                  <p class="kc-bijschrift">De boekingsstatus verandert niet. Een open incident houdt afronden tegen. Er gaat geen mail uit.</p>
+                  <button class="kc-knop" type="submit">Incident vastleggen</button>
+                </form>
+                {
+                  incidenten.map((incident) => (
+                    <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                      <input type="hidden" name="actie" value="incident_sluiten" />
+                      <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="incidentId" value={incident.id} />
+                      <input type="hidden" name="terug" value={terug} />
+                      <p>{incident.omschrijving}</p>
+                      <button class="kc-knop" type="submit">Incident sluiten</button>
+                    </form>
+                  ))
+                }
+                {
+                  acties.afronden && incidenten.length > 0 && (
+                    <p>Een open incident houdt het dossier open. Sluit het incident eerst. Er gaat geen mail uit.</p>
+                  )
+                }
+                {
+                  acties.afronden && incidenten.length === 0 && (
+                    <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                      <input type="hidden" name="actie" value="sluit" />
+                      <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="terug" value={terug} />
+                      <label class="kc-vink">
+                        <input type="checkbox" name="bevestig" value="ja" required />
+                        Rond het dossier af. Er gaat geen mail uit.
+                      </label>
+                      <button class="kc-knop kc-knop--olijf" type="submit">Dossier afronden</button>
+                    </form>
+                  )
+                }
+              </>
+            ) : (
+              <p>Je kunt deze acties bekijken. Wijzigen vraagt schrijfrecht op boekingen.</p>
             )
           }
         </div>
