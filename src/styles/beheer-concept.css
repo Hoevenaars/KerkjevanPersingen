@@ -616,6 +616,43 @@
 
 .kc-beoordeel-knoppen { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
 
+.kc-actie {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #ece6de;
+}
+
+.kc-actie label {
+  display: block;
+  width: 100%;
+  color: var(--ink-soft);
+  font-weight: 650;
+}
+
+.kc-actie input[type='text'],
+.kc-actie textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  min-height: 52px;
+  font: inherit;
+  font-weight: 450;
+  padding: 12px 13px;
+  background: #fffdf9;
+  border: 1px solid #bfb6a7;
+  border-radius: 7px;
+  color: var(--ink);
+}
+
+.kc-actie textarea { min-height: 88px; }
+
+.kc-actie .kc-vink { width: 100%; font-weight: 650; }
+
 .kc-gastheer-kies {
   display: flex;
   gap: 9px;

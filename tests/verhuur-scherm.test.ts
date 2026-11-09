@@ -5,8 +5,10 @@ import { maakVerhuurOverzicht, type OverzichtBetaling, type OverzichtInvoer } fr
 import {
   STUK_BEOORDELING_BLOKKADE,
   aandachtVan,
+  beoordeelDossierActie,
   beoordeelGastheerActie,
   bouwSchermRijen,
+  dossierActiesZichtbaar,
   dossierAdres,
   dossierUitBron,
   gastheerOverlapNamen,
@@ -373,6 +375,83 @@ describe('adres en filter', () => {
     assert.equal(veiligeVerhuurTerug('https://evil.test/beheer/verhuur/'), '/beheer/verhuur/');
     assert.equal(veiligeVerhuurTerug('//evil.test/beheer/verhuur/'), '/beheer/verhuur/');
     assert.equal(veiligeVerhuurTerug('/beheer/boekingen/1/'), '/beheer/verhuur/');
+  });
+
+  test('dossieracties volgen de bestaande statuspoort en laten mail en publicatie dicht', () => {
+    assert.deepEqual(dossierActiesZichtbaar('optie'), {
+      verleng: true,
+      definitief: true,
+      annuleer: true,
+      afronden: false,
+      migratie: false,
+    });
+    assert.deepEqual(dossierActiesZichtbaar('definitief'), {
+      verleng: false,
+      definitief: false,
+      annuleer: true,
+      afronden: true,
+      migratie: false,
+    });
+    assert.equal(dossierActiesZichtbaar('migratie_vastgelegd').migratie, true);
+    assert.equal(dossierActiesZichtbaar('migratie_vastgelegd').definitief, false);
+    assert.equal(dossierActiesZichtbaar('migratie_vastgelegd').annuleer, true);
+    assert.equal(dossierActiesZichtbaar('geannuleerd').annuleer, false);
+    assert.equal(dossierActiesZichtbaar('afgerond').afronden, false);
+
+    const basis = {
+      status: 'optie',
+      reden: 'Afgesproken zonder aanbetaling',
+      omschrijving: '',
+      bevestig: 'ja',
+      incidentId: '',
+      openIncidentIds: [] as string[],
+    };
+    assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'definitief' }), {
+      ok: true,
+      soort: 'handmatig_definitief',
+      reden: 'Afgesproken zonder aanbetaling',
+    });
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'definitief', bevestig: '' }).ok, false);
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'definitief', reden: '  ' }).ok, false);
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'definitief', status: 'definitief' }).ok, false);
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'definitief', status: 'migratie_vastgelegd' }).ok, false);
+    assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'verleng' }), { ok: true, soort: 'verleng' });
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'verleng', status: 'definitief' }).ok, false);
+    assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'annuleer', status: 'migratie_vastgelegd', reden: 'Weg' }), {
+      ok: true,
+      soort: 'annuleer',
+      reden: 'Weg',
+    });
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'annuleer', status: 'afgerond' }).ok, false);
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'annuleer', status: 'geannuleerd' }).ok, false);
+    assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'sluit', status: 'definitief', reden: '' }), {
+      ok: true,
+      soort: 'sluit',
+      reden: '',
+    });
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'sluit', status: 'definitief', openIncidentIds: ['9'] }).ok, false);
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'sluit', status: 'optie' }).ok, false);
+    assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'incident', omschrijving: ' Lekkage ' }), {
+      ok: true,
+      soort: 'incident',
+      omschrijving: 'Lekkage',
+    });
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'incident', omschrijving: ' ' }).ok, false);
+    assert.deepEqual(
+      beoordeelDossierActie({ ...basis, actie: 'incident_sluiten', incidentId: '9', openIncidentIds: ['9'] }),
+      { ok: true, soort: 'incident_sluiten', incidentId: '9' },
+    );
+    assert.equal(beoordeelDossierActie({ ...basis, actie: 'incident_sluiten', incidentId: '8', openIncidentIds: ['9'] }).ok, false);
+
+    for (const actie of ['betaling', 'publiceren', 'goedkeuren', 'afkeuren', 'gastheer', 'mailverstuur', 'datum']) {
+      const uit = beoordeelDossierActie({ ...basis, actie });
+      assert.equal(uit.ok, false, actie);
+      if (!uit.ok) assert.match(uit.melding, /niets gewijzigd/i);
+    }
+    const betaling = beoordeelDossierActie({ ...basis, actie: 'betaling' });
+    if (!betaling.ok) assert.match(betaling.melding, /bevestigingsmail/);
+    const stuk = beoordeelDossierActie({ ...basis, actie: 'goedkeuren' });
+    if (!stuk.ok) assert.match(stuk.melding, /publiceert|opslag/);
   });
 
   test('een onveilig bestandspad wordt geen link', () => {

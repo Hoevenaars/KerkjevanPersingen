@@ -10,6 +10,7 @@ import { periodesOverlappen } from './datum.ts';
 import { SOORT_LABEL, type DemoBoeking } from './demo-data.ts';
 import { gastherenVoorKoppeling } from './gastheer-lijst.ts';
 import { gastbegeleiderOntbreekt } from './verhuur-classificatie.ts';
+import { isBeschermdeMigratiestatus, statusActieToegestaan } from './status-overgang.ts';
 import {
   boekingBezetKalender,
   bolTekst,
@@ -193,6 +194,129 @@ export function staatKleur(waarde: Bol | StukkenStand): StaatKleur {
 /** Losse stukgoedkeuring heeft nog geen versie, reden en audit in de database. */
 export function stukKanBeoordelen(): false {
   return false;
+}
+
+export interface DossierActieZichtbaar {
+  verleng: boolean;
+  definitief: boolean;
+  annuleer: boolean;
+  afronden: boolean;
+  migratie: boolean;
+}
+
+/** Welke bestaande dossieracties de knoppen mogen tonen. Het schrijven blijft in de sessie. */
+export function dossierActiesZichtbaar(status: string): DossierActieZichtbaar {
+  const verleng = statusActieToegestaan(status, 'verleng');
+  const definitief = statusActieToegestaan(status, 'definitief');
+  const annuleer = statusActieToegestaan(status, 'annuleer');
+  const afronden = statusActieToegestaan(status, 'afronden');
+  return {
+    verleng: verleng.ok,
+    definitief: definitief.ok && definitief.melding !== 'al',
+    annuleer: annuleer.ok && annuleer.melding !== 'al',
+    afronden: afronden.ok && afronden.melding !== 'al',
+    migratie: isBeschermdeMigratiestatus(status),
+  };
+}
+
+export type DossierActieBesluit =
+  | { ok: true; soort: 'verleng' }
+  | { ok: true; soort: 'handmatig_definitief'; reden: string }
+  | { ok: true; soort: 'annuleer'; reden: string }
+  | { ok: true; soort: 'incident'; omschrijving: string }
+  | { ok: true; soort: 'incident_sluiten'; incidentId: string }
+  | { ok: true; soort: 'sluit'; reden: string }
+  | { ok: false; melding: string };
+
+/**
+ * Poort voor de verhuuragenda.
+ * Alleen acties die de dossiersessie al uitvoert zonder mail of workflow.
+ * Betaling en stukgoedkeuring blijven geweigerd: die paden publiceren of mailen.
+ */
+export function beoordeelDossierActie(input: {
+  actie: string;
+  status: string;
+  reden: string;
+  omschrijving: string;
+  bevestig: string;
+  incidentId: string;
+  openIncidentIds: readonly string[];
+}): DossierActieBesluit {
+  const actie = input.actie.trim();
+  const niets = ' Er is niets gewijzigd.';
+  if (actie === 'gastheer') {
+    return { ok: false, melding: `Een gastheer wijzig je met de knop in dit dossier.${niets}` };
+  }
+  if (actie === 'betaling') {
+    return {
+      ok: false,
+      melding: `Een betaling registreren zet in het andere pad de boeking definitief en zet een bevestigingsmail klaar. Die actie blijft uit.${niets}`,
+    };
+  }
+  if (actie === 'publiceren' || actie === 'content' || actie === 'goedkeuren' || actie === 'afkeuren') {
+    return {
+      ok: false,
+      melding: `Een stuk goedkeuren publiceert via het contentpad of heeft nog geen eigen opslag. Die actie blijft uit.${niets}`,
+    };
+  }
+  if (
+    actie !== 'verleng' &&
+    actie !== 'definitief' &&
+    actie !== 'annuleer' &&
+    actie !== 'incident' &&
+    actie !== 'incident_sluiten' &&
+    actie !== 'sluit'
+  ) {
+    return { ok: false, melding: `Deze actie is niet beschikbaar.${niets}` };
+  }
+
+  if (actie === 'incident') {
+    const omschrijving = input.omschrijving.trim();
+    if (!omschrijving) return { ok: false, melding: `Een incident heeft een omschrijving nodig.${niets}` };
+    return { ok: true, soort: 'incident', omschrijving };
+  }
+
+  if (actie === 'incident_sluiten') {
+    const incidentId = input.incidentId.trim();
+    if (!input.openIncidentIds.includes(incidentId)) {
+      return { ok: false, melding: `Dit incident hoort niet bij deze boeking of is al gesloten.${niets}` };
+    }
+    return { ok: true, soort: 'incident_sluiten', incidentId };
+  }
+
+  if (input.bevestig !== 'ja') {
+    return { ok: false, melding: `Bevestig deze dossieractie eerst.${niets}` };
+  }
+
+  if (actie === 'verleng') {
+    const poort = statusActieToegestaan(input.status, 'verleng');
+    if (!poort.ok) return { ok: false, melding: `${poort.melding}${niets}` };
+    return { ok: true, soort: 'verleng' };
+  }
+
+  if (actie === 'definitief') {
+    const poort = statusActieToegestaan(input.status, 'definitief');
+    if (!poort.ok) return { ok: false, melding: `${poort.melding}${niets}` };
+    if (poort.melding === 'al') return { ok: false, melding: `Boeking is al definitief.${niets}` };
+    const reden = input.reden.trim();
+    if (!reden) return { ok: false, melding: `Een reden is verplicht bij definitief zetten.${niets}` };
+    return { ok: true, soort: 'handmatig_definitief', reden };
+  }
+
+  if (actie === 'annuleer') {
+    const poort = statusActieToegestaan(input.status, 'annuleer');
+    if (!poort.ok) return { ok: false, melding: `${poort.melding}${niets}` };
+    if (poort.melding === 'al') return { ok: false, melding: `Boeking is al geannuleerd.${niets}` };
+    return { ok: true, soort: 'annuleer', reden: input.reden.trim() };
+  }
+
+  const poort = statusActieToegestaan(input.status, 'afronden');
+  if (!poort.ok) return { ok: false, melding: `${poort.melding}${niets}` };
+  if (poort.melding === 'al') return { ok: false, melding: `Dossier was al afgerond.${niets}` };
+  if (input.openIncidentIds.length > 0) {
+    return { ok: false, melding: `Een open incident houdt het dossier open.${niets}` };
+  }
+  return { ok: true, soort: 'sluit', reden: input.reden.trim() };
 }
 
 export function aandachtVan(input: {
