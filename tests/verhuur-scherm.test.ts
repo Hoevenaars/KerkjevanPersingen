@@ -7,6 +7,9 @@ import {
   aandachtVan,
   beoordeelGastheerActie,
   bouwSchermRijen,
+  dossierAdres,
+  dossierUitBron,
+  gastheerOverlapNamen,
   leesSchermFilter,
   maakDossierWeergave,
   mobielStatus,
@@ -15,6 +18,7 @@ import {
   stukkenStand,
   stukkenTekst,
   veiligeBestandsUrl,
+  veiligeVerhuurTerug,
   verhuurQuery,
   type SchermRij,
 } from '../src/platform/verhuur-scherm.ts';
@@ -120,7 +124,8 @@ describe('gastheeractie', () => {
   test('alleen koppelen of bevestigd losmaken, nooit een duplicaat', () => {
     assert.equal(beoordeelGastheerActie({ actie: 'annuleer', gekozenId: '1', huidigeId: '', bevestig: '' }).ok, false);
     assert.equal(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '4', huidigeId: '4', bevestig: '' }).ok, false);
-    assert.deepEqual(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '5', huidigeId: '4', bevestig: '' }), {
+    assert.equal(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '5', huidigeId: '4', bevestig: '' }).ok, false);
+    assert.deepEqual(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '5', huidigeId: '4', bevestig: 'ja' }), {
       ok: true,
       gastheerId: '5',
     });
@@ -129,6 +134,31 @@ describe('gastheeractie', () => {
       ok: true,
       gastheerId: '',
     });
+    assert.deepEqual(beoordeelGastheerActie({ actie: 'gastheer', gekozenId: '8', huidigeId: '', bevestig: '' }), {
+      ok: true,
+      gastheerId: '8',
+    });
+  });
+
+  test('een gastheer in een overlappende bezette periode wordt geweigerd, een geannuleerde niet', () => {
+    const boekingen = [
+      { id: '67', status: 'definitief', start: '2027-07-10', eind: '2027-07-11', huurder: 'Mirjam Withaar', gastheerId: '' },
+      { id: '70', status: 'definitief', start: '2027-07-10', eind: '2027-07-11', huurder: 'Andere huurder', gastheerId: 'g' },
+      { id: '76', status: 'geannuleerd', start: '2027-07-10', eind: '2027-07-11', huurder: 'Mariet van Hovell tot Westerflier', gastheerId: 'g' },
+      { id: '80', status: 'definitief', start: '2027-08-01', eind: '2027-08-02', huurder: 'Later', gastheerId: 'g' },
+    ];
+    const overlap = gastheerOverlapNamen({ boekingId: '67', gastheerId: 'g', boekingen });
+    assert.deepEqual(overlap, ['Andere huurder']);
+    const besluit = beoordeelGastheerActie({
+      actie: 'gastheer',
+      gekozenId: 'g',
+      huidigeId: '',
+      bevestig: 'ja',
+      overlapNamen: overlap,
+    });
+    assert.equal(besluit.ok, false);
+    if (!besluit.ok) assert.match(besluit.melding, /Andere huurder/);
+    assert.deepEqual(gastheerOverlapNamen({ boekingId: '67', gastheerId: 'vrij', boekingen }), []);
   });
 });
 
@@ -295,6 +325,32 @@ describe('agendaweergave', () => {
     assert.match(dossier.betalingen[1].detail, /390/);
     assert.match(dossier.betaalToelichting, /aanbetaling_ontvangen beslist niet/);
     assert.equal(stukKanBeoordelen(), false);
+    const bron = dossierUitBron({
+      boeking: { ...withaar, gastheerId: 'g', email: 'mirjam@example.test' },
+      invoer: invoer({
+        jaar: 2027,
+        maand: 7,
+        boekingen: [{ ...withaar, gastheerId: 'g' }],
+        betalingen: [
+          betaling({ boekingId: '67', soort: 'aanbetaling', status: 'ontvangen', bedrag: 100, ontvangenOp: '2026-01-02' }),
+          betaling({ boekingId: '67', soort: 'restant', status: 'open', bedrag: 390 }),
+        ],
+      }),
+      relatie: { naam: 'Mirjam Withaar', organisatie: '', email: 'anders@example.test', telefoon: '06 00000000', adres: 'Dorp 1' },
+      activiteit: { titel: 'Schilderijen', zichtbaarheid: 'publiek', levenscyclus: 'actief' },
+      sporen: {
+        verzendingen: [],
+        verzendingFout: null,
+        audit: [{ actie: 'gastheer_gekoppeld', op: '2026-11-08', actorType: 'gebruiker', van: '', naar: 'mirjam@example.test' }],
+        auditFout: null,
+        auditZichtbaar: true,
+      },
+    });
+    assert.equal(bron.gegevens.some((regel) => regel.label === 'Mede-exposant' && regel.waarde === 'Mede-exposant'), true);
+    assert.equal(bron.gegevens.some((regel) => regel.label === 'Bezetting' && regel.waarde === 'Bezet'), true);
+    assert.match(bron.geschiedenis.map((regel) => regel.waarde).join(' '), /adres verborgen/);
+    assert.equal(bron.geschiedenis.some((regel) => regel.waarde.includes('mirjam@example.test')), false);
+    assert.match(bron.betaling.map((regel) => regel.waarde).join(' '), /390/);
   });
 });
 
@@ -312,6 +368,11 @@ describe('adres en filter', () => {
       '/beheer/verhuur/?jaar=2027&maand=5&q=marieke&aandacht=1&bron=demo&dossier=67',
     );
     assert.equal(verhuurQuery(params({ dossier: '67', melding: 'weg' }), { dossier: null }).includes('melding'), false);
+    assert.equal(dossierAdres('67', params({ jaar: '2027', maand: '7', q: 'withaar' })), '/beheer/verhuur/?jaar=2027&maand=7&q=withaar&dossier=67');
+    assert.equal(veiligeVerhuurTerug('/beheer/verhuur/?jaar=2027&maand=7&q=withaar&dossier=67'), '/beheer/verhuur/?jaar=2027&maand=7&q=withaar&dossier=67');
+    assert.equal(veiligeVerhuurTerug('https://evil.test/beheer/verhuur/'), '/beheer/verhuur/');
+    assert.equal(veiligeVerhuurTerug('//evil.test/beheer/verhuur/'), '/beheer/verhuur/');
+    assert.equal(veiligeVerhuurTerug('/beheer/boekingen/1/'), '/beheer/verhuur/');
   });
 
   test('een onveilig bestandspad wordt geen link', () => {

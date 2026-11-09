@@ -1,18 +1,21 @@
 ---
 import StatusMarkering from './StatusMarkering.astro';
-import { STUK_BEOORDELING_BLOKKADE, staatKleur, type DossierWeergave } from '../../platform/verhuur-scherm.ts';
+import StukBeoordeling from './StukBeoordeling.astro';
+import { staatKleur, type DossierWeergave } from '../../platform/verhuur-scherm.ts';
 
 interface Props {
   dossier: DossierWeergave;
   sluitHref: string;
   bevestigHref: string;
   formulierActie: string;
+  terug: string;
   magSchrijven: boolean;
   demo: boolean;
   weg: boolean;
-  correspondentie: { label: string; waarde: string }[];
-  correspondentieToelichting: string;
-  audit: { label: string; waarde: string }[];
+  gegevens: { label: string; waarde: string }[];
+  betaalregels: { label: string; waarde: string }[];
+  geschiedenis: { label: string; waarde: string }[];
+  geschiedenisToelichting: string;
   oudHref: string;
 }
 
@@ -21,12 +24,14 @@ const {
   sluitHref,
   bevestigHref,
   formulierActie,
+  terug,
   magSchrijven,
   demo,
   weg,
-  correspondentie,
-  correspondentieToelichting,
-  audit,
+  gegevens,
+  betaalregels,
+  geschiedenis,
+  geschiedenisToelichting,
   oudHref,
 } = Astro.props;
 const aantal = dossier.taken.length;
@@ -57,6 +62,26 @@ const aantal = dossier.taken.length;
           </p>
         </div>
       </div>
+
+      {
+        gegevens.length > 0 && (
+          <section class="kc-kaart">
+            <h3>Boeking en beschikbaarheid</h3>
+            <div class="kc-kaart-inhoud">
+              <div class="kc-rooster">
+                {
+                  gegevens.map((veld) => (
+                    <div>
+                      <p class="kc-bijschrift">{veld.label}</p>
+                      <p class="kc-waarde">{veld.waarde}</p>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          </section>
+        )
+      }
 
       <section class="kc-kaart">
         <h3>Gegevens huurder</h3>
@@ -93,6 +118,7 @@ const aantal = dossier.taken.length;
                     <p>Er is geen aangeleverde tekst gevonden.</p>
                   )
                 }
+                <StukBeoordeling />
               </div>
             </div>
           </div>
@@ -103,11 +129,15 @@ const aantal = dossier.taken.length;
                 <b>Foto voor de website</b>
                 {
                   dossier.fotoUrl ? (
-                    <img class="kc-foto" src={dossier.fotoUrl} alt="Aangeleverde foto voor de website" />
+                    <>
+                      <img class="kc-foto" src={dossier.fotoUrl} alt="Aangeleverde foto voor de website" />
+                      <p><a href={dossier.fotoUrl} target="_blank" rel="noopener noreferrer">Bekijken</a></p>
+                    </>
                   ) : (
                     <p>Er is geen publieke foto gekoppeld.</p>
                   )
                 }
+                <StukBeoordeling />
               </div>
             </div>
           </div>
@@ -120,16 +150,18 @@ const aantal = dossier.taken.length;
                     <b>{bestand.naam}</b>
                     <p>Privé aangeleverd bestand. Dit staat niet op de website.</p>
                     {
-                      bestand.url && (
+                      bestand.url ? (
                         <p><a href={bestand.url} target="_blank" rel="noopener noreferrer">Bekijken</a></p>
+                      ) : (
+                        <p>Geen veilige voorbeeldlink. Het bestand blijft privé.</p>
                       )
                     }
+                    <StukBeoordeling />
                   </div>
                 </div>
               </div>
             ))
           }
-          <p class="kc-blokkade">{STUK_BEOORDELING_BLOKKADE}</p>
         </div>
       </section>
 
@@ -153,6 +185,7 @@ const aantal = dossier.taken.length;
                       <p>Geen veilige voorbeeldlink. Het bestand blijft privé.</p>
                     )
                   }
+                  <StukBeoordeling />
                 </div>
               ))
             )
@@ -184,9 +217,10 @@ const aantal = dossier.taken.length;
               </p>
             ) : magSchrijven ? (
               <>
-                <form class="kc-gastheer-kies" method="post" action={formulierActie}>
+                <form class="kc-gastheer-kies" method="post" action={formulierActie} data-kc-bewaar>
                   <input type="hidden" name="actie" value="gastheer" />
                   <input type="hidden" name="boekingId" value={dossier.id} />
+                  <input type="hidden" name="terug" value={terug} />
                   <label class="kc-verborgen" for={`gastheer-${dossier.id}`}>Kies een gastheer</label>
                   <select id={`gastheer-${dossier.id}`} name="gastheerId" required>
                     <option value="">Kies een gastheer</option>
@@ -198,10 +232,18 @@ const aantal = dossier.taken.length;
                       ))
                     }
                   </select>
-                  <button class="kc-knop kc-knop--olijf" type="submit">+ Toevoegen</button>
+                  {
+                    dossier.gastheerNaam && (
+                      <label class="kc-vink">
+                        <input type="checkbox" name="bevestig" value="ja" required />
+                        Vervang {dossier.gastheerNaam}
+                      </label>
+                    )
+                  }
+                  <button class="kc-knop kc-knop--olijf" type="submit">{dossier.gastheerNaam ? 'Vervang' : '+ Toevoegen'}</button>
                 </form>
                 <p class="kc-bijschrift">
-                  Er kan één gastheer op de boeking staan. Een nieuwe keuze vervangt de huidige. Er gaat geen mail uit.
+                  Er kan één gastheer op de boeking staan. Iemand die in dezelfde periode al ergens anders staat, wordt niet nog eens gekoppeld. Er gaat geen mail uit.
                   {demo ? ' Dit is een voorbeeld: er wordt niets opgeslagen.' : ''}
                 </p>
                 {
@@ -211,9 +253,10 @@ const aantal = dossier.taken.length;
                 }
                 {
                   dossier.gastheerNaam && weg && (
-                    <form method="post" action={formulierActie}>
+                    <form method="post" action={formulierActie} data-kc-bewaar>
                       <input type="hidden" name="actie" value="gastheer" />
                       <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="terug" value={terug} />
                       <input type="hidden" name="gastheerId" value="" />
                       <input type="hidden" name="bevestig" value="ja" />
                       <button class="kc-knop" type="submit">Ja, verwijder {dossier.gastheerNaam}</button>
@@ -243,6 +286,17 @@ const aantal = dossier.taken.length;
             ))
           }
           <p class="kc-bijschrift">{dossier.betaalToelichting}</p>
+          {
+            betaalregels.length > 0 && (
+              <div class="kc-regels">
+                {
+                  betaalregels.map((regel) => (
+                    <p><span class="kc-bijschrift">{regel.label}</span><br /><span class="kc-waarde">{regel.waarde}</span></p>
+                  ))
+                }
+              </div>
+            )
+          }
         </div>
       </section>
 
@@ -256,15 +310,10 @@ const aantal = dossier.taken.length;
       <section class="kc-kaart">
         <h3>Correspondentie en audit</h3>
         <div class="kc-kaart-inhoud">
-          <p>{correspondentieToelichting}</p>
+          {geschiedenisToelichting && <p>{geschiedenisToelichting}</p>}
           {
-            correspondentie.map((regel) => (
+            geschiedenis.map((regel) => (
               <p><span class="kc-bijschrift">{regel.label}</span><br /><span class="kc-waarde">{regel.waarde}</span></p>
-            ))
-          }
-          {
-            audit.map((regel) => (
-              <p><span class="kc-bijschrift">{regel.label}</span><br />{regel.waarde}</p>
             ))
           }
         </div>

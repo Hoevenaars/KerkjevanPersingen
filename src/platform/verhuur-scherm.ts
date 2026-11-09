@@ -6,13 +6,19 @@
  */
 
 import { contentstatusNaarBeheer } from '../lib/agenda-zichtbaarheid.ts';
-import { SOORT_LABEL } from './demo-data.ts';
+import { periodesOverlappen } from './datum.ts';
+import { SOORT_LABEL, type DemoBoeking } from './demo-data.ts';
 import { gastherenVoorKoppeling } from './gastheer-lijst.ts';
 import { gastbegeleiderOntbreekt } from './verhuur-classificatie.ts';
 import {
+  boekingBezetKalender,
   bolTekst,
   leesPeriodeKeuze,
+  maakDossier,
   type Bol,
+  type DossierRelatie,
+  type DossierSporen,
+  type OverzichtInvoer,
   type RijHerkomst,
   type VerhuurOverzicht,
   type VerhuurRij,
@@ -217,6 +223,7 @@ export function beoordeelGastheerActie(input: {
   gekozenId: string;
   huidigeId: string;
   bevestig: string;
+  overlapNamen?: readonly string[];
 }): { ok: true; gastheerId: string } | { ok: false; melding: string } {
   if (input.actie !== 'gastheer') {
     return { ok: false, melding: 'Deze actie is niet beschikbaar. Er is niets gewijzigd.' };
@@ -233,7 +240,93 @@ export function beoordeelGastheerActie(input: {
   if (gekozen === huidig) {
     return { ok: false, melding: 'Deze gastheer is al gekoppeld. Er is niets gewijzigd.' };
   }
+  const overlap = (input.overlapNamen ?? []).map((naam) => naam.trim()).filter(Boolean);
+  if (overlap.length > 0) {
+    return {
+      ok: false,
+      melding: `Deze gastheer staat in dezelfde periode al bij ${overlap.join(', ')}. Er is niets gewijzigd.`,
+    };
+  }
+  if (huidig && input.bevestig !== 'ja') {
+    return { ok: false, melding: 'Er staat al één gastheer. Bevestig de vervanging. Er is niets gewijzigd.' };
+  }
   return { ok: true, gastheerId: gekozen };
+}
+
+/** Eén gastheer per bezette boeking. Een geannuleerde boeking telt niet als overlap. */
+export function gastheerOverlapNamen(input: {
+  boekingId: string;
+  gastheerId: string;
+  boekingen: readonly { id: string; status: string; start: string; eind: string; huurder: string; gastheerId?: string }[];
+}): string[] {
+  const gekozen = input.gastheerId.trim();
+  if (!gekozen) return [];
+  const huidige = input.boekingen.find((item) => item.id === input.boekingId);
+  if (!huidige) return [];
+  const namen: string[] = [];
+  const gezien = new Set<string>();
+  for (const ander of input.boekingen) {
+    if (ander.id === huidige.id) continue;
+    if ((ander.gastheerId ?? '').trim() !== gekozen) continue;
+    if (!boekingBezetKalender(ander.status)) continue;
+    const overlapt = periodesOverlappen(
+      { start: huidige.start, eind: huidige.eind || huidige.start },
+      { start: ander.start, eind: ander.eind || ander.start },
+    );
+    if (!overlapt) continue;
+    const naam = ander.huurder.trim() || ander.id;
+    const sleutel = naam.toLocaleLowerCase('nl');
+    if (gezien.has(sleutel)) continue;
+    gezien.add(sleutel);
+    namen.push(naam);
+  }
+  return namen;
+}
+
+/** Alleen terug naar de verhuuragenda zelf. Geen andere beheerroute en geen extern adres. */
+export function veiligeVerhuurTerug(waarde: string, origin = 'http://localhost'): string {
+  const terugval = '/beheer/verhuur/';
+  const tekst = waarde.trim();
+  if (!tekst.startsWith('/beheer/verhuur') || tekst.startsWith('//') || tekst.includes('\\')) return terugval;
+  try {
+    const url = new URL(tekst, origin);
+    if (url.origin !== new URL(origin).origin) return terugval;
+    if (url.pathname !== '/beheer/verhuur' && url.pathname !== '/beheer/verhuur/') return terugval;
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return terugval;
+  }
+}
+
+export function dossierAdres(id: string, params: { get(naam: string): string | null }): string {
+  return verhuurQuery(params, { dossier: id, rij: null, weg: null });
+}
+
+export interface DossierBronWeergave {
+  gegevens: { label: string; waarde: string }[];
+  betaling: { label: string; waarde: string }[];
+  betalingToelichting: string;
+  geschiedenis: { label: string; waarde: string }[];
+  geschiedenisToelichting: string;
+}
+
+/** Zelfde dossierblokken als /beheer/verhuur/[id]/, zonder een tweede berekening van de status. */
+export function dossierUitBron(input: {
+  boeking: DemoBoeking;
+  invoer: OverzichtInvoer;
+  relatie: DossierRelatie | null;
+  activiteit: { titel: string; zichtbaarheid: string; levenscyclus: string } | null;
+  sporen: DossierSporen;
+}): DossierBronWeergave {
+  const blokken = maakDossier(input.boeking, input.invoer, input.relatie, input.activiteit, input.sporen);
+  const blok = (begin: string) => blokken.find((item) => item.titel.startsWith(begin));
+  return {
+    gegevens: [...(blok('1.')?.regels ?? []), ...(blok('3.')?.regels ?? [])],
+    betaling: blok('5.')?.regels ?? [],
+    betalingToelichting: blok('5.')?.toelichting ?? '',
+    geschiedenis: blok('7.')?.regels ?? [],
+    geschiedenisToelichting: blok('7.')?.toelichting ?? '',
+  };
 }
 
 export function veiligeBestandsUrl(waarde: string | null | undefined): string | null {

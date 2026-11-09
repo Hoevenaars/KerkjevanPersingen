@@ -4,7 +4,7 @@ export const prerender = false;
 import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
 import { beheerId } from '../../../platform/beheer-bron.ts';
 import { verhuurOverzichtAan, verhuurVerzoekToegestaan } from '../../../platform/verhuur-vlag.ts';
-import { verhuurQuery } from '../../../platform/verhuur-scherm.ts';
+import { dossierAdres } from '../../../platform/verhuur-scherm.ts';
 
 if (!verhuurOverzichtAan()) return beheerUitResponse();
 if (!verhuurVerzoekToegestaan(Astro.request.method)) {
@@ -14,10 +14,5 @@ if (!verhuurVerzoekToegestaan(Astro.request.method)) {
   });
 }
 
-const doel = verhuurQuery(Astro.url.searchParams, {
-  dossier: beheerId(Astro.params.id),
-  rij: null,
-  weg: null,
-});
-return Astro.redirect(doel);
+return Astro.redirect(dossierAdres(beheerId(Astro.params.id), Astro.url.searchParams));
 ---

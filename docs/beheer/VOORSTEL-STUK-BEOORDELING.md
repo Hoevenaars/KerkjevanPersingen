@@ -1,8 +1,8 @@
 # Voorstel: beoordeling van een aangeleverd stuk
 
 Status: **niet uitgevoerd**. Niet op productie toepassen zonder akkoord.
-De nieuwe verhuuragenda toont de bestaande status en laat een stuk zien.
-Zij heeft geen knop die goedkeuren of afkeuren opslaat.
+De verhuuragenda toont de bestaande status en laat een stuk bekijken.
+Goedkeuren, afkeuren, de reden, de beoordelaar en de datum staan in het dossier, maar de knoppen zijn uit. Er is nog geen goedgekeurde tabel, en deze branch bevat geen migratie. Een nieuwe upload kan pas opnieuw worden beoordeeld als die opslag én de schrijfrechten getest zijn.
 
 ## Wat er al is
 

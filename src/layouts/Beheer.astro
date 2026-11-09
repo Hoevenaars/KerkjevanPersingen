@@ -31,11 +31,16 @@ const rolAantal = snapshot.relaties.reduce((som, relatie) => som + relatie.rolle
 const hoofd = (Object.keys(BEHEER_MODULES) as Array<keyof typeof BEHEER_MODULES>)
   .filter((sleutel) => BEHEER_MODULES[sleutel].groep === 'hoofd' && magZien(rechten, sleutel))
   .map((sleutel) => ({ href: BEHEER_MODULES[sleutel].href, label: BEHEER_MODULES[sleutel].label }));
+function vooraan(item: { href: string; label: string }) {
+  const bestaand = hoofd.findIndex((regel) => regel.href === item.href);
+  if (bestaand >= 0) hoofd.splice(bestaand, 1);
+  hoofd.unshift(item);
+}
 if (verhuurOverzichtAan() && magZien(rechten, 'agenda')) {
-  hoofd.unshift({ href: '/beheer/website/', label: 'Website' });
+  vooraan({ href: '/beheer/website/', label: 'Website' });
 }
 if (verhuurOverzichtAan() && magZien(rechten, 'boekingen')) {
-  hoofd.unshift({ href: '/beheer/verhuur/', label: 'Verhuur' });
+  vooraan({ href: '/beheer/verhuur/', label: 'Verhuur' });
 }
 if (magZien(rechten, 'agenda')) {
   const naPlanning = hoofd.findIndex((item) => item.href === '/beheer/planning/');

@@ -160,6 +160,14 @@
 
 .kc-knop:hover { background: var(--cream-deep); }
 
+.kc-knop:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #f3efe8;
+  color: var(--ink-mute);
+  border-color: var(--sand);
+}
+
 .kc-knop--primair {
   background: var(--brick);
   border-color: var(--brick);
@@ -310,6 +318,9 @@
 
 .kc-rij--vrij { background: #f3f7ef; }
 .kc-rij--vrij:hover { background: #e8f0e3; }
+.kc-rij--winter { background: #f3efe6; }
+.kc-rij--winter:hover { background: #ebe4d6; }
+.kc-rij--geannuleerd .kc-huurder { color: var(--ink-soft); }
 .kc-rij--open { box-shadow: inset 4px 0 0 var(--brick); }
 .kc-rij--dicht { cursor: default; }
 
@@ -563,11 +574,56 @@
   margin: 0 8px 10px 0;
 }
 
+.kc-aanvragen {
+  background: #fffdf9;
+  border: 1px solid var(--sand);
+  border-radius: 10px;
+  margin: 0 0 18px;
+  padding: 18px 22px 8px;
+}
+
+.kc-aanvragen h2 { margin: 0 0 8px; font-size: 1.35rem; }
+
+.kc-aanvraag {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(140px, 1.3fr) minmax(110px, 1fr) minmax(150px, auto);
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid #ece6de;
+  min-height: 56px;
+}
+
+.kc-aanvraag a { color: var(--pine); font-weight: 700; }
+
+.kc-beoordeel { margin-top: 12px; }
+
+.kc-beoordeel textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  min-height: 76px;
+  font: inherit;
+  border: 1px solid var(--sand);
+  border-radius: 7px;
+  padding: 10px 12px;
+  background: #f7f4ee;
+  color: var(--ink);
+}
+
+.kc-beoordeel textarea:disabled { cursor: not-allowed; }
+
+.kc-beoordeel-knoppen { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+
 .kc-gastheer-kies {
   display: flex;
   gap: 9px;
   align-items: center;
+  flex-wrap: wrap;
 }
+
+.kc-gastheer-kies .kc-vink { flex: 1 0 100%; }
 
 .kc-gastheer-kies select { flex: 1; min-width: 0; }
 
@@ -629,6 +685,8 @@
 }
 
 @media (max-width: 860px) {
+  .kc-lade { width: 100%; }
+  .kc-aanvraag { grid-template-columns: 1fr; gap: 4px; }
   .kc-koprij { display: none; }
   .kc-rij {
     grid-template-columns: 112px 1fr 22px;
