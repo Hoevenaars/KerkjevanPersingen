@@ -816,7 +816,12 @@ export type Opdracht =
       status?: 'optie' | 'definitief';
       reden?: string;
     }
-  | { soort: 'annuleer'; boekingId: string; reden?: string }
+  | { soort: 'annuleer'; boekingId: string; reden?: string; termijnen?: string }
+  | { soort: 'betaling_paul'; boekingId: string; keuze: 'aanbetaling' | 'volledig' }
+  | { soort: 'verplaats'; boekingId: string; start: string; eind: string }
+  | { soort: 'verhuurtype'; boekingId: string; verhuurtype: string }
+  | { soort: 'inhoud'; boekingId: string; besluit: 'goedkeuren' | 'afkeuren'; reden?: string }
+  | { soort: 'contractstatus'; boekingId: string; status: 'geen' | 'aanwezig' | 'getekend' }
   | { soort: 'verleng'; boekingId: string }
   | { soort: 'scheduler' };
 
@@ -1431,6 +1436,16 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
       ? 'Boeking is definitief vastgelegd. Er is geen mail of workflow gestart.'
       : 'Optie vastgelegd. Er is geen mail of workflow gestart.';
     return gelukt(melding, { boekingId: boeking.id }, mutaties);
+  }
+
+  if (
+    opdracht.soort === 'betaling_paul'
+    || opdracht.soort === 'verplaats'
+    || opdracht.soort === 'verhuurtype'
+    || opdracht.soort === 'inhoud'
+    || opdracht.soort === 'contractstatus'
+  ) {
+    return mislukt('Deze handmatige actie loopt via de ingelogde sessie. Er is geen mail gestart en er is niets van de bank opgehaald.');
   }
 
   if (opdracht.soort === 'scheduler') {

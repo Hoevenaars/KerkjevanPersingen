@@ -30,7 +30,12 @@ function terugMet(origin: string, terug: string, extra: { fout?: string; melding
 function opdrachtVan(boekingId: string, besluit: Extract<DossierActieBesluit, { ok: true }>): Opdracht {
   if (besluit.soort === 'verleng') return { soort: 'verleng', boekingId };
   if (besluit.soort === 'handmatig_definitief') return { soort: 'handmatig_definitief', boekingId, reden: besluit.reden };
-  if (besluit.soort === 'annuleer') return { soort: 'annuleer', boekingId, reden: besluit.reden };
+  if (besluit.soort === 'annuleer') return { soort: 'annuleer', boekingId, reden: besluit.reden, termijnen: besluit.termijnen };
+  if (besluit.soort === 'betaling_paul') return { soort: 'betaling_paul', boekingId, keuze: besluit.keuze };
+  if (besluit.soort === 'verplaats') return { soort: 'verplaats', boekingId, start: besluit.start, eind: besluit.eind };
+  if (besluit.soort === 'verhuurtype') return { soort: 'verhuurtype', boekingId, verhuurtype: besluit.verhuurtype };
+  if (besluit.soort === 'inhoud') return { soort: 'inhoud', boekingId, besluit: besluit.besluit, reden: besluit.reden };
+  if (besluit.soort === 'contractstatus') return { soort: 'contractstatus', boekingId, status: besluit.status };
   if (besluit.soort === 'incident') return { soort: 'incident', boekingId, omschrijving: besluit.omschrijving };
   if (besluit.soort === 'incident_sluiten') return { soort: 'incident_sluiten', incidentId: besluit.incidentId };
   return { soort: 'sluit', boekingId, reden: besluit.reden };
@@ -46,8 +51,11 @@ export const POST: APIRoute = async (context) => {
 
   const rechten = context.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
   const viewAs = Boolean(context.locals.beheer?.viewAs);
-  if (viewAs || !magSchrijven(rechten, 'boekingen')) {
-    return tekst(403, 'Je kunt het dossier bekijken. Wijzigen vraagt schrijfrecht op boekingen. Er is niets opgeslagen.');
+  const magBoeking = !viewAs && magSchrijven(rechten, 'boekingen');
+  const magFinance = !viewAs && magSchrijven(rechten, 'finance');
+  const magAgenda = !viewAs && magSchrijven(rechten, 'agenda');
+  if (!magBoeking && !magFinance && !magAgenda) {
+    return tekst(403, 'Je kunt het dossier bekijken. Wijzigen vraagt schrijfrecht. Er is niets opgeslagen.');
   }
 
   const formulier = await context.request.formData();
@@ -79,7 +87,21 @@ export const POST: APIRoute = async (context) => {
     bevestig: String(formulier.get('bevestig') ?? ''),
     incidentId: String(formulier.get('incidentId') ?? ''),
     openIncidentIds,
+    start: String(formulier.get('start') ?? ''),
+    eind: String(formulier.get('eind') ?? ''),
+    verhuurtype: String(formulier.get('verhuurtype') ?? ''),
+    contractstatus: String(formulier.get('contractstatus') ?? ''),
+    termijnen: String(formulier.get('termijnen') ?? ''),
   });
+  if (besluit.ok && besluit.soort === 'betaling_paul' && !magFinance) {
+    return tekst(403, 'Een betaling vastleggen vraagt schrijfrecht op finance. Er is niets van de bank opgehaald.');
+  }
+  if (besluit.ok && (besluit.soort === 'inhoud') && !magAgenda) {
+    return tekst(403, 'Inhoud beoordelen vraagt schrijfrecht op de agenda. De site is niet gewijzigd.');
+  }
+  if (besluit.ok && besluit.soort !== 'betaling_paul' && besluit.soort !== 'inhoud' && !magBoeking) {
+    return tekst(403, 'Deze dossieractie vraagt schrijfrecht op boekingen. Er is niets opgeslagen.');
+  }
   if (!besluit.ok) {
     return context.redirect(terugMet(origin, bestemming, { fout: besluit.melding }));
   }

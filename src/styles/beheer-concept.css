@@ -634,6 +634,8 @@
 }
 
 .kc-actie input[type='text'],
+.kc-actie input[type='date'],
+.kc-actie select,
 .kc-actie textarea {
   display: block;
   width: 100%;
