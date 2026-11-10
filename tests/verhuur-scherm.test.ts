@@ -322,10 +322,10 @@ describe('agendaweergave', () => {
     assert.equal(dossier.fotoUrl, '/foto/expositie.jpg');
     assert.equal(dossier.documenten[0].url, null);
     assert.equal(dossier.intake[0].url, 'https://example.test/bestand');
-    assert.match(dossier.contractTekst, /Onbekend/);
+    assert.match(dossier.contractTekst, /handmatige keuze/);
     assert.equal(dossier.betalingen[0].tekst, 'Ontvangen');
     assert.match(dossier.betalingen[1].detail, /390/);
-    assert.match(dossier.betaalToelichting, /aanbetaling_ontvangen beslist niet/);
+    assert.match(dossier.betaalToelichting, /niets naar de bank/);
     assert.equal(stukKanBeoordelen(), false);
     const bron = dossierUitBron({
       boeking: { ...withaar, gastheerId: 'g', email: 'mirjam@example.test' },
@@ -417,10 +417,11 @@ describe('adres en filter', () => {
     assert.equal(beoordeelDossierActie({ ...basis, actie: 'definitief', status: 'migratie_vastgelegd' }).ok, false);
     assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'verleng' }), { ok: true, soort: 'verleng' });
     assert.equal(beoordeelDossierActie({ ...basis, actie: 'verleng', status: 'definitief' }).ok, false);
-    assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'annuleer', status: 'migratie_vastgelegd', reden: 'Weg' }), {
+    assert.deepEqual(beoordeelDossierActie({ ...basis, actie: 'annuleer', status: 'migratie_vastgelegd', reden: 'Weg', termijnen: 'laten' }), {
       ok: true,
       soort: 'annuleer',
       reden: 'Weg',
+      termijnen: 'laten',
     });
     assert.equal(beoordeelDossierActie({ ...basis, actie: 'annuleer', status: 'afgerond' }).ok, false);
     assert.equal(beoordeelDossierActie({ ...basis, actie: 'annuleer', status: 'geannuleerd' }).ok, false);
@@ -449,7 +450,7 @@ describe('adres en filter', () => {
       if (!uit.ok) assert.match(uit.melding, /niets gewijzigd/i);
     }
     const betaling = beoordeelDossierActie({ ...basis, actie: 'betaling' });
-    if (!betaling.ok) assert.match(betaling.melding, /bevestigingsmail/);
+    if (!betaling.ok) assert.match(betaling.melding, /bank/);
     const stuk = beoordeelDossierActie({ ...basis, actie: 'goedkeuren' });
     if (!stuk.ok) assert.match(stuk.melding, /publiceert|opslag/);
   });

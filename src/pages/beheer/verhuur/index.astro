@@ -27,6 +27,7 @@ import {
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
 import { documentLinks } from '../../../lib/verhuur-document-link.ts';
+import { contractBeeld, type ContractStatus } from '../../../platform/handmatig-beheer.ts';
 
 if (!verhuurOverzichtAan()) return beheerUitResponse();
 if (!verhuurVerzoekToegestaan(Astro.request.method)) {
@@ -38,6 +39,8 @@ if (!verhuurVerzoekToegestaan(Astro.request.method)) {
 
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const magGastheer = magSchrijven(rechten, 'boekingen') && !Astro.locals.beheer?.viewAs;
+const magFinance = magSchrijven(rechten, 'finance') && !Astro.locals.beheer?.viewAs;
+const magAgenda = magSchrijven(rechten, 'agenda') && !Astro.locals.beheer?.viewAs;
 const vandaag = ymdInAmsterdam(new Date());
 
 function adres(wijziging: Parameters<typeof verhuurQuery>[1] = {}): string {
@@ -129,8 +132,17 @@ const relatie = boeking ? snapshot.relaties.find((item) => item.id === boeking.r
 
 let dossier = null;
 let bronWeergave: ReturnType<typeof dossierUitBron> | null = null;
+let contract = contractBeeld([]);
 if (boeking && dossierRij) {
-  const docs = snapshot.documenten.filter((item) => item.boekingId === boeking.id);
+  const alleDocs = snapshot.documenten.filter((item) => item.boekingId === boeking.id);
+  const docs = alleDocs.filter((item) => !item.pad?.startsWith('handmatig:'));
+  const marker = alleDocs.find((item) => item.pad?.startsWith('handmatig:'));
+  const markerStatus: ContractStatus | null = marker?.soort === 'getekend_contract'
+    ? 'getekend'
+    : marker?.soort === 'contract'
+      ? 'aanwezig'
+      : null;
+  contract = contractBeeld(docs.map((item) => item.soort), markerStatus);
   const links = snapshot.bron === 'supabase' ? await documentLinks(sessieSupabaseUitAstro(Astro), docs) : {};
   const intake = snapshot.bron === 'supabase'
     ? (await lijstIntake(boeking.id).catch(() => [])).map((bestand, index) => ({
@@ -367,7 +379,7 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
     </div>
     <p class="kc-noot">
       Bezetting volgt de publieke verhuurkalender. Een aanvraag zonder boeking is niet bezet. Een geannuleerde boeking telt niet als bezet.
-      Betalingen komen uit de betaalregels. Een betaling registreren en een stuk goedkeuren blijven uit: die paden mailen of publiceren. Contractstatus blijft Onbekend zolang er geen betrouwbaar veld is. Dossieracties in dit scherm sturen geen mail.
+      Betalingen komen uit de betaalregels. Aanbetaling of volledige betaling zet Paul handmatig op ontvangen: geen bank en geen mail. Inhoud goedkeuren bewaart de status en publiceert niet. Dossieracties sturen geen mail.
       De bestaande beheerpagina's blijven beschikbaar via Beheeromgeving.
     </p>
   </main>
@@ -382,6 +394,14 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
         dossierActie="/beheer/verhuur/dossier"
         terug={adres({ dossier: dossier.id, weg: null, rij: null })}
         magSchrijven={magGastheer}
+        magFinance={magFinance}
+        magAgenda={magAgenda}
+        periodeStart={boeking?.start ?? ''}
+        periodeEind={boeking?.eind ?? ''}
+        verhuurtype={boeking?.soort ?? ''}
+        contractLabel={contract?.label ?? 'Geen contract'}
+        contractKeuzes={contract?.keuzes ?? []}
+        heeftInhoud={Boolean(activiteit)}
         demo={snapshot.bron !== 'supabase'}
         weg={Astro.url.searchParams.get('weg') === '1'}
         status={(boeking && BOEKING_LABEL[boeking.status]) || boeking?.status || 'onbekend'}

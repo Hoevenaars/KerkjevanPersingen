@@ -2,6 +2,7 @@
 import StatusMarkering from './StatusMarkering.astro';
 import StukBeoordeling from './StukBeoordeling.astro';
 import { staatKleur, type DossierActieZichtbaar, type DossierWeergave } from '../../platform/verhuur-scherm.ts';
+import { STANDAARD_VERHUURTYPEN } from '../../platform/types.ts';
 
 interface Props {
   dossier: DossierWeergave;
@@ -11,6 +12,14 @@ interface Props {
   dossierActie: string;
   terug: string;
   magSchrijven: boolean;
+  magFinance: boolean;
+  magAgenda: boolean;
+  periodeStart: string;
+  periodeEind: string;
+  verhuurtype: string;
+  contractLabel: string;
+  contractKeuzes: string[];
+  heeftInhoud: boolean;
   demo: boolean;
   weg: boolean;
   status: string;
@@ -31,6 +40,14 @@ const {
   dossierActie,
   terug,
   magSchrijven,
+  magFinance,
+  magAgenda,
+  periodeStart,
+  periodeEind,
+  verhuurtype,
+  contractLabel,
+  contractKeuzes,
+  heeftInhoud,
   demo,
   weg,
   status,
@@ -127,6 +144,24 @@ const aantal = dossier.taken.length;
                   )
                 }
                 <StukBeoordeling />
+                {
+                  magAgenda && heeftInhoud && (
+                    <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                      <input type="hidden" name="boekingId" value={dossier.id} />
+                      <input type="hidden" name="terug" value={terug} />
+                      <label>
+                        Reden bij afkeuren
+                        <textarea name="reden" rows="2" maxlength="500"></textarea>
+                      </label>
+                      <label class="kc-vink">
+                        <input type="checkbox" name="bevestig" value="ja" required />
+                        Bewaar dit besluit. De site verandert niet en er gaat geen mail uit.
+                      </label>
+                      <button class="kc-knop kc-knop--olijf" type="submit" name="actie" value="inhoud_goed">Inhoud goedkeuren</button>
+                      <button class="kc-knop" type="submit" name="actie" value="inhoud_af">Inhoud afkeuren</button>
+                    </form>
+                  )
+                }
               </div>
             </div>
           </div>
@@ -176,8 +211,27 @@ const aantal = dossier.taken.length;
       <section class="kc-kaart">
         <h3>Contract en documenten</h3>
         <div class="kc-kaart-inhoud">
-          <StatusMarkering kleur="unknown" tekst="Onbekend" />
+          <StatusMarkering kleur={contractLabel === 'Getekend' || contractLabel === 'Aanwezig' ? 'ok' : 'unknown'} tekst={contractLabel} />
           <p>{dossier.contractTekst}</p>
+          {
+            magSchrijven && contractKeuzes.length > 0 && (
+              <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                <input type="hidden" name="actie" value="contractstatus" />
+                <input type="hidden" name="boekingId" value={dossier.id} />
+                <input type="hidden" name="terug" value={terug} />
+                <label>
+                  Handmatige status, zonder bestand
+                  <select name="contractstatus" required>
+                    <option value="">Kies</option>
+                    {contractKeuzes.map((keuze) => (
+                      <option value={keuze}>{keuze === 'getekend' ? 'Getekend' : keuze === 'aanwezig' ? 'Aanwezig' : 'Geen contract'}</option>
+                    ))}
+                  </select>
+                </label>
+                <button class="kc-knop" type="submit">Status bewaren</button>
+              </form>
+            )
+          }
           {
             dossier.documenten.length === 0 ? (
               <p>Er staat geen document bij deze boeking.</p>
@@ -280,6 +334,53 @@ const aantal = dossier.taken.length;
       </section>
 
       <section class="kc-kaart">
+        <h3>Periode en verhuurtype</h3>
+        <div class="kc-kaart-inhoud">
+          <p>{periodeStart || '—'} tot {periodeEind || '—'}{verhuurtype ? ` · ${verhuurtype}` : ' · nog geen verhuurtype'}</p>
+          {
+            magSchrijven && (
+              <>
+                <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                  <input type="hidden" name="actie" value="verhuurtype" />
+                  <input type="hidden" name="boekingId" value={dossier.id} />
+                  <input type="hidden" name="terug" value={terug} />
+                  <label>
+                    Verhuurtype
+                    <select name="verhuurtype" required>
+                      <option value="">Kies</option>
+                      {STANDAARD_VERHUURTYPEN.filter((type) => type.actief).map((type) => (
+                        <option value={type.sleutel} selected={type.sleutel === verhuurtype}>{type.naam}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button class="kc-knop" type="submit">Type bewaren</button>
+                </form>
+                <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                  <input type="hidden" name="actie" value="verplaats" />
+                  <input type="hidden" name="boekingId" value={dossier.id} />
+                  <input type="hidden" name="terug" value={terug} />
+                  <label>
+                    Begindatum
+                    <input name="start" type="date" required value={periodeStart} />
+                  </label>
+                  <label>
+                    Einddatum
+                    <input name="eind" type="date" required value={periodeEind} />
+                  </label>
+                  <p class="kc-bijschrift">Een expositie blijft één weekend. Een ander type blijft op maandag tot en met vrijdag. Een overlap wordt geweigerd. De site-tekst verandert niet.</p>
+                  <label class="kc-vink">
+                    <input type="checkbox" name="bevestig" value="ja" required />
+                    Verplaats deze periode.
+                  </label>
+                  <button class="kc-knop" type="submit">Datum verplaatsen</button>
+                </form>
+              </>
+            )
+          }
+        </div>
+      </section>
+
+      <section class="kc-kaart">
         <h3>Dossieracties</h3>
         <div class="kc-kaart-inhoud">
           <p class="kc-bijschrift">Huidige status: {status || 'onbekend'}</p>
@@ -341,8 +442,15 @@ const aantal = dossier.taken.length;
                         Reden annulering
                         <textarea name="reden" rows="3" maxlength="500" placeholder="Bijvoorbeeld: weg afgesloten"></textarea>
                       </label>
+                      <label>
+                        Open termijnen
+                        <select name="termijnen" required>
+                          <option value="laten">Laten staan</option>
+                          <option value="afboeken">Afboeken, geen terugstorting</option>
+                        </select>
+                      </label>
                       <p class="kc-bijschrift">
-                        Een gekoppelde activiteit gaat van de publieke agenda. Open betaalregels blijven staan. Er gaat geen mail uit.
+                        Een gekoppelde activiteit gaat van de publieke agenda. Afboeken zet open aanbetaling en restant op geannuleerd. Er gaat geen geld terug via de bank en er gaat geen mail uit.
                       </p>
                       <label class="kc-vink">
                         <input type="checkbox" name="bevestig" value="ja" required />
@@ -416,7 +524,33 @@ const aantal = dossier.taken.length;
               </div>
             ))
           }
-          <p class="kc-bijschrift">{dossier.betaalToelichting}</p>
+          <p class="kc-bijschrift">{dossier.betaalToelichting} Paul zet een betaling handmatig op ontvangen. Er wordt niets bij de bank opgehaald.</p>
+          {
+            magFinance && (
+              <>
+                <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                  <input type="hidden" name="actie" value="betaling_aanbetaling" />
+                  <input type="hidden" name="boekingId" value={dossier.id} />
+                  <input type="hidden" name="terug" value={terug} />
+                  <label class="kc-vink">
+                    <input type="checkbox" name="bevestig" value="ja" required />
+                    Aanbetaling ontvangen. Geen bank, geen mail.
+                  </label>
+                  <button class="kc-knop kc-knop--olijf" type="submit">Aanbetaling ontvangen</button>
+                </form>
+                <form class="kc-actie" method="post" action={dossierActie} data-kc-bewaar>
+                  <input type="hidden" name="actie" value="betaling_volledig" />
+                  <input type="hidden" name="boekingId" value={dossier.id} />
+                  <input type="hidden" name="terug" value={terug} />
+                  <label class="kc-vink">
+                    <input type="checkbox" name="bevestig" value="ja" required />
+                    Aanbetaling en restant ontvangen. Geen bank, geen mail.
+                  </label>
+                  <button class="kc-knop kc-knop--olijf" type="submit">Volledige betaling binnen</button>
+                </form>
+              </>
+            )
+          }
           {
             betaalregels.length > 0 && (
               <div class="kc-regels">

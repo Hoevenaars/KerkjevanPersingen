@@ -24,7 +24,7 @@ export async function documentLinks(
   if (!storage?.from) return uit;
   for (const document of documenten) {
     const pad = document.pad?.trim();
-    if (!pad) continue;
+    if (!pad || pad.startsWith('handmatig:')) continue;
     try {
       const antwoord = await storage.from('booking-documents').createSignedUrl(pad, 600);
       const url = antwoord.data?.signedUrl ?? '';

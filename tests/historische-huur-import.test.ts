@@ -10,6 +10,7 @@ import {
   parseTermijn,
   parseZuiverBedrag,
   pasPlanToe,
+  applyGeblokkeerdDoorConflict,
   planHistorischeHuur,
   sqlIsVeilig,
   type HistorischeDb,
@@ -48,6 +49,8 @@ describe('historische huurimport', () => {
     assert.equal(plan.regels[0].nieuw?.boeking?.email, 'info@bedrijf.nl');
     assert.equal(plan.regels[0].nieuw?.boeking?.tarief, 450);
     assert.equal(sqlIsVeilig(plan.sql).length, 0);
+    assert.equal(applyGeblokkeerdDoorConflict(['MATCHED_UNCHANGED']), null);
+    assert.match(applyGeblokkeerdDoorConflict(['CONFLICT_REVIEW_REQUIRED']) ?? '', /gestopt/);
   });
 
   test('exact dezelfde reservering blijft MATCHED_UNCHANGED', () => {

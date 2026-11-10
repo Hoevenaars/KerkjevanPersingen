@@ -11,6 +11,7 @@ import { SOORT_LABEL, type DemoBoeking } from './demo-data.ts';
 import { gastherenVoorKoppeling } from './gastheer-lijst.ts';
 import { gastbegeleiderOntbreekt } from './verhuur-classificatie.ts';
 import { isBeschermdeMigratiestatus, statusActieToegestaan } from './status-overgang.ts';
+import { leesTermijnkeuze } from './handmatig-beheer.ts';
 import {
   boekingBezetKalender,
   bolTekst,
@@ -222,7 +223,12 @@ export function dossierActiesZichtbaar(status: string): DossierActieZichtbaar {
 export type DossierActieBesluit =
   | { ok: true; soort: 'verleng' }
   | { ok: true; soort: 'handmatig_definitief'; reden: string }
-  | { ok: true; soort: 'annuleer'; reden: string }
+  | { ok: true; soort: 'annuleer'; reden: string; termijnen: 'laten' | 'afboeken' }
+  | { ok: true; soort: 'betaling_paul'; keuze: 'aanbetaling' | 'volledig' }
+  | { ok: true; soort: 'verplaats'; start: string; eind: string }
+  | { ok: true; soort: 'verhuurtype'; verhuurtype: string }
+  | { ok: true; soort: 'inhoud'; besluit: 'goedkeuren' | 'afkeuren'; reden: string }
+  | { ok: true; soort: 'contractstatus'; status: 'geen' | 'aanwezig' | 'getekend' }
   | { ok: true; soort: 'incident'; omschrijving: string }
   | { ok: true; soort: 'incident_sluiten'; incidentId: string }
   | { ok: true; soort: 'sluit'; reden: string }
@@ -241,6 +247,11 @@ export function beoordeelDossierActie(input: {
   bevestig: string;
   incidentId: string;
   openIncidentIds: readonly string[];
+  start?: string;
+  eind?: string;
+  verhuurtype?: string;
+  contractstatus?: string;
+  termijnen?: string;
 }): DossierActieBesluit {
   const actie = input.actie.trim();
   const niets = ' Er is niets gewijzigd.';
@@ -250,8 +261,35 @@ export function beoordeelDossierActie(input: {
   if (actie === 'betaling') {
     return {
       ok: false,
-      melding: `Een betaling registreren zet in het andere pad de boeking definitief en zet een bevestigingsmail klaar. Die actie blijft uit.${niets}`,
+      melding: `Kies aanbetaling ontvangen of volledige betaling binnen. Die knop haalt niets van de bank en stuurt geen mail.${niets}`,
     };
+  }
+  if (actie === 'betaling_aanbetaling' || actie === 'betaling_volledig') {
+    if (input.bevestig !== 'ja') return { ok: false, melding: `Bevestig deze betaling eerst.${niets}` };
+    return { ok: true, soort: 'betaling_paul', keuze: actie === 'betaling_aanbetaling' ? 'aanbetaling' : 'volledig' };
+  }
+  if (actie === 'verplaats') {
+    if (input.bevestig !== 'ja') return { ok: false, melding: `Bevestig de nieuwe periode eerst.${niets}` };
+    return { ok: true, soort: 'verplaats', start: (input.start ?? '').trim(), eind: (input.eind ?? '').trim() };
+  }
+  if (actie === 'verhuurtype') {
+    return { ok: true, soort: 'verhuurtype', verhuurtype: (input.verhuurtype ?? '').trim() };
+  }
+  if (actie === 'inhoud_goed' || actie === 'inhoud_af') {
+    if (input.bevestig !== 'ja') return { ok: false, melding: `Bevestig de beoordeling eerst. De site is niet gewijzigd.` };
+    return {
+      ok: true,
+      soort: 'inhoud',
+      besluit: actie === 'inhoud_goed' ? 'goedkeuren' : 'afkeuren',
+      reden: input.reden.trim(),
+    };
+  }
+  if (actie === 'contractstatus') {
+    const status = (input.contractstatus ?? '').trim();
+    if (status !== 'geen' && status !== 'aanwezig' && status !== 'getekend') {
+      return { ok: false, melding: `Kies een contractstatus.${niets}` };
+    }
+    return { ok: true, soort: 'contractstatus', status };
   }
   if (actie === 'publiceren' || actie === 'content' || actie === 'goedkeuren' || actie === 'afkeuren') {
     return {
@@ -307,7 +345,9 @@ export function beoordeelDossierActie(input: {
     const poort = statusActieToegestaan(input.status, 'annuleer');
     if (!poort.ok) return { ok: false, melding: `${poort.melding}${niets}` };
     if (poort.melding === 'al') return { ok: false, melding: `Boeking is al geannuleerd.${niets}` };
-    return { ok: true, soort: 'annuleer', reden: input.reden.trim() };
+    const gekozen = leesTermijnkeuze(input.termijnen);
+    if (!gekozen) return { ok: false, melding: `Kies of open termijnen blijven staan of worden afgeboekt. Er is geen terugstorting.${niets}` };
+    return { ok: true, soort: 'annuleer', reden: input.reden.trim(), termijnen: gekozen };
   }
 
   const poort = statusActieToegestaan(input.status, 'afronden');
@@ -678,7 +718,7 @@ export function maakDossierWeergave(input: {
       url: veiligeBestandsUrl(document.url),
     })),
     intake: input.intake.map((bestand) => ({ naam: bestand.naam, url: veiligeBestandsUrl(bestand.url) })),
-    contractTekst: 'Onbekend. Er is geen contractstatus. Een oude tekst uit de import wordt niet als status gelezen.',
+    contractTekst: 'De status volgt een bestand, of een handmatige keuze zonder upload. Een oude importtekst telt niet als status.',
     gastheerId: input.boeking.gastheerId ?? '',
     gastheerNaam: operationeel?.naam ?? '',
     historie,
@@ -689,7 +729,7 @@ export function maakDossierWeergave(input: {
     })),
     betalingen,
     betaalToelichting: input.betaalregelsZichtbaar
-      ? 'De status komt uit de betaalregels. Het oudere veld aanbetaling_ontvangen beslist niet. Een status is geen knop om een betaling te registreren.'
+      ? 'De status komt uit de betaalregels. Het oudere veld aanbetaling_ontvangen beslist niet. Aanbetaling of volledige betaling zet je handmatig op ontvangen. Er gaat niets naar de bank en er gaat geen mail uit.'
       : 'Betaalregels zijn alleen zichtbaar met leesrecht op finance.',
     notities: [input.boeking.notities, input.boeking.toelichting, input.rij.bijzonderheden]
       .map((deel) => (deel ?? '').trim())

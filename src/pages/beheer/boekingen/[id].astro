@@ -16,6 +16,9 @@ import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platfor
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { statusActieToegestaan } from '../../../platform/status-overgang.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
+import { STANDAARD_VERHUURTYPEN } from '../../../platform/types.ts';
+import { contractBeeld, type ContractStatus } from '../../../platform/handmatig-beheer.ts';
 import { behoudTerug, terugLink } from '../../../platform/planning.ts';
 import { geplandeMailsVoorBoeking } from '../../../platform/mailtemplates/workflow.ts';
 import type { MailCommunicatieRegel, MailCommunicatieStatus, MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
@@ -88,7 +91,14 @@ const intake = snapshot.bron === 'supabase' ? await lijstIntake(boeking.id).catc
 
 const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
 const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
-const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id);
+const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id && !d.pad?.startsWith('handmatig:'));
+const marker = snapshot.documenten.find((d) => d.boekingId === boeking.id && d.pad?.startsWith('handmatig:'));
+const markerStatus: ContractStatus | null = marker?.soort === 'getekend_contract' ? 'getekend' : marker?.soort === 'contract' ? 'aanwezig' : null;
+const contract = contractBeeld(docs.map((d) => d.soort), markerStatus);
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const magFinance = magSchrijven(rechten, 'finance') && !Astro.locals.beheer?.viewAs;
+const magBoekingSchrijven = magSchrijven(rechten, 'boekingen') && !Astro.locals.beheer?.viewAs && !snapshot.alleenLezen;
+const magAgendaSchrijven = magSchrijven(rechten, 'agenda') && !Astro.locals.beheer?.viewAs && !snapshot.alleenLezen;
 const demoMails = snapshot.communicatie.filter((c) => c.boekingId === boeking.id);
 const opgeslagen = snapshot.bron === 'supabase' ? [] : await laadCommunicatieVoorBoeking(boeking.id);
 const JOB_STATUSSEN = new Set<MailCommunicatieStatus>(['gepland', 'concept', 'wachtrij', 'verzonden', 'fout', 'geannuleerd']);
@@ -211,6 +221,7 @@ function tabHref(tabNaam: string): string {
 
   {
     tab === 'gegevens' && (
+      <>
       <div class="bh-split">
         <section class="bh-kaart">
           <h2>Boeking</h2>
@@ -344,7 +355,12 @@ function tabHref(tabNaam: string): string {
                 <form method="post" class="bh-form">
                   <label for="annuleer-reden">Reden annulering</label>
                   <textarea id="annuleer-reden" name="reden" rows="3" placeholder="Bijvoorbeeld: weg afgesloten"></textarea>
-                  <p class="bh-muted">De gekoppelde activiteit verdwijnt uit de publieke agenda. Er gaat geen mail uit.</p>
+                  <label for="termijnen">Open termijnen</label>
+                  <select id="termijnen" name="termijnen" required>
+                    <option value="laten">Laten staan</option>
+                    <option value="afboeken">Afboeken, geen terugstorting</option>
+                  </select>
+                  <p class="bh-muted">De gekoppelde activiteit verdwijnt uit de publieke agenda. Afboeken zet open aanbetaling en restant op geannuleerd. Er gaat geen geld terug via de bank en er gaat geen mail uit.</p>
                   <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="annuleer">
                     Annuleer
                   </button>
@@ -383,6 +399,75 @@ function tabHref(tabNaam: string): string {
           )}
         </section>
       </div>
+      {!snapshot.alleenLezen && (
+        <section class="bh-kaart">
+          <h2>Handmatig, zonder bank en zonder mail</h2>
+          <p class="bh-muted">Een betaling zet de bestaande betaalregel op ontvangen. Er wordt geen bedrag verzonnen en er gaat niets naar de bank. De boekingsstatus blijft staan.</p>
+          {magFinance && (
+            <div class="bh-acties">
+              <form method="post">
+                <input type="hidden" name="bevestig" value="ja" />
+                <button class="bh-btn" type="submit" name="actie" value="betaling_aanbetaling">Aanbetaling ontvangen</button>
+              </form>
+              <form method="post">
+                <input type="hidden" name="bevestig" value="ja" />
+                <button class="bh-btn" type="submit" name="actie" value="betaling_volledig">Volledige betaling binnen</button>
+              </form>
+            </div>
+          )}
+          {magBoekingSchrijven && (
+            <>
+              <form method="post" class="bh-form">
+                <label for="verhuurtype">Verhuurtype</label>
+                <select id="verhuurtype" name="verhuurtype" required>
+                  <option value="">Kies</option>
+                  {STANDAARD_VERHUURTYPEN.filter((type) => type.actief).map((type) => (
+                    <option value={type.sleutel} selected={type.sleutel === boeking.soort}>{type.naam}</option>
+                  ))}
+                </select>
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verhuurtype">Type bewaren</button>
+              </form>
+              <form method="post" class="bh-form">
+                <label for="start">Begindatum</label>
+                <input id="start" name="start" type="date" required value={boeking.start} />
+                <label for="eind">Einddatum</label>
+                <input id="eind" name="eind" type="date" required value={boeking.eind} />
+                <input type="hidden" name="bevestig" value="ja" />
+                <p class="bh-muted">Kies eerst het verhuurtype. Een overlap wordt geweigerd. Publicatie blijft zoals die is.</p>
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verplaats">Datum verplaatsen</button>
+              </form>
+              <form method="post" class="bh-form">
+                <p>Contract: {contract.label}{contract.volgtBestand ? ' · volgt het bestand' : ''}</p>
+                {contract.keuzes.length > 0 && (
+                  <>
+                    <label for="contractstatus">Handmatige status, zonder bestand</label>
+                    <select id="contractstatus" name="contractstatus" required>
+                      <option value="">Kies</option>
+                      {contract.keuzes.map((keuze) => (
+                        <option value={keuze}>{keuze === 'getekend' ? 'Getekend' : keuze === 'aanwezig' ? 'Aanwezig' : 'Geen contract'}</option>
+                      ))}
+                    </select>
+                    <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="contractstatus">Contractstatus bewaren</button>
+                  </>
+                )}
+              </form>
+            </>
+          )}
+          {magAgendaSchrijven && (
+            <form method="post" class="bh-form">
+              <label for="inhoud-reden">Inhoud beoordelen</label>
+              <textarea id="inhoud-reden" name="reden" rows="2" placeholder="Reden, verplicht bij afkeuren"></textarea>
+              <input type="hidden" name="bevestig" value="ja" />
+              <p class="bh-muted">Dit bewaart de inhoudsstatus. De activiteit blijft op de site zoals die nu staat. Er gaat geen mail uit.</p>
+              <div class="bh-acties">
+                <button class="bh-btn" type="submit" name="actie" value="inhoud_goed">Inhoud goedkeuren</button>
+                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="inhoud_af">Inhoud afkeuren</button>
+              </div>
+            </form>
+          )}
+        </section>
+      )}
+      </>
     )
   }
 

@@ -6,6 +6,16 @@
 
 import { magStatusZetten } from '../../platform/aanvraag.ts';
 import { ymdInAmsterdam, periodesOverlappen } from '../../platform/datum.ts';
+import {
+  beoordeelContractstatus,
+  beoordeelHandmatigeBetaling,
+  beoordeelInhoud,
+  beoordeelVerhuurtype,
+  beoordeelVerplaatsing,
+  contractBeeld,
+  leesTermijnkeuze,
+  overlapNummers,
+} from '../../platform/handmatig-beheer.ts';
 import { boekingNummer, leesHandmatigeBoeking, type HandmatigeBoeking } from '../../platform/handmatige-boeking.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
 import { magSchrijven } from '../../platform/rechten.ts';
@@ -73,7 +83,7 @@ function rechtenVan(actor: Actor): GebruikerRechten {
   return actor.rechten ?? { isSuperAdmin: false, perModule: {} };
 }
 
-function mag(actor: Actor, module: 'boekingen' | 'aanvragen' | 'planning'): boolean {
+function mag(actor: Actor, module: 'boekingen' | 'aanvragen' | 'planning' | 'finance' | 'agenda'): boolean {
   return magSchrijven(rechtenVan(actor), module);
 }
 
@@ -513,6 +523,248 @@ async function schrijfBoeking(
   return { id: String(id) };
 }
 
+const CONTRACT_MARKER = 'handmatig:contractstatus';
+
+async function leesRijen(
+  client: DossierSessie,
+  tabel: string,
+  kolommen: string,
+  kolom: string,
+  waarde: number,
+): Promise<{ rijen: Record<string, unknown>[] } | { fout: string }> {
+  const gelezen = await client.from(tabel).select(kolommen).eq(kolom, waarde);
+  if (gelezen.error) return { fout: leesbareAuthFout(gelezen.error.message) };
+  return { rijen: gelezen.data ?? [] };
+}
+
+async function handmatigeBetaling(
+  client: DossierSessie,
+  id: number,
+  keuze: 'aanbetaling' | 'volledig',
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!mag(actor, 'finance')) return { ok: false, melding: 'Geen recht om een betaling vast te leggen. Er is niets gewijzigd.' };
+  const gelezen = await leesRijen(client, 'betalingen', 'id,soort,status', 'boeking_id', id);
+  if ('fout' in gelezen) return { ok: false, melding: gelezen.fout };
+  const besluit = beoordeelHandmatigeBetaling({
+    keuze,
+    regels: gelezen.rijen.map((rij) => ({ soort: String(rij.soort ?? ''), status: String(rij.status ?? '') })),
+  });
+  if (!besluit.ok) return { ok: false, melding: besluit.melding };
+  const nu = new Date().toISOString();
+  for (const rij of gelezen.rijen) {
+    const soort = String(rij.soort ?? '');
+    if (String(rij.status ?? '') !== 'open' || !besluit.markeer.includes(soort as 'aanbetaling' | 'restant')) continue;
+    const gezet = await client.from('betalingen').update({ status: 'ontvangen', ontvangen_op: nu }).eq('id', rij.id).select('id').maybeSingle();
+    if (gezet.error) return { ok: false, melding: leesbareAuthFout(gezet.error.message) };
+    if (!gezet.data) return { ok: false, melding: 'De betaalregel is niet bijgewerkt. Controleer het finance-recht. Er is niets van de bank opgehaald.' };
+  }
+  if (besluit.zetVlag) {
+    const vlag = await client.from('boekingen').update({
+      aanbetaling_ontvangen: true,
+      aanbetaling_ontvangen_op: nu,
+      bijgewerkt_op: nu,
+    }).eq('id', id).select('id').maybeSingle();
+    if (vlag.error) return { ok: false, melding: leesbareAuthFout(vlag.error.message) };
+  }
+  await audit(client, actor, {
+    actie: 'betaling_handmatig',
+    type: 'boeking',
+    id: String(id),
+    naar: besluit.markeer.join(','),
+    reden: 'Handmatig vastgelegd. Geen bank en geen mail.',
+    dedup: `betaling:${id}:handmatig:${keuze}:${nu}`,
+  });
+  return { ok: true, melding: besluit.tekst };
+}
+
+async function verplaatsBoeking(
+  client: DossierSessie,
+  id: number,
+  start: string,
+  eind: string,
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!mag(actor, 'boekingen')) return { ok: false, melding: 'Geen recht om een datum te verplaatsen. Er is niets gewijzigd.' };
+  const boeking = await leesBoeking(client, id);
+  if ('fout' in boeking) return { ok: false, melding: boeking.fout };
+  const typeRij = await client.from('boekingen').select('verhuurtype_sleutel').eq('id', id).maybeSingle();
+  if (typeRij.error) return { ok: false, melding: leesbareAuthFout(typeRij.error.message) };
+  const anderen = await client.from('boekingen').select('id,nummer,status,start_datum,eind_datum').in('status', [
+    'optie',
+    'definitief',
+    'migratie_vastgelegd',
+    'optie_verlopen',
+  ]);
+  if (anderen.error) return { ok: false, melding: leesbareAuthFout(anderen.error.message) };
+  const besluit = beoordeelVerplaatsing({
+    status: boeking.status,
+    verhuurtype: String(typeRij.data?.verhuurtype_sleutel ?? ''),
+    start,
+    eind,
+    huidigStart: boeking.start_datum,
+    huidigEind: boeking.eind_datum,
+    overlapNummers: overlapNummers({
+      boekingId: String(id),
+      start,
+      eind,
+      boekingen: (anderen.data ?? []).map((rij) => ({
+        id: String(rij.id),
+        status: String(rij.status ?? ''),
+        start: String(rij.start_datum ?? ''),
+        eind: String(rij.eind_datum ?? ''),
+        nummer: rij.nummer == null ? '' : String(rij.nummer),
+      })),
+    }),
+  });
+  if (!besluit.ok) return { ok: false, melding: besluit.melding };
+  const gezet = await zetStatus(client, id, { start_datum: besluit.start, eind_datum: besluit.eind });
+  if (gezet.fout) return { ok: false, melding: gezet.fout };
+  const agenda = await client.from('publieke_activiteiten').update({
+    start_datum: besluit.start,
+    eind_datum: besluit.eind,
+  }).eq('boeking_id', id);
+  if (agenda.error) {
+    return { ok: false, melding: `De boeking is verplaatst. De gekoppelde activiteit niet: ${leesbareAuthFout(agenda.error.message)}` };
+  }
+  await audit(client, actor, {
+    actie: 'verplaatst',
+    type: 'boeking',
+    id: String(id),
+    van: `${boeking.start_datum}/${boeking.eind_datum}`,
+    naar: `${besluit.start}/${besluit.eind}`,
+    dedup: `boeking:${id}:verplaatst:${besluit.start}:${besluit.eind}`,
+  });
+  return { ok: true, melding: 'De periode is verplaatst. Zichtbaarheid en publicatie zijn niet gewijzigd. Er is geen mail verstuurd.' };
+}
+
+async function zetVerhuurtype(
+  client: DossierSessie,
+  id: number,
+  verhuurtype: string,
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!mag(actor, 'boekingen')) return { ok: false, melding: 'Geen recht om het verhuurtype te wijzigen. Er is niets gewijzigd.' };
+  const huidig = await client.from('boekingen').select('verhuurtype_sleutel').eq('id', id).maybeSingle();
+  if (huidig.error) return { ok: false, melding: leesbareAuthFout(huidig.error.message) };
+  if (!huidig.data) return { ok: false, melding: 'Boeking niet gevonden.' };
+  const besluit = beoordeelVerhuurtype(String(huidig.data.verhuurtype_sleutel ?? ''), verhuurtype);
+  if (!besluit.ok) return { ok: false, melding: besluit.melding };
+  const gezet = await zetStatus(client, id, { verhuurtype_sleutel: besluit.verhuurtype });
+  if (gezet.fout) return { ok: false, melding: gezet.fout };
+  await audit(client, actor, {
+    actie: 'verhuurtype',
+    type: 'boeking',
+    id: String(id),
+    van: String(huidig.data.verhuurtype_sleutel ?? ''),
+    naar: besluit.verhuurtype,
+    dedup: `boeking:${id}:verhuurtype:${besluit.verhuurtype}`,
+  });
+  return { ok: true, melding: `Verhuurtype is ${besluit.naam}. Er is geen mail verstuurd.` };
+}
+
+async function beoordeelInhoudSessie(
+  client: DossierSessie,
+  id: number,
+  besluitIn: 'goedkeuren' | 'afkeuren',
+  reden: string,
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!mag(actor, 'agenda')) return { ok: false, melding: 'Geen recht om inhoud te beoordelen. Er is niets gewijzigd en de site is niet gewijzigd.' };
+  const gelezen = await leesRijen(client, 'publieke_activiteiten', 'id,inhoud_status', 'boeking_id', id);
+  if ('fout' in gelezen) return { ok: false, melding: gelezen.fout };
+  const besluit = beoordeelInhoud({
+    besluit: besluitIn,
+    reden,
+    heeftActiviteit: gelezen.rijen.length > 0,
+    status: String(gelezen.rijen[0]?.inhoud_status ?? ''),
+  });
+  if (!besluit.ok) return { ok: false, melding: besluit.melding };
+  const nu = new Date().toISOString();
+  const velden: Record<string, unknown> = {
+    inhoud_status: besluit.status,
+    beoordeling_toelichting: besluit.reden || null,
+  };
+  if (besluit.besluit === 'goedkeuren') {
+    velden.goedgekeurd_op = nu;
+    velden.goedgekeurd_door = actorId(actor);
+  }
+  for (const rij of gelezen.rijen) {
+    const gezet = await client.from('publieke_activiteiten').update(velden).eq('id', rij.id).select('id,gepubliceerd').maybeSingle();
+    if (gezet.error) return { ok: false, melding: leesbareAuthFout(gezet.error.message) };
+  }
+  await audit(client, actor, {
+    actie: besluit.besluit === 'goedkeuren' ? 'inhoud_goedgekeurd' : 'inhoud_afgekeurd',
+    type: 'boeking',
+    id: String(id),
+    naar: besluit.status,
+    reden: besluit.reden,
+    dedup: `inhoud:${id}:${besluit.status}:${nu}`,
+  });
+  return {
+    ok: true,
+    melding: besluit.besluit === 'goedkeuren'
+      ? 'De inhoud is goedgekeurd. De site is niet gewijzigd en er is geen mail verstuurd.'
+      : 'De inhoud is afgekeurd. De site is niet gewijzigd en er is geen mail verstuurd.',
+  };
+}
+
+async function zetContractstatus(
+  client: DossierSessie,
+  id: number,
+  status: 'geen' | 'aanwezig' | 'getekend',
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!mag(actor, 'boekingen')) return { ok: false, melding: 'Geen recht om de contractstatus te wijzigen. Er is niets gewijzigd.' };
+  const gelezen = await leesRijen(client, 'documenten', 'id,type,storage_pad', 'boeking_id', id);
+  if ('fout' in gelezen) return { ok: false, melding: gelezen.fout };
+  const bestanden = gelezen.rijen.filter((rij) => String(rij.storage_pad ?? '') !== CONTRACT_MARKER);
+  const beeld = contractBeeld(bestanden.map((rij) => String(rij.type ?? '')));
+  const besluit = beoordeelContractstatus(beeld, status);
+  if (!besluit.ok) return { ok: false, melding: besluit.melding };
+  const marker = gelezen.rijen.find((rij) => String(rij.storage_pad ?? '') === CONTRACT_MARKER);
+  const type = besluit.status === 'getekend' ? 'getekend_contract' : besluit.status === 'aanwezig' ? 'contract' : 'overig';
+  if (marker) {
+    const gezet = await client.from('documenten').update({
+      type,
+      bestandsnaam: 'Alleen status, geen bestand',
+    }).eq('id', marker.id).select('id').maybeSingle();
+    if (gezet.error) return { ok: false, melding: leesbareAuthFout(gezet.error.message) };
+  } else if (besluit.status !== 'geen') {
+    const gezet = await client.from('documenten').insert({
+      boeking_id: id,
+      type,
+      bestandsnaam: 'Alleen status, geen bestand',
+      storage_pad: CONTRACT_MARKER,
+    }).select('id').maybeSingle();
+    if (gezet.error) return { ok: false, melding: leesbareAuthFout(gezet.error.message) };
+  }
+  await audit(client, actor, {
+    actie: 'contractstatus',
+    type: 'boeking',
+    id: String(id),
+    naar: besluit.status,
+    reden: 'Handmatige status. Geen bestand en geen bank.',
+    dedup: `contract:${id}:${besluit.status}`,
+  });
+  return { ok: true, melding: 'Contractstatus opgeslagen. Er is geen bestand geüpload en er is geen mail verstuurd.' };
+}
+
+async function boekOpenTermijnenAf(client: DossierSessie, id: number): Promise<{ fout?: string; aantal: number }> {
+  const gelezen = await leesRijen(client, 'betalingen', 'id,soort,status', 'boeking_id', id);
+  if ('fout' in gelezen) return { fout: gelezen.fout, aantal: 0 };
+  let aantal = 0;
+  for (const rij of gelezen.rijen) {
+    const soort = String(rij.soort ?? '');
+    if (String(rij.status ?? '') !== 'open') continue;
+    if (soort !== 'aanbetaling' && soort !== 'restant') continue;
+    const gezet = await client.from('betalingen').update({ status: 'geannuleerd' }).eq('id', rij.id).select('id').maybeSingle();
+    if (gezet.error) return { fout: leesbareAuthFout(gezet.error.message), aantal };
+    if (gezet.data) aantal += 1;
+  }
+  return { aantal };
+}
+
 export async function voerDossierViaSessie(
   client: DossierSessie,
   opdracht: Opdracht,
@@ -525,10 +777,25 @@ export async function voerDossierViaSessie(
     const poort = statusActieToegestaan(boeking.status, 'annuleer');
     if (!poort.ok) return { ok: false, melding: poort.melding };
     if (!mag(actor, 'boekingen')) return { ok: false, melding: 'Geen recht om te annuleren.' };
+    const termijnen = leesTermijnkeuze(opdracht.termijnen);
+    if (!termijnen) return { ok: false, melding: 'Kies of open termijnen blijven staan of worden afgeboekt. Er is geen terugstorting en er is niets gewijzigd.' };
+    if (termijnen === 'afboeken' && !mag(actor, 'finance')) {
+      return { ok: false, melding: 'Open termijnen afboeken vraagt finance-recht. Er is niets gewijzigd en er is geen terugstorting gedaan.' };
+    }
     const uit = await annuleerBoekingViaSessie(client as AnnuleerSessie, id, opdracht.reden ?? '', actor);
-    if (uit.ok) return { ok: true, melding: `${uit.melding} Annuleringsmail staat uit.` };
-    return { ok: false, melding: leesbareAuthFout(uit.melding) };
+    if (!uit.ok) return { ok: false, melding: leesbareAuthFout(uit.melding) };
+    if (termijnen === 'laten') return { ok: true, melding: `${uit.melding} Annuleringsmail staat uit. Open termijnen blijven staan. Er is geen terugstorting gedaan.` };
+    const afgeboekt = await boekOpenTermijnenAf(client, id);
+    if (afgeboekt.fout) {
+      return { ok: false, melding: `De boeking is geannuleerd. De open termijnen zijn niet afgeboekt: ${afgeboekt.fout} Er is geen terugstorting gedaan.` };
+    }
+    return { ok: true, melding: `${uit.melding} ${afgeboekt.aantal} open termijn${afgeboekt.aantal === 1 ? '' : 'en'} afgeboekt. Er is geen terugstorting en geen mail.` };
   }
+  if (opdracht.soort === 'betaling_paul') return handmatigeBetaling(client, Number(opdracht.boekingId), opdracht.keuze, actor);
+  if (opdracht.soort === 'verplaats') return verplaatsBoeking(client, Number(opdracht.boekingId), opdracht.start, opdracht.eind, actor);
+  if (opdracht.soort === 'verhuurtype') return zetVerhuurtype(client, Number(opdracht.boekingId), opdracht.verhuurtype, actor);
+  if (opdracht.soort === 'inhoud') return beoordeelInhoudSessie(client, Number(opdracht.boekingId), opdracht.besluit, opdracht.reden ?? '', actor);
+  if (opdracht.soort === 'contractstatus') return zetContractstatus(client, Number(opdracht.boekingId), opdracht.status, actor);
   if (opdracht.soort === 'gastheer') {
     if (!mag(actor, 'boekingen') && !mag(actor, 'planning')) {
       return { ok: false, melding: 'Geen recht om een gastheer te koppelen.' };

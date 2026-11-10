@@ -554,7 +554,21 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
     return { soort: 'gastheer', boekingId, gastheerId: String(data.get('gastheerId') ?? '') };
   }
   if (actie === 'definitief' && boekingId) return { soort: 'handmatig_definitief', boekingId, reden };
-  if (actie === 'annuleer' && boekingId) return { soort: 'annuleer', boekingId, reden };
+  if (actie === 'annuleer' && boekingId) return { soort: 'annuleer', boekingId, reden, termijnen: String(data.get('termijnen') ?? '') };
+  if ((actie === 'betaling_aanbetaling' || actie === 'betaling_volledig') && boekingId) {
+    return { soort: 'betaling_paul', boekingId, keuze: actie === 'betaling_aanbetaling' ? 'aanbetaling' : 'volledig' };
+  }
+  if (actie === 'verplaats' && boekingId) {
+    return { soort: 'verplaats', boekingId, start: String(data.get('start') ?? ''), eind: String(data.get('eind') ?? '') };
+  }
+  if (actie === 'verhuurtype' && boekingId) return { soort: 'verhuurtype', boekingId, verhuurtype: String(data.get('verhuurtype') ?? '') };
+  if ((actie === 'inhoud_goed' || actie === 'inhoud_af') && boekingId) {
+    return { soort: 'inhoud', boekingId, besluit: actie === 'inhoud_goed' ? 'goedkeuren' : 'afkeuren', reden };
+  }
+  if (actie === 'contractstatus' && boekingId) {
+    const status = String(data.get('contractstatus') ?? '');
+    if (status === 'geen' || status === 'aanwezig' || status === 'getekend') return { soort: 'contractstatus', boekingId, status };
+  }
   if (actie === 'verleng' && boekingId) return { soort: 'verleng', boekingId };
   if (actie === 'publiceren' && (boekingId || padId)) return { soort: 'content_beoordelen', boekingId: boekingId || padId, besluit: 'goedkeuren' };
   if (actie === 'content' && (boekingId || padId)) {
