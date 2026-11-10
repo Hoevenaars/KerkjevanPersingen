@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../src/styles/beheer-concept.css', import.meta.url), 'utf8');
+const oudCss = readFileSync(new URL('../src/styles/beheer.css', import.meta.url), 'utf8');
 const schil = readFileSync(new URL('../src/layouts/BeheerSchil.astro', import.meta.url), 'utf8');
 const beheer = readFileSync(new URL('../src/layouts/Beheer.astro', import.meta.url), 'utf8');
 const concept = readFileSync(new URL('../src/layouts/BeheerConcept.astro', import.meta.url), 'utf8');
@@ -24,6 +25,13 @@ describe('gedeelde beheerschil', () => {
     assert.match(schil, /data-beheer-schil/);
     assert.match(schil, /data-beheer-balk/);
     assert.match(beheer, /data-beheer-pagina/);
+  });
+
+  test('het oude menu laat een brede tabel in de kaart scrollen', () => {
+    assert.match(oudCss, /html:has\(\.bh-app\)[\s\S]*overflow-x:\s*clip/);
+    assert.match(oudCss, /\.bh-kaart:has\(table\)\s*\{\s*overflow-x:\s*auto;/);
+    assert.match(oudCss, /grid-template-columns:\s*248px minmax\(0,\s*1fr\)/);
+    assert.match(oudCss, /\.bh-main\s*\{[^}]*overflow-x:\s*auto;/);
   });
 
   test('knoppen, velden en tabellen volgen de verhuurmaten', () => {
