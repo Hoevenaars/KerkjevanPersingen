@@ -7,6 +7,7 @@ import { STANDAARD_AFBEELDING, detailVoorWebsite } from '../../platform/publicer
 import { getActiviteitBySlug, publiekeFotoUrl, formatDatumBereik } from '../../lib/content';
 import { toonFotoInHetGeheel } from '../../lib/publicatie-foto.ts';
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
+import { natuurlijkFlyer } from '../../lib/natuurlijk-in-het-kwadraat';
 import { eventJsonLd, jsonLdInScript } from '../../lib/seo';
 
 const { slug } = Astro.params;
@@ -20,24 +21,29 @@ const fotoBron = publiekeFotoBron(activiteit);
 const foto =
   secondNaturePoster(activiteit) ??
   (fotoBron ? publiekeFotoUrl(fotoBron, 1200, 800) : null) ??
+  natuurlijkFlyer(activiteit) ??
   STANDAARD_AFBEELDING;
 const poster = isSecondNature(activiteit);
-const heel = toonFotoInHetGeheel(foto);
+const heel = !poster && toonFotoInHetGeheel(foto);
 const inlineTekst = detailTekst(activiteit) ?? detailVoorWebsite({
   korteOmschrijving: activiteit.korteOmschrijving,
   volledigeOmschrijving: activiteit.volledigeOmschrijving,
   omschrijving: activiteit.omschrijving,
 });
 const paragrafen = inlineTekst ? tekstNaarParagrafen(inlineTekst) : [];
+const beschrijvingBron =
+  activiteit.korteOmschrijving?.trim() ||
+  activiteit.omschrijving?.trim() ||
+  inlineTekst;
 const beschrijving =
-  activiteit.omschrijving?.slice(0, 155) ??
-  inlineTekst?.slice(0, 155) ??
+  beschrijvingBron?.slice(0, 155) ??
   `${activiteit.publiekeTitel} in het kerkje van Persingen.`;
 
 const isExpositie = activiteit.soort === 'expositie';
 
 const jsonLdEvent = eventJsonLd({
   ...activiteit,
+  omschrijving: activiteit.korteOmschrijving?.trim() || activiteit.omschrijving,
   imageUrl: foto,
 });
 ---

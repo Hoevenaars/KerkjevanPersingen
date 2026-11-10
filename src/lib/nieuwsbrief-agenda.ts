@@ -9,6 +9,7 @@ import {
 } from './week.ts';
 import { filterActiviteitenInPeriode } from './nieuwsbrief-frequentie.ts';
 import { secondNaturePoster } from './second-nature.ts';
+import { natuurlijkFlyer } from './natuurlijk-in-het-kwadraat.ts';
 import { SFEER_URL, type NieuwsbriefActiviteitBlok } from './nieuwsbrief-html.ts';
 
 function kiesActiviteit(
@@ -32,8 +33,8 @@ function naarActiviteitBlok(activiteit: Activiteit, kop: string): NieuwsbriefAct
   return {
     titel: activiteit.publiekeTitel || activiteit.interneTitel,
     datumTekst: formatDatumBereik(activiteit),
-    omschrijving: activiteit.omschrijving?.slice(0, 155),
-    fotoUrl: secondNaturePoster(activiteit, { absoluut: true }) ?? cmsFoto ?? SFEER_URL,
+    omschrijving: (activiteit.korteOmschrijving?.trim() || activiteit.omschrijving?.trim() || '').slice(0, 155) || undefined,
+    fotoUrl: secondNaturePoster(activiteit, { absoluut: true }) ?? cmsFoto ?? natuurlijkFlyer(activiteit, { absoluut: true }) ?? SFEER_URL,
     fotoAlt: activiteit.fotoAlt || 'Het kerkje van Persingen in de Ooijpolder',
     agendaUrl: activiteit.slug
       ? `https://kerkjepersingen.nl/agenda/${activiteit.slug}/`
