@@ -16,6 +16,7 @@ import { laadMailtemplatesUitSupabase } from '../../platform/mailtemplates/supab
 import type { AanvraagStatus, BoekingStatus, GebruikerRechten, PublicatieTrigger } from '../../platform/types.ts';
 import type { Json } from '../database.types.ts';
 import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from '../agenda-zichtbaarheid.ts';
+import { beheerRedirect } from '../beheer-http.ts';
 import { leesbareAuthFout, voerDossierViaSessie, type DossierSessie } from './dossier-sessie.ts';
 import {
   legeWereld,
@@ -581,16 +582,16 @@ export async function postAlsSupabase(input: {
     const actie = String(data.get('actie') ?? '');
     if (NIET_BESCHIKBAAR.has(actie)) {
       doel.searchParams.set('fout', 'Nog niet beschikbaar. Er is niets opgeslagen en er is geen mail verstuurd.');
-      return Response.redirect(doel, 303);
+      return beheerRedirect(doel);
     }
     const opdracht = opdrachtUitFormulier(input.url, data);
     if (!opdracht || opdracht.soort === 'scheduler') {
       doel.searchParams.set('fout', 'Deze actie is niet beschikbaar. Er is niets gewijzigd.');
-      return Response.redirect(doel, 303);
+      return beheerRedirect(doel);
     }
     if (!isDossierSessie(input.sessie)) {
       doel.searchParams.set('fout', 'Geen ingelogde sessie. Er is niets gewijzigd. De service-role is niet gebruikt.');
-      return Response.redirect(doel, 303);
+      return beheerRedirect(doel);
     }
     const uit = await voerDossierViaSessie(input.sessie, opdracht, input.actor);
     doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
@@ -598,5 +599,5 @@ export async function postAlsSupabase(input: {
     const tekst = error instanceof Error ? error.message : 'Opslaan mislukt.';
     doel.searchParams.set('fout', leesbareAuthFout(tekst));
   }
-  return Response.redirect(doel, 303);
+  return beheerRedirect(doel);
 }
