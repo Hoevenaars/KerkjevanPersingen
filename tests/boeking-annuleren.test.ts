@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { metBeheerHeaders } from '../src/lib/beheer-http.ts';
+import { beheerRedirect, metBeheerHeaders } from '../src/lib/beheer-http.ts';
 import {
   annuleerBoeking,
   annuleerBoekingViaSessie,
@@ -193,4 +193,17 @@ test('een redirect houdt status 303 nadat beheerheaders zijn gezet', () => {
   assert.equal(uit.headers.get('Location'), 'https://kerkjepersingen.nl/beheer/boekingen/48/?melding=klaar');
   assert.equal(uit.headers.get('Cache-Control'), 'no-store');
   assert.equal(uit.headers.get('X-Robots-Tag'), 'noindex, nofollow');
+});
+
+test('een beheer-redirect laat Astro nog een header zetten', () => {
+  const vast = Response.redirect('https://kerkjepersingen.nl/beheer/aanvragen/21/?melding=Aanvraag%20afgewezen', 303);
+  assert.throws(() => vast.headers.set('X-Astro-Route-Type', 'page'));
+  const uit = beheerRedirect('https://kerkjepersingen.nl/beheer/aanvragen/21/?melding=Aanvraag%20afgewezen');
+  uit.headers.set('X-Astro-Route-Type', 'page');
+  assert.equal(uit.status, 303);
+  assert.equal(uit.headers.get('Location'), 'https://kerkjepersingen.nl/beheer/aanvragen/21/?melding=Aanvraag%20afgewezen');
+  assert.equal(uit.headers.get('X-Astro-Route-Type'), 'page');
+  const metHeaders = metBeheerHeaders(uit);
+  assert.equal(metHeaders.status, 303);
+  assert.equal(metHeaders.headers.get('Cache-Control'), 'no-store');
 });

@@ -142,3 +142,14 @@ export function metBeheerHeaders(response: Response, extra?: Headers): Response 
     headers,
   });
 }
+
+/**
+ * Zelfde resultaat als Response.redirect, maar met een beschrijfbare headerlijst.
+ * Astro zet na een paginarender zelf nog een route-header. Op een vaste
+ * Response.redirect gooit dat, en de bezoeker ziet HTTP 500 terwijl de
+ * schrijfactie al is opgeslagen.
+ */
+export function beheerRedirect(doel: URL | string, status = 303): Response {
+  const location = typeof doel === 'string' ? doel : doel.toString();
+  return new Response(null, { status, headers: { Location: location } });
+}
