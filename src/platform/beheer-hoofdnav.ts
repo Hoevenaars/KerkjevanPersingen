@@ -115,7 +115,12 @@ function verhuurSub(rechten: GebruikerRechten, opties: HoofdOpties): NavItem[] {
     items.push({ sleutel: 'boekingen', href: '/beheer/boekingen/', label: 'Boekingen' });
   }
   if (magZien(rechten, 'kalender')) {
-    items.push({ sleutel: 'kalender', href: '/beheer/kalender/', label: 'Maandkalender' });
+    items.push({
+      sleutel: 'kalender',
+      href: '/beheer/kalender/',
+      label: 'Maandkalender',
+      toelichting: 'maandbeeld, zelden nodig',
+    });
   }
   if (magZien(rechten, 'planning')) {
     items.push({ sleutel: 'planning', href: '/beheer/planning/', label: 'Planning' });
