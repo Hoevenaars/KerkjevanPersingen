@@ -3,6 +3,7 @@
   "env": {
     "BEHEER_ENABLED": "true",
     "VERHUUR_OVERZICHT": "true",
+    "BEHEER_HOOFDNAV": "true",
     "SUPABASE_URL": "https://xskqpefeumylrticrphp.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_Xygy4sCKoWc7WJc3Wh1PWQ_io5qJrph",
     "SUPER_ADMIN_EMAIL": "nhoevenaars@gmail.com"

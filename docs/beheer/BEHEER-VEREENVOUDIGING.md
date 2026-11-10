@@ -2,7 +2,7 @@
 
 Onderzoek en uitwerking op 10 november 2026 (Europe/Amsterdam), tegen `main` op `fbb3d68`. Geen productiegegevens gewijzigd, geen migratie gedraaid, geen mail verstuurd, niets gemerged.
 
-De nieuwe indeling staat achter `BEHEER_HOOFDNAV`. Zonder die waarde, of met een andere waarde dan `true`, blijft het bestaande menu staan. `VERHUUR_OVERZICHT` blijft de schakelaar van de verhuuragenda en van `/beheer/website/`. De vlag staat niet in `vercel.json`.
+De nieuwe indeling staat achter `BEHEER_HOOFDNAV`. Zonder die waarde, of met een andere waarde dan `true`, blijft het bestaande menu staan, ook als de code al op de site staat. `VERHUUR_OVERZICHT` blijft de schakelaar van de verhuuragenda en van `/beheer/website/`. `vercel.json` zet `BEHEER_HOOFDNAV` op `true`, zodat `/beheer` de zes onderdelen toont. Weghalen van die regel zet het oude menu terug.
 
 ## 1. Functieaudit
 
@@ -140,7 +140,7 @@ De schermafbeeldingen horen bij de lokale voorbeelddata, niet bij productie.
 
 ## 11. Preview en release
 
-1. Zet op een preview `BEHEER_HOOFDNAV=true`. Laat `VERHUUR_OVERZICHT` zoals die al staat.
+1. `vercel.json` zet `BEHEER_HOOFDNAV=true`. Na de deploy toont `/beheer` de zes onderdelen. `VERHUUR_OVERZICHT` blijft zoals die stond.
 2. Loop als Super Admin en, via view-as, als een beperkte rol: Overzicht, een aanvraag, de verhuuragenda, een dossier, Website, Contacten, Financiën, Instellingen.
 3. Controleer dat een rol zonder finance geen betaalbedragen opent, en dat een rol zonder aanvragen dat menu-item niet ziet.
 4. Verander geen schakelaar bij automatiseringen en verstuur geen testmail.
