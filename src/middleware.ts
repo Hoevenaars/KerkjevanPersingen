@@ -4,12 +4,11 @@ import {
   beheerUitResponse,
 } from './platform/beheer-gate';
 import {
-  beheerToegang,
   isBeheerAuthPad,
   isBeheerPad,
   isMutatieMethode,
   isViewAsWisselPad,
-  moduleVoorPad,
+  toegangVoorBeheerPad,
 } from './platform/autorisatie.ts';
 import { VIEW_AS_COOKIE } from './platform/beheer-sessie.ts';
 import { bouwSessie } from './lib/beheer-auth.ts';
@@ -154,9 +153,9 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
   }
 
   const wissel = isViewAsWisselPad(pad);
-  const uitkomst = beheerToegang({
+  const uitkomst = toegangVoorBeheerPad({
+    pathname: pad,
     methode: context.request.method,
-    module: moduleVoorPad(pad),
     ingelogd: true,
     actief: sessie.gebruiker.status !== 'disabled',
     rechten: wissel ? sessie.rechten : sessie.effectieveRechten,

@@ -1,0 +1,94 @@
+---
+import { formatNl } from '../../platform/demo-data.ts';
+import type { BetaalWeergave, FinancienBeeld } from '../../platform/beheer-financien.ts';
+
+interface Props {
+  beeld: FinancienBeeld;
+}
+
+const { beeld } = Astro.props;
+
+const blokken: { id: string; titel: string; tekst: string; regels: BetaalWeergave[]; totaal: string | null }[] = [
+  {
+    id: 'open',
+    titel: 'Openstaand',
+    tekst: 'Open regels bij een lopende boeking. Een geannuleerde boeking staat hier niet bij.',
+    regels: beeld.open,
+    totaal: beeld.totaalOpen,
+  },
+  {
+    id: 'ontvangen',
+    titel: 'Ontvangen',
+    tekst: 'Wat volgens de betaalregels is ontvangen, inclusief oudere regels.',
+    regels: beeld.ontvangen,
+    totaal: beeld.totaalOntvangen,
+  },
+  {
+    id: 'afwijkingen',
+    titel: 'Afwijkingen',
+    tekst: 'Verschil tussen de oude aanbetalingsvlag en de betaalregels, of een open regel bij een stopgezette boeking. Er is niets herberekend.',
+    regels: beeld.afwijkingen,
+    totaal: null,
+  },
+  {
+    id: 'geannuleerd',
+    titel: 'Geannuleerde betaalregels',
+    tekst: 'De regel zelf is geannuleerd. Dat is geen terugbetaling.',
+    regels: beeld.geannuleerd,
+    totaal: null,
+  },
+];
+
+function wanneer(waarde: string): string {
+  return waarde ? formatNl(waarde) : '—';
+}
+---
+
+<header class="bh-top">
+  <div>
+    <p class="bh-label">Financiën</p>
+    <h1>Financiën</h1>
+    <p class="bh-hint">
+      De tabel betalingen is de bron. Een betaling als ontvangen markeren of terugstorten kan hier nog niet.
+      Er gaat geen mail uit.
+    </p>
+  </div>
+</header>
+
+{
+  blokken
+    .filter((blok) => blok.regels.length > 0 || blok.id === 'open')
+    .map((blok) => (
+      <section class="bh-kaart" id={blok.id}>
+        <h2>{blok.titel}</h2>
+        <p class="bh-muted">{blok.tekst}</p>
+        {blok.totaal && <p><strong>Totaal {blok.totaal}</strong></p>}
+        {blok.regels.length === 0 ? (
+          <p class="bh-leeg">Geen openstaande regels.</p>
+        ) : (
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Wanneer</th>
+                <th>Wie</th>
+                <th>Bedrag</th>
+                <th>Toelichting</th>
+              </tr>
+            </thead>
+            <tbody>
+              {blok.regels.map((regel) => (
+                <tr id={regel.id}>
+                  <td>{wanneer(regel.wanneer)}</td>
+                  <td>
+                    <a href={regel.href}>{regel.titel}</a>
+                  </td>
+                  <td>{regel.bedrag || '—'}</td>
+                  <td>{regel.toelichting}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    ))
+}

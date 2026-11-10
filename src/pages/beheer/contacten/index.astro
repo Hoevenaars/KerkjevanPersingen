@@ -1,0 +1,59 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { magZien } from '../../../platform/rechten.ts';
+
+if (Astro.request.method !== 'GET' && Astro.request.method !== 'HEAD') {
+  return new Response('Deze pagina wijzigt niets.', {
+    status: 405,
+    headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+  });
+}
+
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const relaties = magZien(rechten, 'relaties');
+const vrienden = magZien(rechten, 'vrienden');
+const nieuwsbrief = magZien(rechten, 'nieuwsbrief');
+---
+
+<Beheer titel="Contacten">
+  <header class="bh-top">
+    <div>
+      <p class="bh-label">Contacten</p>
+      <h1>Contacten</h1>
+      <p class="bh-hint">
+        Relaties, vrienden en de nieuwsbrief blijven aparte lijsten. Een huurder is niet automatisch vriend of abonnee.
+        Er gaat geen mail uit.
+      </p>
+    </div>
+  </header>
+
+  {
+    relaties && (
+      <section class="bh-kaart">
+        <h2>Relaties</h2>
+        <p>Huurders en andere contacten van de verhuur. Toestemming voor de nieuwsbrief staat hier niet bij.</p>
+        <p><a class="bh-btn" href="/beheer/relaties/">Open relaties</a></p>
+      </section>
+    )
+  }
+  {
+    vrienden && (
+      <section class="bh-kaart">
+        <h2>Vrienden</h2>
+        <p>Het bestaande vriendenbestand. Een nieuwe vriend toevoegen is op dit moment niet beschikbaar.</p>
+        <p><a class="bh-btn" href="/beheer/vrienden/">Open vrienden</a></p>
+      </section>
+    )
+  }
+  {
+    nieuwsbrief && (
+      <section class="bh-kaart">
+        <h2>Nieuwsbrief</h2>
+        <p>Bestaande weken en voorbeelden. Bewaren en verzenden blijven uit tot daar apart toestemming voor is.</p>
+        <p><a class="bh-btn" href="/beheer/nieuwsbrief/">Open nieuwsbrief</a></p>
+      </section>
+    )
+  }
+</Beheer>

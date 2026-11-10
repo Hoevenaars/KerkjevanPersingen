@@ -1,0 +1,75 @@
+---
+import { formatNl } from '../../platform/demo-data.ts';
+import type { VandaagItem, VandaagOverzicht } from '../../platform/beheer-vandaag.ts';
+import { vandaagLeeg } from '../../platform/beheer-vandaag.ts';
+
+interface Props {
+  overzicht: VandaagOverzicht;
+  verhuurHref: string | null;
+}
+
+const { overzicht, verhuurHref } = Astro.props;
+
+const blokken: { titel: string; items: VandaagItem[]; id: string }[] = [
+  { id: 'aanvragen', titel: 'Nieuwe aanvragen', items: overzicht.aanvragen },
+  { id: 'opties', titel: 'Opties', items: overzicht.opties },
+  { id: 'binnenkort', titel: 'Binnenkort', items: overzicht.binnenkort },
+  { id: 'beoordelen', titel: 'Nog te beoordelen', items: overzicht.beoordelen },
+  { id: 'ontbreekt', titel: 'Exposanteninformatie', items: overzicht.ontbreekt },
+  { id: 'betalingen', titel: 'Openstaande betalingen', items: overzicht.betalingen },
+  { id: 'gastheren', titel: 'Expositiebegeleider ontbreekt', items: overzicht.gastheren },
+  { id: 'afwijkingen', titel: 'Afwijkingen', items: overzicht.afwijkingen },
+];
+---
+
+<header class="bh-top">
+  <div>
+    <p class="bh-label">Overzicht</p>
+    <h1>Wat moet er vandaag gebeuren?</h1>
+    <p class="bh-hint">
+      Alleen punten die in de bestaande gegevens staan. Er wordt niets aangepast en er gaat geen mail uit.
+    </p>
+  </div>
+</header>
+
+{
+  verhuurHref && (
+    <p class="bh-hint">
+      <a class="bh-btn" href={verhuurHref}>Open de verhuuragenda</a>
+    </p>
+  )
+}
+
+{
+  vandaagLeeg(overzicht) ? (
+    <p class="bh-leeg">Er is vandaag geen open punt.</p>
+  ) : (
+    blokken
+      .filter((blok) => blok.items.length > 0)
+      .map((blok) => (
+        <section class="bh-kaart" id={blok.id}>
+          <h2>{blok.titel}</h2>
+          <table class="bh-tabel">
+            <thead>
+              <tr>
+                <th>Wanneer</th>
+                <th>Wat</th>
+                <th>Toelichting</th>
+              </tr>
+            </thead>
+            <tbody>
+              {blok.items.map((item) => (
+                <tr>
+                  <td>{item.wanneer ? formatNl(item.wanneer) : '—'}</td>
+                  <td>
+                    <a href={item.href}>{item.titel}</a>
+                  </td>
+                  <td>{item.toelichting}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ))
+  )
+}
