@@ -1,6 +1,7 @@
 /**
- * Het nieuwe verhuuroverzicht blijft dicht tot VERHUUR_OVERZICHT=true.
- * Preview, development en BEHEER_ENABLED zetten deze vlag niet aan.
+ * Het nieuwe verhuuroverzicht is open als VERHUUR_OVERZICHT=true.
+ * vercel.json zet die waarde, zodat Verhuur in het beheermenu staat.
+ * Zonder die waarde blijft het menu weg. BEHEER_ENABLED zet hem niet aan.
  */
 
 function leesOmgeving(): Record<string, unknown> {
