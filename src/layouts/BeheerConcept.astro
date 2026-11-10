@@ -1,6 +1,8 @@
 ---
 import '../styles/beheer-concept.css';
 import { magZien } from '../platform/rechten.ts';
+import { verhuurOverzichtAan } from '../platform/verhuur-vlag.ts';
+import { groepeer, hoofditems, hoofdnavAan, padActief, sectieVoorPad, subitems } from '../platform/beheer-hoofdnav.ts';
 
 interface Props {
   titel: string;
@@ -8,11 +10,21 @@ interface Props {
 }
 
 const { titel, actief } = Astro.props;
+const pad = Astro.url.pathname;
 const sessie = Astro.locals.beheer;
 const rechten = sessie?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const naam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? '';
 const toonVerhuur = magZien(rechten, 'boekingen');
 const toonWebsite = magZien(rechten, 'agenda');
+const eenvoud = hoofdnavAan();
+const hoofdOpties = { verhuurAgenda: verhuurOverzichtAan() };
+const eenvoudHoofd = eenvoud ? hoofditems(rechten, hoofdOpties) : [];
+const eenvoudSectie = eenvoud ? sectieVoorPad(pad) : null;
+const eenvoudSub = eenvoud && eenvoudSectie ? groepeer(subitems(eenvoudSectie, rechten, hoofdOpties)) : [];
+const merkHref =
+  eenvoudHoofd.find((item) => item.sleutel === 'overzicht')?.href ??
+  eenvoudHoofd[0]?.href ??
+  (toonVerhuur ? '/beheer/verhuur/' : '/beheer/');
 ---
 
 <!doctype html>
@@ -33,7 +45,7 @@ const toonWebsite = magZien(rechten, 'agenda');
     />
   </head>
   <body>
-    <div class="kc">
+    <div class:list={['kc', { 'kc--eenvoud': eenvoud }]}>
       {
         sessie?.viewAs && (
           <p class="kc-fout" role="status">
@@ -43,31 +55,75 @@ const toonWebsite = magZien(rechten, 'agenda');
       }
       <header class="kc-balk">
         <div class="kc-balk-binnen">
-          <a class="kc-merk" href={toonVerhuur ? '/beheer/verhuur/' : '/beheer/'}>
+          <a class="kc-merk" href={eenvoud ? merkHref : toonVerhuur ? '/beheer/verhuur/' : '/beheer/'}>
             <img src="/favicon.svg" width="37" height="37" alt="" />
             Kerkje van Persingen
           </a>
           <nav class="kc-nav" aria-label="Hoofdmenu">
             {
-              toonVerhuur && (
-                <a href="/beheer/verhuur/" aria-current={actief === 'verhuur' ? 'page' : undefined}>
-                  Verhuur
-                </a>
-              )
-            }
-            {
-              toonWebsite && (
-                <a href="/beheer/website/" aria-current={actief === 'website' ? 'page' : undefined}>
-                  Website
-                </a>
-              )
+              eenvoud
+                ? eenvoudHoofd.map((item) => (
+                    <a href={item.href} aria-current={eenvoudSectie === item.sleutel ? 'page' : undefined}>
+                      {item.label}
+                    </a>
+                  ))
+                : (
+                    <>
+                      {toonVerhuur && (
+                        <a href="/beheer/verhuur/" aria-current={actief === 'verhuur' ? 'page' : undefined}>
+                          Verhuur
+                        </a>
+                      )}
+                      {toonWebsite && (
+                        <a href="/beheer/website/" aria-current={actief === 'website' ? 'page' : undefined}>
+                          Website
+                        </a>
+                      )}
+                    </>
+                  )
             }
           </nav>
+          {
+            eenvoud && (
+              <form class="kc-zoek" action="/beheer/zoeken/" method="get">
+                <label class="kc-sr" for="kc-q">Zoeken</label>
+                <input id="kc-q" name="q" type="search" placeholder="Zoek een naam of datum" />
+              </form>
+            )
+          }
           <p class="kc-gebruiker">
-            <a href="/beheer/">Beheeromgeving</a>
-            {naam && <small>{naam}</small>}
+            {eenvoud ? (
+              naam && <small>{naam}</small>
+            ) : (
+              <a href="/beheer/">Beheeromgeving</a>
+            )}
+            {!eenvoud && naam && <small>{naam}</small>}
           </p>
+          {
+            eenvoud && (
+              <form class="kc-uit" method="post" action="/beheer/uitloggen">
+                <button type="submit">Uitloggen</button>
+              </form>
+            )
+          }
         </div>
+        {
+          eenvoud && eenvoudSub.length > 0 && (
+            <div class="kc-subbalk">
+              {eenvoudSub.map((groep) => (
+                <nav aria-label={groep.titel || 'Onderdeel'}>
+                  {groep.titel && <p>{groep.titel}</p>}
+                  {groep.items.map((item) => (
+                    <a href={item.href} aria-current={padActief(pad, item.href) ? 'page' : undefined}>
+                      {item.label}
+                      {item.toelichting && <small>{item.toelichting}</small>}
+                    </a>
+                  ))}
+                </nav>
+              ))}
+            </div>
+          )
+        }
       </header>
       <slot />
     </div>

@@ -93,6 +93,40 @@ export function isMutatieMethode(methode: string): boolean {
   return !['GET', 'HEAD', 'OPTIONS'].includes(methode.toUpperCase());
 }
 
+export function isContactenPad(pathname: string): boolean {
+  return normaliseerPad(pathname) === '/beheer/contacten';
+}
+
+/** Hub voor relaties, vrienden en nieuwsbrief. Geen nieuw recht en geen schrijfactie. */
+export function magContactenZien(rechten: GebruikerRechten): boolean {
+  return magZien(rechten, 'relaties') || magZien(rechten, 'vrienden') || magZien(rechten, 'nieuwsbrief');
+}
+
+export function toegangVoorBeheerPad(opties: {
+  pathname: string;
+  methode: string;
+  ingelogd: boolean;
+  actief: boolean;
+  rechten: GebruikerRechten;
+  viewAsActief: boolean;
+}): BeheerToegang {
+  if (isContactenPad(opties.pathname)) {
+    if (!opties.ingelogd) return 'login';
+    if (!opties.actief) return 'disabled';
+    if (!magContactenZien(opties.rechten)) return 'verborgen';
+    if (isMutatieMethode(opties.methode)) return opties.viewAsActief ? 'preview' : 'alleen_lezen';
+    return 'ok';
+  }
+  return beheerToegang({
+    methode: opties.methode,
+    module: moduleVoorPad(opties.pathname),
+    ingelogd: opties.ingelogd,
+    actief: opties.actief,
+    rechten: opties.rechten,
+    viewAsActief: opties.viewAsActief,
+  });
+}
+
 export function beheerToegang(opties: {
   methode: string;
   module: BeheerPadSoort;

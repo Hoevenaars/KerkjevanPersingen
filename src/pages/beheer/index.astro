@@ -16,6 +16,9 @@ import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { magZien } from '../../platform/rechten.ts';
 import { verhuurOverzichtAan } from '../../platform/verhuur-vlag.ts';
 import { actiepuntenKomendeWeken } from '../../platform/actiepunten.ts';
+import { dossierHref, hoofdnavAan, metHerkomst } from '../../platform/beheer-hoofdnav.ts';
+import { vandaagOverzicht } from '../../platform/beheer-vandaag.ts';
+import OverzichtVandaag from '../../components/beheer/OverzichtVandaag.astro';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
@@ -52,9 +55,63 @@ const actiepunten = actiepuntenKomendeWeken({
   })),
   incidenten: snapshot.incidenten,
 });
+const eenvoud = hoofdnavAan();
+const agendaAan = verhuurOverzichtAan();
+const overzicht = eenvoud
+  ? vandaagOverzicht({
+      vandaag,
+      aanvragen: snapshot.aanvragen.map((item) => ({
+        id: item.id,
+        naam: item.naam,
+        start: item.start,
+        status: item.status,
+      })),
+      boekingen: snapshot.boekingen.map((item) => ({
+        id: item.id,
+        titel: item.interneTitel,
+        huurder: item.huurder,
+        start: item.start,
+        eind: item.eind,
+        status: item.status,
+        soort: item.soort,
+        gastheerId: item.gastheerId,
+        aanbetalingBinnen: item.aanbetalingBinnen,
+      })),
+      activiteiten: snapshot.agenda.map((item) => ({
+        id: item.id,
+        titel: item.titel,
+        start: item.start,
+        eind: item.eind,
+        contentstatus: item.contentstatus ?? null,
+        levenscyclus: item.levenscyclus,
+        trigger: item.trigger,
+      })),
+      betalingen: snapshot.betalingen ?? [],
+      ziet: {
+        aanvragen: zietAanvragen,
+        boekingen: zietBoekingen,
+        agenda: zietAgenda,
+        finance: magZien(rechten, 'finance'),
+      },
+      href: {
+        aanvraag: (id) => metHerkomst(`/beheer/aanvragen/${encodeURIComponent(id)}/`, 'overzicht'),
+        boeking: (id) => metHerkomst(dossierHref(id, agendaAan), 'overzicht'),
+        activiteit: (id) => metHerkomst(`/beheer/agenda/${encodeURIComponent(id)}/`, 'overzicht'),
+        finance: '/beheer/finance/',
+        boekingen: agendaAan && zietBoekingen ? '/beheer/verhuur/' : '/beheer/boekingen/',
+        systeem: magZien(rechten, 'systeembeheer') ? '/beheer/instellingen/systeem/' : null,
+      },
+      verzendfouten: snapshot.technisch,
+    })
+  : null;
 ---
 
 <Beheer titel="Dashboard">
+  {
+    eenvoud && overzicht ? (
+      <OverzichtVandaag overzicht={overzicht} verhuurHref={agendaAan && zietBoekingen ? '/beheer/verhuur/' : null} />
+    ) : (
+      <>
   <header class="bh-top">
     <div>
       <p class="bh-label">Dashboard</p>
@@ -316,6 +373,9 @@ const actiepunten = actiepuntenKomendeWeken({
             </ul>
           )}
         </section>
+      </>
+    )
+  }
       </>
     )
   }

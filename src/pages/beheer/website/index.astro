@@ -5,6 +5,7 @@ import BeheerConcept from '../../../layouts/BeheerConcept.astro';
 import StatusMarkering from '../../../components/beheer/StatusMarkering.astro';
 import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
 import { verhuurOverzichtAan, verhuurVerzoekToegestaan } from '../../../platform/verhuur-vlag.ts';
+import { hoofdnavAan } from '../../../platform/beheer-hoofdnav.ts';
 import { magZien } from '../../../platform/rechten.ts';
 import { VASTE_WEBSITEPAGINAS } from '../../../platform/website-ingang.ts';
 
@@ -21,6 +22,7 @@ const activiteiten = magZien(rechten, 'agenda');
 const nieuwsbrief = magZien(rechten, 'nieuwsbrief');
 const vrienden = magZien(rechten, 'vrienden');
 const meldingen = magZien(rechten, 'instellingen');
+const eenvoud = hoofdnavAan();
 ---
 
 <BeheerConcept titel="Website beheren" actief="website">
@@ -28,56 +30,115 @@ const meldingen = magZien(rechten, 'instellingen');
     <div class="kc-kop">
       <div>
         <p class="kc-wenkbrauw">Beheer · Kerkje van Persingen</p>
-        <h1>Website beheren</h1>
-        <p class="kc-inleiding">Activiteiten en website-inhoud op één rustige plek.</p>
+        <h1>{eenvoud ? 'Website' : 'Website beheren'}</h1>
+        <p class="kc-inleiding">
+          {
+            eenvoud
+              ? 'Activiteiten, foto’s en publiceren. Vaste pagina’s blijven in de site zelf staan.'
+              : 'Activiteiten en website-inhoud op één rustige plek.'
+          }
+        </p>
       </div>
     </div>
 
     <div class="kc-lijst">
-      <div class="kc-webrij">
-        <div>
-          <b>Activiteiten en exposities</b>
-          <span>Teksten, foto's en publiceren. Dezelfde werklijst als nu.</span>
-        </div>
-        {activiteiten && <a class="kc-knop" href="/beheer/publiceren/">Openen</a>}
-      </div>
-      <div class="kc-webrij">
-        <div>
-          <b>Pagina's</b>
-          <span>Vaste pagina's zijn nog niet vanuit beheer te wijzigen.</span>
-          <ul class="kc-paginas">
-            {
-              VASTE_WEBSITEPAGINAS.map((pagina) => (
-                <li>
-                  <a href={pagina.pad}>{pagina.titel}</a>
-                </li>
-              ))
-            }
-          </ul>
-        </div>
-        <StatusMarkering kleur="unknown" tekst="Niet bewerkbaar" />
-      </div>
-      <div class="kc-webrij">
-        <div>
-          <b>Nieuwsbrief</b>
-          <span>
-            Overzicht en voorbeeld. Opslaan en verzenden blijven uit tot daar apart toestemming voor is.
-            {vrienden && <> De <a href="/beheer/vrienden/">vriendenlijst</a> blijft apart.</>}
-          </span>
-        </div>
-        {nieuwsbrief && <a class="kc-knop" href="/beheer/nieuwsbrief/">Openen</a>}
-      </div>
-      <div class="kc-webrij">
-        <div>
-          <b>Meldingen</b>
-          <span>Bericht op de homepage. Het vrijgekomen weekend staat bij activiteiten.</span>
-        </div>
-        {meldingen && <a class="kc-knop" href="/beheer/instellingen/meldingen/">Openen</a>}
-      </div>
+      {
+        eenvoud ? (
+          <>
+            <div class="kc-webrij">
+              <div>
+                <b>Activiteiten</b>
+                <span>Tekst, datum en publicatiestatus van één activiteit. Dit is dezelfde activiteit als bij publiceren.</span>
+              </div>
+              {activiteiten && <a class="kc-knop" href="/beheer/agenda/">Openen</a>}
+            </div>
+            <div class="kc-webrij">
+              <div>
+                <b>Publiceren</b>
+                <span>Foto’s, de wachtrij en het vrijgekomen weekend. Geen tweede agenda.</span>
+              </div>
+              {activiteiten && <a class="kc-knop" href="/beheer/publiceren/">Openen</a>}
+            </div>
+            <div class="kc-webrij">
+              <div>
+                <b>Melding op de homepage</b>
+                <span>Het bericht bovenaan de site. Het vrijgekomen weekend staat bij publiceren.</span>
+              </div>
+              {meldingen && <a class="kc-knop" href="/beheer/instellingen/meldingen/">Openen</a>}
+            </div>
+          </>
+        ) : (
+          <>
+            <div class="kc-webrij">
+              <div>
+                <b>Activiteiten en exposities</b>
+                <span>Teksten, foto's en publiceren. Dezelfde werklijst als nu.</span>
+              </div>
+              {activiteiten && <a class="kc-knop" href="/beheer/publiceren/">Openen</a>}
+            </div>
+            <div class="kc-webrij">
+              <div>
+                <b>Pagina's</b>
+                <span>Vaste pagina's zijn nog niet vanuit beheer te wijzigen.</span>
+                <ul class="kc-paginas">
+                  {
+                    VASTE_WEBSITEPAGINAS.map((pagina) => (
+                      <li>
+                        <a href={pagina.pad}>{pagina.titel}</a>
+                      </li>
+                    ))
+                  }
+                </ul>
+              </div>
+              <StatusMarkering kleur="unknown" tekst="Niet bewerkbaar" />
+            </div>
+            <div class="kc-webrij">
+              <div>
+                <b>Nieuwsbrief</b>
+                <span>
+                  Overzicht en voorbeeld. Opslaan en verzenden blijven uit tot daar apart toestemming voor is.
+                  {vrienden && <> De <a href="/beheer/vrienden/">vriendenlijst</a> blijft apart.</>}
+                </span>
+              </div>
+              {nieuwsbrief && <a class="kc-knop" href="/beheer/nieuwsbrief/">Openen</a>}
+            </div>
+            <div class="kc-webrij">
+              <div>
+                <b>Meldingen</b>
+                <span>Bericht op de homepage. Het vrijgekomen weekend staat bij activiteiten.</span>
+              </div>
+              {meldingen && <a class="kc-knop" href="/beheer/instellingen/meldingen/">Openen</a>}
+            </div>
+          </>
+        )
+      }
+      {
+        eenvoud && (
+          <div class="kc-webrij">
+            <div>
+              <b>Pagina's</b>
+              <span>Vaste pagina's zijn nog niet vanuit beheer te wijzigen.</span>
+              <ul class="kc-paginas">
+                {
+                  VASTE_WEBSITEPAGINAS.map((pagina) => (
+                    <li>
+                      <a href={pagina.pad}>{pagina.titel}</a>
+                    </li>
+                  ))
+                }
+              </ul>
+            </div>
+            <StatusMarkering kleur="unknown" tekst="Niet bewerkbaar" />
+          </div>
+        )
+      }
     </div>
     <p class="kc-noot">
-      Dit zijn de bestaande onderdelen. Er is geen extra nieuwsmodule en geen editor voor de vaste pagina's.
-      Een boeking verschijnt niet vanzelf als pagina op de site.
+      {
+        eenvoud
+          ? 'Nieuwsbrief en vrienden staan bij Contacten. Er is geen editor voor de vaste pagina’s. Een boeking wordt niet vanzelf een pagina.'
+          : "Dit zijn de bestaande onderdelen. Er is geen extra nieuwsmodule en geen editor voor de vaste pagina's. Een boeking verschijnt niet vanzelf als pagina op de site."
+      }
     </p>
   </main>
 </BeheerConcept>

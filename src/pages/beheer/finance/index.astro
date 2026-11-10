@@ -8,6 +8,11 @@ import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.t
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { INITIELE_TARIEVEN } from '../../../platform/finance.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { dossierHref, hoofdnavAan, metHerkomst } from '../../../platform/beheer-hoofdnav.ts';
+import { verhuurOverzichtAan } from '../../../platform/verhuur-vlag.ts';
+import { financienBeeld } from '../../../platform/beheer-financien.ts';
+import { magZien } from '../../../platform/rechten.ts';
+import FinancienLijst from '../../../components/beheer/FinancienLijst.astro';
 
 if (Astro.request.method === 'POST') {
   const operationeel = await postAlsSupabase({
@@ -38,9 +43,32 @@ const tarieven =
         ...t,
         toelichting: '',
       }));
+const eenvoud = hoofdnavAan();
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const naarBoeking = magZien(rechten, 'boekingen');
+const agendaAan = verhuurOverzichtAan();
+const beeld = eenvoud
+  ? financienBeeld({
+      boekingen: snapshot.boekingen.map((item) => ({
+        id: item.id,
+        status: item.status,
+        huurder: item.huurder,
+        titel: item.interneTitel,
+        aanbetalingBinnen: item.aanbetalingBinnen,
+      })),
+      betalingen: snapshot.betalingen ?? [],
+      hrefVoorBoeking: (id) => metHerkomst(dossierHref(id, agendaAan), 'financien'),
+      financeHref: '/beheer/finance/',
+      naarBoeking,
+    })
+  : null;
 ---
 
 <Beheer titel="Finance">
+  {eenvoud && beeld ? (
+    <FinancienLijst beeld={beeld} />
+  ) : (
+    <>
   <header class="bh-top">
     <div>
       <h1>Finance</h1>
@@ -89,6 +117,8 @@ const tarieven =
       {(snapshot.betalingen ?? []).length} betaalregels blijven bewaard. De vlag aanbetaling_ontvangen is niet beslissend en levert geen openstaande actie. Registreren als “binnen” is nog niet beschikbaar.
     </p>
   </section>
+    </>
+  )}
 
   <section class="bh-kaart">
     <h2>{snapshot.bron === 'supabase' ? 'Tarieven uit Supabase' : 'Tarieven (huidige regels)'}</h2>
@@ -121,5 +151,6 @@ const tarieven =
         }
       </tbody>
     </table>
+    {eenvoud && <p class="bh-muted">Tarieven zijn alleen ter inzage. Wijzigen kan hier nog niet.</p>}
   </section>
 </Beheer>

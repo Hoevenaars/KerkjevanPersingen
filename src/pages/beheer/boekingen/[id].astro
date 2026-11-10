@@ -11,6 +11,7 @@ import {
   labelVoorCommunicatie,
 } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { herkomstUitQuery } from '../../../platform/beheer-hoofdnav.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { laadCommunicatieVoorBoeking, laadMailtemplates } from '../../../platform/mailtemplates/store.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
@@ -178,6 +179,7 @@ const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
 const basis = `/beheer/boekingen/${encodeURIComponent(boeking.id)}/`;
 const terug = terugLink(Astro.url.searchParams.get('terug'));
+const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
 const terugWaarde = Astro.url.searchParams.get('terug');
 function tabHref(tabNaam: string): string {
   const pad = tabNaam ? `${basis}?tab=${tabNaam}` : basis;
@@ -186,7 +188,7 @@ function tabHref(tabNaam: string): string {
 ---
 
 <Beheer titel={boeking.interneTitel}>
-  <p class="bh-crumb"><a href={terug?.href ?? '/beheer/boekingen/'}>{terug?.label ?? 'Boekingen'}</a> / {boeking.nummer}</p>
+  <p class="bh-crumb">{herkomst && <><a href={herkomst.href}>{herkomst.label}</a> / </>}<a href={terug?.href ?? '/beheer/boekingen/'}>{terug?.label ?? 'Boekingen'}</a> / {boeking.nummer}</p>
   <header class="bh-top">
     <div>
       <h1>{boeking.interneTitel}</h1>

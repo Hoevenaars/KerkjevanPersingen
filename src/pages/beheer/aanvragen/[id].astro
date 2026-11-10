@@ -7,6 +7,7 @@ import { labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { toonMedeExposanten } from '../../../platform/mede-exposanten';
 import { lijstAanvraagFotos } from '../../../lib/aanvraag-foto-opslag';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { herkomstUitQuery } from '../../../platform/beheer-hoofdnav.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { laadTijdlijn } from '../../../lib/communicatie-log.ts';
@@ -85,10 +86,11 @@ const mailmodusLabel = mailmodus === 'test' ? 'Test' : mailmodus === 'aan' ? 'Aa
 const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam, aanvraag.informatievraag) : null;
 const fotos = aanvraag && sessieClient ? await lijstAanvraagFotos(sessieClient as never, aanvraag.id) : [];
 const medeTekst = toonMedeExposanten(aanvraag?.medeExposanten);
+const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
 ---
 
 <Beheer titel={aanvraag.naam}>
-  <p class="bh-crumb"><a href="/beheer/aanvragen/">Aanvragen</a> / {aanvraag.naam}</p>
+  <p class="bh-crumb">{herkomst && <><a href={herkomst.href}>{herkomst.label}</a> / </>}<a href="/beheer/aanvragen/">Aanvragen</a> / {aanvraag.naam}</p>
   <header class="bh-top">
     <div>
       <h1>{aanvraag.naam}</h1>

@@ -11,6 +11,7 @@ import {
   formatNl,
 } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
+import { herkomstUitQuery, hoofdnavAan } from '../../../platform/beheer-hoofdnav.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { voerActiviteitActie } from '../../../lib/activiteit-schrijf.ts';
@@ -138,10 +139,12 @@ const timingOpties = [
 ];
 const huidigeTiming = publiek?.trigger && timingOpties.some((optie) => optie.value === publiek.trigger) ? publiek.trigger : 'direct';
 const terug = terugLink(Astro.url.searchParams.get('terug'));
+const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
+const eenvoud = hoofdnavAan();
 ---
 
 <Beheer titel={titel}>
-  <p class="bh-crumb"><a href={terug?.href ?? '/beheer/agenda/'}>{terug?.label ?? 'Agenda'}</a> / {titel}</p>
+  <p class="bh-crumb">{herkomst && <><a href={herkomst.href}>{herkomst.label}</a> / </>}<a href={terug?.href ?? '/beheer/agenda/'}>{terug?.label ?? 'Agenda'}</a> / {titel}</p>
   <header class="bh-top">
     <div>
       <h1>{titel}</h1>
@@ -237,6 +240,12 @@ const terug = terugLink(Astro.url.searchParams.get('terug'));
             ))}
           </select>
           <p>Nu zichtbaar op website: <strong>{zichtbaar ? 'ja' : 'nee'}</strong></p>
+          {eenvoud && (
+            <p class="bh-muted">
+              Foto’s en de publicatiewachtrij staan bij <a href="/beheer/publiceren/">Publiceren</a>.
+              Dat is dezelfde activiteit, geen tweede agenda.
+            </p>
+          )}
 
           <h2>Beschikbaarheid</h2>
           <p>Blokkeert beschikbaarheid: <strong>{blokkeert ? 'ja' : 'nee'}</strong></p>
