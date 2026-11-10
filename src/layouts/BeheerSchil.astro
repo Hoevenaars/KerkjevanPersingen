@@ -1,0 +1,176 @@
+---
+/**
+ * Gedeelde buitenkant van /beheer.
+ * Dezelfde balk, dezelfde inhoudsbreedte en dezelfde uitlijning voor elk onderdeel.
+ * De verhuuragenda is de maat: --beheer-breedte in beheer-concept.css.
+ */
+import '../styles/beheer-concept.css';
+import { magZien } from '../platform/rechten.ts';
+import { verhuurOverzichtAan } from '../platform/verhuur-vlag.ts';
+import { groepeer, hoofditems, hoofdnavAan, locatieVoorPad, padActief, sectieVoorPad, subitems } from '../platform/beheer-hoofdnav.ts';
+import { rolWeergaveId } from '../platform/rollen.ts';
+import { laadRollen } from '../lib/rollen-opslag.ts';
+
+interface Props {
+  actief?: 'verhuur' | 'website';
+}
+
+const { actief = 'verhuur' } = Astro.props;
+const pad = Astro.url.pathname;
+const zoekterm = Astro.url.searchParams.get('q') ?? '';
+const sessie = Astro.locals.beheer;
+const rechten = sessie?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const naam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? '';
+const toonVerhuur = magZien(rechten, 'boekingen');
+const toonWebsite = magZien(rechten, 'agenda');
+const eenvoud = hoofdnavAan();
+const hoofdOpties = { verhuurAgenda: verhuurOverzichtAan() };
+const eenvoudHoofd = eenvoud ? hoofditems(rechten, hoofdOpties) : [];
+const eenvoudSectie = eenvoud ? sectieVoorPad(pad) : null;
+const eenvoudSub = eenvoud && eenvoudSectie ? groepeer(subitems(eenvoudSectie, rechten, hoofdOpties)) : [];
+const locatie = eenvoud ? locatieVoorPad(pad, rechten, hoofdOpties) : null;
+const merkHref =
+  eenvoudHoofd.find((item) => item.sleutel === 'overzicht')?.href ??
+  eenvoudHoofd[0]?.href ??
+  (toonVerhuur ? '/beheer/verhuur/' : '/beheer/');
+let kijkRollen: Awaited<ReturnType<typeof laadRollen>> = [];
+if (eenvoud && sessie?.rechten.isSuperAdmin) {
+  try {
+    kijkRollen = await laadRollen();
+  } catch {
+    kijkRollen = [];
+  }
+}
+---
+
+<div class:list={['kc', { 'kc--eenvoud': eenvoud }]} data-beheer-schil>
+  {
+    sessie?.viewAs && eenvoud && (
+      <div class="kc-viewas" role="status">
+        <p>
+          Je bekijkt Beheer als <strong>{sessie.viewAs.naam}</strong>
+          <span>Wijzigingen zijn uitgeschakeld.</span>
+        </p>
+        <form method="post" action="/api/beheer/view-as">
+          <input type="hidden" name="actie" value="stop" />
+          <input type="hidden" name="next" value={pad} />
+          <button class="kc-knop" type="submit">Terug naar Super Admin</button>
+        </form>
+      </div>
+    )
+  }
+  {
+    sessie?.viewAs && !eenvoud && (
+      <p class="kc-fout" role="status">
+        Je bekijkt de omgeving als {sessie.viewAs.naam}. Wijzigen is uitgeschakeld.
+      </p>
+    )
+  }
+  <header class="kc-balk" data-beheer-balk>
+    <div class="kc-balk-binnen">
+      <a class="kc-merk" href={eenvoud ? merkHref : toonVerhuur ? '/beheer/verhuur/' : '/beheer/'}>
+        <img src="/favicon.svg" width="37" height="37" alt="" />
+        Kerkje van Persingen
+      </a>
+      <nav class="kc-nav" aria-label="Hoofdmenu" data-beheer-nav>
+        {
+          eenvoud
+            ? eenvoudHoofd.map((item) => (
+                <a href={item.href} aria-current={eenvoudSectie === item.sleutel ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              ))
+            : (
+                <>
+                  {toonVerhuur && (
+                    <a href="/beheer/verhuur/" aria-current={actief === 'verhuur' ? 'page' : undefined}>
+                      Verhuur
+                    </a>
+                  )}
+                  {toonWebsite && (
+                    <a href="/beheer/website/" aria-current={actief === 'website' ? 'page' : undefined}>
+                      Website
+                    </a>
+                  )}
+                </>
+              )
+        }
+      </nav>
+      {
+        eenvoud && (
+          <form class="kc-zoek" action="/beheer/zoeken/" method="get">
+            <label class="kc-sr" for="kc-q">Zoeken</label>
+            <input id="kc-q" name="q" type="search" placeholder="Zoek een naam of datum" value={zoekterm} />
+          </form>
+        )
+      }
+      <p class="kc-gebruiker">
+        {eenvoud ? (
+          naam && <small>{naam}</small>
+        ) : (
+          <a href="/beheer/">Beheeromgeving</a>
+        )}
+        {!eenvoud && naam && <small>{naam}</small>}
+      </p>
+      {
+        eenvoud && (
+          <form class="kc-uit" method="post" action="/beheer/uitloggen">
+            <button type="submit">Uitloggen</button>
+          </form>
+        )
+      }
+    </div>
+    {
+      eenvoud && (
+        <div class="kc-subbalk" data-beheer-sub>
+          <div class="kc-subbalk-rij">
+            {
+              eenvoudSub.length === 0 ? (
+                <p class="kc-subbalk-huidig">{locatie?.hoofd ?? 'Beheer'}</p>
+              ) : (
+                eenvoudSub.map((groep) => (
+                  <nav aria-label={groep.titel || 'Onderdeel'}>
+                    {groep.titel && <p>{groep.titel}</p>}
+                    {groep.items.map((item) => (
+                      <a href={item.href} aria-current={padActief(pad, item.href) ? 'page' : undefined}>
+                        {item.label}
+                        {item.toelichting && <small>{item.toelichting}</small>}
+                      </a>
+                    ))}
+                  </nav>
+                ))
+              )
+            }
+            {
+              sessie?.rechten.isSuperAdmin && (
+                <details class="kc-kijk">
+                  <summary>Kijk als</summary>
+                  <div class="kc-kijk-menu">
+                    <form method="post" action="/api/beheer/view-as">
+                      <input type="hidden" name="actie" value="stop" />
+                      <input type="hidden" name="next" value={pad} />
+                      <button type="submit" aria-current={!sessie.viewAs ? 'true' : undefined}>Super Admin</button>
+                    </form>
+                    {
+                      kijkRollen.map((rol) => (
+                        <form method="post" action="/api/beheer/view-as">
+                          <input type="hidden" name="actie" value="start" />
+                          <input type="hidden" name="id" value={rolWeergaveId(rol.slug)} />
+                          <input type="hidden" name="next" value="/beheer/" />
+                          <button type="submit" aria-current={sessie.viewAs?.functie === rol.slug ? 'true' : undefined}>
+                            {rol.naam}
+                          </button>
+                        </form>
+                      ))
+                    }
+                  </div>
+                </details>
+              )
+            }
+          </div>
+        </div>
+      )
+    }
+  </header>
+  <slot />
+</div>

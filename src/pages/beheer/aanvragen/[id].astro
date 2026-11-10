@@ -174,7 +174,7 @@ const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
       <form method="post" class="bh-acties">
         <button class="bh-btn" type="submit" name="actie" value="optie">Zet in optie</button>
         <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="akkoord">Goedkeuren</button>
-        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="weiger">Afwijzen</button>
+        <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="weiger">Afwijzen</button>
       </form>
       {
         snapshot.bron === 'supabase' && (

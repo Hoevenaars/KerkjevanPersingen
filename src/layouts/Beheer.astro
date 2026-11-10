@@ -1,10 +1,11 @@
 ---
 import '../styles/global.css';
 import '../styles/beheer.css';
+import BeheerSchil from './BeheerSchil.astro';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../platform/beheer-bron';
 import { BEHEER_MODULES, INSTELLINGEN_PAGINAS, SNEL_NIEUW } from '../platform/modules.ts';
 import { verhuurOverzichtAan } from '../platform/verhuur-vlag.ts';
-import { groepeer, hoofditems, hoofdnavAan, locatieVoorPad, padActief, sectieVoorPad, subitems } from '../platform/beheer-hoofdnav.ts';
+import { hoofdnavAan } from '../platform/beheer-hoofdnav.ts';
 import { magZien } from '../platform/rechten.ts';
 import { beheerModus } from '../platform/beheer-sessie.ts';
 import { moduleVoorPad } from '../platform/autorisatie.ts';
@@ -61,13 +62,8 @@ const instellingen = INSTELLINGEN_PAGINAS.filter((item) => magZien(rechten, item
 
 const snelNieuw = SNEL_NIEUW.filter((item) => magZien(rechten, item.module));
 const eenvoud = hoofdnavAan();
-const hoofdOpties = { verhuurAgenda: verhuurOverzichtAan() };
-const eenvoudHoofd = eenvoud ? hoofditems(rechten, hoofdOpties) : [];
-const eenvoudSectie = eenvoud ? sectieVoorPad(pad) : null;
-const eenvoudSub = eenvoud && eenvoudSectie ? groepeer(subitems(eenvoudSectie, rechten, hoofdOpties)) : [];
-const locatie = eenvoud ? locatieVoorPad(pad, rechten, hoofdOpties) : null;
 let kijkRollen: Awaited<ReturnType<typeof laadRollen>> = [];
-if (sessie?.rechten.isSuperAdmin) {
+if (!eenvoud && sessie?.rechten.isSuperAdmin) {
   try {
     kijkRollen = await laadRollen();
   } catch {
@@ -105,6 +101,35 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
   </head>
   <body data-beheer-modus={modus}>
     {
+      eenvoud ? (
+        <BeheerSchil>
+          <main class="kc-pagina" data-beheer-pagina>
+            <p class="bh-demo" role={snapshot.fout ? 'alert' : 'status'} data-beheer-bron={snapshot.bron}>
+              {snapshot.banner}
+              {
+                snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo' && (
+                  <>
+                    {' '}
+                    <a href={liveHref}>Terug naar live</a>
+                  </>
+                )
+              }
+            </p>
+            <slot />
+          </main>
+          <aside id="bh-detail" class="bh-detail" aria-hidden="true">
+            <button type="button" class="bh-detail-backdrop" id="bh-detail-sluit" aria-label="Sluiten"></button>
+            <div class="bh-detail-paneel">
+              <button type="button" class="bh-detail-x" id="bh-detail-x" aria-label="Sluiten">
+                Sluiten
+              </button>
+              <div class="bh-detail-inhoud" id="bh-detail-inhoud"></div>
+            </div>
+          </aside>
+        </BeheerSchil>
+      ) : (
+        <>
+    {
       sessie?.viewAs && (
         <div class="bh-viewas" role="status">
           <p>
@@ -127,54 +152,7 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
         </div>
       )
     }
-    <div class:list={['bh-app', { 'bh-app--eenvoud': eenvoud }]}>
-      {
-        eenvoud ? (
-          <nav class="bh-nav" aria-label="Beheer">
-            <a class="bh-merk" href={eenvoudHoofd.some((item) => item.sleutel === 'overzicht') ? '/beheer/' : eenvoudHoofd[0]?.href ?? '/beheer/'}>
-              Beheer
-              <span>Kerkje van Persingen</span>
-            </a>
-            <ul class="bh-menu">
-              {eenvoudHoofd.map((item) => (
-                <li>
-                  <a href={item.href} aria-current={eenvoudSectie === item.sleutel ? 'page' : undefined}>
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-            <div class="bh-user">
-              {weergaveNaam}
-              {sessie?.rechten.isSuperAdmin && !sessie.viewAs ? ' · Super Admin' : ''}
-              <form method="post" action="/beheer/uitloggen" class="bh-logout">
-                <button type="submit">Uitloggen</button>
-              </form>
-            </div>
-            <form class="bh-zoek" action="/beheer/zoeken/" method="get">
-              <label class="visually-hidden" for="bh-q">Zoeken</label>
-              <input id="bh-q" name="q" type="search" placeholder="Zoek een naam of datum" value={zoekterm} />
-              <button type="submit">Zoek</button>
-            </form>
-            {
-              eenvoudSub.map((groep) => (
-                <>
-                  {groep.titel && <p class="bh-groep">{groep.titel}</p>}
-                  <ul class="bh-sub">
-                    {groep.items.map((item) => (
-                      <li>
-                        <a href={item.href} aria-current={padActief(pad, item.href) ? 'page' : undefined}>
-                          {item.label}
-                          {item.toelichting && <small>{item.toelichting}</small>}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ))
-            }
-          </nav>
-        ) : (
+    <div class="bh-app">
       <nav class="bh-nav" aria-label="Beheer">
         <a class="bh-merk" href="/beheer/">
           Beheer
@@ -220,15 +198,11 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
           </form>
         </div>
       </nav>
-        )
-      }
 
       <div class="bh-werk">
         <header class="bh-werk-kop" id="bh-werk-kop">
           <div class="bh-werk-kop-links">
-            <p class="bh-label">
-              {locatie ? `${locatie.hoofd}${locatie.sub ? ` · ${locatie.sub}` : ''}` : 'Beheer · Kerkje van Persingen'}
-            </p>
+            <p class="bh-label">Beheer · Kerkje van Persingen</p>
             <p class="bh-werk-datum" id="bh-datum"></p>
           </div>
           <div class="bh-werk-kop-rechts">
@@ -275,7 +249,7 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
               )
             }
             {
-              snelNieuw.length > 0 && modus === 'schrijven' && !eenvoud && (
+              snelNieuw.length > 0 && modus === 'schrijven' && (
               <div class="bh-fab-wrap">
                 <button
                   type="button"
@@ -313,7 +287,7 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
             }
           </p>
           {
-            snapshot.bron === 'supabase' && !eenvoud && (
+            snapshot.bron === 'supabase' && (
               <p class="bh-demo" data-supabase-telling>
                 Relaties {snapshot.relaties.length} · rollen {rolAantal} · boekingen {snapshot.boekingen.length} ·
                 betalingen {(snapshot.betalingen ?? []).length} · blokkades {snapshot.intern.length} ·
@@ -334,6 +308,9 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
         <div class="bh-detail-inhoud" id="bh-detail-inhoud"></div>
       </div>
     </aside>
+        </>
+      )
+    }
 
     <script src="/beheer.js" defer></script>
     <script is:inline>
