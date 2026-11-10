@@ -6,6 +6,7 @@ import { getPubliekeAgenda, publiekeFotoUrl, formatDatumBereik } from '../../lib
 import { kaartTekst } from '../../lib/activiteit-content';
 import { STANDAARD_AFBEELDING, kaartVoorWebsite } from '../../platform/publiceren';
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
+import { natuurlijkFlyer } from '../../lib/natuurlijk-in-het-kwadraat';
 import { toonFotoInHetGeheel } from '../../lib/publicatie-foto.ts';
 
 const activiteiten = await getPubliekeAgenda(80);
@@ -50,8 +51,10 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
             const foto =
               secondNaturePoster(a) ??
               (a.foto ? publiekeFotoUrl(a.foto, 800, 600) : null) ??
+              natuurlijkFlyer(a) ??
               STANDAARD_AFBEELDING;
-            const heel = toonFotoInHetGeheel(foto);
+            const poster = isSecondNature(a);
+            const heel = !poster && toonFotoInHetGeheel(foto);
             const kaart = kaartTekst(a);
             const kaartWeergave = kaart.tekst
               ? (kaart.letterlijk ? kaart.tekst : kortOpZinnen(kaart.tekst))
@@ -62,7 +65,7 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
               });
             return (
               <li class="kaart">
-                <div class:list={['frame', heel ? 'frame--heel' : 'frame--photo', { 'frame--poster': isSecondNature(a) }]}>
+                <div class:list={['frame', poster ? 'frame--poster' : heel ? 'frame--heel' : 'frame--photo']}>
                   <img src={foto} alt={a.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={heel ? undefined : 800} height={heel ? undefined : 600} loading="lazy" />
                 </div>
                 <div class="kaart-tekst">

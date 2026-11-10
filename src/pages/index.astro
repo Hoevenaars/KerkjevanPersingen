@@ -2,28 +2,29 @@
 import Base from '../layouts/Base.astro';
 import Button from '../components/Button.astro';
 import MasonMark from '../components/MasonMark.astro';
-import { getAgendaOverzicht, publiekeFotoUrl, formatDatum, formatDatumBereik } from '../lib/content';
+import { getAgendaOverzicht, publiekeFotoUrl, formatDatumBereik } from '../lib/content';
+import { teaserTekst } from '../lib/activiteit-content';
 import { isSecondNature, secondNaturePoster } from '../lib/second-nature';
+import { natuurlijkFlyer } from '../lib/natuurlijk-in-het-kwadraat';
 import { toonFotoInHetGeheel } from '../lib/publicatie-foto.ts';
 
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
 const vandaagFoto =
   secondNaturePoster(vandaag) ??
   (vandaag?.foto ? publiekeFotoUrl(vandaag.foto, 900, 600) : null) ??
+  natuurlijkFlyer(vandaag) ??
   '/foto/geen-foto.jpg';
 const volgendeFoto =
   secondNaturePoster(volgende) ??
   (volgende?.foto ? publiekeFotoUrl(volgende.foto, 900, 600) : null) ??
+  natuurlijkFlyer(volgende) ??
   '/foto/geen-foto.jpg';
-const vandaagHeel = toonFotoInHetGeheel(vandaagFoto);
-const volgendeHeel = toonFotoInHetGeheel(volgendeFoto);
-
-const MAX_OMSCHRIJVING = 160;
-function kort(tekst?: string): string {
-  if (!tekst) return '';
-  if (tekst.length <= MAX_OMSCHRIJVING) return tekst;
-  return tekst.slice(0, MAX_OMSCHRIJVING).trimEnd() + '…';
-}
+const vandaagPoster = isSecondNature(vandaag);
+const volgendePoster = isSecondNature(volgende);
+const vandaagHeel = !vandaagPoster && toonFotoInHetGeheel(vandaagFoto);
+const volgendeHeel = !volgendePoster && toonFotoInHetGeheel(volgendeFoto);
+const vandaagTekst = vandaag ? teaserTekst(vandaag) : '';
+const volgendeTekst = volgende ? teaserTekst(volgende) : '';
 ---
 
 <Base
@@ -77,7 +78,7 @@ function kort(tekst?: string): string {
               </p>
               <h2>{vandaag.publiekeTitel}</h2>
               <p class="datum">{formatDatumBereik(vandaag)}</p>
-              {vandaag.omschrijving && <p>{kort(vandaag.omschrijving)}</p>}
+              {vandaagTekst && <p>{vandaagTekst}</p>}
               <div class="knoppen">
                 {vandaag.slug && (
                   <Button href={`/agenda/${vandaag.slug}/`} variant="secondary">Bekijk activiteit</Button>
@@ -85,7 +86,7 @@ function kort(tekst?: string): string {
                 <Button href="/agenda/" variant="text">Bekijk de volledige agenda</Button>
               </div>
             </div>
-            <div class:list={['frame', vandaagHeel ? 'frame--heel' : 'frame--photo', { 'frame--poster': isSecondNature(vandaag) }]}>
+            <div class:list={['frame', vandaagPoster ? 'frame--poster' : vandaagHeel ? 'frame--heel' : 'frame--photo']}>
               <img src={vandaagFoto} alt={vandaag.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={vandaagHeel ? undefined : 900} height={vandaagHeel ? undefined : 675} loading="lazy" />
             </div>
           </div>
@@ -101,7 +102,7 @@ function kort(tekst?: string): string {
               </p>
               <h2>{volgende.publiekeTitel}</h2>
               <p class="datum">{formatDatumBereik(volgende)}</p>
-              {volgende.omschrijving && <p>{kort(volgende.omschrijving)}</p>}
+              {volgendeTekst && <p>{volgendeTekst}</p>}
               {daarna && (
                 <p class="daarna">
                   Daarna: <strong>{daarna.publiekeTitel}</strong>, {formatDatumBereik(daarna)}
@@ -114,7 +115,7 @@ function kort(tekst?: string): string {
                 <Button href="/agenda/" variant="text">Bekijk de volledige agenda</Button>
               </div>
             </div>
-            <div class:list={['frame', volgendeHeel ? 'frame--heel' : 'frame--photo', { 'frame--poster': isSecondNature(volgende) }]}>
+            <div class:list={['frame', volgendePoster ? 'frame--poster' : volgendeHeel ? 'frame--heel' : 'frame--photo']}>
               <img src={volgendeFoto} alt={volgende.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={volgendeHeel ? undefined : 900} height={volgendeHeel ? undefined : 675} loading="lazy" />
             </div>
           </div>

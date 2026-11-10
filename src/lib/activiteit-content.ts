@@ -36,6 +36,17 @@ export function kaartTekst(activiteit: ActiviteitContentBron): { tekst?: string;
   return { tekst: omschrijving || undefined, letterlijk: false };
 }
 
+/**
+ * Tekst voor de homepage en andere teaserplekken.
+ * De korte omschrijving hoort hier. De volledige tekst blijft op de detailpagina.
+ */
+export function teaserTekst(activiteit: ActiviteitContentBron, max = 160): string {
+  const tekst = kaartTekst(activiteit).tekst?.trim() ?? '';
+  if (!tekst) return '';
+  if (tekst.length <= max) return tekst;
+  return `${tekst.slice(0, max).trimEnd()}…`;
+}
+
 /** Knip platte tekst op lege regels tot losse alinea's voor inline weergave. */
 export function tekstNaarParagrafen(tekst: string): string[] {
   return tekst
