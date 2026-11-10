@@ -88,7 +88,7 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
 | `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Staat aan in `vercel.json`. Preview en lokaal tonen `/beheer` altijd. Website wijzigt niet. |
 | `VERHUUR_OVERZICHT` | nee | `true` = Verhuur en Website in het beheermenu, met de verhuuragenda. Staat aan in `vercel.json`. Zonder deze waarde blijft dat menu weg. |
-| `BEHEER_HOOFDNAV` | nee | `true` = zesdelige hoofdnavigatie in `/beheer`. Standaard uit, ook als `VERHUUR_OVERZICHT` aan staat. Zet hem niet in productie tot de nieuwe indeling is beoordeeld. |
+| `BEHEER_HOOFDNAV` | nee | `true` = zesdelige hoofdnavigatie in `/beheer`. Staat aan in `vercel.json`. Zonder deze waarde blijft het oude menu, ook als de code al op de site staat. |
 | `SUPABASE_URL` | nee | Standaard het project Kerkje van Persingen. Override alleen voor een ander project. |
 | `SUPABASE_PUBLISHABLE_KEY` | nee | Publieke sleutel voor de login. Staat in `vercel.json`. Geen service-role. |
 | `SUPABASE_SERVICE_ROLE_KEY` | voor uitnodigen | Alleen server-side, in het Vercel-dashboard. Zonder deze sleutel kun je wel inloggen, niet uitnodigen. |
