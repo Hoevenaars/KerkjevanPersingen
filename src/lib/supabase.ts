@@ -7,6 +7,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient, parseCookieHeader } from '@supabase/ssr';
 import type { AstroCookies } from 'astro';
 import type { Database } from './database.types.ts';
+import { acceptatieIsoleert } from '../platform/acceptatie-sessie.ts';
 import { supabaseLoginUitOmgeving } from './supabase-project.ts';
 
 export interface SupabaseOmgeving {
@@ -17,6 +18,8 @@ export interface SupabaseOmgeving {
 
 export function leesSupabaseOmgeving(env?: Record<string, unknown>): SupabaseOmgeving | null {
   const bron = env ?? (typeof process !== 'undefined' ? process.env : {});
+  // De acceptatietest praat niet met Supabase, ook niet per ongeluk via de standaard-URL.
+  if (acceptatieIsoleert(bron)) return null;
   // Ontbrekende url/key vallen terug op het project Kerkje van Persingen.
   // Een expliciet gezet adres of sleutel blijft leidend.
   const login = supabaseLoginUitOmgeving(bron, true);

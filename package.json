@@ -8,6 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "acceptatie": "node scripts/acceptatie-beheer.mjs",
     "consolidatie:dry-run": "node --experimental-strip-types scripts/consolidatie-dry-run.ts",
     "huuroverzicht:delta": "node --experimental-strip-types scripts/huuroverzicht-delta-migratie.ts",
     "import:historical-rentals": "node --experimental-strip-types scripts/import-historische-huur.ts",
@@ -23,6 +24,7 @@
     "resend": "^4.0.0"
   },
   "devDependencies": {
+    "playwright": "^1.65.0",
     "typescript": "^5.6.0"
   }
 }

@@ -1,7 +1,11 @@
+html:has(.bh-app) {
+  overflow-x: clip;
+}
+
 .bh-app {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 248px 1fr;
+  grid-template-columns: 248px minmax(0, 1fr);
   background: var(--cream);
   color: var(--ink);
   font-family: var(--font-body);
@@ -343,6 +347,8 @@
 
 .bh-main {
   min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
   padding: var(--s-6) var(--s-8) var(--s-8);
 }
 
@@ -645,6 +651,11 @@
   padding: var(--s-6);
   margin-bottom: var(--s-6);
   box-shadow: 0 10px 30px -18px rgba(26, 26, 26, 0.08);
+  max-width: 100%;
+}
+
+.bh-kaart:has(table) {
+  overflow-x: auto;
 }
 
 .bh-kaart h2 {
@@ -1171,7 +1182,7 @@
 
 @media (max-width: 860px) {
   .bh-app {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .bh-nav {
