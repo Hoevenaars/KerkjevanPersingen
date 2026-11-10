@@ -19,6 +19,7 @@ import { volgPubliekePageview } from './analytics/volg.ts';
 import { analyticsTeVaak } from './analytics/rate-limit.ts';
 import { bewaarPageview, wachtNietOp } from './platform/analytics-opslag.ts';
 import { kerkjeAnalytics } from './platform/analytics-config.ts';
+import { acceptatieBesluit } from './platform/acceptatie-sessie.ts';
 
 /**
  * Afscherming tot livegang.
@@ -91,6 +92,42 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
     return alsJson
       ? new Response(JSON.stringify({ fout: 'uit', melding: 'Beheer is uitgeschakeld.' }), { status: 404 })
       : beheerUitResponse();
+  }
+
+  const acceptatie = acceptatieBesluit({
+    dev: import.meta.env.DEV === true,
+    env: process.env,
+    hostname: context.url.hostname,
+    methode: context.request.method,
+    url: context.url,
+  });
+  if (acceptatie.soort === 'verboden') {
+    return new Response('De acceptatietest wijzigt niets.', {
+      status: 403,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Robots-Tag': 'noindex, nofollow',
+      },
+    });
+  }
+  if (acceptatie.soort === 'redirect') {
+    return plakBeheerHeaders(context.redirect(acceptatie.naar));
+  }
+  if (acceptatie.soort === 'door') {
+    context.locals.beheer = acceptatie.sessie;
+    if (!isBeheerAuthPad(pad)) {
+      const uitkomst = toegangVoorBeheerPad({
+        pathname: pad,
+        methode: context.request.method,
+        ingelogd: true,
+        actief: true,
+        rechten: acceptatie.sessie.effectieveRechten,
+        viewAsActief: Boolean(acceptatie.sessie.viewAs),
+      });
+      if (uitkomst !== 'ok') return plakBeheerHeaders(beheerWeigering(uitkomst, alsJson));
+    }
+    return plakBeheerHeaders(await next());
   }
 
   if (isMutatieMethode(context.request.method) && !zelfdeOorsprong(context.request)) {
