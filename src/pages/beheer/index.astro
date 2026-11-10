@@ -14,6 +14,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, snapshotDashboard } from '../
 import { dashboardVoor } from '../../platform/dashboard.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { magZien } from '../../platform/rechten.ts';
+import { verhuurOverzichtAan } from '../../platform/verhuur-vlag.ts';
 import { actiepuntenKomendeWeken } from '../../platform/actiepunten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
@@ -67,6 +68,14 @@ const actiepunten = actiepuntenKomendeWeken({
       </p>
     </div>
   </header>
+
+  {
+    verhuurOverzichtAan() && zietBoekingen && (
+      <p class="bh-hint">
+        <a class="bh-btn" href="/beheer/verhuur/">Open de verhuuragenda</a>
+      </p>
+    )
+  }
 
   <ul class="bh-kaarten">
     {

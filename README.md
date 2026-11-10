@@ -87,6 +87,7 @@ geen bescherming tegen misbruik van de domeinnaam.
 | `CRON_SECRET` | ja | Zelfde waarde als Vercel Cron meestuurt. Zonder deze variabele weigeren de cron-routes elke aanroep. |
 | `NIEUWSBRIEF_PREVIEW_ADRES` | nee | Ontvanger van de donderdag-conceptmail. Standaard het adres van de webmaster. |
 | `BEHEER_ENABLED` | nee | `true` = `/beheer` zichtbaar op Production. Staat aan in `vercel.json`. Preview en lokaal tonen `/beheer` altijd. Website wijzigt niet. |
+| `VERHUUR_OVERZICHT` | nee | `true` = Verhuur en Website in het beheermenu, met de verhuuragenda. Staat aan in `vercel.json`. Zonder deze waarde blijft dat menu weg. |
 | `SUPABASE_URL` | nee | Standaard het project Kerkje van Persingen. Override alleen voor een ander project. |
 | `SUPABASE_PUBLISHABLE_KEY` | nee | Publieke sleutel voor de login. Staat in `vercel.json`. Geen service-role. |
 | `SUPABASE_SERVICE_ROLE_KEY` | voor uitnodigen | Alleen server-side, in het Vercel-dashboard. Zonder deze sleutel kun je wel inloggen, niet uitnodigen. |
