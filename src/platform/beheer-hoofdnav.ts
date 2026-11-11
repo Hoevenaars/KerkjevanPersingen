@@ -128,15 +128,13 @@ function verhuurSub(rechten: GebruikerRechten, opties: HoofdOpties): NavItem[] {
   return items;
 }
 
-function websiteSub(rechten: GebruikerRechten, opties: HoofdOpties): NavItem[] {
+function websiteSub(rechten: GebruikerRechten, _opties: HoofdOpties): NavItem[] {
   if (!magZien(rechten, 'agenda')) return [];
-  const items: NavItem[] = [];
-  if (opties.verhuurAgenda) {
-    items.push({ sleutel: 'website', href: '/beheer/website/', label: 'Overzicht' });
-  }
-  items.push({ sleutel: 'activiteiten', href: '/beheer/agenda/', label: 'Activiteiten' });
-  items.push({ sleutel: 'publiceren', href: '/beheer/publiceren/', label: 'Publiceren' });
-  return items;
+  return [
+    { sleutel: 'website-agenda', href: '/beheer/website/agenda/', label: 'Website Agenda' },
+    { sleutel: 'banner', href: '/beheer/website/banner/', label: 'Banner' },
+    { sleutel: 'extra-balk', href: '/beheer/website/extra-balk/', label: 'Extra balk' },
+  ];
 }
 
 function contactenSub(rechten: GebruikerRechten): NavItem[] {
@@ -193,9 +191,6 @@ function instellingenSub(rechten: GebruikerRechten): NavItem[] {
       label: 'Gebruikers en rechten',
       groep: personen,
     });
-  }
-  if (magZien(rechten, 'instellingen')) {
-    items.push({ sleutel: 'meldingen', href: '/beheer/instellingen/meldingen/', label: 'Meldingen', groep: communicatie });
   }
   if (magZien(rechten, 'automatiseringen')) {
     items.push({

@@ -2,7 +2,7 @@
  * Tijdelijke homepage-melding.
  *
  * Geen apart berichtensysteem: de tekst staat in public.instellingen
- * onder de sleutel website_melding en is te bewerken via /beheer.
+ * onder de sleutel website_melding en is te bewerken via Beheer → Website → Extra balk.
  */
 
 export const WEBSITE_MELDING_SLEUTEL = 'website_melding';
