@@ -1,0 +1,63 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { formatNl } from '../../../../platform/demo-data';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../../platform/beheer-bron.ts';
+import { ymdInAmsterdam } from '../../../../platform/datum.ts';
+import { formatActiviteitTitel } from '../../../../platform/activiteit-titel.ts';
+import { websiteUrl } from '../../../../platform/publiceren.ts';
+import { activiteitenOpWebsite } from '../../../../platform/website-agenda.ts';
+
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const vandaag = ymdInAmsterdam(new Date());
+const activiteiten = activiteitenOpWebsite(snapshot.agenda, vandaag);
+---
+
+<Beheer titel="Website Agenda">
+  <header class="bh-top">
+    <div>
+      <h1>Website Agenda</h1>
+      <p class="bh-hint">Activiteiten die nu op de website staan.</p>
+    </div>
+  </header>
+
+  {
+    activiteiten.length === 0 ? (
+      <p class="bh-leeg">Er staat nu geen activiteit op de website.</p>
+    ) : (
+      <table class="bh-tabel">
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Activiteit</th>
+            <th>Op de site</th>
+          </tr>
+        </thead>
+        <tbody>
+          {activiteiten.map((activiteit) => {
+            const titel = formatActiviteitTitel(activiteit.soort || 'expositie', activiteit.titel) || activiteit.titel;
+            return (
+              <tr>
+                <td>
+                  {formatNl(activiteit.start)}
+                  {activiteit.eind !== activiteit.start ? ` – ${formatNl(activiteit.eind)}` : ''}
+                </td>
+                <td>
+                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(activiteit.id)}/`}>{titel}</a>
+                </td>
+                <td>
+                  {activiteit.slug ? (
+                    <a href={websiteUrl(activiteit.slug)}>{websiteUrl(activiteit.slug).replace('https://', '')}</a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    )
+  }
+</Beheer>

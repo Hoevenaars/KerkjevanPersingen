@@ -1,7 +1,7 @@
 /**
  * Banner onder de kop van de website.
  *
- * Twee vormen, dezelfde balk, via Beheer → Publiceren
+ * Twee vormen, dezelfde balk, via Beheer → Website → Banner
  * (instellingen.vrijgekomen_weekend_banner):
  * - een vrij expositieweekend, met datumkaarten die uit dat weekend komen;
  * - alleen tekst, zonder datum. Die blijft staan tot hij wordt uitgezet.

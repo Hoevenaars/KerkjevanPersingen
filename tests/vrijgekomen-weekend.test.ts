@@ -346,8 +346,8 @@ describe('toonVrijgekomenWeekendBannerOpPagina', () => {
   });
 });
 
-test('publiceren beheert de banner en de site leest alleen die instelling', () => {
-  const pagina = readFileSync(new URL('../src/pages/beheer/publiceren/index.astro', import.meta.url), 'utf8');
+test('website banner beheert de balk en de site leest alleen die instelling', () => {
+  const pagina = readFileSync(new URL('../src/pages/beheer/website/banner/index.astro', import.meta.url), 'utf8');
   const sql = readFileSync(new URL('../supabase/migrations/20261006181000_vrijgekomen_weekend_banner.sql', import.meta.url), 'utf8');
   const tekstSql = readFileSync(new URL('../supabase/migrations/20261013193000_vrijgekomen_weekend_banner_tekst.sql', import.meta.url), 'utf8');
   const component = readFileSync(new URL('../src/components/VrijgekomenWeekendBanner.astro', import.meta.url), 'utf8');

@@ -61,9 +61,16 @@ describe('zes hoofdonderdelen', () => {
   test('zonder verhuuragenda wijst Verhuur naar de bestaande boekingen', () => {
     const items = hoofditems(admin, zonderAgenda);
     assert.equal(items.find((item) => item.sleutel === 'verhuur')?.href, '/beheer/boekingen/');
-    assert.equal(items.find((item) => item.sleutel === 'website')?.href, '/beheer/agenda/');
+    assert.equal(items.find((item) => item.sleutel === 'website')?.href, '/beheer/website/agenda/');
     assert.equal(subitems('verhuur', admin, zonderAgenda).some((item) => item.href === '/beheer/verhuur/'), false);
-    assert.equal(subitems('website', admin, zonderAgenda).some((item) => item.href === '/beheer/website/'), false);
+    assert.deepEqual(subitems('website', admin, agendaOpties).map((item) => item.label), [
+      'Website Agenda',
+      'Banner',
+      'Extra balk',
+    ]);
+    assert.equal(subitems('website', admin, agendaOpties).some((item) => item.label === 'Overzicht'), false);
+    assert.equal(subitems('website', admin, agendaOpties).some((item) => item.label === 'Activiteiten'), false);
+    assert.equal(subitems('website', admin, agendaOpties).some((item) => item.label === 'Publiceren'), false);
   });
 
   test('een aanvraagbeheerder krijgt geen boekingen of financiën', () => {
