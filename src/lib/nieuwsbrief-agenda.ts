@@ -11,7 +11,7 @@ import { filterActiviteitenInPeriode } from './nieuwsbrief-frequentie.ts';
 import { secondNaturePoster } from './second-nature.ts';
 import { natuurlijkFlyer } from './natuurlijk-in-het-kwadraat.ts';
 import { SFEER_URL, type NieuwsbriefActiviteitBlok } from './nieuwsbrief-html.ts';
-import { formatWinterstopDatum, isWinterstop, WINTERSTOP_TEKST, WINTERSTOP_TITEL } from './winterstop.ts';
+import { formatWinterstopDatum, isWinterstop, winterstopFoto, WINTERSTOP_FOTO_ALT, WINTERSTOP_TEKST, WINTERSTOP_TITEL } from './winterstop.ts';
 
 function kiesActiviteit(
   agenda: AgendaOverzicht,
@@ -38,8 +38,10 @@ function naarActiviteitBlok(activiteit: Activiteit, kop: string): NieuwsbriefAct
     omschrijving: winter
       ? WINTERSTOP_TEKST
       : (activiteit.korteOmschrijving?.trim() || activiteit.omschrijving?.trim() || '').slice(0, 155) || undefined,
-    fotoUrl: secondNaturePoster(activiteit, { absoluut: true }) ?? cmsFoto ?? natuurlijkFlyer(activiteit, { absoluut: true }) ?? SFEER_URL,
-    fotoAlt: activiteit.fotoAlt || 'Het kerkje van Persingen in de Ooijpolder',
+    fotoUrl: winter
+      ? winterstopFoto({ absoluut: true })
+      : secondNaturePoster(activiteit, { absoluut: true }) ?? cmsFoto ?? natuurlijkFlyer(activiteit, { absoluut: true }) ?? SFEER_URL,
+    fotoAlt: winter ? WINTERSTOP_FOTO_ALT : (activiteit.fotoAlt || 'Het kerkje van Persingen in de Ooijpolder'),
     agendaUrl: activiteit.slug
       ? `https://kerkjepersingen.nl/agenda/${activiteit.slug}/`
       : 'https://kerkjepersingen.nl/agenda/',

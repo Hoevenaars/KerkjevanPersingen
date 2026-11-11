@@ -7,19 +7,22 @@ import { teaserTekst } from '../lib/activiteit-content';
 import { isSecondNature, secondNaturePoster } from '../lib/second-nature';
 import { natuurlijkFlyer } from '../lib/natuurlijk-in-het-kwadraat';
 import { toonFotoInHetGeheel } from '../lib/publicatie-foto.ts';
-import { formatWinterstopDatum, isWinterstop, WINTERSTOP_TEKST } from '../lib/winterstop.ts';
+import { formatWinterstopDatum, isWinterstop, WINTERSTOP_FOTO, WINTERSTOP_FOTO_ALT, WINTERSTOP_TEKST } from '../lib/winterstop.ts';
 
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
-const vandaagFoto =
-  secondNaturePoster(vandaag) ??
-  (vandaag?.foto ? publiekeFotoUrl(vandaag.foto, 900, 600) : null) ??
-  natuurlijkFlyer(vandaag) ??
-  '/foto/geen-foto.jpg';
-const volgendeFoto =
-  secondNaturePoster(volgende) ??
-  (volgende?.foto ? publiekeFotoUrl(volgende.foto, 900, 600) : null) ??
-  natuurlijkFlyer(volgende) ??
-  '/foto/geen-foto.jpg';
+
+function agendaFoto(item: typeof vandaag): string {
+  if (isWinterstop(item?.soort)) return WINTERSTOP_FOTO;
+  return (
+    secondNaturePoster(item) ??
+    (item?.foto ? publiekeFotoUrl(item.foto, 900, 600) : null) ??
+    natuurlijkFlyer(item) ??
+    '/foto/geen-foto.jpg'
+  );
+}
+
+const vandaagFoto = agendaFoto(vandaag);
+const volgendeFoto = agendaFoto(volgende);
 const vandaagPoster = isSecondNature(vandaag);
 const volgendePoster = isSecondNature(volgende);
 const vandaagHeel = !vandaagPoster && toonFotoInHetGeheel(vandaagFoto);
@@ -88,7 +91,7 @@ const volgendeTekst = volgende ? (isWinterstop(volgende.soort) ? WINTERSTOP_TEKS
               </div>
             </div>
             <div class:list={['frame', vandaagPoster ? 'frame--poster' : vandaagHeel ? 'frame--heel' : 'frame--photo']}>
-              <img src={vandaagFoto} alt={vandaag.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={vandaagHeel ? undefined : 900} height={vandaagHeel ? undefined : 675} loading="lazy" />
+              <img src={vandaagFoto} alt={isWinterstop(vandaag.soort) ? WINTERSTOP_FOTO_ALT : (vandaag.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder')} width={vandaagHeel ? undefined : 900} height={vandaagHeel ? undefined : 675} loading="lazy" />
             </div>
           </div>
         )
@@ -117,7 +120,7 @@ const volgendeTekst = volgende ? (isWinterstop(volgende.soort) ? WINTERSTOP_TEKS
               </div>
             </div>
             <div class:list={['frame', volgendePoster ? 'frame--poster' : volgendeHeel ? 'frame--heel' : 'frame--photo']}>
-              <img src={volgendeFoto} alt={volgende.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder'} width={volgendeHeel ? undefined : 900} height={volgendeHeel ? undefined : 675} loading="lazy" />
+              <img src={volgendeFoto} alt={isWinterstop(volgende.soort) ? WINTERSTOP_FOTO_ALT : (volgende.fotoAlt ?? 'Het kerkje van Persingen in de Ooijpolder')} width={volgendeHeel ? undefined : 900} height={volgendeHeel ? undefined : 675} loading="lazy" />
             </div>
           </div>
         ) : (
