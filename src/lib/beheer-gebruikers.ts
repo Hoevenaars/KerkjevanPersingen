@@ -25,6 +25,7 @@ import {
 } from '../platform/beheer-sessie.ts';
 import { magGebruikersBeheren, magRechtWijzigen } from '../platform/rechten.ts';
 import type { GebruikerRechten, Rechtniveau } from '../platform/types.ts';
+import { ongeldigeSupabaseSleutel } from './supabase.ts';
 
 export interface BeheerGebruikerRij extends BeheerProfiel {
   rechten: RechtenMatrix;
@@ -200,7 +201,7 @@ export async function laadAlleGebruikers(admin: SupabaseClient): Promise<BeheerG
     .from('profielen')
     .select('id, email, naam, functie, status, is_super_admin, actief, last_active_at')
     .order('naam');
-  if (error) throw error;
+  if (error) throw new Error(error.message || 'Gebruikers konden niet worden geladen.');
 
   const { data: rechtenRijen } = await admin.from('gebruikersrechten').select('profiel_id, module_sleutel, niveau');
   const perGebruiker = new Map<string, RechtenMatrix>();
@@ -249,6 +250,12 @@ export async function nodigGebruikerUit(
     const tekst = error?.message ?? 'Uitnodigen mislukt.';
     if (/already|registered|exists/i.test(tekst)) {
       return { fout: 'bestaat', melding: 'Dit e-mailadres heeft al een account.' };
+    }
+    if (ongeldigeSupabaseSleutel(tekst)) {
+      return {
+        fout: 'niet_geconfigureerd',
+        melding: 'Uitnodigen lukt niet: Supabase weigert de beheersleutel op de server.',
+      };
     }
     return { fout: 'ongeldig', melding: tekst };
   }
@@ -324,6 +331,7 @@ export async function zetGebruikerStatus(
   actor: { id: string; naam: string; rechten: GebruikerRechten },
   doelId: string,
   actie: 'disable' | 'reactivate',
+  authAdmin: SupabaseClient | null = admin,
 ): Promise<{ ok: true } | { fout: GebruikerFout; melding: string }> {
   if (!magGebruikersBeheren(actor.rechten)) {
     return { fout: 'geen_recht', melding: 'Geen recht om accounts te wijzigen.' };
@@ -344,7 +352,12 @@ export async function zetGebruikerStatus(
     const status = nieuweStatusNaDeactiveren();
     const { error } = await admin.from('profielen').update({ status, actief: false }).eq('id', doelId);
     if (error) return { fout: 'ongeldig', melding: error.message };
-    await admin.auth.admin.signOut(doelId, 'global');
+    if (authAdmin) {
+      const { error: uitFout } = await authAdmin.auth.admin.signOut(doelId, 'global');
+      if (uitFout && !ongeldigeSupabaseSleutel(uitFout.message)) {
+        return { fout: 'ongeldig', melding: uitFout.message };
+      }
+    }
     await schrijfAudit(admin, {
       actorId: actor.id,
       actorNaam: actor.naam,
@@ -397,7 +410,15 @@ export async function verstuurUitnodigingOpnieuw(
     data: { naam: geladen.profiel.naam, functie: geladen.profiel.functie ?? '' },
     redirectTo,
   });
-  if (error) return { fout: 'ongeldig', melding: error.message };
+  if (error) {
+    if (ongeldigeSupabaseSleutel(error.message)) {
+      return {
+        fout: 'niet_geconfigureerd',
+        melding: 'Uitnodigen lukt niet: Supabase weigert de beheersleutel op de server.',
+      };
+    }
+    return { fout: 'ongeldig', melding: error.message };
+  }
   await schrijfAudit(admin, {
     actorId: actor.id,
     actorNaam: actor.naam,

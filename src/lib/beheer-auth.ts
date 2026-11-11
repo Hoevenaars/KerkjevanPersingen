@@ -54,7 +54,7 @@ export async function bouwSessie(opties: {
   let viewAsRechten: GebruikerRechten | null = null;
   const rol = rolUitWeergave(opties.viewAsId);
   if (rol && rechten.isSuperAdmin) {
-    const catalogus = vindRol(await laadRollen(admin), rol);
+    const catalogus = vindRol(await laadRollen(opties.client), rol);
     const voorbeeld = pasRolWeergaveToe(
       { gebruiker, rechten, effectieveRechten: rechten, viewAs: null, bron: 'supabase' },
       opties.viewAsId,

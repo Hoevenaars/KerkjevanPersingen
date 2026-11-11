@@ -1,6 +1,6 @@
 /**
- * Rollen staan in Supabase zodra de admin-client er is,
- * anders in data/beheer-rollen.json zodat lokaal Beheer zonder keys ook kan opslaan.
+ * Rollen staan in Supabase via de meegegeven client (de ingelogde sessie).
+ * Zonder client valt Beheer terug op data/beheer-rollen.json.
  */
 
 import fs from 'node:fs/promises';
@@ -18,8 +18,6 @@ import {
 } from '../platform/rollen.ts';
 import type { Rechtniveau } from '../platform/types.ts';
 import type { RechtenMatrix } from '../platform/rollen.ts';
-import { maakBeheerAdminClient } from './supabase.ts';
-
 const BESTAND = path.join(process.cwd(), 'data', 'beheer-rollen.json');
 
 interface BestandVorm {
@@ -125,12 +123,12 @@ async function schrijfSupabase(admin: SupabaseClient, rollen: BeheerRol[]): Prom
   }
 }
 
-export async function laadRollen(admin: SupabaseClient | null = maakBeheerAdminClient()): Promise<BeheerRol[]> {
+export async function laadRollen(admin: SupabaseClient | null = null): Promise<BeheerRol[]> {
   if (admin) return leesSupabase(admin);
   return (await leesBestand()) ?? standaardRollen();
 }
 
-export async function bewaarRollen(rollen: BeheerRol[], admin: SupabaseClient | null = maakBeheerAdminClient()): Promise<void> {
+export async function bewaarRollen(rollen: BeheerRol[], admin: SupabaseClient | null = null): Promise<void> {
   if (admin) {
     await schrijfSupabase(admin, rollen);
     return;
@@ -140,7 +138,7 @@ export async function bewaarRollen(rollen: BeheerRol[], admin: SupabaseClient | 
 
 export async function pasRollenAan(
   actie: RolActie,
-  admin: SupabaseClient | null = maakBeheerAdminClient(),
+  admin: SupabaseClient | null = null,
 ): Promise<{ rollen: BeheerRol[]; slug?: string } | { fout: string }> {
   const huidig = await laadRollen(admin);
   const resultaat = voerRolActieUit(huidig, actie);

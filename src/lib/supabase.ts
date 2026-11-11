@@ -85,6 +85,27 @@ export function sessieSupabaseUitAstro(astro: {
   });
 }
 
+export function ongeldigeSupabaseSleutel(tekst: string): boolean {
+  return /invalid api key|unauthorized_invalid_api_key|PGRST301/i.test(tekst);
+}
+
+export function supabaseFoutTekst(fout: unknown): string {
+  if (fout instanceof Error) return fout.message;
+  if (fout && typeof fout === 'object' && 'message' in fout && typeof fout.message === 'string') {
+    return fout.message;
+  }
+  return '';
+}
+
+/** PostgREST gooit soms een gewoon object. Die melding hoort in het Nederlands op de pagina. */
+export function leesbareSupabaseFout(fout: unknown, fallback: string): string {
+  const tekst = supabaseFoutTekst(fout).trim();
+  if (ongeldigeSupabaseSleutel(tekst)) {
+    return 'Supabase weigert de sleutel waarmee deze actie werd gedaan.';
+  }
+  return tekst || fallback;
+}
+
 export function maakBeheerAdminClient(env?: Record<string, unknown>): SupabaseClient<Database> | null {
   const cfg = leesSupabaseOmgeving(env);
   if (!cfg?.serviceRoleKey) return null;

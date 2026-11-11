@@ -11,7 +11,7 @@ import {
   statusLabel,
 } from '../../../../lib/beheer-gebruikers.ts';
 import { laadRollen } from '../../../../lib/rollen-opslag.ts';
-import { maakBeheerAdminClient, supabaseGeconfigureerd } from '../../../../lib/supabase.ts';
+import { leesbareSupabaseFout, sessieSupabaseUitAstro, supabaseGeconfigureerd } from '../../../../lib/supabase.ts';
 import type { Rechtniveau } from '../../../../platform/types.ts';
 
 const sessie = Astro.locals.beheer;
@@ -21,21 +21,19 @@ const fout = Astro.url.searchParams.get('fout');
 const ok = Astro.url.searchParams.get('ok');
 const meldingParam = Astro.url.searchParams.get('melding');
 
+const lezer = sessieSupabaseUitAstro(Astro);
 let gebruikers: Awaited<ReturnType<typeof laadAlleGebruikers>> = [];
 let laadFout = '';
-if (supabaseGeconfigureerd()) {
-  const admin = maakBeheerAdminClient();
-  if (!admin) {
-    laadFout = 'SUPABASE_SERVICE_ROLE_KEY ontbreekt. Uitnodigen en bewerken werken daardoor niet.';
-  } else {
-    try {
-      gebruikers = await laadAlleGebruikers(admin);
-    } catch (error) {
-      laadFout = error instanceof Error ? error.message : 'Gebruikers konden niet worden geladen.';
-    }
-  }
-} else {
+if (!supabaseGeconfigureerd()) {
   laadFout = 'Supabase Auth is nog niet gekoppeld. Individuele accounts staan klaar zodra de projectkeys er zijn.';
+} else if (!lezer) {
+  laadFout = 'Gebruikers konden niet worden geladen.';
+} else {
+  try {
+    gebruikers = await laadAlleGebruikers(lezer);
+  } catch (error) {
+    laadFout = leesbareSupabaseFout(error, 'Gebruikers konden niet worden geladen.');
+  }
 }
 
 const gekozen = gebruikers.find((g) => g.id === gekozenId) ?? null;
@@ -43,9 +41,9 @@ const gekozen = gebruikers.find((g) => g.id === gekozenId) ?? null;
 let rollen: Awaited<ReturnType<typeof laadRollen>> = [];
 let rolFout = '';
 try {
-  rollen = await laadRollen();
+  rollen = await laadRollen(lezer);
 } catch (error) {
-  rolFout = error instanceof Error ? error.message : 'Rollen konden niet worden geladen.';
+  rolFout = leesbareSupabaseFout(error, 'Rollen konden niet worden geladen.');
 }
 const gekozenRol = rollen.find((rol) => rol.slug === gekozenRolSlug) ?? rollen[0] ?? null;
 const rolMatrices = Object.fromEntries(rollen.map((rol) => [rol.slug, rol.rechten]));

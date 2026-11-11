@@ -10,6 +10,7 @@ import { verhuurOverzichtAan } from '../platform/verhuur-vlag.ts';
 import { groepeer, hoofditems, hoofdnavAan, locatieVoorPad, padActief, sectieVoorPad, subitems } from '../platform/beheer-hoofdnav.ts';
 import { rolWeergaveId } from '../platform/rollen.ts';
 import { laadRollen } from '../lib/rollen-opslag.ts';
+import { sessieSupabaseUitAstro } from '../lib/supabase.ts';
 
 interface Props {
   actief?: 'verhuur' | 'website';
@@ -36,7 +37,7 @@ const merkHref =
 let kijkRollen: Awaited<ReturnType<typeof laadRollen>> = [];
 if (eenvoud && sessie?.rechten.isSuperAdmin) {
   try {
-    kijkRollen = await laadRollen();
+    kijkRollen = await laadRollen(sessieSupabaseUitAstro(Astro));
   } catch {
     kijkRollen = [];
   }
