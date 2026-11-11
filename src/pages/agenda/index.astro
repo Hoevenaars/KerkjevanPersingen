@@ -8,6 +8,7 @@ import { STANDAARD_AFBEELDING, kaartVoorWebsite } from '../../platform/publicere
 import { isSecondNature, secondNaturePoster } from '../../lib/second-nature';
 import { natuurlijkFlyer } from '../../lib/natuurlijk-in-het-kwadraat';
 import { toonFotoInHetGeheel } from '../../lib/publicatie-foto.ts';
+import { formatWinterstopDatum, isWinterstop, WINTERSTOP_TEKST, WINTERSTOP_TITEL } from '../../lib/winterstop.ts';
 
 const activiteiten = await getPubliekeAgenda(80);
 
@@ -44,6 +45,21 @@ function kortOpZinnen(tekst: string, maxZinnen = 2): string {
                     <p class="datum">{formatDatumBereik(a)}</p>
                     <h2>Bezet</h2>
                     <p>Dit weekend is bezet.</p>
+                  </div>
+                </li>
+              );
+            }
+            if (isWinterstop(a.soort)) {
+              const foto = a.foto ? publiekeFotoUrl(a.foto, 800, 600) : '/foto/nieuwe-vlag.jpg';
+              return (
+                <li class="kaart">
+                  <div class="frame frame--photo">
+                    <img src={foto} alt={a.fotoAlt ?? 'Het kerkje van Persingen'} width={800} height={600} loading="lazy" />
+                  </div>
+                  <div class="kaart-tekst">
+                    <p class="datum">{formatWinterstopDatum(a.start, a.eind)}</p>
+                    <h2>{WINTERSTOP_TITEL}</h2>
+                    <p>{WINTERSTOP_TEKST}</p>
                   </div>
                 </li>
               );
