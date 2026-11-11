@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { matrixVanFormulier } from '../../../lib/beheer-gebruikers.ts';
 import { pasRollenAan } from '../../../lib/rollen-opslag.ts';
-import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
+import { leesbareSupabaseFout, sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 
 export const prerender = false;
 
@@ -28,7 +28,10 @@ export const POST: APIRoute = async (context) => {
 
   const data = await context.request.formData();
   const actie = String(data.get('actie') ?? '');
-  const admin = maakBeheerAdminClient();
+  const admin = sessieSupabaseUitAstro(context);
+  if (!admin) {
+    return terug(context, { fout: 'niet_geconfigureerd', melding: 'Supabase Auth is nog niet gekoppeld.' });
+  }
 
   try {
     if (actie === 'nieuw') {
@@ -58,7 +61,7 @@ export const POST: APIRoute = async (context) => {
       return terug(context, { ok: 'rol', rol: resultaat.slug ?? slug });
     }
   } catch (error) {
-    const melding = error instanceof Error ? error.message : 'De rol kon niet worden opgeslagen.';
+    const melding = leesbareSupabaseFout(error, 'De rol kon niet worden opgeslagen.');
     return terug(context, { fout: 'ongeldig', melding });
   }
 

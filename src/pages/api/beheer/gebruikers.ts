@@ -6,7 +6,7 @@ import {
   zetGebruikerStatus,
   matrixVanFormulier,
 } from '../../../lib/beheer-gebruikers.ts';
-import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
+import { maakBeheerAdminClient, sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 
 export const prerender = false;
 
@@ -37,11 +37,12 @@ export const POST: APIRoute = async (context) => {
     });
   }
 
+  const lezer = sessieSupabaseUitAstro(context);
   const admin = maakBeheerAdminClient();
-  if (!admin) {
+  if (!lezer) {
     return terug(context, '/beheer/instellingen/gebruikers/', {
       fout: 'niet_geconfigureerd',
-      melding: 'SUPABASE_SERVICE_ROLE_KEY ontbreekt op de server.',
+      melding: 'Supabase Auth is nog niet gekoppeld.',
     });
   }
 
@@ -51,6 +52,12 @@ export const POST: APIRoute = async (context) => {
   const redirectTo = new URL('/beheer/auth/callback', context.url).toString();
 
   if (actie === 'invite') {
+    if (!admin) {
+      return terug(context, '/beheer/instellingen/gebruikers/', {
+        fout: 'niet_geconfigureerd',
+        melding: 'SUPABASE_SERVICE_ROLE_KEY ontbreekt op de server.',
+      });
+    }
     const resultaat = await nodigGebruikerUit(admin, actor, {
       naam: String(data.get('naam') ?? ''),
       email: String(data.get('email') ?? ''),
@@ -73,7 +80,7 @@ export const POST: APIRoute = async (context) => {
   }
 
   if (actie === 'bewaar') {
-    const resultaat = await werkGebruikerBij(admin, actor, doelId, {
+    const resultaat = await werkGebruikerBij(lezer, actor, doelId, {
       naam: String(data.get('naam') ?? ''),
       functie: String(data.get('functie') ?? ''),
       rechten: matrixVanFormulier(data.entries()),
@@ -89,7 +96,7 @@ export const POST: APIRoute = async (context) => {
   }
 
   if (actie === 'disable' || actie === 'reactivate') {
-    const resultaat = await zetGebruikerStatus(admin, actor, doelId, actie);
+    const resultaat = await zetGebruikerStatus(lezer, actor, doelId, actie, admin);
     if ('fout' in resultaat) {
       return terug(context, '/beheer/instellingen/gebruikers/', {
         fout: resultaat.fout,
@@ -101,6 +108,13 @@ export const POST: APIRoute = async (context) => {
   }
 
   if (actie === 'resend') {
+    if (!admin) {
+      return terug(context, '/beheer/instellingen/gebruikers/', {
+        fout: 'niet_geconfigureerd',
+        melding: 'SUPABASE_SERVICE_ROLE_KEY ontbreekt op de server.',
+        id: doelId,
+      });
+    }
     const resultaat = await verstuurUitnodigingOpnieuw(admin, actor, doelId, redirectTo);
     if ('fout' in resultaat) {
       return terug(context, '/beheer/instellingen/gebruikers/', {

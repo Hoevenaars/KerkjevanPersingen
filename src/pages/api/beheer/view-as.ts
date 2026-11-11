@@ -3,7 +3,7 @@ import { magViewAsStarten, VIEW_AS_COOKIE } from '../../../platform/beheer-sessi
 import { rolUitWeergave, rolWeergaveId } from '../../../platform/rollen.ts';
 import { schrijfViewAsAudit } from '../../../lib/beheer-gebruikers.ts';
 import { laadRollen, vindRol } from '../../../lib/rollen-opslag.ts';
-import { maakBeheerAdminClient } from '../../../lib/supabase.ts';
+import { maakBeheerAdminClient, sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 
 export const prerender = false;
 
@@ -16,19 +16,24 @@ export const POST: APIRoute = async (context) => {
   const data = await context.request.formData();
   const actie = String(data.get('actie') ?? '');
   const doelId = String(data.get('id') ?? '');
+  const lezer = sessieSupabaseUitAstro(context);
   const admin = maakBeheerAdminClient();
 
   if (actie === 'stop') {
     context.cookies.delete(VIEW_AS_COOKIE, { path: '/' });
     if (admin && sessie.viewAs) {
-      await schrijfViewAsAudit(admin, { id: sessie.gebruiker.id, naam: sessie.gebruiker.naam }, sessie.viewAs.id, 'VIEW_AS_ENDED');
+      try {
+        await schrijfViewAsAudit(admin, { id: sessie.gebruiker.id, naam: sessie.gebruiker.naam }, sessie.viewAs.id, 'VIEW_AS_ENDED');
+      } catch {
+        // De wissel zelf mag niet blijven hangen aan een afgekeurde beheersleutel.
+      }
     }
     const terug = String(data.get('next') ?? '/beheer/');
     return context.redirect(terug.startsWith('/beheer') ? terug : '/beheer/');
   }
 
   const rol = rolUitWeergave(doelId);
-  const bekendeRol = rol ? vindRol(await laadRollen(admin), rol) : null;
+  const bekendeRol = rol ? vindRol(await laadRollen(lezer), rol) : null;
   const geldigDoel = Boolean(bekendeRol) || (Boolean(doelId) && !doelId.startsWith('rol:') && doelId !== sessie.gebruiker.id);
   if (actie === 'start' && geldigDoel) {
     const cookieWaarde = bekendeRol ? rolWeergaveId(bekendeRol.slug) : doelId;
@@ -40,7 +45,11 @@ export const POST: APIRoute = async (context) => {
       maxAge: 60 * 60,
     });
     if (admin) {
-      await schrijfViewAsAudit(admin, { id: sessie.gebruiker.id, naam: sessie.gebruiker.naam }, cookieWaarde, 'VIEW_AS_STARTED');
+      try {
+        await schrijfViewAsAudit(admin, { id: sessie.gebruiker.id, naam: sessie.gebruiker.naam }, cookieWaarde, 'VIEW_AS_STARTED');
+      } catch {
+        // De wissel zelf mag niet blijven hangen aan een afgekeurde beheersleutel.
+      }
     }
     const terug = String(data.get('next') ?? '/beheer/');
     return context.redirect(terug.startsWith('/beheer') ? terug : '/beheer/');

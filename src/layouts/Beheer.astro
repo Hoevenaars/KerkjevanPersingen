@@ -11,6 +11,7 @@ import { beheerModus } from '../platform/beheer-sessie.ts';
 import { moduleVoorPad } from '../platform/autorisatie.ts';
 import { rolWeergaveId } from '../platform/rollen.ts';
 import { laadRollen } from '../lib/rollen-opslag.ts';
+import { sessieSupabaseUitAstro } from '../lib/supabase.ts';
 
 interface Props {
   titel: string;
@@ -65,7 +66,7 @@ const eenvoud = hoofdnavAan();
 let kijkRollen: Awaited<ReturnType<typeof laadRollen>> = [];
 if (!eenvoud && sessie?.rechten.isSuperAdmin) {
   try {
-    kijkRollen = await laadRollen();
+    kijkRollen = await laadRollen(sessieSupabaseUitAstro(Astro));
   } catch {
     kijkRollen = [];
   }
