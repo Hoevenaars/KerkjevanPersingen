@@ -132,6 +132,8 @@ export interface DemoVriend {
   id: string;
   naam: string;
   email: string;
+  telefoon?: string;
+  geboortedatum?: string;
   actief: boolean;
   frequentie: 'wekelijks' | 'tweewekelijks' | 'maandelijks';
 }

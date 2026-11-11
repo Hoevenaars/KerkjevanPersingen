@@ -13,9 +13,9 @@ const live = snapshot.bron === 'supabase';
 if (Astro.request.method === 'POST') {
   const data = await Astro.request.formData();
   if (data.get('actie') === 'export' && magExport) {
-    const regels = ['naam;email;frequentie;actief'];
+    const regels = ['naam;email;telefoon;geboortedatum;frequentie;actief'];
     for (const v of snapshot.vrienden) {
-      regels.push(`${v.naam};${v.email};${v.frequentie};${v.actief ? 'ja' : 'nee'}`);
+      regels.push(`${v.naam};${v.email};${v.telefoon ?? ''};${v.geboortedatum ?? ''};${v.frequentie};${v.actief ? 'ja' : 'nee'}`);
     }
     const naam = live ? 'vrienden.csv' : 'vrienden-voorbeeld.csv';
     return new Response(regels.join('\n') + '\n', {
@@ -57,6 +57,8 @@ const fout = Astro.url.searchParams.get('fout');
       <tr>
         <th>Naam</th>
         <th>E-mail</th>
+        <th>Telefoon</th>
+        <th>Geboortedatum</th>
         <th>Frequentie</th>
         <th>Status</th>
       </tr>
@@ -67,6 +69,8 @@ const fout = Astro.url.searchParams.get('fout');
           <tr>
             <td>{v.naam}</td>
             <td>{v.email}</td>
+            <td>{v.telefoon || '—'}</td>
+            <td>{v.geboortedatum ? v.geboortedatum.split('-').reverse().join('-') : '—'}</td>
             <td>{v.frequentie}</td>
             <td>
               <span class={`bh-badge ${v.actief ? 'bh-badge--actief' : 'bh-badge--verborgen'}`}>
