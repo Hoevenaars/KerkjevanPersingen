@@ -96,26 +96,28 @@ if (eenvoud && sessie?.rechten.isSuperAdmin) {
               )
         }
       </nav>
+      <div class="kc-account">
+        <p class="kc-gebruiker">
+          {eenvoud ? (
+            naam && <small>{naam}</small>
+          ) : (
+            <a href="/beheer/">Beheeromgeving</a>
+          )}
+          {!eenvoud && naam && <small>{naam}</small>}
+        </p>
+        {
+          eenvoud && (
+            <form class="kc-uit" method="post" action="/beheer/uitloggen">
+              <button type="submit">Uitloggen</button>
+            </form>
+          )
+        }
+      </div>
       {
         eenvoud && (
           <form class="kc-zoek" action="/beheer/zoeken/" method="get">
             <label class="kc-sr" for="kc-q">Zoeken</label>
             <input id="kc-q" name="q" type="search" placeholder="Zoek een naam of datum" value={zoekterm} />
-          </form>
-        )
-      }
-      <p class="kc-gebruiker">
-        {eenvoud ? (
-          naam && <small>{naam}</small>
-        ) : (
-          <a href="/beheer/">Beheeromgeving</a>
-        )}
-        {!eenvoud && naam && <small>{naam}</small>}
-      </p>
-      {
-        eenvoud && (
-          <form class="kc-uit" method="post" action="/beheer/uitloggen">
-            <button type="submit">Uitloggen</button>
           </form>
         )
       }
