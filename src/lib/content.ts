@@ -62,7 +62,7 @@ function loopVandaag(a: Activiteit, vandaag: number): boolean {
   return start <= vandaag && vandaag <= eind;
 }
 
-/** Publieke agenda via Supabase. ToonVanafMaanden filtert in publiek-lezen. */
+/** Publieke agenda via Supabase. ToonVanafMaanden en de 8-wekenhorizon filteren in publiek-lezen. */
 export async function getPubliekeAgenda(limit = 30): Promise<Activiteit[]> {
   const { leesPubliekeAgenda } = await import('./publiek-lezen.ts');
   return leesPubliekeAgenda(limit);
@@ -84,11 +84,10 @@ export interface AgendaOverzicht {
  * Verdeelt de publieke agenda in drie blokken voor de landingspagina: wat vandaag
  * loopt, wat daarna als eerste komt, en wat daarop weer volgt. Een activiteit die
  * vandaag loopt telt niet mee als "volgende".
- */
-/**
+ *
  * Een lopende winterstop mag de plek "vandaag" innemen.
- * Het eerstvolgende winterseizoen hoort in de homepagevolgorde.
- * Een tweede, later seizoen blijft alleen op de agendapagina.
+ * De homepage toont hooguit één komend winterseizoen.
+ * Een later seizoen komt pas in de agenda binnen 8 weken voor de start.
  */
 export function agendaOverzichtUitLijst(lijst: readonly Activiteit[], nu = new Date()): AgendaOverzicht {
   const zichtbaar = lijst.filter((item) => item.soort !== 'blokkade');

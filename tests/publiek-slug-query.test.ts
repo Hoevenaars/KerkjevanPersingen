@@ -2,14 +2,20 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
 
+function datumOver(dagen: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + dagen);
+  return d.toISOString().slice(0, 10);
+}
+
 test('activiteitdetail vraagt alleen publieke_activiteit_op_slug', async () => {
   const hits: { url: string; body: string }[] = [];
   const rij = {
     id: 120,
     slug: 'activiteit-120',
     titel: 'Activiteit 120',
-    start_datum: '2027-06-01',
-    eind_datum: '2027-06-02',
+    start_datum: datumOver(14),
+    eind_datum: datumOver(15),
     omschrijving: 'Voorbij de lijst.',
     korte_omschrijving: null,
     volledige_omschrijving: null,

@@ -1,11 +1,25 @@
 /**
  * Zichtbaarheid van activiteiten in de Supabase-agenda.
- * De publieke site toont alleen zichtbaarheid=publiek, daarna nog toonVanafMaanden.
- * Bezet en verborgen blijven buiten die agenda.
+ * De publieke site toont alleen zichtbaarheid=publiek, daarna nog toonVanafMaanden,
+ * en nooit verder dan 8 weken vooruit. Bezet en verborgen blijven buiten die agenda.
  */
 
 import type { InhoudStatus } from '../platform/continuiteit.ts';
+import { voegDagenToe } from '../platform/datum.ts';
 import type { PublicatieTrigger } from '../platform/types.ts';
+
+/** Publieke agenda kijkt hooguit 8 weken vooruit. Een lopende activiteit blijft staan. */
+export const AGENDA_VOORUIT_DAGEN = 8 * 7;
+
+/**
+ * De start ligt op of voor vandaag plus 8 weken.
+ * Een activiteit die al begonnen is, valt hier ook binnen.
+ */
+export function binnenAgendaHorizon(start: string, vandaag: string): boolean {
+  const startDag = start.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDag) || !/^\d{4}-\d{2}-\d{2}$/.test(vandaag)) return false;
+  return startDag <= voegDagenToe(vandaag, AGENDA_VOORUIT_DAGEN);
+}
 
 export const CONTENTSTATUSSEN = [
   'niet_aangeleverd',
@@ -170,7 +184,8 @@ export function timingBereikt(
 /**
  * Werkelijke websitezichtbaarheid.
  * Zelfde poort als publieke_agenda plus de publicatietiming van de site.
- * Contentstatus, een ontbrekende tekst of een ontbrekende eigen foto telt niet.
+ * Nooit verder dan 8 weken vooruit. Contentstatus, een ontbrekende tekst
+ * of een ontbrekende eigen foto telt niet.
  */
 export function nuZichtbaarOpWebsite(input: {
   zichtbaarheid?: string | null;
@@ -189,6 +204,7 @@ export function nuZichtbaarOpWebsite(input: {
   if ((input.trigger ?? '') === 'niet_publiceren') return false;
   const eind = input.eind.slice(0, 10);
   if (!eind || eind < input.vandaag) return false;
+  if (!binnenAgendaHorizon(input.start, input.vandaag)) return false;
   return timingBereikt(
     { start: input.start, trigger: input.trigger, toonVanafMaanden: input.toonVanafMaanden },
     input.nu ?? new Date(),
