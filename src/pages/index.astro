@@ -7,6 +7,7 @@ import { teaserTekst } from '../lib/activiteit-content';
 import { isSecondNature, secondNaturePoster } from '../lib/second-nature';
 import { natuurlijkFlyer } from '../lib/natuurlijk-in-het-kwadraat';
 import { toonFotoInHetGeheel } from '../lib/publicatie-foto.ts';
+import { formatWinterstopDatum, isWinterstop, WINTERSTOP_TEKST } from '../lib/winterstop.ts';
 
 const { vandaag, volgende, daarna } = await getAgendaOverzicht();
 const vandaagFoto =
@@ -23,8 +24,8 @@ const vandaagPoster = isSecondNature(vandaag);
 const volgendePoster = isSecondNature(volgende);
 const vandaagHeel = !vandaagPoster && toonFotoInHetGeheel(vandaagFoto);
 const volgendeHeel = !volgendePoster && toonFotoInHetGeheel(volgendeFoto);
-const vandaagTekst = vandaag ? teaserTekst(vandaag) : '';
-const volgendeTekst = volgende ? teaserTekst(volgende) : '';
+const vandaagTekst = vandaag ? (isWinterstop(vandaag.soort) ? WINTERSTOP_TEKST : teaserTekst(vandaag)) : '';
+const volgendeTekst = volgende ? (isWinterstop(volgende.soort) ? WINTERSTOP_TEKST : teaserTekst(volgende)) : '';
 ---
 
 <Base
@@ -77,7 +78,7 @@ const volgendeTekst = volgende ? teaserTekst(volgende) : '';
                 <MasonMark variant="kruis" size={14} /> Vandaag in het kerkje
               </p>
               <h2>{vandaag.publiekeTitel}</h2>
-              <p class="datum">{formatDatumBereik(vandaag)}</p>
+              <p class="datum">{isWinterstop(vandaag.soort) ? formatWinterstopDatum(vandaag.start, vandaag.eind) : formatDatumBereik(vandaag)}</p>
               {vandaagTekst && <p>{vandaagTekst}</p>}
               <div class="knoppen">
                 {vandaag.slug && (
@@ -101,11 +102,11 @@ const volgendeTekst = volgende ? teaserTekst(volgende) : '';
                 <MasonMark variant="kruis" size={14} /> Binnenkort in het kerkje
               </p>
               <h2>{volgende.publiekeTitel}</h2>
-              <p class="datum">{formatDatumBereik(volgende)}</p>
+              <p class="datum">{isWinterstop(volgende.soort) ? formatWinterstopDatum(volgende.start, volgende.eind) : formatDatumBereik(volgende)}</p>
               {volgendeTekst && <p>{volgendeTekst}</p>}
               {daarna && (
                 <p class="daarna">
-                  Daarna: <strong>{daarna.publiekeTitel}</strong>, {formatDatumBereik(daarna)}
+                  Daarna: <strong>{daarna.publiekeTitel}</strong>, {isWinterstop(daarna.soort) ? formatWinterstopDatum(daarna.start, daarna.eind) : formatDatumBereik(daarna)}
                 </p>
               )}
               <div class="knoppen">

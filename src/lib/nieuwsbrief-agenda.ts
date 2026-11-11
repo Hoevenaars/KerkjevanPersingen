@@ -11,6 +11,7 @@ import { filterActiviteitenInPeriode } from './nieuwsbrief-frequentie.ts';
 import { secondNaturePoster } from './second-nature.ts';
 import { natuurlijkFlyer } from './natuurlijk-in-het-kwadraat.ts';
 import { SFEER_URL, type NieuwsbriefActiviteitBlok } from './nieuwsbrief-html.ts';
+import { formatWinterstopDatum, isWinterstop, WINTERSTOP_TEKST, WINTERSTOP_TITEL } from './winterstop.ts';
 
 function kiesActiviteit(
   agenda: AgendaOverzicht,
@@ -30,10 +31,13 @@ function kiesActiviteit(
 
 function naarActiviteitBlok(activiteit: Activiteit, kop: string): NieuwsbriefActiviteitBlok {
   const cmsFoto = directeFotoUrl(activiteit.foto);
+  const winter = isWinterstop(activiteit.soort);
   return {
-    titel: activiteit.publiekeTitel || activiteit.interneTitel,
-    datumTekst: formatDatumBereik(activiteit),
-    omschrijving: (activiteit.korteOmschrijving?.trim() || activiteit.omschrijving?.trim() || '').slice(0, 155) || undefined,
+    titel: winter ? WINTERSTOP_TITEL : (activiteit.publiekeTitel || activiteit.interneTitel),
+    datumTekst: winter ? formatWinterstopDatum(activiteit.start, activiteit.eind) : formatDatumBereik(activiteit),
+    omschrijving: winter
+      ? WINTERSTOP_TEKST
+      : (activiteit.korteOmschrijving?.trim() || activiteit.omschrijving?.trim() || '').slice(0, 155) || undefined,
     fotoUrl: secondNaturePoster(activiteit, { absoluut: true }) ?? cmsFoto ?? natuurlijkFlyer(activiteit, { absoluut: true }) ?? SFEER_URL,
     fotoAlt: activiteit.fotoAlt || 'Het kerkje van Persingen in de Ooijpolder',
     agendaUrl: activiteit.slug

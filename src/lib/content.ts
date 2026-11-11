@@ -1,6 +1,7 @@
 import { maandagVanWeekIso, type VrijWeekend } from './week.ts';
 import type { VriendFrequentie } from './nieuwsbrief-frequentie.ts';
 import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
+import { isWinterstop } from './winterstop.ts';
 
 export { maandagVanWeekIso };
 export { formatDatum, formatDatumBereik } from './datum.ts';
@@ -84,16 +85,32 @@ export interface AgendaOverzicht {
  * loopt, wat daarna als eerste komt, en wat daarop weer volgt. Een activiteit die
  * vandaag loopt telt niet mee als "volgende".
  */
-export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
-  const lijst = (await getPubliekeAgenda(80)).filter((item) => item.soort !== 'blokkade');
-  const vandaag = startVanDag(new Date().toISOString());
-  const lopend = lijst.find((a) => loopVandaag(a, vandaag)) ?? null;
-  const toekomstig = lijst.filter((a) => startVanDag(a.start) > vandaag);
+/**
+ * Een lopende winterstop mag de plek "vandaag" innemen.
+ * Het eerstvolgende winterseizoen hoort in de homepagevolgorde.
+ * Een tweede, later seizoen blijft alleen op de agendapagina.
+ */
+export function agendaOverzichtUitLijst(lijst: readonly Activiteit[], nu = new Date()): AgendaOverzicht {
+  const zichtbaar = lijst.filter((item) => item.soort !== 'blokkade');
+  const vandaag = startVanDag(nu.toISOString());
+  const lopend = zichtbaar.find((a) => loopVandaag(a, vandaag)) ?? null;
+  const toekomstig = zichtbaar.filter((a) => startVanDag(a.start) > vandaag);
+  let winterGezien = Boolean(lopend && isWinterstop(lopend.soort));
+  const homepage = toekomstig.filter((item) => {
+    if (!isWinterstop(item.soort)) return true;
+    if (winterGezien) return false;
+    winterGezien = true;
+    return true;
+  });
   return {
     vandaag: lopend,
-    volgende: toekomstig[0] ?? null,
-    daarna: toekomstig[1] ?? null,
+    volgende: homepage[0] ?? null,
+    daarna: homepage[1] ?? null,
   };
+}
+
+export async function getAgendaOverzicht(): Promise<AgendaOverzicht> {
+  return agendaOverzichtUitLijst(await getPubliekeAgenda(80));
 }
 
 export async function getActiviteitBySlug(slug: string): Promise<Activiteit | null> {
