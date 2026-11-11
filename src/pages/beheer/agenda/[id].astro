@@ -239,6 +239,7 @@ const eenvoud = hoofdnavAan();
               <option value={optie.value} selected={huidigeTiming === optie.value}>{optie.label}</option>
             ))}
           </select>
+          <p class="bh-muted">De website toont een activiteit hooguit 8 weken van tevoren. Een kortere timing blijft gelden.</p>
           <p>Nu zichtbaar op website: <strong>{zichtbaar ? 'ja' : 'nee'}</strong></p>
           {eenvoud && (
             <p class="bh-muted">

@@ -128,7 +128,7 @@ test('publieke agenda toont een bezette activiteit niet en respecteert toonVanaf
   ];
   const nu = new Date('2026-09-30T12:00:00Z');
   assert.equal(stelPubliekeAgenda(rijen, nu).length, 0);
-  const later = new Date('2027-04-01T12:00:00Z');
+  const later = new Date('2028-01-20T12:00:00Z');
   const getoond = stelPubliekeAgenda(rijen, later);
   assert.equal(getoond.length, 1);
   assert.equal(getoond[0].zichtbaarheid, 'publiek');
@@ -141,8 +141,8 @@ test('activiteitdetail vindt een slug voorbij de eerste 100 agenda-rijen', () =>
     id: index + 1,
     slug: `activiteit-${index + 1}`,
     titel: `Activiteit ${index + 1}`,
-    start_datum: '2027-06-01',
-    eind_datum: '2027-06-02',
+    start_datum: '2026-11-01',
+    eind_datum: '2026-11-02',
     omschrijving: null,
     foto_pad: null,
     foto_alt: null,

@@ -43,7 +43,8 @@ test('een blokkade-rij wordt een bezet agenda-item zonder detailpagina', () => {
   assert.equal(item.publiekeTitel, 'Bezet');
   assert.equal(item.soort, 'blokkade');
   assert.equal(item.slug, '');
-  const lijst = stelPubliekeAgenda([rij], new Date('2026-10-06T12:00:00Z'));
+  assert.equal(stelPubliekeAgenda([rij], new Date('2026-10-06T12:00:00Z')).length, 0);
+  const lijst = stelPubliekeAgenda([rij], new Date('2026-11-11T12:00:00Z'));
   assert.equal(lijst.length, 1);
   assert.equal(lijst[0]?.start.slice(0, 10), '2026-12-26');
 });

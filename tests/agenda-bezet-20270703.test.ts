@@ -45,8 +45,10 @@ test('een bezet agendarecord komt op de publieke agenda als Bezet, zonder naam',
   assert.equal(item.publiekeTitel, 'Bezet');
   assert.equal(item.soort, 'blokkade');
   assert.equal(item.slug, '');
-  const lijst = stelPubliekeAgenda([rij], new Date('2026-10-11T12:00:00Z'));
+  assert.equal(stelPubliekeAgenda([rij], new Date('2026-10-11T12:00:00Z')).length, 0);
+  const lijst = stelPubliekeAgenda([rij], new Date('2027-05-08T12:00:00Z'));
   assert.equal(lijst.length, 1);
   assert.equal(lijst[0]?.start.slice(0, 10), '2027-07-03');
   assert.equal(lijst[0]?.eind?.slice(0, 10), '2027-07-04');
+  assert.equal(stelPubliekeAgenda([rij], new Date('2027-05-07T12:00:00Z')).length, 0);
 });

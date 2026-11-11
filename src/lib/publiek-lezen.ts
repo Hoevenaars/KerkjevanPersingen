@@ -5,7 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Activiteit } from './content';
 import { supabaseLoginUitOmgeving } from './supabase-project.ts';
-import { contentStatusVanInhoud, maandenVanTrigger, nuZichtbaarOpWebsite, timingBereikt } from './agenda-zichtbaarheid.ts';
+import { binnenAgendaHorizon, contentStatusVanInhoud, maandenVanTrigger, nuZichtbaarOpWebsite, timingBereikt } from './agenda-zichtbaarheid.ts';
 import { ymdInAmsterdam } from '../platform/datum.ts';
 import { formatActiviteitTitel } from '../platform/activiteit-titel.ts';
 import { formatExposantenWeergave } from '../platform/exposanten.ts';
@@ -155,10 +155,16 @@ export async function leesPubliekeAgenda(limit = 30, nu = new Date()): Promise<A
   const rijen = await leesAgendaRijen();
   const lijst = stelPubliekeAgenda(rijen, nu, limit);
   const { SECOND_NATURE } = await import('./second-nature.ts');
+  const vandaag = ymdInAmsterdam(nu);
   const cutoff = nu.toISOString().slice(0, 10);
   const eind = (SECOND_NATURE.eind ?? SECOND_NATURE.start).slice(0, 10);
   const relevant = eind >= cutoff;
-  if (relevant && magAlGetoondWorden(SECOND_NATURE, nu) && !lijst.some((item) => item.slug === SECOND_NATURE.slug)) {
+  if (
+    relevant &&
+    binnenAgendaHorizon(SECOND_NATURE.start, vandaag) &&
+    magAlGetoondWorden(SECOND_NATURE, nu) &&
+    !lijst.some((item) => item.slug === SECOND_NATURE.slug)
+  ) {
     lijst.push(SECOND_NATURE);
     lijst.sort((a, b) => a.start.localeCompare(b.start));
   }
