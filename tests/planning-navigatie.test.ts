@@ -173,10 +173,13 @@ test('navigatie leest gekoppelde gegevens in één view, niet per rij', () => {
   assert.equal(sql.includes('legacy_id) as'), false);
   assert.match(planning, /gastbegeleidersPerBoeking/);
   assert.match(planning, /<h1>Gastbegeleiders<\/h1>/);
+  assert.match(planning, /name="jaar"/);
+  assert.match(planning, /name="maand"/);
+  assert.match(planning, /Heel het jaar/);
+  assert.equal(planning.includes('PlanningNavigatie'), false);
   assert.equal(planning.includes('.from('), false);
   assert.equal(planning.includes('.rpc('), false);
   assert.equal(agenda.includes('.from('), false);
-  assert.match(planning, /PlanningNavigatie/);
   assert.match(agenda, /PlanningNavigatie/);
   assert.match(nav, /name="q"/);
   assert.match(nav, /name="van"/);

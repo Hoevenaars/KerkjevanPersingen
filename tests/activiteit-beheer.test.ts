@@ -252,5 +252,5 @@ test('planningpagina declareert vandaag voordat de lijst die gebruikt', () => {
   const frontmatter = bron.slice(bron.indexOf('---') + 3, bron.indexOf('\n---', 3));
   const declaratie = frontmatter.indexOf('const vandaag');
   assert.equal(frontmatter.indexOf('vandaag'), declaratie + 'const '.length);
-  assert.ok(declaratie < frontmatter.indexOf('b.eind >= vandaag'));
+  assert.ok(declaratie < frontmatter.indexOf('leesSchermFilter(Astro.url.searchParams, vandaag)'));
 });

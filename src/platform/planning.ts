@@ -331,7 +331,7 @@ export function terugLink(waarde: string | null): { href: string; label: string 
   const label = pad === '/beheer/planning/' ? 'Gastbegeleiders' : pad === '/beheer/agenda/' ? 'Agenda' : '';
   if (!label) return null;
   const schoon = new URLSearchParams();
-  for (const sleutel of ['jaar', 'van', 'tot', 'periode', 'filter', 'type', 'q', 'bron']) {
+  for (const sleutel of ['jaar', 'maand', 'van', 'tot', 'periode', 'filter', 'type', 'q', 'bron']) {
     const deel = url.searchParams.get(sleutel);
     if (deel) schoon.set(sleutel, deel);
   }
