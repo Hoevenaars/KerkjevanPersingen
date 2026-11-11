@@ -138,7 +138,7 @@ test('terug vanuit detail bewaart de filterurl', () => {
   }, vandaag);
   const href = metTerug('/beheer/boekingen/98/', lijst);
   const terug = terugLink(new URL(href, 'https://beheer.lokaal').searchParams.get('terug'));
-  assert.equal(terug?.label, 'Planning');
+  assert.equal(terug?.label, 'Gastbegeleiders');
   assert.equal(terug?.href, '/beheer/planning/?jaar=2028&type=expositie&q=isabelle');
   assert.equal(terugLink('https://elders.example/beheer/planning/?q=isabelle'), null);
   assert.equal(terugLink('/beheer/boekingen/?jaar=2028'), null);
@@ -172,7 +172,7 @@ test('navigatie leest gekoppelde gegevens in één view, niet per rij', () => {
   assert.match(sql, /not exists \([\s\S]*legacy_id/);
   assert.equal(sql.includes('legacy_id) as'), false);
   assert.match(planning, /gastbegeleidersPerBoeking/);
-  assert.match(planning, /agendaPerBoeking/);
+  assert.match(planning, /<h1>Gastbegeleiders<\/h1>/);
   assert.equal(planning.includes('.from('), false);
   assert.equal(planning.includes('.rpc('), false);
   assert.equal(agenda.includes('.from('), false);

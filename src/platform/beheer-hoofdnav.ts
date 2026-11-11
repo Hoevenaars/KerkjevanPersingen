@@ -114,16 +114,8 @@ function verhuurSub(rechten: GebruikerRechten, opties: HoofdOpties): NavItem[] {
   if (magZien(rechten, 'boekingen')) {
     items.push({ sleutel: 'boekingen', href: '/beheer/boekingen/', label: 'Boekingen' });
   }
-  if (magZien(rechten, 'kalender')) {
-    items.push({
-      sleutel: 'kalender',
-      href: '/beheer/kalender/',
-      label: 'Maandkalender',
-      toelichting: 'maandbeeld, zelden nodig',
-    });
-  }
   if (magZien(rechten, 'planning')) {
-    items.push({ sleutel: 'planning', href: '/beheer/planning/', label: 'Planning' });
+    items.push({ sleutel: 'planning', href: '/beheer/planning/', label: 'Gastbegeleiders' });
   }
   return items;
 }

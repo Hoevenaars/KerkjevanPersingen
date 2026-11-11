@@ -328,7 +328,7 @@ export function terugLink(waarde: string | null): { href: string; label: string 
   }
   if (url.origin !== 'https://beheer.lokaal') return null;
   const pad = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
-  const label = pad === '/beheer/planning/' ? 'Planning' : pad === '/beheer/agenda/' ? 'Agenda' : '';
+  const label = pad === '/beheer/planning/' ? 'Gastbegeleiders' : pad === '/beheer/agenda/' ? 'Agenda' : '';
   if (!label) return null;
   const schoon = new URLSearchParams();
   for (const sleutel of ['jaar', 'van', 'tot', 'periode', 'filter', 'type', 'q', 'bron']) {

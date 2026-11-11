@@ -105,7 +105,9 @@ describe('zes hoofdonderdelen', () => {
     assert.equal(sub.find((item) => item.sleutel === 'migratie')?.groep, 'Technisch');
     assert.equal(sub.find((item) => item.sleutel === 'migratie')?.toelichting, 'alleen bekijken');
     assert.equal(sub.find((item) => item.sleutel === 'verhuurinstellingen')?.toelichting, 'nog niet op te slaan');
-    assert.equal(subitems('verhuur', admin, agendaOpties).find((item) => item.sleutel === 'kalender')?.toelichting, 'maandbeeld, zelden nodig');
+    const verhuur = subitems('verhuur', admin, agendaOpties);
+    assert.equal(verhuur.some((item) => item.sleutel === 'kalender'), false);
+    assert.equal(verhuur.find((item) => item.sleutel === 'planning')?.label, 'Gastbegeleiders');
     assert.equal(sub.find((item) => item.sleutel === 'analytics')?.groep, 'Technisch');
     const groepen = groepeer(sub).map((groep) => groep.titel);
     assert.deepEqual(groepen, ['Organisatie en verhuur', 'Personen en toegang', 'Communicatie', 'Technisch']);
