@@ -778,7 +778,7 @@ export type Opdracht =
       website?: string;
       personen?: string;
     }
-  | { soort: 'beoordeel'; aanvraagId: string; besluit: 'in_behandeling' | 'goedkeuren' | 'afwijzen' | 'meer_informatie'; reden?: string; vraag?: string }
+  | { soort: 'beoordeel'; aanvraagId: string; besluit: 'in_behandeling' | 'nieuw' | 'goedkeuren' | 'afwijzen' | 'meer_informatie'; reden?: string; vraag?: string }
   | { soort: 'verstuur_informatie'; aanvraagId: string }
   | { soort: 'aanvulling'; token: string; toelichting: string }
   | { soort: 'betaling'; boekingId: string }
@@ -902,12 +902,13 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
     if (!actorMag(ctx.actor, 'aanvragen')) return mislukt('Geen schrijfrecht op aanvragen.');
     const aanvraag = wereld.aanvragen.find((item) => item.id === opdracht.aanvraagId);
     if (!aanvraag) return mislukt('Aanvraag niet gevonden.');
-    if (opdracht.besluit === 'in_behandeling') {
-      const check = magStatusZetten(aanvraag.status, 'in_behandeling', ctx.actor.rechten!);
+    if (opdracht.besluit === 'in_behandeling' || opdracht.besluit === 'nieuw') {
+      const naar = opdracht.besluit;
+      const check = magStatusZetten(aanvraag.status, naar, ctx.actor.rechten!);
       if (!check.ok) return mislukt(check.melding ?? 'Overgang geweigerd.');
-      return gelukt('In behandeling.', { aanvraagId: aanvraag.id }, [
-        { soort: 'update_aanvraag', id: aanvraag.id, velden: { status: 'in_behandeling' } },
-        audit({ dedup: `aanvraag:${aanvraag.id}:in_behandeling`, actie: 'status', type: 'aanvraag', id: aanvraag.id, van: aanvraag.status, naar: 'in_behandeling', actor: ctx.actor }),
+      return gelukt(naar === 'nieuw' ? 'Terug naar nieuw.' : 'In behandeling.', { aanvraagId: aanvraag.id }, [
+        { soort: 'update_aanvraag', id: aanvraag.id, velden: { status: naar } },
+        audit({ dedup: `aanvraag:${aanvraag.id}:${naar}`, actie: 'status', type: 'aanvraag', id: aanvraag.id, van: aanvraag.status, naar, actor: ctx.actor }),
       ]);
     }
     if (opdracht.besluit === 'afwijzen') {

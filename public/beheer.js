@@ -86,10 +86,10 @@
       if (!res.ok) throw new Error('Laden mislukt');
       const html = await res.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
-      const main = doc.querySelector('.bh-main');
+      const main = doc.querySelector('.bh-main, [data-beheer-pagina]');
       if (!main) throw new Error('Geen inhoud');
 
-      main.querySelector('.bh-demo')?.remove();
+      main.querySelectorAll('.bh-demo').forEach((node) => node.remove());
       detailInhoud.innerHTML = main.innerHTML;
       detailInhoud.querySelectorAll('a:not([target])').forEach((link) => {
         if (link.classList.contains('bh-detail-link')) return;
@@ -109,6 +109,7 @@
   document.addEventListener('click', (e) => {
     const link = e.target.closest('a.bh-detail-link');
     if (!link || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (link.closest('[data-bh-sleep]') && sleepNet) return;
     if (link.target === '_blank') return;
     e.preventDefault();
     openDetail(link.href);
@@ -120,16 +121,104 @@
     sluitDetail();
   });
 
+  let sleepNet = false;
+
   document.querySelectorAll('[data-bh-view]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const view = btn.getAttribute('data-bh-view');
       if (!view) return;
       document.querySelectorAll('[data-bh-view]').forEach((b) => {
-        b.setAttribute('aria-current', b === btn ? 'page' : undefined);
+        if (b === btn) b.setAttribute('aria-current', 'page');
+        else b.removeAttribute('aria-current');
       });
       document.querySelectorAll('[data-bh-panel]').forEach((panel) => {
         panel.hidden = panel.getAttribute('data-bh-panel') !== view;
       });
+      const url = new URL(location.href);
+      if (view === 'lijst') url.searchParams.delete('weergave');
+      else url.searchParams.set('weergave', view);
+      history.replaceState(history.state, '', url);
     });
   });
+
+  document.querySelectorAll('[data-bh-sleep]').forEach((kaart) => {
+    kaart.addEventListener('dragstart', (event) => {
+      const drag = event.dataTransfer;
+      if (!drag) return;
+      sleepNet = true;
+      drag.effectAllowed = 'move';
+      drag.setData('text/plain', `${kaart.getAttribute('data-aanvraag-id') || ''}\t${kaart.getAttribute('data-status') || ''}`);
+      kaart.classList.add('is-slepen');
+    });
+    kaart.addEventListener('dragend', () => {
+      kaart.classList.remove('is-slepen');
+      window.setTimeout(() => {
+        sleepNet = false;
+      }, 0);
+    });
+  });
+
+  document.querySelectorAll('[data-bh-kolom]').forEach((kolom) => {
+    kolom.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      kolom.classList.add('is-doel');
+    });
+    kolom.addEventListener('dragleave', (event) => {
+      if (event.relatedTarget instanceof Node && kolom.contains(event.relatedTarget)) return;
+      kolom.classList.remove('is-doel');
+    });
+    kolom.addEventListener('drop', (event) => {
+      event.preventDefault();
+      kolom.classList.remove('is-doel');
+      const ruw = event.dataTransfer ? event.dataTransfer.getData('text/plain') : '';
+      const [id, van] = ruw.split('\t');
+      const naar = kolom.getAttribute('data-bh-kolom') || '';
+      if (!id || !naar || naar === van) return;
+      verplaatsAanvraag(id, naar);
+    });
+  });
+
+  async function verplaatsAanvraag(id, naar) {
+    let actie = '';
+    const body = new FormData();
+    if (naar === 'nieuw') actie = 'nieuw';
+    else if (naar === 'in_behandeling') actie = 'behandeling';
+    else if (naar === 'goedgekeurd') {
+      if (!window.confirm('Goedkeuren maakt een optieboeking. De mail blijft een concept en gaat niet direct weg. Doorgaan?')) return;
+      actie = 'akkoord';
+    } else if (naar === 'afgewezen') {
+      const reden = window.prompt('Reden van afwijzen. De mail blijft een concept.');
+      if (reden == null || !reden.trim()) return;
+      actie = 'weiger';
+      body.set('reden', reden.trim());
+    } else if (naar === 'wacht_op_aanvrager') {
+      const vraag = window.prompt('Welke vraag stel je aan de aanvrager?');
+      if (vraag == null || !vraag.trim()) return;
+      actie = 'meer';
+      body.set('vraag', vraag.trim());
+    } else {
+      return;
+    }
+    body.set('actie', actie);
+    try {
+      const res = await fetch(`/beheer/aanvragen/${encodeURIComponent(id)}/`, {
+        method: 'POST',
+        body,
+        credentials: 'same-origin',
+      });
+      const eind = new URL(res.url, location.origin);
+      const fout = eind.searchParams.get('fout');
+      if (!res.ok || fout || eind.searchParams.get('demo') === '1') {
+        window.alert(fout || 'Verplaatsen is niet gelukt. Er is niets gewijzigd.');
+        return;
+      }
+      const terug = new URL('/beheer/aanvragen/', location.origin);
+      terug.searchParams.set('weergave', 'pipeline');
+      const melding = eind.searchParams.get('melding');
+      if (melding) terug.searchParams.set('melding', melding);
+      location.href = terug.toString();
+    } catch {
+      window.alert('Verplaatsen is niet gelukt. Er is niets gewijzigd.');
+    }
+  }
 })();

@@ -316,7 +316,7 @@ async function bewaarIntakeTekst(
 }
 
 export async function draaiWorkflow(env: Record<string, unknown> = process.env, basisUrl = 'https://kerkjepersingen.nl'): Promise<{ ok: boolean; melding: string }> {
-  if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: Supabase is niet de operationele bron.' };
+  if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: database niet gekoppeld.' };
   const { besluitVoor } = await import('../automatisering-register.ts');
   const besluit = await besluitVoor('workflow', undefined, env);
   if (besluit.modus === 'uit' || besluit.modus === 'dry-run' || !besluit.provider) {
@@ -439,8 +439,8 @@ export async function beheerSnapshotUitSupabase(env: Record<string, unknown>): P
   }));
   return {
     bron: 'supabase',
-    banner: 'Supabase is de dossierstroom.',
-    reden: 'Operationele bron is Supabase.',
+    banner: '',
+    reden: '',
     aanvragen: wereld.aanvragen.map((aanvraag) => ({
       id: aanvraag.id,
       status: aanvraag.status,
@@ -550,6 +550,7 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
   if (actie === 'meer' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'meer_informatie', vraag: String(data.get('vraag') ?? '') };
   if (actie === 'meer_verstuur' && aanvraagId) return { soort: 'verstuur_informatie', aanvraagId };
   if (actie === 'behandeling' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'in_behandeling' };
+  if (actie === 'nieuw' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'nieuw' };
   if ((actie === 'check' || actie === 'betaling') && boekingId) return { soort: 'betaling', boekingId };
   if ((actie === 'gastheer' || actie === 'bewaar') && boekingId && data.has('gastheerId')) {
     return { soort: 'gastheer', boekingId, gastheerId: String(data.get('gastheerId') ?? '') };

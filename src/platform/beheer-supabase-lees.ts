@@ -294,18 +294,14 @@ export async function leesSupabaseBeheer(
     inhoud: '',
   }));
 
-  const banner = opties.testmodus
-    ? 'Beheer leest Supabase. Er gaat geen mail uit.'
-    : 'Supabase is de operationele bron.';
+  const banner = opties.testmodus ? 'Beheer leest Supabase. Er gaat geen mail uit.' : '';
 
   const adresPerAanvraag = new Map(aanvraagAdresRijen.map((rij) => [tekst(rij.id), rij]));
 
   return {
     bron: 'supabase',
     banner,
-    reden: opties.testmodus
-      ? 'Normale /beheer-runtime op Supabase.'
-      : 'Supabase is de operationele bron.',
+    reden: opties.testmodus ? 'Normale /beheer-runtime op Supabase.' : '',
     aanvragen: aanvraagRijen.map((rij) => {
       const extra = adresPerAanvraag.get(tekst(rij.id));
       const straat = tekst(extra?.straat);

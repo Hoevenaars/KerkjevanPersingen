@@ -283,6 +283,39 @@ html:has(.kc) {
 .kc-veld--zoek { flex: 1; min-width: 240px; }
 .kc-veld--zoek input { width: 100%; }
 
+.kc-filter { position: relative; }
+.kc-filter summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: #fffdf9;
+  border: 1px solid var(--sand);
+  border-radius: 7px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.kc-filter summary::-webkit-details-marker { display: none; }
+.kc-filter-paneel {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  margin-top: 6px;
+  min-width: 16rem;
+  width: max-content;
+  padding: 10px;
+  background: #fffdf9;
+  border: 1px solid var(--sand);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(52, 43, 33, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kc-filter-paneel .kc-vink { min-height: 40px; width: 100%; }
+
 .kc-vink {
   display: flex;
   align-items: center;
@@ -323,6 +356,16 @@ html:has(.kc) {
   font-size: 0.95rem;
   font-weight: 700;
   min-height: 54px;
+}
+
+.kc-koprij a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.kc-koprij a:hover,
+.kc-koprij a:focus-visible {
+  text-decoration: underline;
 }
 
 .kc-rij {
@@ -747,7 +790,14 @@ html:has(.kc) {
 @media (max-width: 860px) {
   .kc-lade { width: 100%; }
   .kc-aanvraag { grid-template-columns: 1fr; gap: 4px; }
-  .kc-koprij { display: none; }
+  .kc-koprij {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+  }
+  .kc-koprij span:empty { display: none; }
+  .kc-filter { grid-column: 1 / -1; }
+  .kc-filter-paneel { position: static; box-shadow: none; margin-top: 8px; }
   .kc-rij {
     grid-template-columns: 112px 1fr 22px;
     gap: 8px 12px;
