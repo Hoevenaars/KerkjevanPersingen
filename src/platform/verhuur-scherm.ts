@@ -30,7 +30,7 @@ export type StukkenStand = 'compleet' | 'te_beoordelen' | 'niet_aangeleverd' | '
 export type StaatKleur = 'ok' | 'pending' | 'unknown' | 'no';
 
 export const STUK_BEOORDELING_BLOKKADE =
-  'Goedkeuren of afkeuren wordt hier nog niet opgeslagen. Er is geen tabel die per stuk de versie, de reden en de beoordelaar vastlegt. De status hierboven verandert niet.';
+  'Goedkeuren of afkeuren wordt hier nog niet opgeslagen. Er is geen tabel die van elk onderdeel de versie, de reden en de beoordelaar vastlegt. De status hierboven verandert niet.';
 
 export interface SchermActiviteit {
   boekingId?: string;
@@ -278,7 +278,7 @@ export function beoordeelDossierActie(input: {
   if (actie === 'publiceren' || actie === 'content' || actie === 'goedkeuren' || actie === 'afkeuren') {
     return {
       ok: false,
-      melding: `Een stuk goedkeuren publiceert via het contentpad of heeft nog geen eigen opslag. Die actie blijft uit.${niets}`,
+      melding: `Content goedkeuren publiceert via het contentpad of heeft nog geen eigen opslag. Die actie blijft uit.${niets}`,
     };
   }
   if (
@@ -356,8 +356,8 @@ export function aandachtVan(input: {
   if (input.aanbetaling === 'tegenstrijdig') taken.push('Aanbetaling is tegenstrijdig.');
   if (input.rest === 'openstaand') taken.push('Restbetaling staat open.');
   if (input.rest === 'tegenstrijdig') taken.push('Restbetaling is tegenstrijdig.');
-  if (input.stukken === 'te_beoordelen') taken.push('Aangeleverde inhoud wacht op beoordeling.');
-  if (input.stukken === 'niet_aangeleverd') taken.push('Inhoud is nog niet aangeleverd.');
+  if (input.stukken === 'te_beoordelen') taken.push('Aangeleverde content wacht op beoordeling.');
+  if (input.stukken === 'niet_aangeleverd') taken.push('Content is nog niet aangeleverd.');
   if (input.bezet && gastbegeleiderOntbreekt({ soort: input.soort, heeftKoppeling: input.heeftGastheer })) {
     taken.push('Er is nog geen gastheer.');
   }
