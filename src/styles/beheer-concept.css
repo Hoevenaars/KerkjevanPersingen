@@ -103,9 +103,15 @@ html:has(.kc) {
   background: #e9e9df;
 }
 
+.kc-account {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .kc-gebruiker {
   border-left: 1px solid var(--sand);
-  padding-left: 24px;
+  padding-left: 16px;
   color: var(--ink-mute);
   white-space: nowrap;
 }
@@ -849,9 +855,47 @@ html:has(.kc) {
   border: 0;
 }
 
-.kc--eenvoud .kc-balk-binnen,
 .kc--eenvoud .kc-nav {
   flex-wrap: wrap;
+}
+
+/* Naam en uitloggen staan rechtsboven, op de plek van het zoekveld.
+   Zoeken staat op de regel daaronder, waar de naam eerst stond. */
+.kc--eenvoud .kc-balk-binnen {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "merk nav account"
+    "zoek zoek zoek";
+  align-items: center;
+  column-gap: 24px;
+  row-gap: 2px;
+  padding-top: 10px;
+  padding-bottom: 8px;
+}
+
+.kc--eenvoud .kc-merk { grid-area: merk; }
+
+.kc--eenvoud .kc-nav {
+  grid-area: nav;
+  margin-left: 0;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.kc--eenvoud .kc-account { grid-area: account; }
+
+.kc--eenvoud .kc-gebruiker {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  min-height: 44px;
+}
+
+.kc--eenvoud .kc-zoek {
+  grid-area: zoek;
+  justify-self: start;
+  margin: 0 0 6px;
 }
 
 .kc-zoek input,
@@ -952,9 +996,21 @@ html:has(.kc) {
 }
 
 @media (max-width: 860px) {
-  .kc--eenvoud .kc-gebruiker {
-    display: block;
+  .kc--eenvoud .kc-balk-binnen {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "merk"
+      "account"
+      "nav"
+      "zoek";
+    row-gap: 8px;
   }
+
+  .kc--eenvoud .kc-nav { justify-content: flex-start; }
+  .kc--eenvoud .kc-account { justify-self: end; }
+
+  .kc--eenvoud .kc-gebruiker { display: flex; }
+  .kc--eenvoud .kc-gebruiker small { display: block; }
 }
 
 .kc-subbalk-rij > .kc-subbalk-huidig {
