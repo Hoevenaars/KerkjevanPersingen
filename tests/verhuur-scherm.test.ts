@@ -202,7 +202,19 @@ describe('agendaweergave', () => {
       zoek: '',
       alleenAandacht: false,
     });
-    const mei = scherm.rijen.find((rij) => rij.start === '2027-05-08');
+    assert.equal(scherm.rijen.some((rij) => rij.herkomst === 'vrij'), false);
+    assert.equal(scherm.rijen.some((rij) => rij.huurder.includes('Hovell')), false);
+    const metVrij = bouwSchermRijen({
+      overzicht,
+      boekingen: [withaar, hovell],
+      gastheren: [],
+      toewijzingen: [],
+      activiteiten: [],
+      zoek: '',
+      alleenAandacht: false,
+      toonVrij: true,
+    });
+    const mei = metVrij.rijen.find((rij) => rij.start === '2027-05-08');
     assert.equal(mei?.herkomst, 'vrij');
     assert.equal(mei?.huurder, 'Vrij weekend');
     assert.equal(mei?.bezet, false);
@@ -255,6 +267,15 @@ describe('agendaweergave', () => {
     assert.equal(scherm.aandachtAantal >= 1, true);
     assert.equal(overzicht.aanvragen.length, 1);
     assert.equal(overzicht.rijen.some((rij) => rij.huurder === 'Nieuwe aanvraag'), false);
+    assert.equal(bouwSchermRijen({
+      overzicht,
+      boekingen: [withaar, hovell],
+      gastheren: [],
+      toewijzingen: [],
+      activiteiten: [],
+      zoek: 'hovell',
+      alleenAandacht: false,
+    }).rijen.length, 0);
     const geannuleerd = bouwSchermRijen({
       overzicht,
       boekingen: [withaar, hovell],
@@ -263,6 +284,7 @@ describe('agendaweergave', () => {
       activiteiten: [],
       zoek: 'hovell',
       alleenAandacht: false,
+      toonGeannuleerd: true,
     }).rijen[0];
     assert.equal(geannuleerd.bezet, false);
     assert.match(geannuleerd.activiteit, /Geannuleerd/);
@@ -363,6 +385,10 @@ describe('adres en filter', () => {
       maand: 11,
       zoek: '',
       aandacht: false,
+      geannuleerd: false,
+      vrij: false,
+      sort: 'weekend',
+      dir: 'asc',
     });
     assert.equal(leesSchermFilter(params({ jaar: '2027', maand: 'alle' }), '2026-11-08').maand, null);
     assert.equal(

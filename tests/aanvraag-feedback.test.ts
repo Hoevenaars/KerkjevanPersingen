@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normaliseerPostcode, stelAdresSamen, toonAdres } from '../src/platform/adres.ts';
-import { labelAkkoordVoorwaarden } from '../src/platform/aanvraag-weergave.ts';
+import { labelAkkoordVoorwaarden, sorteerAanvragen } from '../src/platform/aanvraag-weergave.ts';
 import { aanvraagFotoPad, mimeUitBytes, valideerAanvraagFoto } from '../src/platform/aanvraag-foto.ts';
 import { INITIELE_TARIEVEN, kiesTarief } from '../src/platform/finance.ts';
 import { medeExposantenFout, parseMedeExposanten, serialiseerMedeExposanten, toonMedeExposanten } from '../src/platform/mede-exposanten.ts';
@@ -71,6 +71,17 @@ test('tariefindicatie komt uit de centrale tariefkeuze', () => {
   assert.equal(tariefIndicatie(kiesTarief(INITIELE_TARIEVEN, 'expositie', '2029-06-01')), '€525');
   assert.equal(tariefIndicatie(kiesTarief(INITIELE_TARIEVEN, 'diverse', '2029-06-01')), 'vanaf €275');
   assert.equal(tariefIndicatie(null), '');
+});
+
+test('aanvragen sorteren op naam en datum zonder de rest te herschikken', () => {
+  const lijst = [
+    { naam: 'Zara', soort: 'expositie', start: '2026-05-01', eind: '2026-05-02', binnengekomen: '2026-01-02', status: 'nieuw', akkoordVoorwaarden: true },
+    { naam: 'Anna', soort: 'bruiloft', start: '2026-06-01', eind: '2026-06-02', binnengekomen: '2026-01-01', status: 'goedgekeurd', akkoordVoorwaarden: null },
+  ];
+  assert.equal(sorteerAanvragen(lijst, null, 'asc')[0]?.naam, 'Zara');
+  assert.equal(sorteerAanvragen(lijst, 'naam', 'asc')[0]?.naam, 'Anna');
+  assert.equal(sorteerAanvragen(lijst, 'datum', 'desc')[0]?.naam, 'Anna');
+  assert.equal(sorteerAanvragen(lijst, 'status', 'asc')[0]?.status, 'nieuw');
 });
 
 test('akkoord is ja, nee of onbekend zonder verzonnen tijdstip', () => {

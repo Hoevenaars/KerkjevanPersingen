@@ -7,7 +7,7 @@ import VerhuurDossier from '../../../components/beheer/VerhuurDossier.astro';
 import { beheerUitResponse } from '../../../platform/beheer-gate.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
-import { BOEKING_LABEL, formatMaandNl, SOORT_LABEL } from '../../../platform/demo-data.ts';
+import { BOEKING_LABEL, formatMaandNl } from '../../../platform/demo-data.ts';
 import { magSchrijven, magZien } from '../../../platform/rechten.ts';
 import { verhuurOverzichtAan, verhuurVerzoekToegestaan } from '../../../platform/verhuur-vlag.ts';
 import { maakVerhuurOverzicht, type DossierSporen, type OverzichtBron } from '../../../platform/verhuur-overzicht.ts';
@@ -42,10 +42,6 @@ const vandaag = ymdInAmsterdam(new Date());
 
 function adres(wijziging: Parameters<typeof verhuurQuery>[1] = {}): string {
   return verhuurQuery(Astro.url.searchParams, wijziging);
-}
-
-function activiteitLabel(waarde: string): string {
-  return SOORT_LABEL[waarde] ?? waarde;
 }
 
 const betaalregelsZichtbaar = magZien(rechten, 'finance');
@@ -101,6 +97,10 @@ const scherm = bouwSchermRijen({
   ...schermBron,
   zoek: filter.zoek,
   alleenAandacht: filter.aandacht,
+  toonGeannuleerd: filter.geannuleerd,
+  toonVrij: filter.vrij,
+  sort: filter.sort,
+  dir: filter.dir,
 });
 
 const dossierId = Astro.url.searchParams.get('dossier');
@@ -118,7 +118,14 @@ if (dossierId && !dossierRij) {
     aanvragen: snapshot.aanvragen,
     documenten: [],
   });
-  dossierRij = bouwSchermRijen({ overzicht: buiten, ...schermBron, zoek: '', alleenAandacht: false }).rijen.find((rij) => rij.boekingId === dossierId) ?? null;
+  dossierRij = bouwSchermRijen({
+    overzicht: buiten,
+    ...schermBron,
+    zoek: '',
+    alleenAandacht: false,
+    toonGeannuleerd: true,
+    toonVrij: true,
+  }).rijen.find((rij) => rij.boekingId === dossierId) ?? null;
 }
 const paneelRij = !dossierRij && rijSleutel ? scherm.rijen.find((rij) => rij.sleutel === rijSleutel) ?? null : null;
 const boeking = dossierRij?.boekingId ? snapshot.boekingen.find((item) => item.id === dossierRij?.boekingId) ?? null : null;
@@ -203,7 +210,17 @@ const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
 const bronParam = Astro.url.searchParams.get('bron');
 const sluitHref = adres({ dossier: null, rij: null, weg: null });
-const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null });
+const filterAantal = [filter.aandacht, filter.geannuleerd, filter.vrij].filter(Boolean).length;
+
+function sorteerHref(kolom: typeof filter.sort): string {
+  const dir = filter.sort === kolom && filter.dir === 'asc' ? 'desc' : 'asc';
+  return adres({ sort: kolom, dir, dossier: null, rij: null, weg: null });
+}
+
+function sorteerLabel(kolom: typeof filter.sort): string {
+  if (filter.sort !== kolom) return '';
+  return filter.dir === 'asc' ? ' ↑' : ' ↓';
+}
 ---
 
 <BeheerConcept titel="Verhuuragenda" actief="verhuur">
@@ -212,63 +229,13 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
       <div>
         <p class="kc-wenkbrauw">Beheer · Kerkje van Persingen</p>
         <h1>Verhuuragenda</h1>
-        <p class="kc-inleiding">Alle weekenden onder elkaar. Klik op een huurder om het dossier te openen.</p>
+        <p class="kc-inleiding">Activiteiten die doorgaan. Klik op een huurder om het dossier te openen.</p>
       </div>
       {magGastheer && <a class="kc-knop kc-knop--primair" href="/beheer/boekingen/nieuw/">+ Nieuwe boeking</a>}
     </div>
 
     {melding && <p class="kc-melding" role="status">{melding}</p>}
     {fout && <p class="kc-fout" role="alert">{fout}</p>}
-
-    {
-      scherm.aandachtAantal > 0 && (
-        <div class="kc-aandacht">
-          <span aria-hidden="true">✧</span>
-          <div>
-            <strong>Er zijn dossiers die aandacht vragen</strong>
-            <p>
-              {scherm.aandachtAantal} {scherm.aandachtAantal === 1 ? 'rij' : 'rijen'} in deze periode: open betaling, inhoud of een ontbrekende gastheer.
-            </p>
-          </div>
-          <a class="kc-knop" href={aandachtHref}>Bekijk aandachtspunten →</a>
-        </div>
-      )
-    }
-
-    <section class="kc-aanvragen" aria-labelledby="kc-aanvragen-kop">
-      <h2 id="kc-aanvragen-kop">Nog te verwerken aanvragen</h2>
-      <p>Een aanvraag zonder boeking is geen bezetting. Zij staat niet als vastgelegd weekend in de lijst hieronder.</p>
-      {
-        overzicht.aanvragen.length === 0 ? (
-          <p>Geen open aanvraag in deze periode.</p>
-        ) : (
-          <div>
-            {
-              overzicht.aanvragen.map((aanvraag) => (
-                <div class="kc-aanvraag">
-                  <span>{aanvraag.periodeLabel}</span>
-                  <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`}>{aanvraag.naam}</a>
-                  <span>{activiteitLabel(aanvraag.soort)}</span>
-                  <span>
-                    {aanvraag.statusLabel}
-                    {aanvraag.heeftBoeking ? ' · heeft al een boeking' : ' · nog geen boeking'}
-                  </span>
-                </div>
-              ))
-            }
-          </div>
-        )
-      }
-      {
-        overzicht.aanvragenBuitenPeriode > 0 && (
-          <p>
-            Er {overzicht.aanvragenBuitenPeriode === 1 ? 'is' : 'zijn'} nog {overzicht.aanvragenBuitenPeriode} open {overzicht.aanvragenBuitenPeriode === 1 ? 'aanvraag' : 'aanvragen'} buiten deze periode.
-            {' '}
-            <a href="/beheer/aanvragen/">Alle aanvragen</a>
-          </p>
-        )
-      }
-    </section>
 
     <form class="kc-filters" method="get" action="/beheer/verhuur/">
       {bronParam === 'demo' && <input type="hidden" name="bron" value="demo" />}
@@ -293,27 +260,42 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
         <label for="query">Zoek huurder of activiteit</label>
         <input id="query" class="kc-zoek" name="q" type="search" placeholder="Bijvoorbeeld: Marieke Jansen" value={filter.zoek} />
       </div>
-      <label class="kc-vink">
-        <input type="checkbox" name="aandacht" value="1" checked={filter.aandacht} onchange="this.form.requestSubmit()" />
-        Alleen aandachtspunten
-      </label>
+      {filter.sort !== 'weekend' && <input type="hidden" name="sort" value={filter.sort} />}
+      {filter.dir === 'desc' && <input type="hidden" name="dir" value="desc" />}
+      <details class="kc-filter">
+        <summary>Filter{filterAantal > 0 ? ` (${filterAantal})` : ''}</summary>
+        <div class="kc-filter-paneel">
+          <label class="kc-vink">
+            <input type="checkbox" name="aandacht" value="1" checked={filter.aandacht} onchange="this.form.requestSubmit()" />
+            Aandachtspunten
+          </label>
+          <label class="kc-vink">
+            <input type="checkbox" name="geannuleerd" value="1" checked={filter.geannuleerd} onchange="this.form.requestSubmit()" />
+            Toon ook geannuleerd
+          </label>
+          <label class="kc-vink">
+            <input type="checkbox" name="vrij" value="1" checked={filter.vrij} onchange="this.form.requestSubmit()" />
+            Toon vrije weekenden
+          </label>
+        </div>
+      </details>
       <button class="kc-knop" type="submit">Toon</button>
     </form>
 
     <div class="kc-lijst">
       <div class="kc-koprij">
-        <span>Weekend</span>
-        <span>Huurder / activiteit</span>
-        <span>Contract</span>
-        <span>Stukken</span>
-        <span>Aanbetaling</span>
-        <span>Restant</span>
-        <span class="kc-gastheer-kolom">Gastheer</span>
+        <a href={sorteerHref('weekend')} aria-sort={filter.sort === 'weekend' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Weekend{sorteerLabel('weekend')}</a>
+        <a href={sorteerHref('huurder')} aria-sort={filter.sort === 'huurder' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Huurder / activiteit{sorteerLabel('huurder')}</a>
+        <a href={sorteerHref('contract')} aria-sort={filter.sort === 'contract' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Contract{sorteerLabel('contract')}</a>
+        <a href={sorteerHref('stukken')} aria-sort={filter.sort === 'stukken' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Stukken{sorteerLabel('stukken')}</a>
+        <a href={sorteerHref('aanbetaling')} aria-sort={filter.sort === 'aanbetaling' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Aanbetaling{sorteerLabel('aanbetaling')}</a>
+        <a href={sorteerHref('rest')} aria-sort={filter.sort === 'rest' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Restant{sorteerLabel('rest')}</a>
+        <a class="kc-gastheer-kolom" href={sorteerHref('gastheer')} aria-sort={filter.sort === 'gastheer' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Gastheer{sorteerLabel('gastheer')}</a>
         <span></span>
       </div>
       {
         scherm.rijen.length === 0 ? (
-          <p class="kc-leeg">Geen periodes gevonden. Pas de maand of de zoekopdracht aan.</p>
+          <p class="kc-leeg">Geen activiteiten in deze periode. Pas de maand of de zoekopdracht aan, of zet in Filter geannuleerde dossiers of vrije weekenden aan.</p>
         ) : (
           scherm.rijen.map((rij) => {
             const open = rij.boekingId ? adres({ dossier: rij.boekingId, rij: null, weg: null }) : adres({ rij: rij.sleutel, dossier: null, weg: null });
@@ -324,7 +306,7 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
                   'kc-rij',
                   rij.herkomst === 'vrij' && 'kc-rij--vrij',
                   rij.herkomst === 'winterstop' && 'kc-rij--winter',
-                  rij.herkomst === 'boeking' && !rij.bezet && 'kc-rij--geannuleerd',
+                  rij.archief && 'kc-rij--geannuleerd',
                   gekozen && 'kc-rij--open',
                 ]}
                 href={open}
@@ -365,11 +347,6 @@ const aandachtHref = adres({ aandacht: '1', dossier: null, rij: null, weg: null 
       <span><i style="background:#8f8b82"></i> Onbekend</span>
       <span><i style="background:#b8cab3"></i> Vrij weekend</span>
     </div>
-    <p class="kc-noot">
-      Bezetting volgt de publieke verhuurkalender. Een aanvraag zonder boeking is niet bezet. Een geannuleerde boeking telt niet als bezet.
-      Betalingen komen uit de betaalregels. Een betaling registreren en een stuk goedkeuren blijven uit: die paden mailen of publiceren. Contractstatus blijft Onbekend zolang er geen betrouwbaar veld is. Dossieracties in dit scherm sturen geen mail.
-      De bestaande beheerpagina's blijven beschikbaar via Beheeromgeving.
-    </p>
   </main>
 
   {

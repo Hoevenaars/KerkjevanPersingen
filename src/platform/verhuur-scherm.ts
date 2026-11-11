@@ -95,12 +95,26 @@ export interface SchermRelatie {
   adres: string;
 }
 
+export const SCHERM_SORTERING = ['weekend', 'huurder', 'contract', 'stukken', 'aanbetaling', 'rest', 'gastheer'] as const;
+
+export type SchermSortering = (typeof SCHERM_SORTERING)[number];
+
 export interface SchermFilter {
   jaar: number;
   maand: number | null;
   zoek: string;
   aandacht: boolean;
+  /** Geannuleerd, afgewezen en gearchiveerd. Standaard weg, dat is het archief. */
+  geannuleerd: boolean;
+  /** Lege weekenden. Standaard weg: dit scherm toont activiteiten die doorgaan. */
+  vrij: boolean;
+  sort: SchermSortering;
+  dir: 'asc' | 'desc';
 }
+
+const ARCHIEFSTATUS = new Set(['geannuleerd', 'afgewezen', 'gearchiveerd']);
+
+const QUERY_SLEUTELS = ['jaar', 'maand', 'q', 'aandacht', 'geannuleerd', 'vrij', 'sort', 'dir', 'bron', 'dossier', 'rij', 'weg'] as const;
 
 export interface SchermRij {
   sleutel: string;
@@ -124,6 +138,8 @@ export interface SchermRij {
   aandacht: boolean;
   taken: string[];
   bijzonderheden: string;
+  /** geannuleerd, afgewezen of gearchiveerd. Leeg als de activiteit doorgaat of al is geweest. */
+  archief: string;
 }
 
 export function leesSchermFilter(
@@ -137,20 +153,26 @@ export function leesSchermFilter(
   );
   const maand = !ruwMaand ? Number(vandaag.slice(5, 7)) : basis.maand;
   const zoek = (params.get('q') ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const ruweSort = params.get('sort') ?? '';
+  const sort = (SCHERM_SORTERING as readonly string[]).includes(ruweSort) ? (ruweSort as SchermSortering) : 'weekend';
   return {
     jaar: basis.jaar,
     maand: maand != null && maand >= 1 && maand <= 12 ? maand : null,
     zoek,
     aandacht: params.get('aandacht') === '1',
+    geannuleerd: params.get('geannuleerd') === '1',
+    vrij: params.get('vrij') === '1',
+    sort,
+    dir: params.get('dir') === 'desc' ? 'desc' : 'asc',
   };
 }
 
 export function verhuurQuery(
   huidig: { get(naam: string): string | null },
-  wijziging: Partial<Record<'jaar' | 'maand' | 'q' | 'aandacht' | 'bron' | 'dossier' | 'rij' | 'weg', string | null>> = {},
+  wijziging: Partial<Record<(typeof QUERY_SLEUTELS)[number], string | null>> = {},
 ): string {
   const volgende = new URLSearchParams();
-  const sleutels = ['jaar', 'maand', 'q', 'aandacht', 'bron', 'dossier', 'rij', 'weg'] as const;
+  const sleutels = QUERY_SLEUTELS;
   for (const sleutel of sleutels) {
     const waarde = Object.prototype.hasOwnProperty.call(wijziging, sleutel) ? wijziging[sleutel] : huidig.get(sleutel);
     if (waarde) volgende.set(sleutel, waarde);
@@ -500,6 +522,12 @@ export function bouwSchermRijen(input: {
   activiteiten: readonly SchermActiviteit[];
   zoek: string;
   alleenAandacht: boolean;
+  /** Standaard blijven geannuleerde, afgewezen en gearchiveerde boekingen uit de lijst. */
+  toonGeannuleerd?: boolean;
+  /** Standaard geen lege weekenden. Een blokkade blijft staan: die bezet het kerkje. */
+  toonVrij?: boolean;
+  sort?: SchermSortering;
+  dir?: 'asc' | 'desc';
 }): { rijen: SchermRij[]; aandachtAantal: number } {
   const boekingVan = new Map(input.boekingen.map((boeking) => [boeking.id, boeking]));
   const activiteitVan = new Map<string, SchermActiviteit>();
@@ -510,9 +538,14 @@ export function bouwSchermRijen(input: {
   const alles = input.overzicht.rijen.map((rij) =>
     naarSchermRij(rij, boekingVan, activiteitVan, input.gastheren, input.toewijzingen),
   );
-  const aandachtAantal = alles.filter((rij) => rij.aandacht).length;
+  const zichtbaar = alles.filter((rij) => {
+    if (rij.archief && !input.toonGeannuleerd) return false;
+    if (rij.herkomst === 'vrij' && !input.toonVrij) return false;
+    return true;
+  });
+  const aandachtAantal = zichtbaar.filter((rij) => rij.aandacht).length;
   const naald = input.zoek.trim().toLocaleLowerCase('nl');
-  const rijen = alles.filter((rij) => {
+  const gefilterd = zichtbaar.filter((rij) => {
     if (input.alleenAandacht && !rij.aandacht) return false;
     if (!naald) return true;
     const hooi = [rij.datum, rij.jaar, rij.huurder, rij.activiteit, rij.gastheer, rij.bijzonderheden]
@@ -520,7 +553,50 @@ export function bouwSchermRijen(input: {
       .toLocaleLowerCase('nl');
     return hooi.includes(naald);
   });
-  return { rijen, aandachtAantal };
+  return { rijen: sorteerSchermRijen(gefilterd, input.sort ?? 'weekend', input.dir ?? 'asc'), aandachtAantal };
+}
+
+function sorteerSchermRijen(rijen: SchermRij[], sort: SchermSortering, dir: 'asc' | 'desc'): SchermRij[] {
+  const factor = dir === 'desc' ? -1 : 1;
+  return rijen
+    .map((rij, index) => ({ rij, index }))
+    .sort((a, b) => {
+      const uit = vergelijkSchermRij(a.rij, b.rij, sort);
+      if (uit !== 0) return uit * factor;
+      return a.index - b.index;
+    })
+    .map((item) => item.rij);
+}
+
+function vergelijkSchermRij(a: SchermRij, b: SchermRij, sort: SchermSortering): number {
+  if (sort === 'weekend') return a.start.localeCompare(b.start) || a.sleutel.localeCompare(b.sleutel);
+  if (sort === 'huurder') {
+    return a.huurder.localeCompare(b.huurder, 'nl', { sensitivity: 'base' })
+      || a.activiteit.localeCompare(b.activiteit, 'nl', { sensitivity: 'base' });
+  }
+  if (sort === 'contract') return rangBol(a.contract) - rangBol(b.contract) || a.contractTekst.localeCompare(b.contractTekst, 'nl');
+  if (sort === 'stukken') return rangStukken(a.stukken) - rangStukken(b.stukken) || a.stukkenTekst.localeCompare(b.stukkenTekst, 'nl');
+  if (sort === 'aanbetaling') return rangBol(a.aanbetaling) - rangBol(b.aanbetaling) || a.aanbetalingTekst.localeCompare(b.aanbetalingTekst, 'nl');
+  if (sort === 'rest') return rangBol(a.rest) - rangBol(b.rest) || a.restTekst.localeCompare(b.restTekst, 'nl');
+  const gastheerA = a.herkomst === 'boeking' ? (a.gastheer || 'Nog kiezen') : '';
+  const gastheerB = b.herkomst === 'boeking' ? (b.gastheer || 'Nog kiezen') : '';
+  return gastheerA.localeCompare(gastheerB, 'nl', { sensitivity: 'base' });
+}
+
+function rangBol(waarde: Bol): number {
+  if (waarde === 'openstaand') return 0;
+  if (waarde === 'tegenstrijdig') return 1;
+  if (waarde === 'onbekend') return 2;
+  if (waarde === 'afgerond') return 3;
+  return 4;
+}
+
+function rangStukken(waarde: StukkenStand): number {
+  if (waarde === 'te_beoordelen') return 0;
+  if (waarde === 'niet_aangeleverd') return 1;
+  if (waarde === 'onbekend') return 2;
+  if (waarde === 'compleet') return 3;
+  return 4;
 }
 
 function naarSchermRij(
@@ -547,6 +623,7 @@ function naarSchermRij(
     stukken,
   });
   const zichtbaar = rij.herkomst === 'boeking';
+  const archief = zichtbaar && ARCHIEFSTATUS.has(boeking?.status ?? '') ? (boeking?.status ?? '') : '';
   let huurder = rij.huurder;
   let activiteitLabel = soortLabel(rij.activiteit);
   if (rij.herkomst === 'vrij') {
@@ -558,8 +635,14 @@ function naarSchermRij(
   } else if (rij.herkomst === 'kalender') {
     huurder = rij.activiteit || 'Bezet op de kalender';
     activiteitLabel = 'Geen gekoppelde boeking';
-  } else if (!rij.bezet) {
+  } else if (archief === 'geannuleerd') {
     activiteitLabel = `Geannuleerd · ${activiteitLabel}`;
+  } else if (archief === 'afgewezen') {
+    activiteitLabel = `Afgewezen · ${activiteitLabel}`;
+  } else if (archief === 'gearchiveerd') {
+    activiteitLabel = `Gearchiveerd · ${activiteitLabel}`;
+  } else if (boeking?.status === 'afgerond') {
+    activiteitLabel = `Afgerond · ${activiteitLabel}`;
   }
   if (rij.huurderExtra && rij.herkomst === 'boeking') {
     activiteitLabel = `${activiteitLabel} · mede-exposant ${rij.huurderExtra}`;
@@ -586,6 +669,7 @@ function naarSchermRij(
     aandacht: aandacht.nodig,
     taken: aandacht.taken,
     bijzonderheden: rij.bijzonderheden,
+    archief,
   };
 }
 
@@ -734,7 +818,10 @@ export function mobielStatus(rij: SchermRij): string {
   if (rij.herkomst === 'vrij') return 'Vrij weekend';
   if (rij.herkomst === 'winterstop') return 'Winterstop';
   if (rij.herkomst === 'kalender') return 'Bezet';
-  if (!rij.bezet) return 'Geannuleerd';
+  if (rij.archief === 'afgewezen') return 'Afgewezen';
+  if (rij.archief === 'gearchiveerd') return 'Gearchiveerd';
+  if (rij.archief) return 'Geannuleerd';
+  if (!rij.bezet) return rij.activiteit.startsWith('Afgerond') ? 'Afgerond' : 'Niet bezet';
   if (rij.aandacht) return 'Aandacht nodig';
   return 'Geen open actie';
 }

@@ -104,17 +104,19 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
       eenvoud ? (
         <BeheerSchil>
           <main class="kc-pagina" data-beheer-pagina>
-            <p class="bh-demo" role={snapshot.fout ? 'alert' : 'status'} data-beheer-bron={snapshot.bron}>
-              {snapshot.banner}
-              {
-                snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo' && (
-                  <>
-                    {' '}
-                    <a href={liveHref}>Terug naar live</a>
-                  </>
-                )
-              }
-            </p>
+            {(snapshot.banner.trim() || (snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo')) && (
+              <p class="bh-demo" role={snapshot.fout ? 'alert' : 'status'} data-beheer-bron={snapshot.bron}>
+                {snapshot.banner}
+                {
+                  snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo' && (
+                    <>
+                      {' '}
+                      <a href={liveHref}>Terug naar live</a>
+                    </>
+                  )
+                }
+              </p>
+            )}
             <slot />
           </main>
           <aside id="bh-detail" class="bh-detail" aria-hidden="true">
@@ -275,17 +277,19 @@ const weergaveNaam = sessie?.viewAs?.naam ?? sessie?.gebruiker.naam ?? 'Beheerde
         </header>
 
         <div class="bh-main">
-          <p class="bh-demo" role={snapshot.fout ? 'alert' : 'status'} data-beheer-bron={snapshot.bron}>
-            {snapshot.banner}
-            {
-              snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo' && (
-                <>
-                  {' '}
-                  <a href={liveHref}>Terug naar live</a>
-                </>
-              )
-            }
-          </p>
+          {(snapshot.banner.trim() || (snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo')) && (
+            <p class="bh-demo" role={snapshot.fout ? 'alert' : 'status'} data-beheer-bron={snapshot.bron}>
+              {snapshot.banner}
+              {
+                snapshot.bron === 'demo' && Astro.url.searchParams.get('bron') === 'demo' && (
+                  <>
+                    {' '}
+                    <a href={liveHref}>Terug naar live</a>
+                  </>
+                )
+              }
+            </p>
+          )}
           {
             snapshot.bron === 'supabase' && (
               <p class="bh-demo" data-supabase-telling>

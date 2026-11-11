@@ -3,25 +3,75 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { AANVRAAG_LABEL, SOORT_LABEL, formatNl } from '../../../platform/demo-data';
-import { labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
+import {
+  labelAkkoordVoorwaarden,
+  leesAanvraagSortering,
+  sorteerAanvragen,
+  type AanvraagSortering,
+} from '../../../platform/aanvraag-weergave';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const filter = Astro.url.searchParams.get('status') ?? 'alle';
-const lijst =
-  filter === 'alle' ? snapshot.aanvragen : snapshot.aanvragen.filter((a) => a.status === filter);
+const sort = leesAanvraagSortering(Astro.url.searchParams.get('sort'));
+const dir = Astro.url.searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
+const ongefilterd = filter === 'alle' ? snapshot.aanvragen : snapshot.aanvragen.filter((a) => a.status === filter);
+const lijst = sorteerAanvragen(ongefilterd, sort, dir, (soort) => SOORT_LABEL[soort] ?? soort);
+
+function query(wijziging: { status?: string | null; sort?: string | null; dir?: string | null; weergave?: string | null }): string {
+  const volgende = new URLSearchParams();
+  const huidig = {
+    status: filter === 'alle' ? null : filter,
+    sort,
+    dir: sort ? dir : null,
+    weergave: Astro.url.searchParams.get('weergave') === 'pipeline' ? 'pipeline' : null,
+  };
+  const samen = { ...huidig, ...wijziging };
+  for (const [sleutel, waarde] of Object.entries(samen)) {
+    if (waarde) volgende.set(sleutel, waarde);
+  }
+  const tekst = volgende.toString();
+  return tekst ? `/beheer/aanvragen/?${tekst}` : '/beheer/aanvragen/';
+}
+
+function kolomHref(kolom: AanvraagSortering): string {
+  const volgende = sort === kolom && dir === 'asc' ? 'desc' : 'asc';
+  return query({ sort: kolom, dir: volgende });
+}
+
+function pijl(kolom: AanvraagSortering): string {
+  if (sort !== kolom) return '';
+  return dir === 'asc' ? ' ↑' : ' ↓';
+}
+
+function ariaSort(kolom: AanvraagSortering): 'ascending' | 'descending' | 'none' {
+  if (sort !== kolom) return 'none';
+  return dir === 'asc' ? 'ascending' : 'descending';
+}
 
 const tabs = [
-  { href: '/beheer/aanvragen/', status: 'alle', label: 'Alle' },
-  { href: '/beheer/aanvragen/?status=nieuw', status: 'nieuw', label: 'Nieuw' },
-  { href: '/beheer/aanvragen/?status=in_behandeling', status: 'in_behandeling', label: 'In behandeling' },
-  { href: '/beheer/aanvragen/?status=goedgekeurd', status: 'goedgekeurd', label: 'Goedgekeurd' },
-  { href: '/beheer/aanvragen/?status=afgewezen', status: 'afgewezen', label: 'Afgewezen' },
+  { href: query({ status: null }), status: 'alle', label: 'Alle' },
+  { href: query({ status: 'nieuw' }), status: 'nieuw', label: 'Nieuw' },
+  { href: query({ status: 'in_behandeling' }), status: 'in_behandeling', label: 'In behandeling' },
+  { href: query({ status: 'wacht_op_aanvrager' }), status: 'wacht_op_aanvrager', label: 'Wacht op aanvrager' },
+  { href: query({ status: 'goedgekeurd' }), status: 'goedgekeurd', label: 'Goedgekeurd' },
+  { href: query({ status: 'afgewezen' }), status: 'afgewezen', label: 'Afgewezen' },
+  { href: query({ status: 'gesloten' }), status: 'gesloten', label: 'Gesloten' },
+];
+
+const kolommen: { sleutel: AanvraagSortering; label: string }[] = [
+  { sleutel: 'naam', label: 'Naam' },
+  { sleutel: 'soort', label: 'Soort' },
+  { sleutel: 'datum', label: 'Datum' },
+  { sleutel: 'binnen', label: 'Binnengekomen' },
+  { sleutel: 'voorwaarden', label: 'Voorwaarden' },
+  { sleutel: 'status', label: 'Status' },
 ];
 
 const pipeline = [
   { status: 'nieuw', label: 'Nieuw' },
   { status: 'in_behandeling', label: 'In behandeling' },
+  { status: 'wacht_op_aanvrager', label: 'Wacht op aanvrager' },
   { status: 'goedgekeurd', label: 'Goedgekeurd' },
   { status: 'afgewezen', label: 'Afgewezen' },
 ] as const;
@@ -32,16 +82,19 @@ const pipeline = [
     <div>
       <p class="bh-label">Aanvragen</p>
       <h1>Aanvragen</h1>
-      <p class="bh-hint">Externe verhuurverzoeken. Klik een naam — het detailpaneel opent aan de rechterkant.</p>
+      <p class="bh-hint">Klik een naam voor het dossier. In de pipeline sleep je een kaart naar een andere fase.</p>
     </div>
   </header>
 
+  {Astro.url.searchParams.get('melding') && <p class="bh-flash" role="status">{Astro.url.searchParams.get('melding')}</p>}
+  {Astro.url.searchParams.get('fout') && <p class="bh-flash" role="alert">{Astro.url.searchParams.get('fout')}</p>}
+
   <nav class="bh-tabs" aria-label="Weergave">
-    <button type="button" data-bh-view="lijst" aria-current="page">Lijst</button>
-    <button type="button" data-bh-view="pipeline">Pipeline</button>
+    <button type="button" data-bh-view="lijst" aria-current={Astro.url.searchParams.get('weergave') === 'pipeline' ? undefined : 'page'}>Lijst</button>
+    <button type="button" data-bh-view="pipeline" aria-current={Astro.url.searchParams.get('weergave') === 'pipeline' ? 'page' : undefined}>Pipeline</button>
   </nav>
 
-  <nav class="bh-tabs" aria-label="Filter aanvragen" data-bh-panel="lijst">
+  <nav class="bh-tabs" aria-label="Filter aanvragen" data-bh-panel="lijst" hidden={Astro.url.searchParams.get('weergave') === 'pipeline'}>
     {
       tabs.map((tab) => (
         <a href={tab.href} aria-current={filter === tab.status ? 'page' : undefined}>
@@ -51,16 +104,17 @@ const pipeline = [
     }
   </nav>
 
-  <div data-bh-panel="lijst">
+  <div data-bh-panel="lijst" hidden={Astro.url.searchParams.get('weergave') === 'pipeline'}>
     <table class="bh-tabel">
       <thead>
         <tr>
-          <th>Naam</th>
-          <th>Soort</th>
-          <th>Datum</th>
-          <th>Binnengekomen</th>
-          <th>Voorwaarden</th>
-          <th>Status</th>
+          {
+            kolommen.map((kolom) => (
+              <th aria-sort={ariaSort(kolom.sleutel)}>
+                <a class="bh-sorteer" href={kolomHref(kolom.sleutel)}>{kolom.label}{pijl(kolom.sleutel)}</a>
+              </th>
+            ))
+          }
         </tr>
       </thead>
       <tbody>
@@ -93,14 +147,14 @@ const pipeline = [
     </table>
   </div>
 
-  <div data-bh-panel="pipeline" hidden>
-    <p class="bh-hint" style="margin-bottom: 1rem;">Overzicht per fase — klik een kaart voor details.</p>
+  <div data-bh-panel="pipeline" data-bh-pipeline hidden={Astro.url.searchParams.get('weergave') !== 'pipeline'}>
+    <p class="bh-hint" style="margin-bottom: 1rem;">Sleep een kaart naar een andere kolom. Goedkeuren maakt een optieboeking. Afwijzen vraagt om een reden. Er gaat geen mail direct de deur uit.</p>
     <div class="bh-board">
       {
         pipeline.map((kolom) => {
           const items = snapshot.aanvragen.filter((a) => a.status === kolom.status);
           return (
-            <section class="bh-kolom">
+            <section class="bh-kolom" data-bh-kolom={kolom.status}>
               <div class="bh-kolom-kop">
                 <h3>
                   {kolom.label} ({items.length})
@@ -109,18 +163,21 @@ const pipeline = [
               <div class="bh-kolom-lijst">
                 {
                   items.length === 0 ? (
-                    <p class="bh-leeg">Geen aanvragen</p>
+                    <p class="bh-leeg" data-bh-leeg>Geen aanvragen</p>
                   ) : (
                     items.map((a) => (
-                      <a
-                        class={`bh-pipeline-kaart bh-detail-link ${a.status === 'nieuw' ? 'bh-pipeline-kaart--nieuw' : ''}`}
-                        href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}
+                      <article
+                        class={`bh-pipeline-kaart ${a.status === 'nieuw' ? 'bh-pipeline-kaart--nieuw' : ''}`}
+                        draggable="true"
+                        data-bh-sleep
+                        data-aanvraag-id={a.id}
+                        data-status={a.status}
                       >
-                        <strong>{a.naam}</strong>
+                        <a class="bh-detail-link" draggable="false" href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}>{a.naam}</a>
                         <small>
                           {SOORT_LABEL[a.soort] ?? a.soort} · {formatNl(a.start)}
                         </small>
-                      </a>
+                      </article>
                     ))
                   )
                 }
