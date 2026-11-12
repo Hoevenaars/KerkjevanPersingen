@@ -2,8 +2,23 @@
 import Base from '../../layouts/Base.astro';
 import { maakVriendAan } from '../../lib/vrienden-supabase.ts';
 import { teVaak } from '../../lib/validatie';
+import { zelfdeOorsprong } from '../../lib/beheer-http.ts';
+import {
+  AANMELD_COOKIE,
+  aanmeldCookieOpties,
+  aanmeldGeheim,
+  aanmeldGlobaalTeVaak,
+  maakAanmeldbewijs,
+  oordeelAanmelding,
+} from '../../lib/aanmeld-bewijs.ts';
 
 export const prerender = false;
+
+const geheim = aanmeldGeheim(process.env, import.meta.env.DEV === true);
+const binnenkomend = Astro.cookies.get(AANMELD_COOKIE)?.value ?? '';
+const nonce = /^[0-9a-f-]{36}$/i.test(binnenkomend) ? binnenkomend : crypto.randomUUID();
+Astro.cookies.set(AANMELD_COOKIE, nonce, aanmeldCookieOpties(Astro.url.protocol === 'https:'));
+const bewijs = geheim ? await maakAanmeldbewijs(geheim, nonce) : '';
 
 let succes = false;
 let fout = '';
@@ -11,13 +26,21 @@ let fout = '';
 if (Astro.request.method === 'POST') {
   try {
     const form = await Astro.request.formData();
+    const adres = Astro.clientAddress ?? 'onbekend';
+    const oordeel = await oordeelAanmelding({
+      honeypot: String(form.get('website_hp') ?? ''),
+      bewijs: String(form.get('bewijs') ?? ''),
+      nonceUitCookie: binnenkomend,
+      userAgent: Astro.request.headers.get('user-agent'),
+      oorsprongOk: zelfdeOorsprong(Astro.request),
+      geheim,
+      limietBereikt: () => teVaak(`nieuwsbrief:${adres}`) || aanmeldGlobaalTeVaak(),
+    });
 
-    // Honeypot: bots vullen dit, mensen zien het niet. Stil "succes" zodat
-    // een bot niet doorheeft dat de aanmelding is genegeerd.
-    if (String(form.get('website_hp') ?? '').length > 0) {
+    if (oordeel.actie === 'stil') {
       succes = true;
-    } else if (teVaak(Astro.clientAddress ?? 'onbekend')) {
-      fout = 'Er zijn net veel aanmeldingen. Probeer het over een kwartier opnieuw.';
+    } else if (oordeel.actie === 'weiger') {
+      fout = oordeel.melding;
     } else {
       const naam = String(form.get('naam') ?? '').trim().slice(0, 120);
       const email = String(form.get('email') ?? '').trim().toLowerCase();
@@ -70,6 +93,7 @@ if (Astro.request.method === 'POST') {
           <label for="website_hp">Website</label>
           <input type="text" id="website_hp" name="website_hp" tabindex="-1" autocomplete="off" />
         </div>
+        <input type="hidden" name="bewijs" value={bewijs} />
         <button type="submit">Aanmelden</button>
       </form>
     )}

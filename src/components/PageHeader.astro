@@ -16,6 +16,7 @@ const { eyebrow, title, intro, mark = 'ruit' } = Astro.props;
     <p class="eyebrow"><MasonMark variant={mark} size={14} /> {eyebrow}</p>
     <h1>{title}</h1>
     {intro && <p class="lead">{intro}</p>}
+    <slot name="vervolg" />
   </div>
 </header>
 
