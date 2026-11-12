@@ -46,7 +46,7 @@ const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAY
           <div class="snel-doneren">
             <h3>Snel doneren</h3>
             <p>Direct een bedrag overmaken via iDEAL.</p>
-            <Button href={mollieLink} variant="primary">Doneer via iDEAL</Button>
+            <Button href={mollieLink} variant="secondary">Doneer via iDEAL</Button>
           </div>
         )
       }
@@ -66,6 +66,7 @@ const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAY
       </div>
 
       <div class="acties">
+        <Button href="/verhuur/aanvragen/" variant="primary">Vraag de ruimte aan</Button>
         <Button href="/contact/" variant="secondary">Vraag naar de mogelijkheden</Button>
       </div>
     </div>
@@ -105,6 +106,14 @@ const mollieLink = process.env.MOLLIE_PAYMENT_LINK ?? import.meta.env.MOLLIE_PAY
   .rekening dt { color: var(--ink-mute); font-size: var(--t-sm); }
   .rekening dd { margin: 0; font-weight: 600; }
   .iban { font-family: monospace; font-size: var(--t-lg); letter-spacing: 0.02em; }
-  .acties { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-8); }
+  .acties {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--s-4);
+    width: 100%;
+    margin-top: var(--s-8);
+  }
   @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 </style>
