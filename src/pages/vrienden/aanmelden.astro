@@ -1,12 +1,25 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { maakVriendAan } from '../../lib/vrienden-supabase.ts';
+import { leesVriendAanmelding, type VriendFormulier } from '../../lib/vriend-aanmelding.ts';
 import { teVaak } from '../../lib/validatie';
+import { ymdInAmsterdam } from '../../platform/datum.ts';
 
 export const prerender = false;
 
+const leeg: VriendFormulier = {
+  voornaam: '',
+  achternaam: '',
+  email: '',
+  telefoon: '',
+  geboortedatum: '',
+  toestemming: false,
+};
+
 let succes = false;
 let fout = '';
+let waarden = leeg;
+const vandaag = ymdInAmsterdam(new Date());
 
 if (Astro.request.method === 'POST') {
   try {
@@ -16,19 +29,26 @@ if (Astro.request.method === 'POST') {
     // een bot niet doorheeft dat de aanmelding is genegeerd.
     if (String(form.get('website_hp') ?? '').length > 0) {
       succes = true;
-    } else if (teVaak(Astro.clientAddress ?? 'onbekend')) {
-      fout = 'Er zijn net veel aanmeldingen. Probeer het over een kwartier opnieuw.';
     } else {
-      const naam = String(form.get('naam') ?? '').trim().slice(0, 120);
-      const email = String(form.get('email') ?? '').trim().toLowerCase();
+      const gelezen = leesVriendAanmelding({
+        voornaam: form.get('voornaam'),
+        achternaam: form.get('achternaam'),
+        email: form.get('email'),
+        telefoon: form.get('telefoon'),
+        geboortedatum: form.get('geboortedatum'),
+        toestemming: form.get('toestemming'),
+      }, vandaag);
+      waarden = gelezen.formulier;
 
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        fout = 'Vul een geldig e-mailadres in.';
+      if (teVaak(Astro.clientAddress ?? 'onbekend')) {
+        fout = 'Er zijn net veel aanmeldingen. Probeer het over een kwartier opnieuw.';
+      } else if (!gelezen.ok) {
+        fout = gelezen.fout;
       } else {
         // Direct in Supabase, niet via een interne HTTP-call. Die extra hop
         // faalde achter basic-auth / Vercel (401 of 404) terwijl het formulier
         // zelf wel bereikbaar was.
-        await maakVriendAan({ naam, email });
+        await maakVriendAan(gelezen.aanmelding);
         succes = true;
       }
     }
@@ -41,14 +61,13 @@ if (Astro.request.method === 'POST') {
 
 <Base
   title="Vrienden van het kerkje"
-  description="Meld je aan voor het wekelijkse berichtje over het kerkje van Persingen."
+  description="Meld je aan voor een kort wekelijks bericht over het kerkje van Persingen."
   noindex={true}
 >
   <div class="wrap-narrow blok">
     <h1>Blijf op de hoogte</h1>
     <p>
-      Meld je aan voor een kort, wekelijks berichtje: wat er dat weekend te doen is in het
-      kerkje, en waar we mee bezig zijn dankzij de steun van vrienden zoals jij.
+      Meld je aan voor een kort wekelijks bericht met wat er dat weekend in het kerkje te doen is én waar we achter de schermen aan werken, mede dankzij de steun van vrienden zoals jij.
     </p>
 
     {succes ? (
@@ -59,12 +78,31 @@ if (Astro.request.method === 'POST') {
       <form method="POST" class="formulier">
         {fout && <p class="fout">{fout}</p>}
         <label>
-          Naam (optioneel)
-          <input type="text" name="naam" autocomplete="name" maxlength="120" />
+          Voornaam
+          <input type="text" name="voornaam" required autocomplete="given-name" maxlength="80" value={waarden.voornaam} />
+        </label>
+        <label>
+          Achternaam
+          <input type="text" name="achternaam" required autocomplete="family-name" maxlength="80" value={waarden.achternaam} />
         </label>
         <label>
           E-mailadres
-          <input type="email" name="email" required autocomplete="email" />
+          <input type="email" name="email" required autocomplete="email" value={waarden.email} />
+        </label>
+        <label>
+          Telefoonnummer <span class="optioneel">(optioneel)</span>
+          <input type="tel" name="telefoon" autocomplete="tel" maxlength="40" value={waarden.telefoon} />
+        </label>
+        <label>
+          Geboortedatum <span class="optioneel">(optioneel)</span>
+          <input type="date" name="geboortedatum" autocomplete="bday" max={vandaag} value={waarden.geboortedatum} />
+          <span class="hint">Dan kunnen we je op je verjaardag feliciteren.</span>
+        </label>
+        <label class="akkoord">
+          <input type="checkbox" name="toestemming" value="ja" required checked={waarden.toestemming} />
+          <span>
+            Ik ga akkoord met de <a href="/privacyverklaring/" target="_blank" rel="noopener noreferrer">privacyverklaring</a> en ontvang graag de wekelijkse vriendenmail.
+          </span>
         </label>
         <div class="honeypot" aria-hidden="true">
           <label for="website_hp">Website</label>
@@ -90,6 +128,20 @@ if (Astro.request.method === 'POST') {
   }
   .succes { background: var(--cream-deep); padding: var(--s-6); border-radius: var(--radius); }
   .fout { color: var(--brick); font-size: var(--t-sm); }
+  .optioneel { font-weight: 400; }
+  .hint { font-size: var(--t-sm); }
+  .akkoord {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-3);
+    cursor: pointer;
+  }
+  .akkoord input {
+    width: auto;
+    margin-top: 3px;
+    flex: none;
+  }
+  .akkoord a { color: inherit; }
   .honeypot {
     position: absolute;
     left: -9999px;

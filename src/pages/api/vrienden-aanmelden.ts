@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { maakVriendAan } from '../../lib/vrienden-supabase';
+import { leesVriendAanmelding } from '../../lib/vriend-aanmelding';
 import { teVaak } from '../../lib/validatie';
+import { ymdInAmsterdam } from '../../platform/datum';
 
 export const prerender = false;
 
@@ -12,15 +14,13 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       });
     }
 
-    const { naam, email } = await request.json();
-
-    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return new Response(JSON.stringify({ error: 'Ongeldig e-mailadres' }), { status: 400 });
+    const body = await request.json();
+    const gelezen = leesVriendAanmelding(body ?? {}, ymdInAmsterdam(new Date()));
+    if (!gelezen.ok) {
+      return new Response(JSON.stringify({ error: gelezen.fout }), { status: 400 });
     }
 
-    const schoneNaam = typeof naam === 'string' ? naam.trim().slice(0, 120) : '';
-
-    await maakVriendAan({ naam: schoneNaam, email: email.toLowerCase().trim() });
+    await maakVriendAan(gelezen.aanmelding);
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   } catch (err) {
