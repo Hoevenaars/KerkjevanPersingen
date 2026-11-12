@@ -7,7 +7,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActie
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { gastbegeleidersPerBoeking, metTerug } from '../../../platform/planning.ts';
-import { gastbegeleiderOntbreekt, gastbegeleiderRelevant, leesbareTitel } from '../../../platform/verhuur-classificatie.ts';
+import { hoortOpGastbegeleiderbord, leesbareTitel } from '../../../platform/verhuur-classificatie.ts';
 import { leesSchermFilter } from '../../../platform/verhuur-scherm.ts';
 import { vensterVan } from '../../../platform/verhuur-overzicht.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
@@ -64,8 +64,7 @@ function inVenster(start: string, eind: string): boolean {
   return eind >= venster.start && start <= venster.eind;
 }
 const exposities = snapshot.boekingen
-  .filter((b) => b.status !== 'geannuleerd' && b.status !== 'afgewezen' && inVenster(b.start, b.eind))
-  .filter((b) => gastbegeleiderRelevant({ soort: b.soort, heeftKoppeling: heeftKoppeling(b.id, b.gastheerId) }))
+  .filter((b) => hoortOpGastbegeleiderbord(b.status) && inVenster(b.start, b.eind))
   .sort((a, b) => a.start.localeCompare(b.start) || a.interneTitel.localeCompare(b.interneTitel));
 ---
 
@@ -100,7 +99,7 @@ const exposities = snapshot.boekingen
   </form>
 
   {exposities.length === 0 ? (
-    <p class="bh-leeg">Geen exposities in deze periode.</p>
+    <p class="bh-leeg">Geen boekingen in deze periode.</p>
   ) : (
   <table class="bh-tabel">
     <thead>
@@ -124,7 +123,7 @@ const exposities = snapshot.boekingen
             </td>
             <td>{b.huurder}</td>
             <td>
-              {gastbegeleiderOntbreekt({ soort: b.soort, heeftKoppeling: heeftKoppeling(b.id, b.gastheerId) }) && (
+              {!heeftKoppeling(b.id, b.gastheerId) && (
                 <span class="bh-badge">ontbreekt</span>
               )}
               <form method="post" class="bh-form bh-form-rij">
