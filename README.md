@@ -230,8 +230,8 @@ in `/beheer`. Andere rollen zien de ontvangerslijst niet.
 Wekelijkse mail naar aangemelde vrienden. Inhoud (kort nieuws, donatie-update) staat in
 Supabase. De ontvangerslijst ziet alleen de webmaster.
 
-- Aanmelden: `/vrienden/aanmelden/` — bewust niet in navigatie of footer, alleen via
-  een gedeelde link. Of dat zo blijft, is nog een bestuursbesluit.
+- Aanmelden: `/vrienden/aanmelden/` — niet in navigatie of footer. De rode knop op
+  Steun ons linkt ernaar.
 - Uitschrijven: persoonlijke link in elke mail (`/vrienden/afmelden/?token=…`).
 - Donderdag (16:00 Nederlandse wintertijd / 17:00 zomertijd): concept naar de webmaster.
 - Vrijdagochtend (10:30 wintertijd / 11:30 zomertijd): verzending naar actieve vrienden.
