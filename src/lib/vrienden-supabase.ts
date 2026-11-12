@@ -6,14 +6,29 @@
 import type { VriendFrequentie } from './nieuwsbrief-frequentie.ts';
 import { ontvangtDezeVerzending } from './nieuwsbrief-frequentie.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
+import { volledigeNaam, type VriendAanmelding } from './vriend-aanmelding.ts';
 
 export interface Vriend {
   _id: string;
   naam?: string;
+  voornaam?: string;
+  achternaam?: string;
+  telefoon?: string | null;
+  geboortedatum?: string | null;
   email: string;
   actief: boolean;
   frequentie?: VriendFrequentie;
   uitschrijfToken: string;
+}
+
+interface VriendBijwerking {
+  naam: string;
+  voornaam: string;
+  achternaam: string;
+  telefoon: string | null;
+  geboortedatum: string | null;
+  heractiveer: boolean;
+  token: string;
 }
 
 export interface VriendenBron {
@@ -21,7 +36,7 @@ export interface VriendenBron {
   zoekOpToken(token: string): Promise<Vriend | null>;
   actieve(): Promise<Vriend[]>;
   maak(vriend: Vriend & { naam: string }): Promise<void>;
-  heractiveer(id: string, naam: string, token: string): Promise<void>;
+  werkBij(id: string, bijwerking: VriendBijwerking): Promise<void>;
   deactiveer(id: string): Promise<void>;
   zetFrequentie(id: string, frequentie: VriendFrequentie): Promise<void>;
 }
@@ -30,17 +45,27 @@ function token(): string {
   return crypto.randomUUID();
 }
 
-export async function maakVriendAan(input: { naam: string; email: string }, bron: VriendenBron = supabaseVrienden()): Promise<void> {
+export async function maakVriendAan(input: VriendAanmelding, bron: VriendenBron = supabaseVrienden()): Promise<void> {
   const email = input.email.trim().toLowerCase();
-  const naam = input.naam.trim();
+  const gegevens = {
+    naam: volledigeNaam(input),
+    voornaam: input.voornaam.trim(),
+    achternaam: input.achternaam.trim(),
+    telefoon: input.telefoon,
+    geboortedatum: input.geboortedatum,
+  };
   const bestaand = await bron.zoekOpEmail(email);
   if (bestaand) {
-    if (!bestaand.actief) await bron.heractiveer(bestaand._id, naam, token());
+    await bron.werkBij(bestaand._id, {
+      ...gegevens,
+      heractiveer: !bestaand.actief,
+      token: bestaand.actief ? bestaand.uitschrijfToken : token(),
+    });
     return;
   }
   await bron.maak({
     _id: '',
-    naam,
+    ...gegevens,
     email,
     actief: true,
     frequentie: 'wekelijks',
@@ -115,6 +140,11 @@ export function supabaseVrienden(): VriendenBron {
     async maak(vriend) {
       const { error } = await client.from('vrienden').insert({
         naam: vriend.naam || null,
+        voornaam: vriend.voornaam || null,
+        achternaam: vriend.achternaam || null,
+        telefoon: vriend.telefoon || null,
+        geboortedatum: vriend.geboortedatum || null,
+        toestemming_op: new Date().toISOString(),
         email: vriend.email,
         actief: true,
         frequentie: 'wekelijks',
@@ -122,12 +152,17 @@ export function supabaseVrienden(): VriendenBron {
       });
       if (error) throw new Error(error.message);
     },
-    async heractiveer(id, naam, nieuwToken) {
+    async werkBij(id, bijwerking) {
       const { error } = await client.from('vrienden').update({
-        actief: true,
-        frequentie: 'wekelijks',
-        naam: naam || null,
-        uitschrijf_token: nieuwToken,
+        naam: bijwerking.naam || null,
+        voornaam: bijwerking.voornaam || null,
+        achternaam: bijwerking.achternaam || null,
+        telefoon: bijwerking.telefoon,
+        geboortedatum: bijwerking.geboortedatum,
+        toestemming_op: new Date().toISOString(),
+        ...(bijwerking.heractiveer
+          ? { actief: true, frequentie: 'wekelijks' as const, uitschrijf_token: bijwerking.token }
+          : {}),
       }).eq('id', Number(id));
       if (error) throw new Error(error.message);
     },
@@ -160,13 +195,19 @@ export function geheugenVrienden(start: Vriend[] = []): VriendenBron & { alle: (
       volg += 1;
       rijen.push({ ...vriend, _id: String(volg) });
     },
-    async heractiveer(id, naam, nieuwToken) {
+    async werkBij(id, bijwerking) {
       const rij = rijen.find((vriend) => vriend._id === id);
       if (!rij) return;
-      rij.actief = true;
-      rij.frequentie = 'wekelijks';
-      rij.naam = naam;
-      rij.uitschrijfToken = nieuwToken;
+      rij.naam = bijwerking.naam;
+      rij.voornaam = bijwerking.voornaam;
+      rij.achternaam = bijwerking.achternaam;
+      rij.telefoon = bijwerking.telefoon;
+      rij.geboortedatum = bijwerking.geboortedatum;
+      if (bijwerking.heractiveer) {
+        rij.actief = true;
+        rij.frequentie = 'wekelijks';
+        rij.uitschrijfToken = bijwerking.token;
+      }
     },
     async deactiveer(id) {
       const rij = rijen.find((vriend) => vriend._id === id);

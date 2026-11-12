@@ -580,13 +580,13 @@ isOneToOne: false
                   ]
                 },"vrienden": {
                   Row: {
-                    "aangemeld_op": string,"actief": boolean,"email": string,"frequentie": Database["public"]['Enums']["vriend_frequentie"],"id": number,"legacy_id": string | null,"legacy_source": string | null,"naam": string | null,"uitschrijf_token": string
+                    "aangemeld_op": string,"achternaam": string | null,"actief": boolean,"email": string,"frequentie": Database["public"]['Enums']["vriend_frequentie"],"geboortedatum": string | null,"id": number,"legacy_id": string | null,"legacy_source": string | null,"naam": string | null,"telefoon": string | null,"toestemming_op": string | null,"uitschrijf_token": string,"voornaam": string | null
                   }
                   Insert: {
-                    "aangemeld_op"?: string,"actief"?: boolean,"email": string,"frequentie"?: Database["public"]['Enums']["vriend_frequentie"],"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam"?: string | null,"uitschrijf_token": string
+                    "aangemeld_op"?: string,"achternaam"?: string | null,"actief"?: boolean,"email": string,"frequentie"?: Database["public"]['Enums']["vriend_frequentie"],"geboortedatum"?: string | null,"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam"?: string | null,"telefoon"?: string | null,"toestemming_op"?: string | null,"uitschrijf_token": string,"voornaam"?: string | null
                   }
                   Update: {
-                    "aangemeld_op"?: string,"actief"?: boolean,"email"?: string,"frequentie"?: Database["public"]['Enums']["vriend_frequentie"],"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam"?: string | null,"uitschrijf_token"?: string
+                    "aangemeld_op"?: string,"achternaam"?: string | null,"actief"?: boolean,"email"?: string,"frequentie"?: Database["public"]['Enums']["vriend_frequentie"],"geboortedatum"?: string | null,"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam"?: string | null,"telefoon"?: string | null,"toestemming_op"?: string | null,"uitschrijf_token"?: string,"voornaam"?: string | null
                   }
                   Relationships: [
                     

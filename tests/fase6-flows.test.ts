@@ -47,17 +47,27 @@ test('aanvraagvalidatie blijft dicht bij ontbrekende contactgegevens', () => {
 
 test('vrienden: aanmelden, opnieuw, afmelden, ongeldig token en frequentie', async () => {
   const bron = geheugenVrienden();
-  await maakVriendAan({ naam: 'Ada', email: 'Ada@Example.test' }, bron);
-  await maakVriendAan({ naam: 'Ada', email: 'ada@example.test' }, bron);
+  const ada = { voornaam: 'Ada', achternaam: 'Lovelace', email: 'Ada@Example.test', telefoon: null, geboortedatum: null };
+  await maakVriendAan(ada, bron);
+  await maakVriendAan({ ...ada, telefoon: '+31612345678', geboortedatum: '1990-05-04' }, bron);
   assert.equal(bron.alle().length, 1);
   assert.equal(bron.alle()[0].actief, true);
+  assert.equal(bron.alle()[0].naam, 'Ada Lovelace');
+  assert.equal(bron.alle()[0].telefoon, '+31612345678');
+  assert.equal(bron.alle()[0].geboortedatum, '1990-05-04');
   const token = bron.alle()[0].uitschrijfToken;
+  await updateVriendFrequentie(bron.alle()[0]._id, 'maandelijks', bron);
+  await maakVriendAan({ ...ada, telefoon: '0611111111' }, bron);
+  assert.equal(bron.alle()[0].frequentie, 'maandelijks');
+  assert.equal(bron.alle()[0].uitschrijfToken, token);
+  assert.equal(bron.alle()[0].telefoon, '0611111111');
 
   await deactiveerVriend(bron.alle()[0]._id, bron);
   assert.equal(bron.alle()[0].actief, false);
-  await maakVriendAan({ naam: 'Ada twee', email: 'ada@example.test' }, bron);
+  await maakVriendAan({ ...ada, achternaam: 'Twee' }, bron);
   assert.equal(bron.alle().length, 1);
   assert.equal(bron.alle()[0].actief, true);
+  assert.equal(bron.alle()[0].naam, 'Ada Twee');
   assert.equal(bron.alle()[0].frequentie, 'wekelijks');
   assert.notEqual(bron.alle()[0].uitschrijfToken, token);
 

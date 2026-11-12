@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../src/platform/status-overgang.ts';
-import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, leesbareTitel } from '../src/platform/verhuur-classificatie.ts';
+import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, hoortOpGastbegeleiderbord, leesBegeleiderKeuze, leesGastbegeleiderZoek, leesbareTitel, pastBegeleiderKeuze, pastGastbegeleiderZoek } from '../src/platform/verhuur-classificatie.ts';
 import { voerDossierViaSessie, type DossierSessie } from '../src/lib/operatie/dossier-sessie.ts';
 import type { Actor } from '../src/lib/operatie/kern.ts';
 import { stelPlanning, type PlanningInvoer } from '../src/platform/planning.ts';
@@ -44,6 +44,32 @@ test('gastbegeleider alleen bij expositie of bestaande koppeling', () => {
   assert.equal(gastbegeleiderRelevant({ soort: '', heeftKoppeling: true }), true);
   assert.equal(gastbegeleiderOntbreekt({ soort: 'expositie', heeftKoppeling: false }), true);
   assert.equal(gastbegeleiderOntbreekt({ soort: '', heeftKoppeling: false }), false);
+});
+
+test('zoeken en begeleiderfilter op het gastbegeleiderbord', () => {
+  assert.equal(leesGastbegeleiderZoek('  Ingrid   Vissers  '), 'Ingrid Vissers');
+  assert.equal(leesGastbegeleiderZoek('x'.repeat(90)).length, 80);
+  assert.equal(leesBegeleiderKeuze([]), 'alle');
+  assert.equal(leesBegeleiderKeuze(['alle']), 'alle');
+  assert.equal(leesBegeleiderKeuze(['ja', 'nee']), 'alle');
+  assert.equal(leesBegeleiderKeuze(['nee']), 'nee');
+  assert.equal(pastBegeleiderKeuze(true, 'ja'), true);
+  assert.equal(pastBegeleiderKeuze(false, 'ja'), false);
+  assert.equal(pastBegeleiderKeuze(false, 'nee'), true);
+  assert.equal(pastBegeleiderKeuze(true, 'alle'), true);
+  assert.equal(pastGastbegeleiderZoek('vissers', ['Februari 20/21.', 'Ingrid Vissers', '']), true);
+  assert.equal(pastGastbegeleiderZoek('bram', ['Ingrid Vissers', '']), false);
+  assert.equal(pastGastbegeleiderZoek('', ['Ingrid Vissers']), true);
+});
+
+test('het gastbegeleiderbord toont elke boeking behalve geannuleerd, afgewezen en gearchiveerd', () => {
+  assert.equal(hoortOpGastbegeleiderbord('migratie_vastgelegd'), true);
+  assert.equal(hoortOpGastbegeleiderbord('definitief'), true);
+  assert.equal(hoortOpGastbegeleiderbord('optie'), true);
+  assert.equal(hoortOpGastbegeleiderbord('afgerond'), true);
+  assert.equal(hoortOpGastbegeleiderbord('geannuleerd'), false);
+  assert.equal(hoortOpGastbegeleiderbord('afgewezen'), false);
+  assert.equal(hoortOpGastbegeleiderbord('gearchiveerd'), false);
 });
 
 test('filter zonder type raakt alleen lege types', () => {

@@ -68,6 +68,20 @@ export type AanmeldActie =
   | { actie: 'stil' }
   | { actie: 'weiger'; melding: string };
 
+/**
+ * Opslaan mag alleen als de botpoort én de veldvalidatie slagen.
+ * Een stil genegeerde bot krijgt geen fout en geen rij.
+ */
+export function besluitAanmelding(
+  oordeel: AanmeldActie,
+  invoer: { ok: true } | { ok: false; fout: string },
+): { soort: 'stil' } | { soort: 'fout'; melding: string } | { soort: 'opslaan' } {
+  if (oordeel.actie === 'stil') return { soort: 'stil' };
+  if (oordeel.actie === 'weiger') return { soort: 'fout', melding: oordeel.melding };
+  if (!invoer.ok) return { soort: 'fout', melding: invoer.fout };
+  return { soort: 'opslaan' };
+}
+
 export async function oordeelAanmelding(invoer: {
   honeypot: string;
   bewijs: string;

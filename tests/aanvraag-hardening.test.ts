@@ -10,7 +10,7 @@ import { labelGastheer } from '../src/platform/aanvraag-weergave.ts';
 import { INITIELE_TARIEVEN, kiesTarief } from '../src/platform/finance.ts';
 import { serialiseerMedeExposanten } from '../src/platform/mede-exposanten.ts';
 import { tariefIndicatie } from '../src/platform/tarief-indicatie.ts';
-import { gastbegeleiderOntbreekt, gastbegeleiderRelevant } from '../src/platform/verhuur-classificatie.ts';
+import { gastbegeleiderOntbreekt, gastbegeleiderRelevant, hoortOpGastbegeleiderbord } from '../src/platform/verhuur-classificatie.ts';
 
 const beheer: Actor = {
   type: 'gebruiker',
@@ -159,9 +159,11 @@ test('expositie heet Expositiebegeleider en een ander type Gastheer', () => {
   assert.equal(gastbegeleiderRelevant({ soort: 'bruiloft', heeftKoppeling: false }), false);
   assert.equal(gastbegeleiderRelevant({ soort: 'bruiloft', heeftKoppeling: true }), true);
   assert.equal(gastbegeleiderOntbreekt({ soort: 'concert', heeftKoppeling: false }), false);
+  assert.equal(hoortOpGastbegeleiderbord('migratie_vastgelegd'), true);
   const planning = readFileSync(new URL('../src/pages/beheer/planning/index.astro', import.meta.url), 'utf8');
   assert.match(planning, /name="gastheerId"/);
-  assert.match(planning, /gastbegeleiderRelevant/);
+  assert.match(planning, /hoortOpGastbegeleiderbord/);
+  assert.doesNotMatch(planning, /gastbegeleiderRelevant/);
 });
 
 test('goedkeuren kopieert het samengestelde adres en de legacy mede-exposanten', async () => {

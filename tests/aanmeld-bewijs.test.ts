@@ -3,11 +3,14 @@ import test from 'node:test';
 import {
   aanmeldGeheim,
   aanmeldGlobaalTeVaak,
+  besluitAanmelding,
   maakAanmeldbewijs,
   MIN_INVULTIJD_MS,
   oordeelAanmelding,
   resetAanmeldLimiet,
 } from '../src/lib/aanmeld-bewijs.ts';
+import { leesVriendAanmelding } from '../src/lib/vriend-aanmelding.ts';
+import { geheugenVrienden, maakVriendAan } from '../src/lib/vrienden-supabase.ts';
 import { POST } from '../src/pages/api/vrienden-aanmelden.ts';
 
 const GEHEIM = 'test-geheim';
@@ -97,4 +100,60 @@ test('de json-route slaat geen vriend op', async () => {
   assert.equal(res.status, 403);
   const lichaam = await res.json() as { error: string };
   assert.match(lichaam.error, /formulier/);
+});
+
+const geldigFormulier = {
+  voornaam: 'Ada',
+  achternaam: 'Lovelace',
+  email: 'ada@example.test',
+  telefoon: '06 12 34 56 78',
+  geboortedatum: '1990-05-04',
+  toestemming: 'ja',
+};
+
+test('alleen een geldige aanmelding met botbewijs wordt één keer opgeslagen', async () => {
+  const gelezen = leesVriendAanmelding(geldigFormulier, '2026-11-12');
+  const oordeel = await basis();
+  const besluit = besluitAanmelding(oordeel, gelezen);
+  assert.equal(besluit.soort, 'opslaan');
+  assert.equal(gelezen.ok, true);
+  if (!gelezen.ok || besluit.soort !== 'opslaan') return;
+
+  const bestaand = geheugenVrienden([{
+    _id: '9',
+    naam: 'Bo',
+    voornaam: 'Bo',
+    achternaam: 'Elders',
+    email: 'bo@example.test',
+    telefoon: null,
+    geboortedatum: null,
+    actief: true,
+    frequentie: 'maandelijks',
+    uitschrijfToken: 'tok-bo',
+  }]);
+  await maakVriendAan(gelezen.aanmelding, bestaand);
+  assert.equal(bestaand.alle().length, 2);
+  assert.equal(bestaand.alle()[0].email, 'bo@example.test');
+  assert.equal(bestaand.alle()[0].frequentie, 'maandelijks');
+  assert.equal(bestaand.alle()[0].uitschrijfToken, 'tok-bo');
+  const ada = bestaand.alle()[1];
+  assert.equal(ada.voornaam, 'Ada');
+  assert.equal(ada.achternaam, 'Lovelace');
+  assert.equal(ada.telefoon, '0612345678');
+  assert.equal(ada.geboortedatum, '1990-05-04');
+  await maakVriendAan(gelezen.aanmelding, bestaand);
+  assert.equal(bestaand.alle().length, 2);
+});
+
+test('ongeldige invoer en een bot zonder bewijs worden niet opgeslagen', async () => {
+  const ongeldig = leesVriendAanmelding({ ...geldigFormulier, voornaam: '' }, '2026-11-12');
+  const metBewijs = await basis();
+  const geweigerdVeld = besluitAanmelding(metBewijs, ongeldig);
+  assert.equal(geweigerdVeld.soort, 'fout');
+  if (geweigerdVeld.soort === 'fout') assert.match(geweigerdVeld.melding, /voornaam/);
+
+  const zonderBewijs = await basis({ bewijs: '' });
+  const geweigerdeBot = besluitAanmelding(zonderBewijs, leesVriendAanmelding(geldigFormulier, '2026-11-12'));
+  assert.equal(geweigerdeBot.soort, 'fout');
+  if (geweigerdeBot.soort === 'fout') assert.match(geweigerdeBot.melding, /verlopen/);
 });

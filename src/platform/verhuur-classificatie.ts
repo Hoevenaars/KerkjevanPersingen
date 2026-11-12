@@ -41,6 +41,44 @@ export function leesbareTitel(titel: string, huurder: string): string {
   return titel.trim() || naam || 'Zonder titel';
 }
 
+const WEG_VAN_GASTBEGELEIDERBORD = new Set(['geannuleerd', 'afgewezen', 'gearchiveerd']);
+
+/**
+ * Het gastbegeleiderbord toont elke boeking in de gekozen periode.
+ * Geannuleerd, afgewezen en gearchiveerd blijven weg. Een leeg verhuurtype
+ * (zoals bij geïmporteerde weekenden) is geen reden om de boeking te verbergen.
+ */
+export function hoortOpGastbegeleiderbord(status: string): boolean {
+  return !WEG_VAN_GASTBEGELEIDERBORD.has(status);
+}
+
+export type BegeleiderKeuze = 'alle' | 'ja' | 'nee';
+
+/** Zelfde opschoning als de zoekbalk van de verhuuragenda. */
+export function leesGastbegeleiderZoek(ruw: string | null): string {
+  return (ruw ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+/** Eén keuze. Beide of geen van beide betekent: alle boekingen. */
+export function leesBegeleiderKeuze(waarden: readonly string[]): BegeleiderKeuze {
+  const gekozen = new Set(waarden.filter((waarde) => waarde === 'ja' || waarde === 'nee'));
+  if (gekozen.size !== 1) return 'alle';
+  return gekozen.has('ja') ? 'ja' : 'nee';
+}
+
+export function pastBegeleiderKeuze(heeftKoppeling: boolean, keuze: BegeleiderKeuze): boolean {
+  if (keuze === 'ja') return heeftKoppeling;
+  if (keuze === 'nee') return !heeftKoppeling;
+  return true;
+}
+
+export function pastGastbegeleiderZoek(zoek: string, velden: readonly string[]): boolean {
+  const naald = zoek.trim().toLocaleLowerCase('nl');
+  if (!naald) return true;
+  return velden.join(' ').toLocaleLowerCase('nl').includes(naald);
+}
+
+/** Exposities verwachten een begeleider. Andere types alleen als er al een koppeling is. */
 export function gastbegeleiderRelevant(input: { soort: string; heeftKoppeling: boolean }): boolean {
   return input.soort === 'expositie' || input.heeftKoppeling;
 }
