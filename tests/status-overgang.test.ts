@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../src/platform/status-overgang.ts';
-import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, leesbareTitel } from '../src/platform/verhuur-classificatie.ts';
+import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, hoortOpGastbegeleiderbord, leesbareTitel } from '../src/platform/verhuur-classificatie.ts';
 import { voerDossierViaSessie, type DossierSessie } from '../src/lib/operatie/dossier-sessie.ts';
 import type { Actor } from '../src/lib/operatie/kern.ts';
 import { stelPlanning, type PlanningInvoer } from '../src/platform/planning.ts';
@@ -44,6 +44,16 @@ test('gastbegeleider alleen bij expositie of bestaande koppeling', () => {
   assert.equal(gastbegeleiderRelevant({ soort: '', heeftKoppeling: true }), true);
   assert.equal(gastbegeleiderOntbreekt({ soort: 'expositie', heeftKoppeling: false }), true);
   assert.equal(gastbegeleiderOntbreekt({ soort: '', heeftKoppeling: false }), false);
+});
+
+test('het gastbegeleiderbord toont elke boeking behalve geannuleerd, afgewezen en gearchiveerd', () => {
+  assert.equal(hoortOpGastbegeleiderbord('migratie_vastgelegd'), true);
+  assert.equal(hoortOpGastbegeleiderbord('definitief'), true);
+  assert.equal(hoortOpGastbegeleiderbord('optie'), true);
+  assert.equal(hoortOpGastbegeleiderbord('afgerond'), true);
+  assert.equal(hoortOpGastbegeleiderbord('geannuleerd'), false);
+  assert.equal(hoortOpGastbegeleiderbord('afgewezen'), false);
+  assert.equal(hoortOpGastbegeleiderbord('gearchiveerd'), false);
 });
 
 test('filter zonder type raakt alleen lege types', () => {

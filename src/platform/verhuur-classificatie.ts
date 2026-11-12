@@ -41,6 +41,18 @@ export function leesbareTitel(titel: string, huurder: string): string {
   return titel.trim() || naam || 'Zonder titel';
 }
 
+const WEG_VAN_GASTBEGELEIDERBORD = new Set(['geannuleerd', 'afgewezen', 'gearchiveerd']);
+
+/**
+ * Het gastbegeleiderbord toont elke boeking in de gekozen periode.
+ * Geannuleerd, afgewezen en gearchiveerd blijven weg. Een leeg verhuurtype
+ * (zoals bij geïmporteerde weekenden) is geen reden om de boeking te verbergen.
+ */
+export function hoortOpGastbegeleiderbord(status: string): boolean {
+  return !WEG_VAN_GASTBEGELEIDERBORD.has(status);
+}
+
+/** Exposities verwachten een begeleider. Andere types alleen als er al een koppeling is. */
 export function gastbegeleiderRelevant(input: { soort: string; heeftKoppeling: boolean }): boolean {
   return input.soort === 'expositie' || input.heeftKoppeling;
 }
