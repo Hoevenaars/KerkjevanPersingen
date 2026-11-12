@@ -175,6 +175,10 @@ test('navigatie leest gekoppelde gegevens in één view, niet per rij', () => {
   assert.match(planning, /<h1>Gastbegeleiders<\/h1>/);
   assert.match(planning, /name="jaar"/);
   assert.match(planning, /name="maand"/);
+  assert.match(planning, /name="q"/);
+  assert.match(planning, /name="begeleider"/);
+  assert.match(planning, /Begeleider ingepland/);
+  assert.match(planning, /Geen begeleider/);
   assert.match(planning, /Heel het jaar/);
   assert.equal(planning.includes('PlanningNavigatie'), false);
   assert.equal(planning.includes('.from('), false);

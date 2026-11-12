@@ -7,7 +7,14 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActie
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { gastbegeleidersPerBoeking, metTerug } from '../../../platform/planning.ts';
-import { hoortOpGastbegeleiderbord, leesbareTitel } from '../../../platform/verhuur-classificatie.ts';
+import {
+  hoortOpGastbegeleiderbord,
+  leesBegeleiderKeuze,
+  leesGastbegeleiderZoek,
+  leesbareTitel,
+  pastBegeleiderKeuze,
+  pastGastbegeleiderZoek,
+} from '../../../platform/verhuur-classificatie.ts';
 import { leesSchermFilter } from '../../../platform/verhuur-scherm.ts';
 import { vensterVan } from '../../../platform/verhuur-overzicht.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
@@ -32,9 +39,13 @@ const fout = Astro.url.searchParams.get('fout');
 const vandaag = ymdInAmsterdam(new Date());
 const filter = leesSchermFilter(Astro.url.searchParams, vandaag);
 const bronParam = Astro.url.searchParams.get('bron') ?? '';
+const zoek = leesGastbegeleiderZoek(Astro.url.searchParams.get('q'));
+const begeleiderKeuze = leesBegeleiderKeuze(Astro.url.searchParams.getAll('begeleider'));
 const lijstQuery = new URLSearchParams();
 lijstQuery.set('jaar', String(filter.jaar));
 lijstQuery.set('maand', filter.maand == null ? 'alle' : String(filter.maand));
+if (zoek) lijstQuery.set('q', zoek);
+if (begeleiderKeuze !== 'alle') lijstQuery.set('begeleider', begeleiderKeuze);
 if (bronParam) lijstQuery.set('bron', bronParam);
 const lijstPad = `/beheer/planning/?${lijstQuery.toString()}`;
 const gastNamen = gastbegeleidersPerBoeking(
@@ -65,7 +76,19 @@ function inVenster(start: string, eind: string): boolean {
 }
 const exposities = snapshot.boekingen
   .filter((b) => hoortOpGastbegeleiderbord(b.status) && inVenster(b.start, b.eind))
+  .filter((b) => pastBegeleiderKeuze(heeftKoppeling(b.id, b.gastheerId), begeleiderKeuze))
+  .filter((b) => pastGastbegeleiderZoek(zoek, [
+    leesbareTitel(b.interneTitel, b.huurder),
+    b.interneTitel,
+    b.huurder,
+    gastNamen.get(b.id) ?? '',
+    formatNl(b.start),
+    b.eind === b.start ? '' : formatNl(b.eind),
+  ]))
   .sort((a, b) => a.start.localeCompare(b.start) || a.interneTitel.localeCompare(b.interneTitel));
+const lijstLeeg = zoek || begeleiderKeuze !== 'alle'
+  ? 'Geen boekingen voor deze zoekopdracht of dit filter.'
+  : 'Geen boekingen in deze periode.';
 ---
 
 <Beheer titel="Gastbegeleiders">
@@ -96,10 +119,32 @@ const exposities = snapshot.boekingen
         ))}
       </select>
     </div>
+    <div class="kc-veld kc-veld--zoek">
+      <label for="query">Zoek exposant of begeleider</label>
+      <input id="query" class="kc-zoek" name="q" type="search" placeholder="Bijvoorbeeld: Marieke Jansen" value={zoek} />
+    </div>
+    <details class="kc-filter" open={begeleiderKeuze !== 'alle'}>
+      <summary>Filter{begeleiderKeuze === 'alle' ? '' : ' (1)'}</summary>
+      <div class="kc-filter-paneel">
+        <label class="kc-vink">
+          <input type="radio" name="begeleider" value="alle" checked={begeleiderKeuze === 'alle'} onchange="this.form.requestSubmit()" />
+          Alle boekingen
+        </label>
+        <label class="kc-vink">
+          <input type="radio" name="begeleider" value="ja" checked={begeleiderKeuze === 'ja'} onchange="this.form.requestSubmit()" />
+          Begeleider ingepland
+        </label>
+        <label class="kc-vink">
+          <input type="radio" name="begeleider" value="nee" checked={begeleiderKeuze === 'nee'} onchange="this.form.requestSubmit()" />
+          Geen begeleider
+        </label>
+      </div>
+    </details>
+    <button class="kc-knop" type="submit">Toon</button>
   </form>
 
   {exposities.length === 0 ? (
-    <p class="bh-leeg">Geen boekingen in deze periode.</p>
+    <p class="bh-leeg">{lijstLeeg}</p>
   ) : (
   <table class="bh-tabel">
     <thead>

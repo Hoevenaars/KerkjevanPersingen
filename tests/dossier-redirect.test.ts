@@ -34,3 +34,25 @@ test('afwijzen antwoordt 303 met headers die Astro nog mag zetten', async () => 
     'https://kerkjepersingen.nl/beheer/aanvragen/21/?melding=Aanvraag+afgewezen.+Er+is+geen+mail+verstuurd.',
   );
 });
+
+test('opslaan houdt jaar, zoektekst en begeleiderfilter vast', async () => {
+  const formulier = new FormData();
+  formulier.set('actie', 'bewaar');
+  formulier.set('boekingId', '67');
+  formulier.set('gastheerId', '4');
+  const antwoord = await postAlsSupabase({
+    request: new Request('https://kerkjepersingen.nl/beheer/planning/?jaar=2027&maand=alle&q=Mirjam&begeleider=nee', { method: 'POST' }),
+    url: new URL('https://kerkjepersingen.nl/beheer/planning/?jaar=2027&maand=alle&q=Mirjam&begeleider=nee'),
+    env: {},
+    actor: { type: 'gebruiker', naam: 'Nick', rechten: { isSuperAdmin: true, perModule: {} } },
+    sessie: { from: () => ({}) },
+    formulier,
+  });
+  assert.ok(antwoord);
+  const locatie = new URL(antwoord.headers.get('Location') ?? '');
+  assert.equal(locatie.pathname, '/beheer/planning/');
+  assert.equal(locatie.searchParams.get('jaar'), '2027');
+  assert.equal(locatie.searchParams.get('maand'), 'alle');
+  assert.equal(locatie.searchParams.get('q'), 'Mirjam');
+  assert.equal(locatie.searchParams.get('begeleider'), 'nee');
+});

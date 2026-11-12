@@ -568,6 +568,19 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
   return null;
 }
 
+const LIJSTQUERY = ['jaar', 'maand', 'q'] as const;
+
+/** Jaar, maand, zoektekst en begeleiderfilter blijven staan na opslaan. */
+export function behoudLijstquery(van: URL, naar: URL): void {
+  for (const sleutel of LIJSTQUERY) {
+    const waarde = van.searchParams.get(sleutel);
+    if (waarde) naar.searchParams.set(sleutel, waarde);
+  }
+  for (const waarde of van.searchParams.getAll('begeleider')) {
+    if (waarde === 'ja' || waarde === 'nee') naar.searchParams.append('begeleider', waarde);
+  }
+}
+
 export async function postAlsSupabase(input: {
   request: Request;
   url: URL;
@@ -578,6 +591,7 @@ export async function postAlsSupabase(input: {
 }): Promise<Response | null> {
   if (!operationeelSupabase(input.env)) return null;
   const doel = new URL(input.url.pathname, input.url.origin);
+  behoudLijstquery(input.url, doel);
   try {
     const data = input.formulier ?? await input.request.formData();
     const actie = String(data.get('actie') ?? '');
