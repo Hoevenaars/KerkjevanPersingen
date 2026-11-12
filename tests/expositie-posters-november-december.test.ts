@@ -5,6 +5,19 @@ import { activiteitVanAgendaRij, type AgendaRij } from '../src/lib/publiek-lezen
 import { detailTekst, kaartTekst, teaserTekst } from '../src/lib/activiteit-content.ts';
 import { formatActiviteitTitel } from '../src/platform/activiteit-titel.ts';
 import { formatExposantenWeergave } from '../src/platform/exposanten.ts';
+import { toonFotoInHetGeheel } from '../src/lib/publicatie-foto.ts';
+
+const fotosql = readFileSync(
+  new URL('../supabase/migrations/20261113133000_expositie_poster_fotos.sql', import.meta.url),
+  'utf8',
+);
+
+const POSTERS = {
+  wybe: 'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/publicaties/16-1794526435674.jpg',
+  cillessen: 'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/publicaties/17-1794526435675.jpg',
+  fusion: 'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/publicaties/18-1794526435676.jpg',
+  verbeelding: 'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/publicaties/19-1794526435677.jpg',
+};
 
 const sql = readFileSync(
   new URL('../supabase/migrations/20261113120000_expositie_posters_november_december.sql', import.meta.url),
@@ -72,6 +85,33 @@ test('de posterteksten staan in de kolommen die de site toont', () => {
   assert.match(sql, /mede_exposanten = 'Nienke Faber en Piet van der Horst'/);
   assert.match(sql, /nummer = 'BKG-2026-079'/);
   assert.match(sql, /nummer = 'BKG-2026-080'/);
+});
+
+test('elke poster staat als foto_pad bij de bijbehorende activiteit', () => {
+  assert.match(fotosql, /publicaties\/16-1794526435674\.jpg/);
+  assert.match(fotosql, /slug = 'expositie-wybe-de-greef'/);
+  assert.match(fotosql, /publicaties\/17-1794526435675\.jpg/);
+  assert.match(fotosql, /slug = 'expositie-nick-cillessen'/);
+  assert.match(fotosql, /publicaties\/18-1794526435676\.jpg/);
+  assert.match(fotosql, /slug = 'expositie-elin-bennaars'/);
+  assert.match(fotosql, /publicaties\/19-1794526435677\.jpg/);
+  assert.match(fotosql, /slug = 'expositie-ilse-aarsman'/);
+  assert.match(fotosql, /foto_alt = 'Poster van de expositie Gedroomde realiteit/);
+  assert.match(fotosql, /foto_alt = 'Poster van de expositie Fusion/);
+  for (const url of Object.values(POSTERS)) {
+    assert.equal(toonFotoInHetGeheel(url), true);
+  }
+  const activiteit = activiteitVanAgendaRij(rij({
+    id: 18,
+    slug: 'expositie-elin-bennaars',
+    titel: 'Fusion',
+    start_datum: '2026-12-05',
+    eind_datum: '2026-12-06',
+    foto_pad: POSTERS.fusion,
+    foto_alt: 'Poster van de expositie Fusion, met werk van Marion Groenenberg, Elin Bennaars en Sientje Menheere',
+  }));
+  assert.equal(activiteit.foto, POSTERS.fusion);
+  assert.equal(activiteit.fotoAlt, 'Poster van de expositie Fusion, met werk van Marion Groenenberg, Elin Bennaars en Sientje Menheere');
 });
 
 test('korte teksten passen op de agenda en de volledige tekst blijft op de detailpagina', () => {
