@@ -4,8 +4,24 @@ import { maakVriendAan } from '../../lib/vrienden-supabase.ts';
 import { leesVriendAanmelding, type VriendFormulier } from '../../lib/vriend-aanmelding.ts';
 import { teVaak } from '../../lib/validatie';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
+import { zelfdeOorsprong } from '../../lib/beheer-http.ts';
+import {
+  AANMELD_COOKIE,
+  aanmeldCookieOpties,
+  aanmeldGeheim,
+  aanmeldGlobaalTeVaak,
+  besluitAanmelding,
+  maakAanmeldbewijs,
+  oordeelAanmelding,
+} from '../../lib/aanmeld-bewijs.ts';
 
 export const prerender = false;
+
+const geheim = aanmeldGeheim(process.env, import.meta.env.DEV === true);
+const binnenkomend = Astro.cookies.get(AANMELD_COOKIE)?.value ?? '';
+const nonce = /^[0-9a-f-]{36}$/i.test(binnenkomend) ? binnenkomend : crypto.randomUUID();
+Astro.cookies.set(AANMELD_COOKIE, nonce, aanmeldCookieOpties(Astro.url.protocol === 'https:'));
+const bewijs = geheim ? await maakAanmeldbewijs(geheim, nonce) : '';
 
 const leeg: VriendFormulier = {
   voornaam: '',
@@ -24,33 +40,37 @@ const vandaag = ymdInAmsterdam(new Date());
 if (Astro.request.method === 'POST') {
   try {
     const form = await Astro.request.formData();
+    const adres = Astro.clientAddress ?? 'onbekend';
+    const gelezen = leesVriendAanmelding({
+      voornaam: form.get('voornaam'),
+      achternaam: form.get('achternaam'),
+      email: form.get('email'),
+      telefoon: form.get('telefoon'),
+      geboortedatum: form.get('geboortedatum'),
+      toestemming: form.get('toestemming'),
+    }, vandaag);
+    waarden = gelezen.formulier;
+    const oordeel = await oordeelAanmelding({
+      honeypot: String(form.get('website_hp') ?? ''),
+      bewijs: String(form.get('bewijs') ?? ''),
+      nonceUitCookie: binnenkomend,
+      userAgent: Astro.request.headers.get('user-agent'),
+      oorsprongOk: zelfdeOorsprong(Astro.request),
+      geheim,
+      limietBereikt: () => teVaak(`nieuwsbrief:${adres}`) || aanmeldGlobaalTeVaak(),
+    });
 
-    // Honeypot: bots vullen dit, mensen zien het niet. Stil "succes" zodat
-    // een bot niet doorheeft dat de aanmelding is genegeerd.
-    if (String(form.get('website_hp') ?? '').length > 0) {
+    const besluit = besluitAanmelding(oordeel, gelezen.ok ? { ok: true } : { ok: false, fout: gelezen.fout });
+    if (besluit.soort === 'stil') {
       succes = true;
+    } else if (besluit.soort === 'fout') {
+      fout = besluit.melding;
     } else {
-      const gelezen = leesVriendAanmelding({
-        voornaam: form.get('voornaam'),
-        achternaam: form.get('achternaam'),
-        email: form.get('email'),
-        telefoon: form.get('telefoon'),
-        geboortedatum: form.get('geboortedatum'),
-        toestemming: form.get('toestemming'),
-      }, vandaag);
-      waarden = gelezen.formulier;
-
-      if (teVaak(Astro.clientAddress ?? 'onbekend')) {
-        fout = 'Er zijn net veel aanmeldingen. Probeer het over een kwartier opnieuw.';
-      } else if (!gelezen.ok) {
-        fout = gelezen.fout;
-      } else {
-        // Direct in Supabase, niet via een interne HTTP-call. Die extra hop
-        // faalde achter basic-auth / Vercel (401 of 404) terwijl het formulier
-        // zelf wel bereikbaar was.
-        await maakVriendAan(gelezen.aanmelding);
-        succes = true;
-      }
+      // Direct in Supabase, niet via een interne HTTP-call. Die extra hop
+      // faalde achter basic-auth / Vercel (401 of 404) terwijl het formulier
+      // zelf wel bereikbaar was.
+      await maakVriendAan(gelezen.aanmelding);
+      succes = true;
     }
   } catch (err) {
     console.error('[vrienden] aanmelden mislukt', err);
@@ -108,6 +128,7 @@ if (Astro.request.method === 'POST') {
           <label for="website_hp">Website</label>
           <input type="text" id="website_hp" name="website_hp" tabindex="-1" autocomplete="off" />
         </div>
+        <input type="hidden" name="bewijs" value={bewijs} />
         <button type="submit">Aanmelden</button>
       </form>
     )}
