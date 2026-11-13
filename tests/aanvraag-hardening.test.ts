@@ -184,7 +184,7 @@ test('goedkeuren kopieert het samengestelde adres en de legacy mede-exposanten',
             return {
               data: {
                 id: 12,
-                status: 'nieuw',
+                status: 'in_behandeling',
                 naam: 'Kim',
                 email: 'kim@example.test',
                 telefoon: '0612345678',

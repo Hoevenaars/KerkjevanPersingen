@@ -549,7 +549,7 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
   if (actie === 'weiger' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'afwijzen', reden };
   if (actie === 'meer' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'meer_informatie', vraag: String(data.get('vraag') ?? '') };
   if (actie === 'meer_verstuur' && aanvraagId) return { soort: 'verstuur_informatie', aanvraagId };
-  if (actie === 'behandeling' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'in_behandeling' };
+  if ((actie === 'behandeling' || actie === 'geschikt') && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'in_behandeling' };
   if (actie === 'nieuw' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'nieuw' };
   if ((actie === 'check' || actie === 'betaling') && boekingId) return { soort: 'betaling', boekingId };
   if ((actie === 'gastheer' || actie === 'bewaar') && boekingId && data.has('gastheerId')) {

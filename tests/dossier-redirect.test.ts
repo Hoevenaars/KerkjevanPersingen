@@ -5,6 +5,7 @@ import { postAlsSupabase } from '../src/lib/operatie/runtime.ts';
 test('afwijzen antwoordt 303 met headers die Astro nog mag zetten', async () => {
   const formulier = new FormData();
   formulier.set('actie', 'weiger');
+  formulier.set('reden', 'Past niet in het kerkje');
   const keten = () => {
     const query = {
       select: () => query,

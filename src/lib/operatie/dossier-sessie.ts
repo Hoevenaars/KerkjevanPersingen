@@ -5,6 +5,15 @@
  */
 
 import { magStatusZetten } from '../../platform/aanvraag.ts';
+import {
+  beoordeelAanvraag,
+  magGoedkeuren,
+  type FaseActiviteit,
+  type FaseAanvraag,
+  type FaseBlokkade,
+  type FaseBoeking,
+  type FaseWereld,
+} from '../../platform/aanvraag-fase.ts';
 import { ymdInAmsterdam, periodesOverlappen } from '../../platform/datum.ts';
 import { boekingNummer, leesHandmatigeBoeking, type HandmatigeBoeking } from '../../platform/handmatige-boeking.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
@@ -351,6 +360,7 @@ async function leesAanvraag(client: DossierSessie, id: number): Promise<Aanvraag
 
 async function afwijzen(client: DossierSessie, id: number, reden: string, actor: Actor): Promise<DossierResultaat> {
   if (!mag(actor, 'aanvragen')) return { ok: false, melding: 'Geen recht om een aanvraag af te wijzen.' };
+  if (!reden.trim()) return { ok: false, melding: 'Vul een afwijsreden in. Er is niets gewijzigd.' };
   const aanvraag = await leesAanvraag(client, id);
   if ('fout' in aanvraag) return { ok: false, melding: aanvraag.fout };
   const poort = magStatusZetten(aanvraag.status as AanvraagStatus, 'afgewezen', rechtenVan(actor));
@@ -374,6 +384,98 @@ async function afwijzen(client: DossierSessie, id: number, reden: string, actor:
   return { ok: true, melding: 'Aanvraag afgewezen. Er is geen mail verstuurd.' };
 }
 
+async function leesLijst(
+  client: DossierSessie,
+  tabel: string,
+  kolommen: string,
+): Promise<{ data: Record<string, unknown>[] } | { fout: string }> {
+  const antwoord = await client.from(tabel).select(kolommen);
+  if (antwoord.error) return { fout: leesbareAuthFout(antwoord.error.message) };
+  return { data: antwoord.data ?? [] };
+}
+
+function tekst(waarde: unknown): string {
+  return waarde == null ? '' : String(waarde);
+}
+
+/** Zelfde periodecontrole als de pagina, opnieuw gelezen op het moment van goedkeuren. */
+async function wereldVoorGoedkeuren(client: DossierSessie): Promise<FaseWereld | { fout: string }> {
+  const [boekingen, aanvragen, blokkades, activiteiten] = await Promise.all([
+    leesLijst(client, 'boekingen', 'id,nummer,status,start_datum,eind_datum,interne_titel,huurder_naam_snapshot,aanvraag_id,aanbetaling_ontvangen'),
+    leesLijst(client, 'aanvragen', 'id,status,naam,start_datum,eind_datum,boeking_id'),
+    leesLijst(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender'),
+    leesLijst(client, 'activiteit_bron', 'id,titel,interne_titel,start_datum,eind_datum,zichtbaarheid,levenscyclus'),
+  ]);
+  if ('fout' in boekingen) return boekingen;
+  if ('fout' in aanvragen) return aanvragen;
+  if ('fout' in blokkades) return blokkades;
+  if ('fout' in activiteiten) return activiteiten;
+  return {
+    aanvragen: aanvragen.data.map((rij): FaseAanvraag => ({
+      id: tekst(rij.id),
+      status: tekst(rij.status),
+      naam: tekst(rij.naam),
+      start: tekst(rij.start_datum),
+      eind: tekst(rij.eind_datum),
+      boekingId: rij.boeking_id == null ? undefined : tekst(rij.boeking_id),
+    })),
+    boekingen: boekingen.data.map((rij): FaseBoeking => ({
+      id: tekst(rij.id),
+      nummer: tekst(rij.nummer) || tekst(rij.id),
+      status: tekst(rij.status),
+      start: tekst(rij.start_datum),
+      eind: tekst(rij.eind_datum),
+      titel: tekst(rij.interne_titel),
+      huurder: tekst(rij.huurder_naam_snapshot),
+      aanbetalingBinnen: rij.aanbetaling_ontvangen === true,
+      aanvraagId: rij.aanvraag_id == null ? undefined : tekst(rij.aanvraag_id),
+    })),
+    documenten: [],
+    mails: [],
+    betalingen: [],
+    blokkades: blokkades.data.map((rij): FaseBlokkade => ({
+      id: tekst(rij.id),
+      titel: tekst(rij.titel),
+      start: tekst(rij.start_datum),
+      eind: tekst(rij.eind_datum),
+      blokkeert: rij.blokkeert_verhuurkalender === true,
+    })),
+    activiteiten: activiteiten.data.map((rij): FaseActiviteit => ({
+      id: tekst(rij.id),
+      titel: tekst(rij.titel || rij.interne_titel),
+      start: tekst(rij.start_datum),
+      eind: tekst(rij.eind_datum),
+      zichtbaarheid: tekst(rij.zichtbaarheid),
+      levenscyclus: tekst(rij.levenscyclus) || 'actief',
+    })),
+  };
+}
+
+async function geschikt(client: DossierSessie, id: number, actor: Actor): Promise<DossierResultaat> {
+  if (!mag(actor, 'aanvragen')) return { ok: false, melding: 'Geen recht om een aanvraag te beoordelen.' };
+  const aanvraag = await leesAanvraag(client, id);
+  if ('fout' in aanvraag) return { ok: false, melding: aanvraag.fout };
+  if (aanvraag.status === 'in_behandeling') return { ok: true, melding: 'De activiteit is al als geschikt beoordeeld.' };
+  const poort = magStatusZetten(aanvraag.status as AanvraagStatus, 'in_behandeling', rechtenVan(actor));
+  if (!poort.ok) return { ok: false, melding: poort.melding ?? 'Overgang geweigerd.' };
+  const { error } = await client
+    .from('aanvragen')
+    .update({ status: 'in_behandeling' })
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false, melding: leesbareAuthFout(error.message) };
+  await audit(client, actor, {
+    actie: 'geschikt',
+    type: 'aanvraag',
+    id: String(id),
+    van: aanvraag.status,
+    naar: 'in_behandeling',
+    dedup: `aanvraag:${id}:geschikt`,
+  });
+  return { ok: true, melding: 'Activiteit beoordeeld als geschikt. Er is nog geen boeking en er is geen mail verstuurd.' };
+}
+
 async function goedkeuren(client: DossierSessie, id: number, actor: Actor): Promise<DossierResultaat> {
   if (!mag(actor, 'aanvragen')) return { ok: false, melding: 'Geen recht om een aanvraag goed te keuren.' };
   const aanvraag = await leesAanvraag(client, id);
@@ -382,11 +484,18 @@ async function goedkeuren(client: DossierSessie, id: number, actor: Actor): Prom
   const poort = magStatusZetten(aanvraag.status as AanvraagStatus, 'goedgekeurd', rechtenVan(actor));
   if (!poort.ok) return { ok: false, melding: poort.melding ?? 'Overgang geweigerd.' };
   if (!aanvraag.start_datum || !aanvraag.eind_datum) return { ok: false, melding: 'De aanvraag heeft geen periode.' };
-  const overlap = await overlapMetActieve(client, 0, aanvraag.start_datum, aanvraag.eind_datum);
-  if ('fout' in overlap) return { ok: false, melding: overlap.fout };
-  if (overlap.nummers.length > 0) {
-    return { ok: false, melding: `Niet goedgekeurd. De periode overlapt met ${overlap.nummers.join(', ')}.` };
-  }
+  const wereld = await wereldVoorGoedkeuren(client);
+  if ('fout' in wereld) return { ok: false, melding: wereld.fout };
+  const beeld = beoordeelAanvraag({
+    id: String(aanvraag.id),
+    status: aanvraag.status,
+    naam: aanvraag.naam,
+    start: aanvraag.start_datum,
+    eind: aanvraag.eind_datum,
+    boekingId: undefined,
+  }, wereld);
+  const vrij = magGoedkeuren(beeld, aanvraag.status);
+  if (!vrij.ok) return { ok: false, melding: vrij.melding ?? 'Niet goedgekeurd.' };
   const vandaag = ymdInAmsterdam(new Date());
   const optie = optieSnapshot(vandaag, STANDAARD_OPTIETERMIJN_DAGEN);
   const insert = await client.from('boekingen').insert({
@@ -427,7 +536,7 @@ async function goedkeuren(client: DossierSessie, id: number, actor: Actor): Prom
     naar: 'goedgekeurd',
     dedup: `aanvraag:${id}:goedgekeurd`,
   });
-  return { ok: true, melding: 'Optie vastgelegd. Er is geen mail of workflow gestart. Aanbetaling is geen voorwaarde.' };
+  return { ok: true, melding: 'Goedgekeurd en in behandeling genomen. De bestaande optie is vastgelegd. Er is geen mail verstuurd.' };
 }
 
 async function maakHandmatigeBoeking(
@@ -545,6 +654,9 @@ export async function voerDossierViaSessie(
   if (opdracht.soort === 'incident_sluiten') return incidentSluiten(client, Number(opdracht.incidentId), actor);
   if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'afwijzen') {
     return afwijzen(client, Number(opdracht.aanvraagId), opdracht.reden ?? '', actor);
+  }
+  if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'in_behandeling') {
+    return geschikt(client, Number(opdracht.aanvraagId), actor);
   }
   if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'goedkeuren') {
     return goedkeuren(client, Number(opdracht.aanvraagId), actor);
