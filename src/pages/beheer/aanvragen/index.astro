@@ -2,34 +2,100 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { AANVRAAG_LABEL, SOORT_LABEL, formatNl } from '../../../platform/demo-data';
+import { AANVRAAG_LABEL, SOORT_LABEL } from '../../../platform/demo-data';
 import {
-  labelAkkoordVoorwaarden,
   leesAanvraagSortering,
   sorteerAanvragen,
   type AanvraagSortering,
 } from '../../../platform/aanvraag-weergave';
+import {
+  beoordeelAanvraag,
+  leesAanvraagFilter,
+  pastInFilter,
+  type FaseAanvraag,
+  type FaseFilter,
+  type FaseWereld,
+} from '../../../platform/aanvraag-fase';
+import { periodeLabel } from '../../../platform/verhuur-overzicht';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
-const filter = Astro.url.searchParams.get('status') ?? 'alle';
+const filter = leesAanvraagFilter(Astro.url.searchParams);
 const sort = leesAanvraagSortering(Astro.url.searchParams.get('sort'));
 const dir = Astro.url.searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
-const ongefilterd = filter === 'alle' ? snapshot.aanvragen : snapshot.aanvragen.filter((a) => a.status === filter);
+
+const wereld: FaseWereld = {
+  aanvragen: snapshot.aanvragen.map((item) => ({
+    id: item.id,
+    status: item.status,
+    naam: item.naam,
+    start: item.start,
+    eind: item.eind,
+    boekingId: item.boekingId,
+  })),
+  boekingen: snapshot.boekingen.map((item) => ({
+    id: item.id,
+    nummer: item.nummer,
+    status: item.status,
+    start: item.start,
+    eind: item.eind,
+    titel: item.interneTitel,
+    huurder: item.huurder,
+    aanbetalingBinnen: item.aanbetalingBinnen,
+    aanvraagId: item.aanvraagId,
+  })),
+  documenten: snapshot.documenten.map((item) => ({ boekingId: item.boekingId, soort: item.soort, naam: item.naam })),
+  mails: snapshot.communicatie.map((item) => ({ boekingId: item.boekingId, template: item.template, status: item.status })),
+  betalingen: (snapshot.betalingen ?? []).map((item) => ({ boekingId: item.boekingId, soort: item.soort, status: item.status })),
+  blokkades: snapshot.intern.map((item) => ({
+    id: item.id,
+    titel: item.titel,
+    start: item.start,
+    eind: item.eind,
+    blokkeert: item.blokkeert,
+  })),
+  activiteiten: snapshot.agenda
+    .filter((item) => item.tabel === 'activiteit_bron')
+    .map((item) => ({
+      id: item.id,
+      titel: item.titel,
+      start: item.start,
+      eind: item.eind,
+      zichtbaarheid: item.publicatiestatus ?? '',
+      levenscyclus: item.levenscyclus ?? 'actief',
+    })),
+};
+
+function alsFase(item: (typeof snapshot.aanvragen)[number]): FaseAanvraag {
+  return {
+    id: item.id,
+    status: item.status,
+    naam: item.naam,
+    start: item.start,
+    eind: item.eind,
+    boekingId: item.boekingId,
+  };
+}
+
+const beelden = new Map(snapshot.aanvragen.map((item) => [item.id, beoordeelAanvraag(alsFase(item), wereld)]));
+const ongefilterd = snapshot.aanvragen.filter((item) => {
+  const beeld = beelden.get(item.id);
+  return beeld ? pastInFilter(beeld.fase, filter, item.status) : false;
+});
 const lijst = sorteerAanvragen(ongefilterd, sort, dir, (soort) => SOORT_LABEL[soort] ?? soort);
 
-function query(wijziging: { status?: string | null; sort?: string | null; dir?: string | null; weergave?: string | null }): string {
+function query(wijziging: { fase?: FaseFilter | null; sort?: string | null; dir?: string | null }): string {
   const volgende = new URLSearchParams();
-  const huidig = {
-    status: filter === 'alle' ? null : filter,
-    sort,
-    dir: sort ? dir : null,
-    weergave: Astro.url.searchParams.get('weergave') === 'pipeline' ? 'pipeline' : null,
-  };
-  const samen = { ...huidig, ...wijziging };
-  for (const [sleutel, waarde] of Object.entries(samen)) {
-    if (waarde) volgende.set(sleutel, waarde);
+  if (wijziging.fase === undefined && filter.modus === 'technisch' && filter.technisch) {
+    volgende.set('status', filter.technisch);
+  } else {
+    const fase = wijziging.fase === undefined ? (filter.modus === 'fase' ? filter.fase : null) : wijziging.fase;
+    if (fase && fase !== 'alle') volgende.set('fase', fase);
   }
+  const sortWaarde = wijziging.sort === undefined ? sort : wijziging.sort;
+  const dirWaarde = wijziging.dir === undefined ? (sort ? dir : null) : wijziging.dir;
+  if (sortWaarde) volgende.set('sort', sortWaarde);
+  if (sortWaarde && dirWaarde) volgende.set('dir', dirWaarde);
   const tekst = volgende.toString();
   return tekst ? `/beheer/aanvragen/?${tekst}` : '/beheer/aanvragen/';
 }
@@ -49,32 +115,18 @@ function ariaSort(kolom: AanvraagSortering): 'ascending' | 'descending' | 'none'
   return dir === 'asc' ? 'ascending' : 'descending';
 }
 
-const tabs = [
-  { href: query({ status: null }), status: 'alle', label: 'Alle' },
-  { href: query({ status: 'nieuw' }), status: 'nieuw', label: 'Nieuw' },
-  { href: query({ status: 'in_behandeling' }), status: 'in_behandeling', label: 'In behandeling' },
-  { href: query({ status: 'wacht_op_aanvrager' }), status: 'wacht_op_aanvrager', label: 'Wacht op aanvrager' },
-  { href: query({ status: 'goedgekeurd' }), status: 'goedgekeurd', label: 'Goedgekeurd' },
-  { href: query({ status: 'afgewezen' }), status: 'afgewezen', label: 'Afgewezen' },
-  { href: query({ status: 'gesloten' }), status: 'gesloten', label: 'Gesloten' },
+const tabs: { fase: FaseFilter; label: string }[] = [
+  { fase: 'alle', label: 'Alle' },
+  { fase: 'nieuw', label: 'Nieuw' },
+  { fase: 'in_behandeling', label: 'In behandeling' },
+  { fase: 'gereed', label: 'Gereed' },
+  { fase: 'afgesloten', label: 'Afgewezen / Gesloten' },
 ];
 
-const kolommen: { sleutel: AanvraagSortering; label: string }[] = [
-  { sleutel: 'naam', label: 'Naam' },
-  { sleutel: 'soort', label: 'Soort' },
-  { sleutel: 'datum', label: 'Datum' },
-  { sleutel: 'binnen', label: 'Binnengekomen' },
-  { sleutel: 'voorwaarden', label: 'Voorwaarden' },
-  { sleutel: 'status', label: 'Status' },
-];
-
-const pipeline = [
-  { status: 'nieuw', label: 'Nieuw' },
-  { status: 'in_behandeling', label: 'In behandeling' },
-  { status: 'wacht_op_aanvrager', label: 'Wacht op aanvrager' },
-  { status: 'goedgekeurd', label: 'Goedgekeurd' },
-  { status: 'afgewezen', label: 'Afgewezen' },
-] as const;
+function periodeVan(start: string, eind: string): string {
+  if (!start) return '—';
+  return periodeLabel(start, eind || start);
+}
 ---
 
 <Beheer titel="Aanvragen">
@@ -82,110 +134,69 @@ const pipeline = [
     <div>
       <p class="bh-label">Aanvragen</p>
       <h1>Aanvragen</h1>
-      <p class="bh-hint">Klik een naam voor het dossier. In de pipeline sleep je een kaart naar een andere fase.</p>
+      <p class="bh-hint">Klik een aanvraag om het dossier te openen. De fase zegt wat er nog moet gebeuren.</p>
     </div>
   </header>
 
   {Astro.url.searchParams.get('melding') && <p class="bh-flash" role="status">{Astro.url.searchParams.get('melding')}</p>}
   {Astro.url.searchParams.get('fout') && <p class="bh-flash" role="alert">{Astro.url.searchParams.get('fout')}</p>}
+  {filter.melding && <p class="bh-flash" role="status">{filter.melding}</p>}
+  {
+    filter.modus === 'technisch' && filter.technisch && (
+      <p class="bh-flash" role="status">
+        Oude filter: {AANVRAAG_LABEL[filter.technisch]}. <a href="/beheer/aanvragen/">Toon alle fases</a>
+      </p>
+    )
+  }
 
-  <nav class="bh-tabs" aria-label="Weergave">
-    <button type="button" data-bh-view="lijst" aria-current={Astro.url.searchParams.get('weergave') === 'pipeline' ? undefined : 'page'}>Lijst</button>
-    <button type="button" data-bh-view="pipeline" aria-current={Astro.url.searchParams.get('weergave') === 'pipeline' ? 'page' : undefined}>Pipeline</button>
-  </nav>
-
-  <nav class="bh-tabs" aria-label="Filter aanvragen" data-bh-panel="lijst" hidden={Astro.url.searchParams.get('weergave') === 'pipeline'}>
+  <nav class="bh-tabs" aria-label="Filter aanvragen">
     {
       tabs.map((tab) => (
-        <a href={tab.href} aria-current={filter === tab.status ? 'page' : undefined}>
+        <a href={query({ fase: tab.fase })} aria-current={filter.modus === 'fase' && filter.fase === tab.fase ? 'page' : undefined}>
           {tab.label}
         </a>
       ))
     }
   </nav>
 
-  <div data-bh-panel="lijst" hidden={Astro.url.searchParams.get('weergave') === 'pipeline'}>
-    <table class="bh-tabel">
-      <thead>
-        <tr>
-          {
-            kolommen.map((kolom) => (
-              <th aria-sort={ariaSort(kolom.sleutel)}>
-                <a class="bh-sorteer" href={kolomHref(kolom.sleutel)}>{kolom.label}{pijl(kolom.sleutel)}</a>
-              </th>
-            ))
-          }
-        </tr>
-      </thead>
-      <tbody>
-        {
-          lijst.length === 0 ? (
-            <tr>
-              <td colspan="6" class="bh-leeg">Geen aanvragen in deze filter.</td>
-            </tr>
-          ) : (
-            lijst.map((a) => (
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th aria-sort={ariaSort('naam')}>
+          <a class="bh-sorteer" href={kolomHref('naam')}>Aanvraag{pijl('naam')}</a>
+        </th>
+        <th aria-sort={ariaSort('datum')}>
+          <a class="bh-sorteer" href={kolomHref('datum')}>Periode{pijl('datum')}</a>
+        </th>
+        <th>Fase</th>
+        <th>Volgende actie</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        lijst.length === 0 ? (
+          <tr>
+            <td colspan="4" class="bh-leeg">Geen aanvragen in deze filter.</td>
+          </tr>
+        ) : (
+          lijst.map((item) => {
+            const beeld = beelden.get(item.id);
+            return (
               <tr>
                 <td>
-                  <a class="bh-detail-link" href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}>{a.naam}</a>
+                  <a class="bh-detail-link" href={`/beheer/aanvragen/${encodeURIComponent(item.id)}/`}>{item.naam}</a>
+                  <small class="bh-fase-sub">{SOORT_LABEL[item.soort] ?? item.soort}</small>
                 </td>
-                <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
+                <td>{periodeVan(item.start, item.eind)}</td>
                 <td>
-                  {formatNl(a.start)}
-                  {a.eind !== a.start ? ` – ${formatNl(a.eind)}` : ''}
+                  <span class={`bh-badge bh-fase bh-fase--${beeld?.toon ?? 'oranje'}`}>{beeld?.faseLabel ?? 'Nieuw'}</span>
                 </td>
-                <td>{a.binnengekomen ? formatNl(a.binnengekomen.slice(0, 10)) : '—'}</td>
-                <td>{labelAkkoordVoorwaarden(a.soort, a.akkoordVoorwaarden)}</td>
-                <td>
-                  <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
-                </td>
+                <td class={`bh-fase bh-fase--${beeld?.toon ?? 'oranje'}`}>{beeld?.volgendeActie ?? '—'}</td>
               </tr>
-            ))
-          )
-        }
-      </tbody>
-    </table>
-  </div>
-
-  <div data-bh-panel="pipeline" data-bh-pipeline hidden={Astro.url.searchParams.get('weergave') !== 'pipeline'}>
-    <p class="bh-hint" style="margin-bottom: 1rem;">Sleep een kaart naar een andere kolom. Goedkeuren maakt een optieboeking. Afwijzen vraagt om een reden. Er gaat geen mail direct de deur uit.</p>
-    <div class="bh-board">
-      {
-        pipeline.map((kolom) => {
-          const items = snapshot.aanvragen.filter((a) => a.status === kolom.status);
-          return (
-            <section class="bh-kolom" data-bh-kolom={kolom.status}>
-              <div class="bh-kolom-kop">
-                <h3>
-                  {kolom.label} ({items.length})
-                </h3>
-              </div>
-              <div class="bh-kolom-lijst">
-                {
-                  items.length === 0 ? (
-                    <p class="bh-leeg" data-bh-leeg>Geen aanvragen</p>
-                  ) : (
-                    items.map((a) => (
-                      <article
-                        class={`bh-pipeline-kaart ${a.status === 'nieuw' ? 'bh-pipeline-kaart--nieuw' : ''}`}
-                        draggable="true"
-                        data-bh-sleep
-                        data-aanvraag-id={a.id}
-                        data-status={a.status}
-                      >
-                        <a class="bh-detail-link" draggable="false" href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}>{a.naam}</a>
-                        <small>
-                          {SOORT_LABEL[a.soort] ?? a.soort} · {formatNl(a.start)}
-                        </small>
-                      </article>
-                    ))
-                  )
-                }
-              </div>
-            </section>
-          );
-        })
+            );
+          })
+        )
       }
-    </div>
-  </div>
+    </tbody>
+  </table>
 </Beheer>

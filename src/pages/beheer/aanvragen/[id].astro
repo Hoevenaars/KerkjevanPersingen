@@ -2,7 +2,9 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { AANVRAAG_LABEL, SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
+import { SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
+import { beoordeelAanvraag, type FaseWereld } from '../../../platform/aanvraag-fase';
+import { periodeLabel } from '../../../platform/verhuur-overzicht';
 import { labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { toonMedeExposanten } from '../../../platform/mede-exposanten';
 import { lijstAanvraagFotos } from '../../../lib/aanvraag-foto-opslag';
@@ -87,6 +89,58 @@ const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam,
 const fotos = aanvraag && sessieClient ? await lijstAanvraagFotos(sessieClient as never, aanvraag.id) : [];
 const medeTekst = toonMedeExposanten(aanvraag?.medeExposanten);
 const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
+const wereld: FaseWereld = {
+  aanvragen: snapshot.aanvragen.map((item) => ({
+    id: item.id,
+    status: item.status,
+    naam: item.naam,
+    start: item.start,
+    eind: item.eind,
+    boekingId: item.boekingId,
+  })),
+  boekingen: snapshot.boekingen.map((item) => ({
+    id: item.id,
+    nummer: item.nummer,
+    status: item.status,
+    start: item.start,
+    eind: item.eind,
+    titel: item.interneTitel,
+    huurder: item.huurder,
+    aanbetalingBinnen: item.aanbetalingBinnen,
+    aanvraagId: item.aanvraagId,
+  })),
+  documenten: snapshot.documenten.map((item) => ({ boekingId: item.boekingId, soort: item.soort, naam: item.naam })),
+  mails: snapshot.communicatie.map((item) => ({ boekingId: item.boekingId, template: item.template, status: item.status })),
+  betalingen: (snapshot.betalingen ?? []).map((item) => ({ boekingId: item.boekingId, soort: item.soort, status: item.status })),
+  blokkades: snapshot.intern.map((item) => ({
+    id: item.id,
+    titel: item.titel,
+    start: item.start,
+    eind: item.eind,
+    blokkeert: item.blokkeert,
+  })),
+  activiteiten: snapshot.agenda
+    .filter((item) => item.tabel === 'activiteit_bron')
+    .map((item) => ({
+      id: item.id,
+      titel: item.titel,
+      start: item.start,
+      eind: item.eind,
+      zichtbaarheid: item.publicatiestatus ?? '',
+      levenscyclus: item.levenscyclus ?? 'actief',
+    })),
+};
+const beeld = beoordeelAanvraag({
+  id: aanvraag.id,
+  status: aanvraag.status,
+  naam: aanvraag.naam,
+  start: aanvraag.start,
+  eind: aanvraag.eind,
+  boekingId: aanvraag.boekingId,
+}, wereld);
+const kanGoedkeuren = beeld.geschikt && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
+const toonBeoordeling = beeld.fase === 'nieuw';
+const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed';
 ---
 
 <Beheer titel={aanvraag.naam}>
@@ -97,7 +151,7 @@ const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
       <p class="bh-hint">
         {SOORT_LABEL[aanvraag.soort] ?? aanvraag.soort} · {formatNl(aanvraag.start)}
         {aanvraag.eind !== aanvraag.start ? ` – ${formatNl(aanvraag.eind)}` : ''} ·
-        <span class={`bh-badge bh-badge--${aanvraag.status}`}>{AANVRAAG_LABEL[aanvraag.status]}</span>
+        <span class={`bh-badge bh-fase bh-fase--${beeld.toon}`}>{beeld.faseLabel}</span>
       </p>
     </div>
   </header>
@@ -106,6 +160,112 @@ const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
   {Astro.url.searchParams.get('melding') && <p class="bh-flash">{Astro.url.searchParams.get('melding')}</p>}
   {mailMelding && <p class="bh-flash">{mailMelding}</p>}
   {Astro.url.searchParams.get('fout') && <p class="bh-flash">{Astro.url.searchParams.get('fout')}</p>}
+
+  <section class="bh-kaart bh-fase-paneel" aria-label="Fase">
+    <p class="bh-label">Fase</p>
+    <h2 class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.faseLabel}</h2>
+    <p class="bh-volgende">Volgende actie: <strong class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.volgendeActie}</strong></p>
+    {
+      beeld.fase === 'gereed' && (
+        <>
+          <h3>Boeking definitief</h3>
+          <p>De boeking blijft in het verhuuroverzicht. De restbetaling loopt via de bestaande financiële administratie. Gereed betekent niet dat de hele huursom al binnen is.</p>
+          {
+            !beeld.checklist.compleet && (
+              <p>Deze boeking was al definitief. Ontbrekende contract- of betaalgegevens maken haar niet onvolledig.</p>
+            )
+          }
+        </>
+      )
+    }
+    {
+      toonBeoordeling && (
+        <>
+          <h3>Past deze activiteit in het Kerkje van Persingen?</h3>
+          {
+            beeld.geschikt ? (
+              <p class="bh-fase bh-fase--groen">Ja, geschikt. Afgerond.</p>
+            ) : (
+              <form method="post" class="bh-acties">
+                <button class="bh-btn" type="submit" name="actie" value="geschikt">Ja, geschikt</button>
+              </form>
+            )
+          }
+          <form method="post" class="bh-form">
+            <label for="reden">Afwijsreden, als de activiteit niet past</label>
+            <textarea id="reden" name="reden" rows="3" required></textarea>
+            <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="weiger">Nee, afwijzen</button>
+          </form>
+          <h3>Is de ruimte beschikbaar?</h3>
+          <p class={`bh-fase bh-fase--${beeld.beschikbaarheid.uitkomst === 'beschikbaar' ? 'groen' : beeld.beschikbaarheid.uitkomst === 'aanvraag' ? 'oranje' : 'rood'}`}>
+            <strong>{beeld.beschikbaarheid.kop}.</strong> {beeld.beschikbaarheid.tekst}
+          </p>
+          {
+            beeld.beschikbaarheid.blokkades.map((regel) => (
+              <p>
+                <a href={regel.href}>{regel.naam}</a>
+                {' '}· {regel.periode} · {regel.tekst}
+              </p>
+            ))
+          }
+          {
+            beeld.beschikbaarheid.aanvragen.map((regel) => (
+              <p>
+                <a href={regel.href}>{regel.naam}</a>
+                {' '}· {regel.periode} · {regel.tekst}
+              </p>
+            ))
+          }
+          {
+            kanGoedkeuren && (
+              <form method="post" class="bh-acties">
+                <button class="bh-btn" type="submit" name="actie" value="akkoord">Goedkeuren en in behandeling nemen</button>
+              </form>
+            )
+          }
+        </>
+      )
+    }
+    {
+      toonChecklist && (
+        <>
+          <h3>Contract en aanbetaling</h3>
+          <ul class="bh-checks">
+            <li class={beeld.checklist.verzonden ? 'is-klaar' : 'is-open'}>
+              <span>Contract verzonden</span>
+              <strong>{beeld.checklist.verzonden ? 'Afgerond' : beeld.fase === 'gereed' ? 'Niet vastgelegd' : 'Nog niet'}</strong>
+            </li>
+            <li class={beeld.checklist.ondertekend ? 'is-klaar' : 'is-open'}>
+              <span>Contract ondertekend</span>
+              <strong>{beeld.checklist.ondertekend ? 'Afgerond' : beeld.fase === 'gereed' ? 'Niet vastgelegd' : 'Nog niet'}</strong>
+            </li>
+            <li class={beeld.checklist.aanbetaling ? 'is-klaar' : 'is-open'}>
+              <span>Aanbetaling ontvangen</span>
+              <strong>{beeld.checklist.aanbetaling ? beeld.checklist.aanbetalingTekst : beeld.fase === 'gereed' ? 'Niet vastgelegd' : beeld.checklist.aanbetalingTekst}</strong>
+            </li>
+          </ul>
+          {
+            beeld.boeking && (
+              <p>
+                Boeking <a href={`/beheer/boekingen/${encodeURIComponent(beeld.boeking.id)}/`}>{beeld.boeking.nummer}</a>
+                {' '}· {periodeLabel(beeld.boeking.start, beeld.boeking.eind || beeld.boeking.start)}
+              </p>
+            )
+          }
+          {
+            beeld.fase === 'in_behandeling' && !beeld.checklist.verzonden && beeld.boeking && (
+              <p>Het contract verstuur je met het bestaande mailformulier hieronder. Er komt geen tweede verzendknop bij.</p>
+            )
+          }
+          {
+            beeld.fase === 'in_behandeling' && beeld.checklist.ondertekend && !beeld.checklist.aanbetaling && beeld.boeking && (
+              <p>De aanbetaling blijft in de bestaande administratie. <a href={`/beheer/boekingen/${encodeURIComponent(beeld.boeking.id)}/`}>Open de boeking</a>.</p>
+            )
+          }
+        </>
+      )
+    }
+  </section>
 
   <div class="bh-split">
     <section class="bh-kaart">
@@ -162,56 +322,54 @@ const herkomst = herkomstUitQuery(Astro.url.searchParams.get('van'));
       </dl>
     </section>
 
-    <section class="bh-kaart">
-      <h2>Behandeling</h2>
-      <p class="bh-muted">
-        {
-          snapshot.bron === 'supabase'
-            ? 'Goedkeuren en afwijzen gebruiken je sessie. Een informatievraag wordt eerst als concept opgeslagen.'
-            : 'Deze knoppen slaan niets op en sturen geen mail.'
-        }
-      </p>
-      <form method="post" class="bh-acties">
-        <button class="bh-btn" type="submit" name="actie" value="optie">Zet in optie</button>
-        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="akkoord">Goedkeuren</button>
-        <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="weiger">Afwijzen</button>
-      </form>
-      {
-        snapshot.bron === 'supabase' && (
-          <form method="post" class="bh-form">
-            <label for="vraag">Vraag aan de aanvrager</label>
-            <textarea id="vraag" name="vraag" rows="5" required>{aanvraag.informatievraag ?? ''}</textarea>
-            <p class="bh-muted">Reply-To blijft {CONTRACTBEHEER_EMAIL}. Concept, opslaan en preview doen geen provider-call.</p>
-            <div class="bh-acties">
-              <button class="bh-btn" type="submit" name="actie" value="meer">Concept opslaan</button>
-            </div>
-          </form>
-        )
-      }
-      {
-        voorbeeld && (
-          <div class="bh-kaart">
-            <h3>Preview</h3>
-            <p><strong>{voorbeeld.onderwerp}</strong></p>
-            <pre class="bh-muted">{voorbeeld.text}</pre>
-            <form method="post">
-              <p>Testmail wordt verstuurd naar: {testadres || 'geen geldig testmailadres ingesteld'} zolang de schakelaar op Test staat. Uit verstuurt niets.</p>
-              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="meer_verstuur">Verstuur vraag</button>
-            </form>
-          </div>
-        )
-      }
-    </section>
+    {
+      ((beeld.fase === 'in_behandeling' && snapshot.bron === 'supabase') || voorbeeld) && (
+        <section class="bh-kaart">
+          <h2>Vraag aan de aanvrager</h2>
+          {
+            beeld.fase === 'in_behandeling' && snapshot.bron === 'supabase' && (
+              <form method="post" class="bh-form">
+                <label for="vraag">Vraag</label>
+                <textarea id="vraag" name="vraag" rows="5" required>{aanvraag.informatievraag ?? ''}</textarea>
+                <p class="bh-muted">Reply-To blijft {CONTRACTBEHEER_EMAIL}. Concept, opslaan en preview doen geen provider-call.</p>
+                <div class="bh-acties">
+                  <button class="bh-btn" type="submit" name="actie" value="meer">Concept opslaan</button>
+                </div>
+              </form>
+            )
+          }
+          {
+            voorbeeld && (
+              <>
+                <h3>Preview</h3>
+                <p><strong>{voorbeeld.onderwerp}</strong></p>
+                <pre class="bh-muted">{voorbeeld.text}</pre>
+                <form method="post">
+                  <p>Testmail wordt verstuurd naar: {testadres || 'geen geldig testmailadres ingesteld'} zolang de schakelaar op Test staat. Uit verstuurt niets.</p>
+                  <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="meer_verstuur">Verstuur vraag</button>
+                </form>
+              </>
+            )
+          }
+        </section>
+      )
+    }
   </div>
 
-  <Mailconcept
-    templates={mailtemplates.map((item) => ({ id: item.id, naam: item.naam }))}
-    ontvanger={aanvraag.email}
-    modus={mailmodusLabel}
-    testadres={testadres}
-    replyTo={CONTRACTBEHEER_EMAIL}
-    preview={mailPreview}
-  />
+  {
+    beeld.fase === 'in_behandeling' && beeld.boeking && (
+      <div id="contract-mail">
+        <Mailconcept
+          templates={mailtemplates.map((item) => ({ id: item.id, naam: item.naam }))}
+          ontvanger={aanvraag.email}
+          modus={mailmodusLabel}
+          testadres={testadres}
+          replyTo={CONTRACTBEHEER_EMAIL}
+          preview={mailPreview}
+        />
+      </div>
+    )
+  }
 
   {fotos.length > 0 && (
     <section class="bh-kaart">
