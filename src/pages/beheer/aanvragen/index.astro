@@ -116,11 +116,11 @@ function ariaSort(kolom: AanvraagSortering): 'ascending' | 'descending' | 'none'
 }
 
 const tabs: { fase: FaseFilter; label: string }[] = [
-  { fase: 'alle', label: 'Open' },
   { fase: 'nieuw', label: 'Nieuw' },
   { fase: 'in_behandeling', label: 'In behandeling' },
   { fase: 'gereed', label: 'Gereed' },
   { fase: 'afgesloten', label: 'Afgewezen / Gesloten' },
+  { fase: 'alle', label: 'Open' },
 ];
 
 function periodeVan(start: string, eind: string): string {
