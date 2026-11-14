@@ -254,6 +254,17 @@ test('elke bestaande status blijft in precies één filter', () => {
   }
 });
 
+test('de open lijst verbergt definitief afgehandelde aanvragen', () => {
+  const open = leesAanvraagFilter({ get: () => null });
+  assert.equal(open.fase, 'alle');
+  assert.equal(pastInFilter('nieuw', open, 'nieuw'), true);
+  assert.equal(pastInFilter('in_behandeling', open, 'wacht_op_aanvrager'), true);
+  assert.equal(pastInFilter('in_behandeling', open, 'goedgekeurd'), true);
+  assert.equal(pastInFilter('gereed', open, 'goedgekeurd'), false);
+  assert.equal(pastInFilter('afgewezen', open, 'afgewezen'), false);
+  assert.equal(pastInFilter('gesloten', open, 'gesloten'), false);
+});
+
 test('oude statuslinks blijven werken en een onbekende filter valt terug', () => {
   const oud = leesAanvraagFilter({ get: (naam) => (naam === 'status' ? 'wacht_op_aanvrager' : null) });
   assert.equal(oud.modus, 'technisch');
