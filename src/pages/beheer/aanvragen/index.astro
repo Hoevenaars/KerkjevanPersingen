@@ -116,7 +116,7 @@ function ariaSort(kolom: AanvraagSortering): 'ascending' | 'descending' | 'none'
 }
 
 const tabs: { fase: FaseFilter; label: string }[] = [
-  { fase: 'alle', label: 'Alle' },
+  { fase: 'alle', label: 'Open' },
   { fase: 'nieuw', label: 'Nieuw' },
   { fase: 'in_behandeling', label: 'In behandeling' },
   { fase: 'gereed', label: 'Gereed' },
@@ -134,7 +134,7 @@ function periodeVan(start: string, eind: string): string {
     <div>
       <p class="bh-label">Aanvragen</p>
       <h1>Aanvragen</h1>
-      <p class="bh-hint">Klik een aanvraag om het dossier te openen. De fase zegt wat er nog moet gebeuren.</p>
+      <p class="bh-hint">Klik een aanvraag om het dossier te openen. Open toont alleen wat nog moet gebeuren. Een definitieve boeking, een afwijzing of een gesloten aanvraag staat daar niet bij.</p>
     </div>
   </header>
 
@@ -144,7 +144,7 @@ function periodeVan(start: string, eind: string): string {
   {
     filter.modus === 'technisch' && filter.technisch && (
       <p class="bh-flash" role="status">
-        Oude filter: {AANVRAAG_LABEL[filter.technisch]}. <a href="/beheer/aanvragen/">Toon alle fases</a>
+        Oude filter: {AANVRAAG_LABEL[filter.technisch]}. <a href="/beheer/aanvragen/">Toon de open aanvragen</a>
       </p>
     )
   }
