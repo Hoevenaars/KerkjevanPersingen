@@ -205,7 +205,7 @@ export function leesAanvraagFilter(params: { get(naam: string): string | null })
 
 export function pastInFilter(fase: AanvraagFase, filter: AanvraagFilter, status: string): boolean {
   if (filter.modus === 'technisch' && filter.technisch) return status === filter.technisch;
-  if (filter.fase === 'alle') return true;
+  if (filter.fase === 'alle') return fase === 'nieuw' || fase === 'in_behandeling';
   if (filter.fase === 'afgesloten') return fase === 'afgewezen' || fase === 'gesloten';
   return fase === filter.fase;
 }
