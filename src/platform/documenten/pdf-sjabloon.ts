@@ -242,7 +242,10 @@ export async function vulPdfSjabloon(input: {
       return { ok: false, melding: `Het veld ${veld.getName()} is geen tekstveld. Er is geen PDF gemaakt.` };
     }
     try {
-      veld.setText(pdfVeilig(input.velden[naam] ?? ''));
+      const tekst = pdfVeilig(input.velden[naam] ?? '');
+      const limiet = veld.getMaxLength();
+      if (limiet !== undefined && tekst.length > limiet) veld.setMaxLength(undefined);
+      veld.setText(tekst);
       gezet += 1;
     } catch (error) {
       const reden = error instanceof Error ? error.message : 'onbekende fout';
