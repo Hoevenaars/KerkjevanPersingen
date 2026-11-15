@@ -154,6 +154,7 @@ const mailmodusLabel = mailBesluit.modus === 'test' ? 'Test' : mailBesluit.modus
 const testadres = mailBesluit.modus === 'test' ? await getTestMailRecipient().catch(() => null) : null;
 const intake = snapshot.bron === 'supabase' ? await lijstIntake(boeking.id).catch(() => []) : [];
 
+const aanvraagBijBoeking = snapshot.aanvragen.find((item) => item.boekingId === boeking.id || item.id === boeking.aanvraagId);
 const tab = Astro.url.searchParams.get('tab') ?? 'gegevens';
 const relatie = snapshot.relaties.find((r) => r.id === boeking.relatieId);
 const docs = snapshot.documenten.filter((d) => d.boekingId === boeking.id);
@@ -468,7 +469,13 @@ function tabHref(tabNaam: string): string {
     tab === 'documenten' && (
       <section class="bh-kaart">
         <h2>Documenten</h2>
-        <p class="bh-muted">Genereer het contract, lees het door, en verstuur daarna die tekst.</p>
+        {
+          aanvraagBijBoeking ? (
+            <p>Het contract maak je bij de aanvraag. <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraagBijBoeking.id)}/?contract=genereren`}>Contract genereren</a>.</p>
+          ) : (
+            <p class="bh-muted">Genereer het contract, lees het door, en verstuur daarna die tekst.</p>
+          )
+        }
         {docs.length === 0 ? (
           <p class="bh-leeg">Nog geen documenten bij deze boeking.</p>
         ) : (
@@ -491,16 +498,18 @@ function tabHref(tabNaam: string): string {
             </tbody>
           </table>
         )}
-        <ContractBrief
-          variant="bh"
-          actie={basis}
-          boekingId={boeking.id}
-          terug={terugWaarde ?? ''}
-          brief={contractBrief}
-          magSchrijven={!snapshot.alleenLezen}
-          modus={mailmodusLabel}
-          ontvanger={boeking.email}
-        />
+        {!aanvraagBijBoeking && (
+          <ContractBrief
+            variant="bh"
+            actie={basis}
+            boekingId={boeking.id}
+            terug={terugWaarde ?? ''}
+            brief={contractBrief}
+            magSchrijven={!snapshot.alleenLezen}
+            modus={mailmodusLabel}
+            ontvanger={boeking.email}
+          />
+        )}
       </section>
     )
   }
