@@ -18,9 +18,13 @@ import {
   type FaseWereld,
 } from '../../../platform/aanvraag-fase';
 import { periodeLabel } from '../../../platform/verhuur-overzicht';
+import { magAanvraagWijzigen } from '../../../platform/aanvraag.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const kanBeoordelen = !Astro.locals.beheer?.viewAs && magAanvraagWijzigen(
+  Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
+);
 const filter = leesAanvraagFilter(Astro.url.searchParams);
 const sort = leesAanvraagSortering(Astro.url.searchParams.get('sort'));
 const dir = Astro.url.searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
@@ -196,7 +200,17 @@ function periodeVan(start: string, eind: string): string {
                 <td>
                   <span class={`bh-badge bh-fase bh-fase--${beeld?.toon ?? 'oranje'}`}>{beeld?.faseLabel ?? 'Nieuw'}</span>
                 </td>
-                <td class={`bh-fase bh-fase--${beeld?.toon ?? 'oranje'}`}>{beeld?.volgendeActie ?? '—'}</td>
+                <td class={`bh-fase bh-fase--${beeld?.toon ?? 'oranje'}`}>
+                  {
+                    kanBeoordelen && beeld?.volgendeActie === 'Geschiktheid beoordelen' ? (
+                      <form method="post" action={`/beheer/aanvragen/${encodeURIComponent(item.id)}/`}>
+                        <button class="bh-btn" type="submit" name="actie" value="geschikt">Ja, geschikt</button>
+                      </form>
+                    ) : (
+                      <a href={`/beheer/aanvragen/${encodeURIComponent(item.id)}/#beoordeling`}>{beeld?.volgendeActie ?? '—'}</a>
+                    )
+                  }
+                </td>
               </tr>
             );
           })
