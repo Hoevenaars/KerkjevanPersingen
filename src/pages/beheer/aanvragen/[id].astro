@@ -20,6 +20,8 @@ import Mailconcept from '../../../components/beheer/Mailconcept.astro';
 import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
 import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
 import { magAanvraagWijzigen } from '../../../platform/aanvraag.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
+import { zetReservelijstViaAanvraag } from '../../../lib/operatie/aanvraag-reservelijst.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import type { MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
 import { contractTemplateVan, stelContractbriefOp } from '../../../platform/contract-mail.ts';
@@ -158,6 +160,22 @@ if (Astro.request.method === 'POST') {
     }
     mailPreview = uit.preview && !('fout' in uit.preview) ? { onderwerp: uit.preview.onderwerp, text: uit.preview.text } : null;
     mailMelding = uit.melding;
+  } else if (aanvraag && (actie === 'reservelijst_aan' || actie === 'reservelijst_uit')) {
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
+      doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
+    } else if (snapshot.bron !== 'supabase' || !mailSessie) {
+      doel.searchParams.set('fout', 'Dit is de voorbeeldweergave. Er is niets opgeslagen en er is geen mail verstuurd.');
+    } else {
+      const uit = await zetReservelijstViaAanvraag(
+        mailSessie as never,
+        Number(aanvraag.id),
+        actie === 'reservelijst_aan',
+        actorVanSessie(Astro.locals.beheer),
+      );
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    }
+    return Astro.redirect(doel.toString());
   } else {
     const operationeel = await postAlsSupabase({
       request: Astro.request,
@@ -201,9 +219,16 @@ const kanBeoordelen = !Astro.locals.beheer?.viewAs && magAanvraagWijzigen(
   Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
 );
 
-const relatie =
-  snapshot.relaties.find((r) => aanvraag.relatieId && r.id === aanvraag.relatieId) ??
-  snapshot.relaties.find((r) => r.email && r.email === aanvraag.email);
+const emailNorm = aanvraag.email.trim().toLowerCase();
+const gekoppeldeRelatie = aanvraag.relatieId
+  ? snapshot.relaties.find((r) => r.id === aanvraag.relatieId)
+  : undefined;
+const relatiesOpEmail = snapshot.relaties.filter((r) => r.email.trim().toLowerCase() === emailNorm);
+const relatie = gekoppeldeRelatie ?? (relatiesOpEmail.length === 1 ? relatiesOpEmail[0] : undefined);
+const meerdereRelaties = !gekoppeldeRelatie && relatiesOpEmail.length > 1;
+const kanReservelijst = !Astro.locals.beheer?.viewAs
+  && magSchrijven(Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} }, 'relaties')
+  && magSchrijven(Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} }, 'aanvragen');
 const flash = Astro.url.searchParams.get('demo') === '1';
 const sessieClient = sessieSupabaseUitAstro(Astro);
 const tijdlijn = aanvraag && sessieClient
@@ -535,6 +560,44 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
               <dt>Boeking</dt>
               <dd>
                 <a href={`/beheer/boekingen/${encodeURIComponent(aanvraag.boekingId)}/`}>{aanvraag.boekingId}</a>
+              </dd>
+            </>
+          )
+        }
+        {
+          (kanReservelijst || relatie || meerdereRelaties) && (
+            <>
+              <dt>Reservelijst</dt>
+              <dd>
+                {
+                  meerdereRelaties ? (
+                    <>
+                      <p>Meerdere relaties hebben dit e-mailadres. Kies de juiste relatie.</p>
+                      <ul>
+                        {relatiesOpEmail.map((kandidaat) => (
+                          <li>
+                            <a href={`/beheer/relaties/${encodeURIComponent(kandidaat.id)}/`}>{kandidaat.naam}</a>
+                            {kandidaat.reservelijst ? ' · staat op de reservelijst' : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <>
+                      <p>{relatie?.reservelijst ? 'Staat op de reservelijst.' : 'Staat nog niet op de reservelijst.'}</p>
+                      {
+                        kanReservelijst && (
+                          <form method="post" action={dossierPad}>
+                            <p class="bh-muted">Dit kan ook als de aanvraag nog niet definitief is. De status blijft zoals hij is. Er gaat geen mail uit.</p>
+                            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value={relatie?.reservelijst ? 'reservelijst_uit' : 'reservelijst_aan'}>
+                              {relatie?.reservelijst ? 'Haal van de reservelijst' : 'Zet op de reservelijst'}
+                            </button>
+                          </form>
+                        )
+                      }
+                    </>
+                  )
+                }
               </dd>
             </>
           )
