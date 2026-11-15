@@ -2,7 +2,7 @@
  * Weergave van de verhuuragenda en het dossier.
  * Leest het bestaande overzicht. Schrijft niets.
  * Een ontbrekend bewijs blijft Onbekend en telt niet als open taak.
- * Goedkeuren van een los stuk heeft nog geen veilige opslag.
+ * Een stukbeoordeling bewaart versie, reden en beoordelaar en publiceert niets.
  */
 
 import { contentstatusNaarBeheer } from '../lib/agenda-zichtbaarheid.ts';
@@ -11,6 +11,13 @@ import { SOORT_LABEL, type DemoBoeking } from './demo-data.ts';
 import { gastherenVoorKoppeling } from './gastheer-lijst.ts';
 import { gastbegeleiderOntbreekt } from './verhuur-classificatie.ts';
 import { isBeschermdeMigratiestatus, statusActieToegestaan } from './status-overgang.ts';
+import {
+  inhoudStukId,
+  inhoudVersieNummer,
+  stukPaneel,
+  type StukBeoordeling,
+  type StukPaneel,
+} from './stuk-beoordeling.ts';
 import {
   boekingBezetKalender,
   bolTekst,
@@ -29,8 +36,7 @@ export type StukkenStand = 'compleet' | 'te_beoordelen' | 'niet_aangeleverd' | '
 
 export type StaatKleur = 'ok' | 'pending' | 'unknown' | 'no';
 
-export const STUK_BEOORDELING_BLOKKADE =
-  'Goedkeuren of afkeuren wordt hier nog niet opgeslagen. Er is geen tabel die van elk onderdeel de versie, de reden en de beoordelaar vastlegt. De status hierboven verandert niet.';
+export type { StukBeoordeling, StukPaneel };
 
 export interface SchermActiviteit {
   boekingId?: string;
@@ -72,6 +78,7 @@ export interface SchermToewijzing {
 }
 
 export interface SchermDocument {
+  id?: string;
   boekingId: string;
   naam: string;
   soort: string;
@@ -213,11 +220,6 @@ export function staatKleur(waarde: Bol | StukkenStand): StaatKleur {
   return 'unknown';
 }
 
-/** Losse stukgoedkeuring heeft nog geen versie, reden en audit in de database. */
-export function stukKanBeoordelen(): false {
-  return false;
-}
-
 export interface DossierActieZichtbaar {
   verleng: boolean;
   definitief: boolean;
@@ -253,7 +255,7 @@ export type DossierActieBesluit =
 /**
  * Poort voor de verhuuragenda.
  * Alleen acties die de dossiersessie al uitvoert zonder mail of workflow.
- * Betaling en stukgoedkeuring blijven geweigerd: die paden publiceren of mailen.
+ * Betaling en publicatie blijven geweigerd. Een stuk keur je op zijn eigen formulier.
  */
 export function beoordeelDossierActie(input: {
   actie: string;
@@ -275,10 +277,16 @@ export function beoordeelDossierActie(input: {
       melding: `Een betaling registreren zet in het andere pad de boeking definitief en zet een bevestigingsmail klaar. Die actie blijft uit.${niets}`,
     };
   }
-  if (actie === 'publiceren' || actie === 'content' || actie === 'goedkeuren' || actie === 'afkeuren') {
+  if (actie === 'publiceren' || actie === 'content') {
     return {
       ok: false,
-      melding: `Content goedkeuren publiceert via het contentpad of heeft nog geen eigen opslag. Die actie blijft uit.${niets}`,
+      melding: `Content publiceren loopt via het contentpad. Die actie blijft uit.${niets}`,
+    };
+  }
+  if (actie === 'goedkeuren' || actie === 'afkeuren') {
+    return {
+      ok: false,
+      melding: `Een onderdeel keur je bij dat onderdeel. Deze knop publiceert de website niet.${niets}`,
     };
   }
   if (
@@ -694,8 +702,10 @@ export interface DossierWeergave {
   stukken: StukkenStand;
   stukkenLabel: string;
   versie: string;
-  documenten: { naam: string; soort: string; datum: string; url: string | null }[];
-  intake: { naam: string; url: string | null }[];
+  tekstPaneel: StukPaneel;
+  fotoPaneel: StukPaneel;
+  documenten: { id: string; naam: string; soort: string; datum: string; url: string | null; paneel: StukPaneel }[];
+  intake: { naam: string; url: string | null; paneel: StukPaneel }[];
   contractTekst: string;
   gastheerId: string;
   gastheerNaam: string;
@@ -716,7 +726,11 @@ export function maakDossierWeergave(input: {
   documenten: readonly SchermDocument[];
   betalingen: readonly SchermBetaling[];
   betaalregelsZichtbaar: boolean;
-  intake: readonly { naam: string; url: string | null }[];
+  intake: readonly { naam: string; url: string | null; pad?: string }[];
+  beoordelingen?: readonly StukBeoordeling[];
+  magSchrijven?: boolean;
+  demo?: boolean;
+  beoordelingFout?: string;
 }): DossierWeergave {
   const relatie = input.relatie;
   const velden = [
@@ -729,11 +743,7 @@ export function maakDossierWeergave(input: {
     { label: 'Organisatie', waarde: relatie?.organisatie.trim() || '—' },
     { label: 'Adres', waarde: relatie?.adres.trim() || 'Niet ingevuld' },
   ];
-  const tekst = [input.activiteit?.volledigeOmschrijving, input.activiteit?.korteOmschrijving, input.activiteit?.omschrijving, input.activiteit?.exposanten]
-    .map((deel) => (deel ?? '').trim())
-    .filter(Boolean)
-    .filter((deel, index, alle) => alle.indexOf(deel) === index)
-    .join('\n\n');
+  const tekst = aangeleverdeTekst(input.activiteit);
   const operationeel = input.gastheren.find((gastheer) => gastheer.id === input.boeking.gastheerId);
   const historie = uniekeNamen(
     input.toewijzingen
@@ -743,6 +753,15 @@ export function maakDossierWeergave(input: {
   const betalingen = input.betaalregelsZichtbaar
     ? betaalRegels(input.rij, input.betalingen)
     : [{ label: 'Betalingen', detail: '', stand: 'niet_zichtbaar' as Bol, tekst: 'Afgeschermd' }];
+  const activiteitId = input.activiteit?.activiteitId?.trim() ?? '';
+  const versieNummer = inhoudVersieNummer(input.activiteit?.inhoudVersie);
+  const fotoUrl = veiligeBestandsUrl(input.activiteit?.fotoPad);
+  const paneelBasis = {
+    magSchrijven: input.magSchrijven === true,
+    demo: input.demo === true,
+    leesfout: input.beoordelingFout ?? '',
+    beoordelingen: input.beoordelingen ?? [],
+  };
   return {
     id: input.boeking.id,
     naam: input.rij.huurder,
@@ -751,17 +770,60 @@ export function maakDossierWeergave(input: {
     taken: input.rij.taken,
     velden,
     stukTekst: tekst,
-    fotoUrl: veiligeBestandsUrl(input.activiteit?.fotoPad),
+    fotoUrl,
     stukken: input.rij.stukken,
     stukkenLabel: input.rij.stukkenTekst,
-    versie: input.activiteit?.inhoudVersie ? `Versie ${input.activiteit.inhoudVersie}` : '',
+    versie: input.activiteit ? `Versie ${versieNummer}` : '',
+    tekstPaneel: stukPaneel({
+      ...paneelBasis,
+      sleutel: {
+        stukType: 'inhoud',
+        stukId: activiteitId ? inhoudStukId('tekst', activiteitId) : '',
+        versie: versieNummer,
+        aanwezig: Boolean(tekst && activiteitId),
+      },
+    }),
+    fotoPaneel: stukPaneel({
+      ...paneelBasis,
+      sleutel: {
+        stukType: 'inhoud',
+        stukId: activiteitId ? inhoudStukId('foto', activiteitId) : '',
+        versie: versieNummer,
+        aanwezig: Boolean(fotoUrl && activiteitId),
+      },
+    }),
     documenten: input.documenten.map((document) => ({
+      id: document.id ?? '',
       naam: document.naam || 'Naamloos bestand',
       soort: document.soort || 'Document',
       datum: document.datum,
       url: veiligeBestandsUrl(document.url),
+      paneel: stukPaneel({
+        ...paneelBasis,
+        sleutel: {
+          stukType: 'document',
+          stukId: document.id?.trim() ?? '',
+          versie: 1,
+          aanwezig: Boolean(document.id?.trim()),
+        },
+      }),
     })),
-    intake: input.intake.map((bestand) => ({ naam: bestand.naam, url: veiligeBestandsUrl(bestand.url) })),
+    intake: input.intake.map((bestand) => {
+      const pad = bestand.pad?.trim() ?? '';
+      return {
+        naam: bestand.naam,
+        url: veiligeBestandsUrl(bestand.url),
+        paneel: stukPaneel({
+          ...paneelBasis,
+          sleutel: {
+            stukType: 'intake',
+            stukId: pad,
+            versie: 1,
+            aanwezig: Boolean(pad),
+          },
+        }),
+      };
+    }),
     contractTekst: 'Onbekend. Er is geen contractstatus. Een oude tekst uit de import wordt niet als status gelezen.',
     gastheerId: input.boeking.gastheerId ?? '',
     gastheerNaam: operationeel?.naam ?? '',
@@ -780,6 +842,29 @@ export function maakDossierWeergave(input: {
       .filter(Boolean)
       .filter((deel, index, alle) => alle.indexOf(deel) === index)
       .join('\n\n') || 'Geen bijzonderheden ingevuld.',
+  };
+}
+
+export function aangeleverdeTekst(activiteit: SchermActiviteit | null): string {
+  return [activiteit?.volledigeOmschrijving, activiteit?.korteOmschrijving, activiteit?.omschrijving, activiteit?.exposanten]
+    .map((deel) => (deel ?? '').trim())
+    .filter(Boolean)
+    .filter((deel, index, alle) => alle.indexOf(deel) === index)
+    .join('\n\n');
+}
+
+export function inhoudVoorBeoordeling(activiteit: SchermActiviteit | null): {
+  activiteitId: string;
+  versie: number;
+  heeftTekst: boolean;
+  heeftFoto: boolean;
+} {
+  const activiteitId = activiteit?.activiteitId?.trim() ?? '';
+  return {
+    activiteitId,
+    versie: inhoudVersieNummer(activiteit?.inhoudVersie),
+    heeftTekst: Boolean(aangeleverdeTekst(activiteit) && activiteitId),
+    heeftFoto: Boolean(veiligeBestandsUrl(activiteit?.fotoPad) && activiteitId),
   };
 }
 

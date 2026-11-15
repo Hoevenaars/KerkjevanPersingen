@@ -26,6 +26,8 @@ import {
 } from '../../../platform/verhuur-scherm.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
+import { leesStukBeoordelingen } from '../../../lib/operatie/stuk-beoordeling-sessie.ts';
+import type { StukBeoordeling } from '../../../platform/stuk-beoordeling.ts';
 import { documentLinks } from '../../../lib/verhuur-document-link.ts';
 import { wizardAdres } from '../../../platform/verhuurder.ts';
 
@@ -139,13 +141,23 @@ let dossier = null;
 let bronWeergave: ReturnType<typeof dossierUitBron> | null = null;
 if (boeking && dossierRij) {
   const docs = snapshot.documenten.filter((item) => item.boekingId === boeking.id);
-  const links = snapshot.bron === 'supabase' ? await documentLinks(sessieSupabaseUitAstro(Astro), docs) : {};
+  const sessie = sessieSupabaseUitAstro(Astro);
+  const links = snapshot.bron === 'supabase' ? await documentLinks(sessie, docs) : {};
   const intake = snapshot.bron === 'supabase'
     ? (await lijstIntake(boeking.id).catch(() => [])).map((bestand, index) => ({
         naam: bestand.rol === 'hoofd' ? 'Hoofdfoto, privé aangeleverd' : `Extra bestand ${index + 1}`,
         url: bestand.url,
+        pad: bestand.pad,
       }))
     : [];
+  const boekingNummer = Number(boeking.id);
+  let beoordelingen: StukBeoordeling[] = [];
+  let beoordelingFout = '';
+  if (snapshot.bron === 'supabase' && sessie && Number.isInteger(boekingNummer) && boekingNummer > 0) {
+    const gelezen = await leesStukBeoordelingen(sessie as never, boekingNummer);
+    if (gelezen.ok) beoordelingen = gelezen.rijen;
+    else beoordelingFout = gelezen.melding;
+  }
   const relatieKaart = relatie
     ? {
         naam: relatie.naam,
@@ -166,6 +178,10 @@ if (boeking && dossierRij) {
     betalingen: (snapshot.betalingen ?? []).filter((item) => item.boekingId === boeking.id),
     betaalregelsZichtbaar,
     intake,
+    beoordelingen,
+    magSchrijven: magGastheer,
+    demo: snapshot.bron !== 'supabase',
+    beoordelingFout,
   });
   const auditZichtbaar = Boolean(Astro.locals.beheer?.rechten.isSuperAdmin && !Astro.locals.beheer.viewAs);
   const leeg: DossierSporen = { verzendingen: [], verzendingFout: null, audit: [], auditFout: null, auditZichtbaar };
@@ -365,6 +381,7 @@ function sorteerLabel(kolom: typeof filter.sort): string {
         bevestigHref={adres({ dossier: dossier.id, weg: '1', rij: null })}
         formulierActie="/beheer/verhuur/gastheer"
         dossierActie="/beheer/verhuur/dossier"
+        stukActie="/beheer/verhuur/stuk"
         terug={adres({ dossier: dossier.id, weg: null, rij: null })}
         magSchrijven={magGastheer}
         demo={snapshot.bron !== 'supabase'}
