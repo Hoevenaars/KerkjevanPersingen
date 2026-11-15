@@ -6,13 +6,18 @@ import {
   type ContractWizardSessie,
 } from '../src/lib/operatie/contract-wizard-sessie.ts';
 import {
+  adresUitAanvraagOfWizard,
+  betaalregelsUitWizard,
   controleerWizard,
   euroNaarCent,
   legeWizardVelden,
   maakDefinitiefContract,
+  planBetaalregels,
+  toonContractWizard,
   wizardUitDossier,
   type ContractWizardVelden,
 } from '../src/platform/contract-wizard.ts';
+import { vingerafdruk } from '../src/platform/documentenflow.ts';
 import { legeInstellingen, leesInstellingen } from '../src/platform/documentenflow.ts';
 import { VERHUURDER } from '../src/platform/verhuurder.ts';
 
@@ -149,7 +154,7 @@ test('definitief maken schrijft het contract en laat de status staan', async () 
   const schrijfsels: { tabel: string; waarden: Record<string, unknown> }[] = [];
   const tabellen: Record<string, Record<string, unknown>[]> = {
     contractversies: [],
-    boekingen: [{ id: 44, status: 'optie' }],
+    boekingen: [{ id: 44, status: 'optie', verhuurtype_sleutel: 'expositie' }],
     aanvragen: [{ id: 104, status: 'goedgekeurd' }],
     instellingen: [],
   };
@@ -211,7 +216,64 @@ test('definitief maken schrijft het contract en laat de status staan', async () 
   const versie = schrijfsels.find((item) => item.tabel === 'contractversies');
   assert.equal(versie?.waarden.bestuur_verplicht, true);
   assert.match(String(versie?.waarden.tekst), /Huurovereenkomst/);
-  for (const item of schrijfsels) assert.equal('status' in item.waarden, false);
+  const verwacht = maakDefinitiefContract(compleet(), '44', 1, String(versie?.waarden.opgesteld_op), 'expositie');
+  assert.ok(!('fout' in verwacht));
+  if (!('fout' in verwacht)) assert.equal(versie?.waarden.vingerafdruk, verwacht.vingerafdruk);
+  const rest = schrijfsels.find((item) => item.tabel === 'betalingen');
+  assert.equal(rest?.waarden.soort, 'restant');
+  assert.equal(rest?.waarden.bedrag, 490);
+  assert.equal(rest?.waarden.vervaldatum, '2027-04-01');
+  for (const item of schrijfsels) {
+    if (item.tabel === 'boekingen' || item.tabel === 'aanvragen') assert.equal('status' in item.waarden, false);
+  }
   assert.equal(tabellen.boekingen[0].status, 'optie');
   assert.equal(tabellen.aanvragen[0].status, 'goedgekeurd');
+});
+
+test('een nieuwe versie blijft te openen en de vingerafdruk volgt soort en betaaldatum', () => {
+  assert.equal(toonContractWizard(true, true, false), false);
+  assert.equal(toonContractWizard(true, true, true), true);
+  assert.equal(toonContractWizard(false, false, true), false);
+  const velden = compleet();
+  const gemaakt = maakDefinitiefContract(velden, '44', 2, '2026-11-15', 'expositie');
+  assert.ok(!('fout' in gemaakt));
+  if ('fout' in gemaakt) return;
+  assert.equal(gemaakt.bron.soort, 'expositie');
+  const zonderSoort = maakDefinitiefContract(velden, '44', 2, '2026-11-15');
+  assert.ok(!('fout' in zonderSoort));
+  if (!('fout' in zonderSoort)) assert.notEqual(gemaakt.vingerafdruk, zonderSoort.vingerafdruk);
+  const regels = betaalregelsUitWizard(velden);
+  assert.ok(Array.isArray(regels));
+  if (!Array.isArray(regels)) return;
+  const dossier = vingerafdruk({
+    ...gemaakt.bron,
+    restCent: 49000,
+    restVerval: '2027-04-01',
+    aanbetalingCent: 0,
+    aanbetalingVerval: '',
+  }, gemaakt.afspraken, gemaakt.instellingen);
+  assert.equal(dossier, gemaakt.vingerafdruk);
+  const leeg = { straat: '', huisnummer: '', toevoeging: '', postcode: '', woonplaats: '' };
+  assert.equal(adresUitAanvraagOfWizard({ ...leeg, straat: 'Dorpstraat' }, { straat: 'Anders' }).straat, 'Dorpstraat');
+  assert.equal(adresUitAanvraagOfWizard(leeg, { straat: 'Molenstraat', huisnummer: '3' }).huisnummer, '3');
+});
+
+test('een ontvangen bedrag dat afwijkt blokkeert, een open regel wordt bijgewerkt', () => {
+  const plan = betaalregelsUitWizard(compleet({ aanbetaling: '100', aanbetalingVerval: '2027-01-15' }));
+  assert.ok(Array.isArray(plan));
+  if (!Array.isArray(plan)) return;
+  const fout = planBetaalregels([
+    { id: 1, soort: 'aanbetaling', bedrag: 50, status: 'ontvangen', vervaldatum: '2027-01-15' },
+  ], plan);
+  assert.ok('fout' in fout);
+  const bijgewerkt = planBetaalregels([
+    { id: 2, soort: 'restant', bedrag: 100, status: 'open', vervaldatum: '2020-01-01' },
+    { id: 3, soort: 'aanbetaling', bedrag: 10, status: 'geannuleerd', vervaldatum: '' },
+  ], plan);
+  assert.ok(!('fout' in bijgewerkt));
+  if ('fout' in bijgewerkt) return;
+  assert.equal(bijgewerkt.inserts.length, 0);
+  assert.equal(bijgewerkt.updates.find((regel) => regel.id === 3)?.status, 'open');
+  assert.equal(bijgewerkt.updates.find((regel) => regel.id === 3)?.bedrag, 100);
+  assert.equal(bijgewerkt.updates.find((regel) => regel.id === 2)?.vervaldatum, '2027-04-01');
 });

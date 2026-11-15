@@ -8,8 +8,11 @@ import { HUISREGELS_V1, PLATTEGROND_V1, VOORWAARDEN_V1 } from '../../platform/do
 import { leesbareAuthFout } from './dossier-sessie.ts';
 import { magContractBeheren } from '../../platform/documentenflow.ts';
 import {
+  betaalregelsUitWizard,
   euroNaarCent,
   maakDefinitiefContract,
+  planBetaalregels,
+  type BestaandeBetaalregel,
   type ContractWizardVelden,
 } from '../../platform/contract-wizard.ts';
 import type { Actor } from './kern.ts';
@@ -78,6 +81,51 @@ function wizardVeldenUit(waarde: unknown): Partial<ContractWizardVelden> | null 
   return velden;
 }
 
+function bedragVan(waarde: unknown): number | null {
+  if (typeof waarde === 'number' && Number.isFinite(waarde)) return waarde;
+  if (typeof waarde === 'string' && waarde.trim() && Number.isFinite(Number(waarde))) return Number(waarde);
+  return null;
+}
+
+async function pasBetalingenToe(
+  client: ContractWizardSessie,
+  boekingId: number,
+  velden: ContractWizardVelden,
+): Promise<string | null> {
+  const plan = betaalregelsUitWizard(velden);
+  if ('fout' in plan) return plan.fout;
+  const gelezen = await client.from('betalingen').select('id,soort,bedrag,status,vervaldatum').eq('boeking_id', boekingId);
+  if (gelezen.error) return leesbareAuthFout(gelezen.error.message);
+  const bestaand: BestaandeBetaalregel[] = (gelezen.data ?? []).map((rij) => ({
+    id: Number(rij.id),
+    soort: String(rij.soort ?? ''),
+    bedrag: bedragVan(rij.bedrag),
+    status: String(rij.status ?? ''),
+    vervaldatum: String(rij.vervaldatum ?? '').slice(0, 10),
+  }));
+  const mutatie = planBetaalregels(bestaand, plan);
+  if ('fout' in mutatie) return mutatie.fout;
+  for (const wijziging of mutatie.updates) {
+    const antwoord = await client.from('betalingen').update({
+      bedrag: wijziging.bedrag,
+      vervaldatum: wijziging.vervaldatum,
+      status: wijziging.status,
+    }).eq('id', wijziging.id);
+    if (antwoord.error) return leesbareAuthFout(antwoord.error.message);
+  }
+  for (const regel of mutatie.inserts) {
+    const antwoord = await client.from('betalingen').insert({
+      boeking_id: boekingId,
+      soort: regel.soort,
+      bedrag: regel.bedrag,
+      status: regel.status,
+      vervaldatum: regel.vervaldatum,
+    });
+    if (antwoord.error) return leesbareAuthFout(antwoord.error.message);
+  }
+  return null;
+}
+
 export async function bewaarDefinitiefContract(
   client: ContractWizardSessie,
   input: { boekingId: number; aanvraagId: number | null; velden: ContractWizardVelden; actor: Actor },
@@ -90,10 +138,15 @@ export async function bewaarDefinitiefContract(
   const stand = await leesContractWizardStand(client, input.boekingId);
   if ('fout' in stand) return { ok: false, melding: stand.fout };
   if ('mist' in stand) return { ok: false, melding: 'De contracttabel ontbreekt. Er is niets opgeslagen.' };
+  const boeking = await client.from('boekingen').select('verhuurtype_sleutel').eq('id', input.boekingId).maybeSingle();
+  if (boeking.error) return { ok: false, melding: leesbareAuthFout(boeking.error.message) };
+  const soort = String(boeking.data?.verhuurtype_sleutel ?? '').trim();
   const versie = stand.versie + 1;
-  const gemaakt = maakDefinitiefContract(input.velden, String(input.boekingId), versie, ymdInAmsterdam(new Date()));
+  const gemaakt = maakDefinitiefContract(input.velden, String(input.boekingId), versie, ymdInAmsterdam(new Date()), soort);
   if ('fout' in gemaakt) return { ok: false, melding: gemaakt.fout };
   if (stand.definitief && stand.vingerafdruk === gemaakt.vingerafdruk) {
+    const betaling = await pasBetalingenToe(client, input.boekingId, input.velden);
+    if (betaling) return { ok: false, melding: betaling };
     return { ok: true, melding: `Contract ${stand.nummer} is al opgeslagen. Er is geen mail verstuurd.`, nummer: stand.nummer };
   }
   const vandaag = ymdInAmsterdam(new Date());
@@ -115,6 +168,8 @@ export async function bewaarDefinitiefContract(
     const reden = insert.error ? leesbareAuthFout(insert.error.message) : 'De contractversie is niet opgeslagen.';
     return { ok: false, melding: `${reden} Er is niets definitief gemaakt.` };
   }
+  const betaling = await pasBetalingenToe(client, input.boekingId, input.velden);
+  if (betaling) return { ok: false, melding: betaling };
   const huur = euroNaarCent(input.velden.huurprijs);
   const aan = euroNaarCent(input.velden.aanbetaling);
   const boekingBijgewerkt = await client.from('boekingen').update({

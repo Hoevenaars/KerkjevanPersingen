@@ -18,6 +18,7 @@ import {
   type FlowMail,
   type GeldRegel,
 } from '../../platform/documentenflow.ts';
+import { adresUitAanvraagOfWizard } from '../../platform/contract-wizard.ts';
 import { SOORT_LABEL } from '../../platform/demo-data.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import type { Actor } from './kern.ts';
@@ -177,6 +178,20 @@ export async function leesDocumentenDossier(
   if ('mist' in verzendRijen) return { ok: false, melding: 'De documentenflow is nog niet gemigreerd.' };
   if ('fout' in verzendRijen) return { ok: false, melding: verzendRijen.fout };
   const verzendingen = verzendRijen.data.map(verzendingUitRij);
+  const laatsteVersie = versieRijen.data.reduce<Rij | null>((gek, rij) => {
+    if (!gek || Number(rij.versie) > Number(gek.versie)) return rij;
+    return gek;
+  }, null);
+  const wizard = laatsteVersie && laatsteVersie.afspraken && typeof laatsteVersie.afspraken === 'object'
+    ? (laatsteVersie.afspraken as { wizard?: unknown }).wizard
+    : null;
+  const adres = adresUitAanvraagOfWizard({
+    straat: tekst(aanvraag.straat),
+    huisnummer: tekst(aanvraag.huisnummer),
+    toevoeging: tekst(aanvraag.huisnummer_toevoeging),
+    postcode: tekst(aanvraag.postcode),
+    woonplaats: tekst(aanvraag.woonplaats),
+  }, wizard);
   const geld = geldUitAdministratie({
     huurprijs: getal(boeking.tarief_bedrag),
     aanbetaling: getal(boeking.aanbetaling_bedrag),
@@ -202,11 +217,11 @@ export async function leesDocumentenDossier(
           periodeTot: tekst(boeking.eind_datum),
           geboektOp: geboekt,
           huurderNaam: tekst(boeking.huurder_naam_snapshot || aanvraag.naam),
-          straat: tekst(aanvraag.straat),
-          huisnummer: tekst(aanvraag.huisnummer),
-          toevoeging: tekst(aanvraag.huisnummer_toevoeging),
-          postcode: tekst(aanvraag.postcode),
-          woonplaats: tekst(aanvraag.woonplaats),
+          straat: adres.straat,
+          huisnummer: adres.huisnummer,
+          toevoeging: adres.toevoeging,
+          postcode: adres.postcode,
+          woonplaats: adres.woonplaats,
           email: tekst(boeking.huurder_email_snapshot || aanvraag.email),
           telefoon: tekst(boeking.huurder_telefoon_snapshot || aanvraag.telefoon),
           personen: tekst(boeking.aantal_personen || aanvraag.aantal_personen),

@@ -41,7 +41,7 @@ import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astr
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { contractPakketTekst } from '../../../platform/contract-pakket.ts';
 import { pdfBytes } from '../../../platform/documenten/pdf.ts';
-import { leesWizardVelden, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
+import { leesWizardVelden, toonContractWizard, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
 import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
 import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
@@ -397,7 +397,11 @@ const wizardVelden = wizardPost ?? wizardUitDossier({
   huurprijs: boeking.tarief,
   aanbetaling: boeking.aanbetaling,
 }, leesInstellingen(instellingRijen), bewaardeWizard);
-const wizardOpen = kanContract && !contractDefinitief && (wizardPost != null || Astro.url.searchParams.get('contract') === 'genereren' || Astro.url.searchParams.get('contract') === '1');
+const wizardOpen = toonContractWizard(
+  kanContract,
+  contractDefinitief,
+  wizardPost != null || Astro.url.searchParams.get('contract') === 'genereren' || Astro.url.searchParams.get('contract') === '1',
+);
 const contractLink = `${basis}?tab=documenten&contract=genereren`;
 let opvolging = null;
 let opvolgingBetaling = '';
@@ -637,7 +641,10 @@ function tabHref(tabNaam: string): string {
           aanvraagBijBoeking ? (
             <p>Het contract maak je bij de aanvraag. <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraagBijBoeking.id)}/?contract=genereren`}>Contract genereren</a>. Verzenden gebeurt daar, met het PDF-pakket, na goedkeuring.</p>
           ) : contractDefinitief ? (
-            <p>Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan hieronder. De mail bevat het PDF-pakket.</p>
+            <p>
+              Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan hieronder. De mail bevat het PDF-pakket.
+              {!wizardOpen && <> <a href={contractLink}>Nieuwe versie</a>.</>}
+            </p>
           ) : (
             <p class="bh-muted">Vul het contract in de wizard. Opslaan verstuurt geen mail.</p>
           )

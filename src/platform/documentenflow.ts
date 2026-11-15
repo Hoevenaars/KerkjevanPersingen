@@ -883,6 +883,9 @@ export function bouwOpvolging(input: {
     ...(huidig ? [] : ontbrekendeContractgegevens(input.bron, afspraken, input.instellingen)),
     ...(huidig && !past ? ['De boekingsgegevens zijn gewijzigd. Maak een nieuwe contractversie'] : []),
     ...(ingetrokken ? ['Deze versie is ingetrokken. Maak een nieuwe versie'] : []),
+    ...(huidig && past && !ingetrokken && huidig.bestuurVerplicht && huidig.bestuur !== 'akkoord'
+      ? ['Bestuursakkoord op deze versie']
+      : []),
   ];
   const beheer = magContractBeheren(input.rechten);
   const bestuur = magBestuurBesluiten(input.rechten);

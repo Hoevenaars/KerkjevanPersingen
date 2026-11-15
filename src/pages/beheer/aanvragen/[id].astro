@@ -37,7 +37,7 @@ import {
   type ContractVersie,
 } from '../../../platform/documentenflow.ts';
 import ContractWizard from '../../../components/beheer/ContractWizard.astro';
-import { leesWizardVelden, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
+import { leesWizardVelden, toonContractWizard, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
 import { bewaarDefinitiefContract, leesContractWizardStand } from '../../../lib/operatie/contract-wizard-sessie.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { documentenflowAan } from '../../../platform/documentenflow-vlag.ts';
@@ -456,7 +456,11 @@ const wizardVelden = wizardPost ?? wizardUitDossier({
   huurprijs: flowBoeking?.tarief ?? '',
   aanbetaling: flowBoeking?.aanbetaling ?? '',
 }, leesInstellingen(instellingRijen), bewaardeWizard);
-const wizardOpen = kanContract && !contractDefinitief && (wizardPost != null || Astro.url.searchParams.get('contract') === 'genereren');
+const wizardOpen = toonContractWizard(
+  kanContract,
+  contractDefinitief,
+  wizardPost != null || Astro.url.searchParams.get('contract') === 'genereren',
+);
 const contractLink = (() => {
   const params = new URLSearchParams(Astro.url.searchParams);
   params.delete('melding');
@@ -609,7 +613,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             kanContract && contractDefinitief && (
               <p>
                 Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan bij het contract hieronder.
-                {opvolging?.redenen.some((reden) => reden.includes('gewijzigd')) && <> <a href={contractLink}>Nieuwe versie</a>.</>}
+                {!wizardOpen && <> <a href={contractLink}>Nieuwe versie</a>.</>}
               </p>
             )
           }
