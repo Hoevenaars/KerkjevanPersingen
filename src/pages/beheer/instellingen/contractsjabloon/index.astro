@@ -2,11 +2,12 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
+import { maakBeheerAdminClient, sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
 import {
   bewaarContractSjabloon,
   leesContractSjabloon,
   verwijderContractSjabloon,
+  type SjabloonClient,
 } from '../../../../lib/contract-sjabloon-opslag.ts';
 import {
   CONTRACT_MERGEVELDEN,
@@ -33,13 +34,15 @@ let melding = '';
 let fout = '';
 let onbekend: string[] = [];
 
+const sessie = sessieSupabaseUitAstro(Astro) as unknown as SjabloonClient | null;
+
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const actie = String(form.get('actie') ?? '');
   if (!mag) {
     fout = 'Geen recht om het contractsjabloon te wijzigen. Er is niets opgeslagen.';
   } else if (actie === 'verwijder') {
-    const weg = await verwijderContractSjabloon();
+    const weg = await verwijderContractSjabloon(process.env, sessie);
     if (!weg.ok) fout = weg.melding;
     else melding = 'Het contractsjabloon is verwijderd. Nieuwe contracten gebruiken weer de platte PDF.';
   } else if (actie === 'bewaar') {
@@ -47,7 +50,7 @@ if (Astro.request.method === 'POST') {
     if (!(bestand instanceof File) || bestand.size === 0) {
       fout = 'Kies een PDF-bestand.';
     } else {
-      const uit = await bewaarContractSjabloon(new Uint8Array(await bestand.arrayBuffer()));
+      const uit = await bewaarContractSjabloon(new Uint8Array(await bestand.arrayBuffer()), process.env, sessie);
       if (!uit.ok) fout = uit.melding;
       else {
         onbekend = uit.onbekend;
@@ -70,7 +73,7 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const stand = await leesContractSjabloon();
+const stand = await leesContractSjabloon(process.env, sessie);
 if (stand.fout && !fout) fout = stand.fout;
 const info = stand.bytes ? await leesSjabloonVelden(stand.bytes) : null;
 if (info?.fout && !fout && !melding) fout = info.fout;
