@@ -30,6 +30,8 @@ export function stelMailconceptSamen(input: {
   onderwerp: string;
   inhoud: string;
   vars?: Record<string, string>;
+  /** De tekst is al de hele brief, inclusief aanhef en groet. */
+  briefAlCompleet?: boolean;
 }): Mailconcept | { fout: string } {
   const ontvanger = input.ontvanger.trim();
   if (!ontvanger) return { fout: 'Dit dossier heeft geen ontvanger.' };
@@ -60,9 +62,9 @@ export function stelMailconceptSamen(input: {
   if (!onderwerp || !lichaam) return { fout: 'Kies een template of schrijf een onderwerp en een tekst.' };
   const brief = kerkjeMail({
     titel: onderwerp,
-    aanhef: `Beste ${vars.voornaam},`,
+    aanhef: input.briefAlCompleet ? '' : `Beste ${vars.voornaam},`,
     hoofdtekst: lichaam,
-    ondertekening: 'Stichting Het Kerkje van Persingen',
+    ondertekening: input.briefAlCompleet ? '' : 'Stichting Het Kerkje van Persingen',
   });
   return {
     onderwerp,

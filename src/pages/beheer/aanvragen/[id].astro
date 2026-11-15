@@ -22,6 +22,7 @@ import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts'
 import { magAanvraagWijzigen } from '../../../platform/aanvraag.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import type { MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
+import { contractTemplateVan, stelContractbriefOp } from '../../../platform/contract-mail.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -31,16 +32,35 @@ const mailSessie = sessieSupabaseUitAstro(Astro);
 const mailtemplates: MailTemplateDef[] = mailSessie ? await laadMailtemplatesUitSupabase(mailSessie) : [];
 let mailPreview: { onderwerp: string; text: string } | null = null;
 let mailMelding = '';
+let contractBewaard = false;
+let bewaardeOnderwerp = '';
+let bewaardeInhoud = '';
 
 if (Astro.request.method === 'POST') {
   const formulier = await Astro.request.formData();
   const actie = String(formulier.get('actie') ?? '');
   if (aanvraag && (actie === 'mailpreview' || actie === 'mailconcept' || actie === 'mailverstuur')) {
-    const template = mailtemplates.find((item) => item.id === String(formulier.get('templateId') ?? '')) ?? null;
+    const contractmail = String(formulier.get('contract') ?? '') === '1';
+    if (contractmail) {
+      contractBewaard = true;
+      bewaardeOnderwerp = String(formulier.get('mailOnderwerp') ?? '');
+      bewaardeInhoud = String(formulier.get('mailInhoud') ?? '');
+    }
+    const template = contractmail
+      ? null
+      : mailtemplates.find((item) => item.id === String(formulier.get('templateId') ?? '')) ?? null;
     const uit = await verwerkMailconcept({
       actie,
-      dossier: { soort: 'aanvraag', id: aanvraag.id, ontvanger: aanvraag.email, naam: aanvraag.naam },
+      dossier: {
+        soort: 'aanvraag',
+        id: aanvraag.id,
+        ontvanger: aanvraag.email,
+        naam: aanvraag.naam,
+        boekingId: aanvraag.boekingId,
+      },
       template,
+      logTemplateId: contractmail ? String(formulier.get('templateId') ?? '') || 'contract_begeleiding' : undefined,
+      briefAlCompleet: contractmail,
       onderwerp: String(formulier.get('mailOnderwerp') ?? ''),
       inhoud: String(formulier.get('mailInhoud') ?? ''),
       actorNaam: Astro.locals.beheer?.gebruiker.naam ?? 'beheer',
@@ -144,6 +164,23 @@ const beeld = beoordeelAanvraag({
   eind: aanvraag.eind,
   boekingId: aanvraag.boekingId,
 }, wereld);
+const contractBoeking = snapshot.boekingen.find((item) => item.id === beeld.boeking?.id);
+const contractBron = stelContractbriefOp({
+  naam: aanvraag.naam,
+  soortLabel: SOORT_LABEL[aanvraag.soort] ?? aanvraag.soort,
+  start: aanvraag.start,
+  eind: aanvraag.eind,
+  tarief: contractBoeking?.tarief ?? '',
+  template: contractTemplateVan(mailtemplates),
+});
+const contractOnderwerp = contractBewaard ? bewaardeOnderwerp : contractBron.onderwerp;
+const contractInhoud = contractBewaard ? bewaardeInhoud : contractBron.tekst;
+const contractModusZin = mailmodus === 'test'
+  ? ` De schakelaar staat op Test, dus Verstuur contract mailt ${testadres || 'het testadres'} en laat “Contract verzonden” op nog niet staan.`
+  : mailmodus === 'uit'
+    ? ' De schakelaar staat uit, dus er gaat geen mail weg.'
+    : ' Verstuur contract mailt dit adres.';
+const contractToelichting = `Deze mail gaat naar ${aanvraag.naam}${aanvraag.email ? ` (${aanvraag.email})` : ''}. Antwoorden komen bij ${CONTRACTBEHEER_EMAIL}. Er wordt geen PDF bijgevoegd; dit is de tekst die ${aanvraag.naam.split(/\s+/)[0] || aanvraag.naam} ontvangt.${contractModusZin}`;
 const kanGoedkeuren = beeld.geschikt && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
 const toonBeoordeling = beeld.fase === 'nieuw';
 const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed';
@@ -267,7 +304,10 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           }
           {
             beeld.fase === 'in_behandeling' && !beeld.checklist.verzonden && beeld.boeking && (
-              <p>Het contract verstuur je met het bestaande mailformulier hieronder. Er komt geen tweede verzendknop bij.</p>
+              <p>
+                De volgende stap is één mail naar {aanvraag.naam}. De tekst staat hieronder klaar.
+                Er gaat geen PDF mee. Na een echte verzending wordt “Contract verzonden” afgerond.
+              </p>
             )
           }
           {
@@ -370,7 +410,30 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
   </div>
 
   {
-    beeld.fase === 'in_behandeling' && beeld.boeking && (
+    beeld.fase === 'in_behandeling' && beeld.boeking && !beeld.checklist.verzonden && (
+      <div id="contract-mail">
+        <Mailconcept
+          titel="Contract versturen"
+          toelichting={contractToelichting}
+          templates={[]}
+          ontvanger={aanvraag.email}
+          modus={mailmodusLabel}
+          testadres={testadres}
+          replyTo={CONTRACTBEHEER_EMAIL}
+          preview={mailPreview}
+          gekozenTemplate={contractBron.templateSleutel}
+          onderwerp={contractOnderwerp}
+          inhoud={contractInhoud}
+          verzendLabel="Verstuur contract"
+          verbergTemplate={true}
+          toonConcept={false}
+          contract={true}
+        />
+      </div>
+    )
+  }
+  {
+    beeld.fase === 'in_behandeling' && beeld.boeking && beeld.checklist.verzonden && (
       <div id="contract-mail">
         <Mailconcept
           templates={mailtemplates.map((item) => ({ id: item.id, naam: item.naam }))}

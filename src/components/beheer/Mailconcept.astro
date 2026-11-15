@@ -8,41 +8,87 @@ interface Props {
   testadres: string | null;
   replyTo: string;
   preview?: { onderwerp: string; text: string } | null;
+  titel?: string;
+  toelichting?: string;
+  gekozenTemplate?: string;
+  onderwerp?: string;
+  inhoud?: string;
+  verzendLabel?: string;
+  verbergTemplate?: boolean;
+  toonConcept?: boolean;
+  contract?: boolean;
 }
 
-const { templates, ontvanger, modus, testadres, replyTo, preview = null } = Astro.props;
+const {
+  templates,
+  ontvanger,
+  modus,
+  testadres,
+  replyTo,
+  preview = null,
+  titel = 'Nieuw mailconcept',
+  toelichting = '',
+  gekozenTemplate = '',
+  onderwerp = '',
+  inhoud = '',
+  verzendLabel = 'Versturen',
+  verbergTemplate = false,
+  toonConcept = true,
+  contract = false,
+} = Astro.props;
+const tekst = preview?.text && !contract ? '' : inhoud;
+const onderwerpWaarde = preview?.onderwerp && !contract ? preview.onderwerp : (onderwerp || preview?.onderwerp || '');
 const groepen = groepeerOpProces(templates);
 ---
 
 <section class="bh-kaart">
-  <h2>Nieuw mailconcept</h2>
-  <p class="bh-muted">
-    Huidige modus: {modus}. Reply-To: {replyTo}. Ontvanger in het dossier: {ontvanger || '—'}.
-    {modus === 'Test' && testadres ? ` Testmail wordt verstuurd naar: ${testadres}.` : ''}
-    {modus === 'Uit' ? ' Uit doet geen provider-call.' : ''}
-  </p>
+  <h2>{titel}</h2>
+  {
+    toelichting ? (
+      <p class="bh-muted">{toelichting}</p>
+    ) : (
+      <p class="bh-muted">
+        Huidige modus: {modus}. Reply-To: {replyTo}. Ontvanger in het dossier: {ontvanger || '—'}.
+        {modus === 'Test' && testadres ? ` Testmail wordt verstuurd naar: ${testadres}.` : ''}
+        {modus === 'Uit' ? ' Uit doet geen provider-call.' : ''}
+      </p>
+    )
+  }
   <form method="post" class="bh-form">
-    <label for="templateId">Template</label>
-    <select id="templateId" name="templateId">
-      <option value="">Vrije tekst</option>
-      {
-        groepen.map((groep) => (
-          <optgroup label={groep.titel}>
-            {groep.templates.map((item) => (
-              <option value={item.id}>{item.naam}</option>
-            ))}
-          </optgroup>
-        ))
-      }
-    </select>
+    {
+      contract && <input type="hidden" name="contract" value="1" />
+    }
+    {
+      verbergTemplate ? (
+        gekozenTemplate && <input type="hidden" name="templateId" value={gekozenTemplate} />
+      ) : (
+        <>
+          <label for="templateId">Template</label>
+          <select id="templateId" name="templateId">
+            <option value="">Vrije tekst</option>
+            {
+              groepen.map((groep) => (
+                <optgroup label={groep.titel}>
+                  {groep.templates.map((item) => (
+                    <option value={item.id} selected={item.id === gekozenTemplate}>
+                      {item.naam}
+                    </option>
+                  ))}
+                </optgroup>
+              ))
+            }
+          </select>
+        </>
+      )
+    }
     <label for="mailOnderwerp">Onderwerp</label>
-    <input id="mailOnderwerp" name="mailOnderwerp" value={preview?.onderwerp ?? ''} />
-    <label for="mailInhoud">Inhoud</label>
-    <textarea id="mailInhoud" name="mailInhoud" rows="8"></textarea>
+    <input id="mailOnderwerp" name="mailOnderwerp" value={onderwerpWaarde} />
+    <label for="mailInhoud">{contract ? 'Tekst van de mail' : 'Inhoud'}</label>
+    <textarea id="mailInhoud" name="mailInhoud" rows={contract ? 14 : 8}>{tekst}</textarea>
     <div class="bh-acties">
-      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailconcept">Concept bewaren</button>
+      {toonConcept && <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailconcept">Concept bewaren</button>}
       <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailpreview">Preview</button>
-      <button class="bh-btn" type="submit" name="actie" value="mailverstuur">Versturen</button>
+      <button class="bh-btn" type="submit" name="actie" value="mailverstuur">{verzendLabel}</button>
     </div>
   </form>
   {
