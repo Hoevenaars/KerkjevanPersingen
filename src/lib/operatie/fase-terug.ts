@@ -181,12 +181,12 @@ export async function trekFaseTerug(
     onderwerp_id: String(aanvraagId),
     actie: 'fase_terug',
     van: 'Wachten op ondertekening',
-    naar: 'Contract verzenden',
+    naar: 'Contract genereren',
     reden: 'Ongetekend contract ingetrokken',
     dedup_sleutel: `aanvraag:${aanvraagId}:fase_terug:${Date.now()}`,
   });
   return {
     ok: true,
-    melding: 'Het contract is ingetrokken. De tekenlink werkt niet meer. De volgende actie is Contract verzenden. Maak een nieuwe versie. Er is geen mail verstuurd.',
+    melding: 'Het contract is ingetrokken. De tekenlink werkt niet meer. Je kunt het contract opnieuw genereren. Er is geen mail verstuurd.',
   };
 }
