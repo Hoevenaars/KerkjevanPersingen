@@ -126,6 +126,40 @@ test('een beheerpagina gebruikt de sessie en niet de service-role', () => {
   }), admin);
 });
 
+test('ontbrekende reservelijst_sinds laat beheer laden', async () => {
+  const bron = clientVan(basis);
+  const client: SupabaseLeesClient = {
+    from(tabel: string) {
+      return {
+        async select(kolommen: string) {
+          if (tabel === 'relaties' && kolommen.includes('reservelijst_sinds')) {
+            return { data: null, error: { message: 'column relaties.reservelijst_sinds does not exist' } };
+          }
+          const antwoord = await bron.from(tabel).select(kolommen);
+          if (tabel !== 'relaties' || !antwoord.data) return antwoord;
+          return {
+            data: antwoord.data.map((rij) => {
+              const { reservelijst_sinds: _weg, ...rest } = rij as Record<string, unknown>;
+              return rest;
+            }),
+            error: null,
+          };
+        },
+      };
+    },
+  };
+  const snapshot = await leesSupabaseBeheer(client, { vandaag: '2026-09-30', testmodus: true });
+  assert.equal(snapshot.bron, 'supabase');
+  assert.equal(snapshot.fout, null);
+  assert.equal(snapshot.relaties.length, 2);
+  assert.equal(snapshot.relaties[0].naam, 'Huurder A');
+  assert.equal(snapshot.relaties[1].naam, 'Gast B');
+  assert.equal(snapshot.relaties[0].reservelijst, true);
+  assert.equal(snapshot.relaties[1].reservelijst, false);
+  assert.equal(snapshot.relaties[0].reservelijstSinds, '');
+  assert.equal(snapshot.relaties[1].reservelijstSinds, '');
+});
+
 test('een supabase-fout toont geen voorbeelddata', async () => {
   resetBeheerBronCache();
   const fout = supabaseFoutSnapshot('relaties: permission denied');
