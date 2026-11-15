@@ -22,6 +22,9 @@ import { STANDAARD_MAILTEMPLATES } from '../../../../platform/mailtemplates/cata
 import { laadMailtemplatesUitSupabase } from '../../../../platform/mailtemplates/supabase-bron.ts';
 import type { MailTemplateDef } from '../../../../platform/mailtemplates/types.ts';
 import { GEEN_TESTMAILADRES, normaliseerTestmailadres, TESTMAIL_SLEUTEL } from '../../../../platform/testmail.ts';
+import { documentenflowAan } from '../../../../platform/documentenflow-vlag.ts';
+import { controleerInstellingen, instellingRijen, leesInstellingen, legeInstellingen } from '../../../../platform/documentenflow.ts';
+import { magSchrijven } from '../../../../platform/rechten.ts';
 
 type Rij = {
   sleutel: string;
@@ -121,6 +124,44 @@ if (Astro.request.method === 'POST') {
         melding = 'Testmailadres opgeslagen.';
       }
     }
+  } else if (String(form.get('actie') ?? '') === 'documentenflow') {
+    const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+    const instellingen = {
+      ...legeInstellingen(),
+      bestuursakkoordVerplicht: String(form.get('bestuur') ?? '') !== 'nee',
+      gereedRegel: String(form.get('gereed') ?? '') === 'ondertekend' || String(form.get('gereed') ?? '') === 'ondertekend_en_aanbetaling'
+        ? String(form.get('gereed') ?? '') as 'ondertekend' | 'ondertekend_en_aanbetaling'
+        : '' as const,
+      ondertekenaarNaam: String(form.get('ondertekenaarNaam') ?? '').trim(),
+      ondertekenaarFunctie: String(form.get('ondertekenaarFunctie') ?? '').trim(),
+      iban: String(form.get('iban') ?? '').replace(/\s+/g, '').toUpperCase(),
+      tenaamstelling: String(form.get('tenaamstelling') ?? '').trim(),
+      voorwaardenVastgesteldOp: String(form.get('voorwaardenVastgesteldOp') ?? '').trim(),
+      huisregelsVastgesteldOp: String(form.get('huisregelsVastgesteldOp') ?? '').trim(),
+      coordinatorContact: String(form.get('coordinator') ?? '').trim(),
+      publicatieRoute: String(form.get('publicatie') ?? '').trim(),
+    };
+    const controle = controleerInstellingen(instellingen);
+    if (!documentenflowAan()) fout = 'Documentenflow staat uit. Er is niets opgeslagen.';
+    else if (!magSchrijven(rechten, 'instellingen')) fout = 'Geen recht om deze instellingen te bewaren.';
+    else if (!db) fout = 'Geen databaseclient. Er is niets opgeslagen.';
+    else if (controle) fout = controle;
+    else {
+      const opgeslagen = await db.from('instellingen').upsert(instellingRijen(instellingen), { onConflict: 'sleutel' });
+      if (opgeslagen.error) fout = opgeslagen.error.message;
+      else {
+        await db.from('auditlog').insert({
+          actor_naam: Astro.locals.beheer?.gebruiker.naam || 'beheer',
+          actor_type: 'gebruiker',
+          onderwerp_type: 'instelling',
+          onderwerp_id: 'documentenflow',
+          actie: 'documentenflow_instellingen',
+          naar: instellingen.gereedRegel || 'geen-gereed-regel',
+          dedup_sleutel: `documentenflow:${Date.now()}`,
+        });
+        melding = 'Documentenflow-instellingen opgeslagen. Lege velden blijven de veilige stand.';
+      }
+    }
   } else if (String(form.get('actie') ?? '') === 'verstuur_testmails') {
     const superAdmin = Astro.locals.beheer?.rechten.isSuperAdmin === true;
     if (!superAdmin) fout = 'Alleen een super admin mag testmails versturen.';
@@ -199,6 +240,18 @@ try {
   lijst = STANDAARD_AUTOMATISERINGEN;
 }
 
+let documentenInstellingen = legeInstellingen();
+const magDocumenten = documentenflowAan() && magSchrijven(
+  Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
+  'instellingen',
+);
+if (magDocumenten && db) {
+  const gelezen = await db.from('instellingen').select('sleutel,waarde').order('sleutel').order('sleutel');
+  if (!gelezen.error) {
+    documentenInstellingen = leesInstellingen((gelezen.data ?? []) as { sleutel: string; waarde: unknown }[]);
+  }
+}
+
 const groepen = [
   ['transactioneel', 'Transactioneel'],
   ['automatisering', 'Automatiseringen'],
@@ -236,6 +289,45 @@ const groepen = [
       )
     }
   </section>
+
+  {
+    magDocumenten && (
+      <section class="bh-kaart">
+        <h2>Contract en opvolging</h2>
+        <p>Leeg is de veilige stand. Zonder IBAN, ondertekenaar en vaststellingsdatum kan geen contract worden gemaakt. Zonder gereed-regel wordt een boeking niet vanzelf definitief.</p>
+        <form method="post" class="bh-form">
+          <label for="df-bestuur">Bestuursakkoord voor nieuwe contracten</label>
+          <select id="df-bestuur" name="bestuur">
+            <option value="ja" selected={documentenInstellingen.bestuursakkoordVerplicht}>Verplicht</option>
+            <option value="nee" selected={!documentenInstellingen.bestuursakkoordVerplicht}>Uit, alleen voor nieuwe contracten</option>
+          </select>
+          <label for="df-gereed">Wanneer een boeking definitief mag</label>
+          <select id="df-gereed" name="gereed">
+            <option value="" selected={documentenInstellingen.gereedRegel === ''}>Nog niet vastgesteld</option>
+            <option value="ondertekend" selected={documentenInstellingen.gereedRegel === 'ondertekend'}>Na ondertekening</option>
+            <option value="ondertekend_en_aanbetaling" selected={documentenInstellingen.gereedRegel === 'ondertekend_en_aanbetaling'}>Na ondertekening en ontvangen aanbetaling</option>
+          </select>
+          <label for="df-naam">Bevoegde ondertekenaar</label>
+          <input id="df-naam" name="ondertekenaarNaam" value={documentenInstellingen.ondertekenaarNaam} maxlength="120" />
+          <label for="df-functie">Functie</label>
+          <input id="df-functie" name="ondertekenaarFunctie" value={documentenInstellingen.ondertekenaarFunctie} maxlength="120" />
+          <label for="df-iban">IBAN</label>
+          <input id="df-iban" name="iban" value={documentenInstellingen.iban} maxlength="34" autocapitalize="characters" />
+          <label for="df-naam-rekening">Tenaamstelling</label>
+          <input id="df-naam-rekening" name="tenaamstelling" value={documentenInstellingen.tenaamstelling} maxlength="160" />
+          <label for="df-voorwaarden">Voorwaarden vastgesteld op</label>
+          <input id="df-voorwaarden" name="voorwaardenVastgesteldOp" value={documentenInstellingen.voorwaardenVastgesteldOp} placeholder="JJJJ-MM-DD" maxlength="10" />
+          <label for="df-huisregels">Huisregels vastgesteld op</label>
+          <input id="df-huisregels" name="huisregelsVastgesteldOp" value={documentenInstellingen.huisregelsVastgesteldOp} placeholder="JJJJ-MM-DD" maxlength="10" />
+          <label for="df-coordinator">Contact coördinator</label>
+          <input id="df-coordinator" name="coordinator" value={documentenInstellingen.coordinatorContact} maxlength="200" />
+          <label for="df-publicatie">Aanleverroute promotiemateriaal</label>
+          <input id="df-publicatie" name="publicatie" value={documentenInstellingen.publicatieRoute} maxlength="200" />
+          <button class="bh-btn" type="submit" name="actie" value="documentenflow">Instellingen bewaren</button>
+        </form>
+      </section>
+    )
+  }
 
   {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash" role="alert">{fout}</p>}

@@ -352,7 +352,9 @@ export function beschikbaarheidVoor(aanvraag: FaseAanvraag, wereld: FaseWereld):
     return {
       uitkomst: 'bezet',
       kop: 'Bezet',
-      tekst: 'Goedkeuren is niet mogelijk zolang deze blokkade bestaat. Een lopende aanvraag is iets anders dan een definitieve boeking.',
+      tekst: aanvragen.length > 0
+        ? 'Goedkeuren is niet mogelijk zolang deze blokkade bestaat. Er loopt ook nog een overlappende aanvraag. Een lopende aanvraag is iets anders dan een definitieve boeking.'
+        : 'Goedkeuren is niet mogelijk zolang deze blokkade bestaat. Een lopende aanvraag is iets anders dan een definitieve boeking.',
       blokkades,
       aanvragen,
     };

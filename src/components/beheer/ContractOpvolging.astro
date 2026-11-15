@@ -1,0 +1,202 @@
+---
+import type { ContractOpvolgingWeergave } from '../../platform/documentenflow.ts';
+
+interface Props {
+  opvolging: ContractOpvolgingWeergave;
+  actie: string;
+  betalingToelichting: string;
+}
+
+const { opvolging, actie, betalingToelichting } = Astro.props;
+const proef = opvolging.modus !== 'aan';
+---
+
+<section class="bh-kaart" id="contract-opvolging" aria-label="Contract en opvolging">
+  <h2>Contract en opvolging</h2>
+  {opvolging.fout && <p class="bh-flash">{opvolging.fout}</p>}
+  <dl class="bh-dl">
+    {
+      opvolging.regels.map((regel) => (
+        <>
+          <dt>{regel.label}</dt>
+          <dd>{regel.waarde}</dd>
+        </>
+      ))
+    }
+  </dl>
+  {betalingToelichting && <p class="bh-muted">{betalingToelichting}</p>}
+  {
+    opvolging.redenen.length > 0 && (
+      <p>Verzenden blijft dicht. Nog nodig: {opvolging.redenen.join(', ')}.</p>
+    )
+  }
+  {
+    opvolging.modus === 'uit' && opvolging.versie && (
+      <p>De mailschakelaar staat uit. Een proefmail kan pas als Handmatige template op Test staat. Er gaat niets naar de huurder.</p>
+    )
+  }
+
+  {
+    opvolging.kanMaken && (
+      <form method="post" action={actie} class="bh-form">
+        <input type="hidden" name="actie" value="df_maken" />
+        <h3>Gebruiksafspraken</h3>
+        <label for="df-van">Gebruik van</label>
+        <input id="df-van" name="tijdVan" value={opvolging.afspraken.tijdVan} required maxlength="40" />
+        <label for="df-tot">Gebruik tot</label>
+        <input id="df-tot" name="tijdTot" value={opvolging.afspraken.tijdTot} required maxlength="40" />
+        <label for="df-opbouw">Opbouw</label>
+        <input id="df-opbouw" name="opbouw" value={opvolging.afspraken.opbouw} required maxlength="240" />
+        <label for="df-afbouw">Afbouw</label>
+        <input id="df-afbouw" name="afbouw" value={opvolging.afspraken.afbouw} required maxlength="240" />
+        <label for="df-contact">Contactpersoon</label>
+        <input id="df-contact" name="contactpersoon" value={opvolging.afspraken.contactpersoon} required maxlength="120" />
+        <div class="bh-acties">
+          <button class="bh-btn" type="submit">Maken</button>
+        </div>
+      </form>
+    )
+  }
+
+  <div class="bh-acties">
+    {opvolging.kanBekijken && <a class="bh-btn bh-btn--sec" href={opvolging.bekijkHref}>Bekijken</a>}
+    {
+      opvolging.kanVerzenden && (
+        <form method="post" action={actie}>
+          <input type="hidden" name="actie" value="df_verzend" />
+          <input type="hidden" name="proef" value="nee" />
+          <input type="hidden" name="poging" value={crypto.randomUUID()} />
+          <button class="bh-btn" type="submit">Verzenden</button>
+        </form>
+      )
+    }
+    {
+      opvolging.kanProef && (
+        <form method="post" action={actie}>
+          <input type="hidden" name="actie" value="df_verzend" />
+          <input type="hidden" name="proef" value="ja" />
+          <input type="hidden" name="poging" value={crypto.randomUUID()} />
+          <button class="bh-btn bh-btn--sec" type="submit">Proefmail</button>
+        </form>
+      )
+    }
+    {
+      opvolging.kanVoorleggen && (
+        <form method="post" action={actie}>
+          <input type="hidden" name="actie" value="df_voorleggen" />
+          <button class="bh-btn" type="submit">Ter goedkeuring</button>
+        </form>
+      )
+    }
+    {
+      opvolging.kanAkkoord && (
+        <form method="post" action={actie}>
+          <input type="hidden" name="actie" value="df_akkoord" />
+          <button class="bh-btn" type="submit">Akkoord</button>
+        </form>
+      )
+    }
+  </div>
+  {
+    opvolging.kanTerug && (
+      <form method="post" action={actie} class="bh-form">
+        <input type="hidden" name="actie" value="df_terug" />
+        <label for="df-terug">Terug voor aanpassing</label>
+        <textarea id="df-terug" name="toelichting" rows="3" required maxlength="500"></textarea>
+        <button class="bh-btn bh-btn--sec" type="submit">Terug voor aanpassing</button>
+      </form>
+    )
+  }
+  {
+    opvolging.kanOndertekenen && (
+      <form method="post" action={actie} class="bh-form" enctype="multipart/form-data">
+        <input type="hidden" name="actie" value="df_ondertekend" />
+        <h3>Ondertekend exemplaar</h3>
+        <label for="df-nummer">Contractnummer</label>
+        <input id="df-nummer" name="contractnummer" value={opvolging.nummerVoorOndertekening} required />
+        <label for="df-versie">Versie</label>
+        <input id="df-versie" name="contractversie" value={opvolging.versieVoorOndertekening} required inputmode="numeric" />
+        <label for="df-bestand">Bestand, als u het ontvangen exemplaar wilt bewaren</label>
+        <input id="df-bestand" name="bestand" type="file" accept="application/pdf" />
+        <button class="bh-btn" type="submit">Ondertekend ontvangen</button>
+      </form>
+    )
+  }
+
+  {
+    opvolging.praktischStand && <p>{opvolging.praktischStand}</p>
+  }
+  {
+    opvolging.praktischTekst && (
+      <>
+        <h3>Kennismakingsmail</h3>
+        <pre class="bh-muted">{opvolging.praktischTekst}</pre>
+      </>
+    )
+  }
+  {
+    opvolging.kanPraktisch && (
+      <form method="post" action={actie}>
+        <input type="hidden" name="actie" value="df_praktisch" />
+        <input type="hidden" name="proef" value={proef ? 'ja' : 'nee'} />
+        <input type="hidden" name="poging" value={crypto.randomUUID()} />
+        <button class="bh-btn" type="submit">{proef ? 'Proefmail gastbegeleider' : 'Verstuur kennismakingsmail'}</button>
+      </form>
+    )
+  }
+  {opvolging.promotieStand && <p>{opvolging.promotieStand}</p>}
+  {
+    opvolging.kanPromotie && (
+      <form method="post" action={actie}>
+        <input type="hidden" name="actie" value="df_promotie" />
+        <input type="hidden" name="proef" value={proef ? 'ja' : 'nee'} />
+        <input type="hidden" name="poging" value={crypto.randomUUID()} />
+        <button class="bh-btn bh-btn--sec" type="submit">{proef ? 'Proef van de herinnering' : 'Verstuur herinnering'}</button>
+      </form>
+    )
+  }
+  {
+    opvolging.kanGereed && (
+      <form method="post" action={actie}>
+        <input type="hidden" name="actie" value="df_gereed" />
+        <input type="hidden" name="poging" value={crypto.randomUUID()} />
+        <button class="bh-btn" type="submit">Definitief volgens de vastgestelde regel</button>
+      </form>
+    )
+  }
+
+  {
+    opvolging.lijsten.map((groep) => (
+      <div>
+        <h3>{groep.lijst.titel}</h3>
+        {
+          groep.lijst.groepen.map((deel) => (
+            <div>
+              <p><strong>{deel.titel}</strong></p>
+              <ul class="bh-checks">
+                {
+                  deel.punten.map((punt) => (
+                    <li class={groep.aangevinkt[punt.id] ? 'is-klaar' : 'is-open'}>
+                      <span>{punt.tekst}</span>
+                      {
+                        opvolging.kanVinken && opvolging.versie && (
+                          <form method="post" action={actie}>
+                            <input type="hidden" name="actie" value="df_vink" />
+                            <input type="hidden" name="punt" value={punt.id} />
+                            <input type="hidden" name="aan" value={groep.aangevinkt[punt.id] ? 'nee' : 'ja'} />
+                            <button class="bh-btn bh-btn--sec" type="submit">{groep.aangevinkt[punt.id] ? 'Maak open' : 'Afvinken'}</button>
+                          </form>
+                        )
+                      }
+                    </li>
+                  ))
+                }
+              </ul>
+            </div>
+          ))
+        }
+        <p>{groep.lijst.slot}</p>
+      </div>
+    ))
+  }
+</section>

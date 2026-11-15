@@ -30,6 +30,7 @@ export interface MailBericht {
   richting?: 'intern' | 'aanvrager';
   modus?: Mailmodus;
   bedoeldeOntvanger?: string;
+  bijlagen?: { bestandsnaam: string; inhoud: Uint8Array }[];
 }
 
 export interface ResendInhoud {
@@ -44,6 +45,7 @@ export interface ResendInhoud {
   cc?: string[];
   headers?: Record<string, string>;
   testmodus?: boolean;
+  bijlagen?: { bestandsnaam: string; inhoud: Uint8Array }[];
 }
 
 export interface MailTransport {
@@ -262,6 +264,14 @@ export async function verstuurMetResend(
     replyTo,
     ...(inhoud.testmodus || !inhoud.bcc?.length ? {} : { bcc: inhoud.bcc }),
     ...(inhoud.headers ? { headers: inhoud.headers } : {}),
+    ...(inhoud.bijlagen?.length
+      ? {
+        attachments: inhoud.bijlagen.map((bijlage) => ({
+          filename: bijlage.bestandsnaam,
+          content: Buffer.from(bijlage.inhoud),
+        })),
+      }
+      : {}),
   });
   if (error) throw new Error(error.message);
   return data?.id ?? null;
@@ -285,6 +295,7 @@ function resendTransport(): MailTransport {
         richting: bericht.richting,
         bcc,
       });
+      if (bericht.bijlagen?.length) inhoud.bijlagen = bericht.bijlagen;
       if (test) {
         inhoud.bcc = [];
         inhoud.cc = [];
