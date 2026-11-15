@@ -271,7 +271,7 @@ Supabase is de bron voor de website en voor `/beheer`.
 | --- | --- |
 | Lokaal | http://localhost:4321/beheer/ |
 | Productie | https://kerkjepersingen.nl/beheer/ |
-| Oude beheer-URL | `/admin` verwijst naar `/beheer/` |
+| Oude beheer-URL | `/admin` bestaat niet meer en geeft 404 |
 
 `/beheer` gebruikt individuele Supabase-accounts (`/beheer/login`). Er is geen
 gedeeld wachtwoord meer. `LIVE_VANAF` opent `/beheer` niet.
