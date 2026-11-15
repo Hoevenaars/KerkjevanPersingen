@@ -1,0 +1,88 @@
+---
+import { restTekst, type ContractWizardVelden } from '../../platform/contract-wizard.ts';
+
+interface Props {
+  actie: string;
+  velden: ContractWizardVelden;
+  adresHint: string;
+}
+
+const { actie, velden, adresHint } = Astro.props;
+const rest = restTekst(velden);
+---
+
+<section class="bh-kaart" id="contract-wizard">
+  <h2>Contract genereren</h2>
+  <p class="bh-muted">Wat al bekend is, staat ingevuld. Wat nog leeg is, hoort nog in het contract. Opslaan maakt het contract definitief en verstuurt geen mail.</p>
+  {adresHint && <p>Op de aanvraag staat als adres: {adresHint}</p>}
+  <form method="post" action={actie} class="bh-form">
+    <h3>Huurder</h3>
+    <label for="naam">Naam</label>
+    <input id="naam" name="naam" value={velden.naam} autocomplete="name" />
+    <label for="straat">Straat</label>
+    <input id="straat" name="straat" value={velden.straat} />
+    <label for="huisnummer">Huisnummer</label>
+    <input id="huisnummer" name="huisnummer" value={velden.huisnummer} />
+    <label for="toevoeging">Toevoeging</label>
+    <input id="toevoeging" name="toevoeging" value={velden.toevoeging} />
+    <label for="postcode">Postcode</label>
+    <input id="postcode" name="postcode" value={velden.postcode} />
+    <label for="woonplaats">Woonplaats</label>
+    <input id="woonplaats" name="woonplaats" value={velden.woonplaats} />
+    <label for="email">E-mail</label>
+    <input id="email" name="email" type="email" value={velden.email} />
+    <label for="telefoon">Telefoon</label>
+    <input id="telefoon" name="telefoon" value={velden.telefoon} />
+
+    <h3>Gebruik</h3>
+    <label for="soortLabel">Soort activiteit</label>
+    <input id="soortLabel" name="soortLabel" value={velden.soortLabel} />
+    <label for="activiteit">Omschrijving</label>
+    <input id="activiteit" name="activiteit" value={velden.activiteit} />
+    <label for="periodeVan">Periode van</label>
+    <input id="periodeVan" name="periodeVan" type="date" value={velden.periodeVan} />
+    <label for="periodeTot">Periode tot</label>
+    <input id="periodeTot" name="periodeTot" type="date" value={velden.periodeTot} />
+    <label for="tijdVan">Gebruik van</label>
+    <input id="tijdVan" name="tijdVan" value={velden.tijdVan} placeholder="bijvoorbeeld 10:00" />
+    <label for="tijdTot">Gebruik tot</label>
+    <input id="tijdTot" name="tijdTot" value={velden.tijdTot} placeholder="bijvoorbeeld 17:00" />
+    <label for="opbouw">Opbouw</label>
+    <input id="opbouw" name="opbouw" value={velden.opbouw} />
+    <label for="afbouw">Afbouw</label>
+    <input id="afbouw" name="afbouw" value={velden.afbouw} />
+    <label for="personen">Aantal personen</label>
+    <input id="personen" name="personen" value={velden.personen} />
+    <label for="contactpersoon">Contactpersoon</label>
+    <input id="contactpersoon" name="contactpersoon" value={velden.contactpersoon} />
+
+    <h3>Bedragen</h3>
+    <label for="huurprijs">Huurprijs in euro</label>
+    <input id="huurprijs" name="huurprijs" inputmode="decimal" value={velden.huurprijs} />
+    <label for="aanbetaling">Aanbetaling in euro</label>
+    <input id="aanbetaling" name="aanbetaling" inputmode="decimal" value={velden.aanbetaling} />
+    <label for="aanbetalingVerval">Vervaldatum aanbetaling</label>
+    <input id="aanbetalingVerval" name="aanbetalingVerval" type="date" value={velden.aanbetalingVerval} />
+    <p>{rest}</p>
+    <label for="restVerval">Vervaldatum restbetaling</label>
+    <input id="restVerval" name="restVerval" type="date" value={velden.restVerval} />
+
+    <h3>Verhuurder</h3>
+    <label for="ondertekenaarNaam">Ondertekenaar</label>
+    <input id="ondertekenaarNaam" name="ondertekenaarNaam" value={velden.ondertekenaarNaam} />
+    <label for="ondertekenaarFunctie">Functie</label>
+    <input id="ondertekenaarFunctie" name="ondertekenaarFunctie" value={velden.ondertekenaarFunctie} />
+    <label for="tenaamstelling">Tenaamstelling</label>
+    <input id="tenaamstelling" name="tenaamstelling" value={velden.tenaamstelling} />
+    <label for="iban">IBAN</label>
+    <input id="iban" name="iban" value={velden.iban} autocapitalize="characters" />
+    <label for="voorwaardenVastgesteldOp">Voorwaarden vastgesteld op</label>
+    <input id="voorwaardenVastgesteldOp" name="voorwaardenVastgesteldOp" type="date" value={velden.voorwaardenVastgesteldOp} />
+    <label for="huisregelsVastgesteldOp">Huisregels vastgesteld op</label>
+    <input id="huisregelsVastgesteldOp" name="huisregelsVastgesteldOp" type="date" value={velden.huisregelsVastgesteldOp} />
+
+    <div class="bh-acties">
+      <button class="bh-btn" type="submit" name="actie" value="contract_definitief">Opslaan en Definitief maken</button>
+    </div>
+  </form>
+</section>
