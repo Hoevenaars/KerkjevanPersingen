@@ -84,7 +84,7 @@ export interface ContractVerzending {
   idempotentie: string;
   ontvanger: string;
   werkelijk: string;
-  status: 'bezig' | 'verzonden' | 'geweigerd';
+  status: 'bezig' | 'verzonden' | 'geweigerd' | 'ingetrokken';
   berichtId: string | null;
   op: string;
   versie: number;
@@ -557,6 +557,13 @@ function alVerzonden(versies: readonly ContractVersie[], soort: ContractVerzendi
   return versies.some((versie) => versie.verzendingen.some((regel) => regel.soort === soort && regel.status === 'verzonden'));
 }
 
+/** Een ingetrokken contractversie mag niet opnieuw naar de huurder. */
+export function versieTeruggetrokken(versie: ContractVersie): boolean {
+  const regels = versie.verzendingen.filter((regel) => regel.soort === 'contract' || regel.soort === 'herhaling');
+  const open = regels.some((regel) => regel.status === 'verzonden' || regel.status === 'bezig');
+  return regels.some((regel) => regel.status === 'ingetrokken') && !open;
+}
+
 function kopieer(versie: ContractVersie, wijziging: Partial<ContractVersie>): ContractVersie {
   return { ...versie, ...wijziging, checks: { ...versie.checks }, verzendingen: [...versie.verzendingen], afspraken: { ...versie.afspraken } };
 }
@@ -657,6 +664,9 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
   if (actie.soort === 'verzend' || actie.soort === 'opnieuw') {
     if (!magContractBeheren(context.rechten)) return weiger('Geen recht om het contract te verzenden.');
     if (!bestuurAkkoord(huidig)) return weiger('Verzenden kan pas na bestuursakkoord op deze versie.');
+    if (versieTeruggetrokken(huidig)) {
+      return weiger('Deze versie is teruggetrokken. Maak een nieuwe versie. Er is geen mail verstuurd.');
+    }
     if (!versiePastBijGegevens(huidig, context.bron, context.instellingen)) {
       return weiger('De boekingsgegevens zijn gewijzigd. De eerdere goedkeuring geldt niet meer. Maak een nieuwe versie. Er is geen mail verstuurd.');
     }
@@ -872,6 +882,7 @@ export function bouwOpvolging(input: {
   const redenen = [
     ...(huidig ? [] : ontbrekendeContractgegevens(input.bron, afspraken, input.instellingen)),
     ...(huidig && !past ? ['De boekingsgegevens zijn gewijzigd. Maak een nieuwe contractversie'] : []),
+    ...(huidig && versieTeruggetrokken(huidig) ? ['Deze versie is teruggetrokken. Maak een nieuwe versie'] : []),
   ];
   const beheer = magContractBeheren(input.rechten);
   const bestuur = magBestuurBesluiten(input.rechten);

@@ -172,6 +172,15 @@ test('contract, handtekening en aanbetaling bepalen de volgende actie', () => {
   assert.equal(wachten.checklist.ondertekend, false);
   assert.equal(wachten.volgendeActie, 'Wachten op ondertekening');
 
+  const ingetrokken = beoordeelAanvraag(item, wereld({
+    aanvragen: [item],
+    boekingen: [boeking],
+    documenten: [{ boekingId: 'b-4', soort: 'contract', naam: 'contract.pdf', ingetrokken: true }],
+    mails: [{ boekingId: 'b-4', template: 'huurovereenkomst', status: 'geannuleerd' }],
+  }));
+  assert.equal(ingetrokken.checklist.verzonden, false);
+  assert.equal(ingetrokken.volgendeActie, 'Contract verzenden');
+
   const betalen = beoordeelAanvraag(item, wereld({
     aanvragen: [item],
     boekingen: [boeking],

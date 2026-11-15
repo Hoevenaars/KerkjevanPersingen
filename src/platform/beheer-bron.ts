@@ -53,7 +53,7 @@ export interface BeheerSnapshot {
   templates: DemoTemplate[];
   instellingen: DemoInstellingen;
   communicatie: { id: string; boekingId: string; template: string; status: string; wanneer: string; ontvanger: string }[];
-  documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string; pad?: string; mime?: string }[];
+  documenten: { id: string; boekingId: string; naam: string; soort: string; datum: string; pad?: string; mime?: string; ingetrokken?: boolean }[];
   migratie: null;
   betalingen?: import('./beheer-supabase-lees.ts').BeheerBetaling[];
   toewijzingen?: import('./beheer-supabase-lees.ts').BeheerToewijzing[];

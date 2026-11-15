@@ -8,6 +8,7 @@ import {
   betalingStand,
   bouwOpvolging,
   contractTekst,
+  versieTeruggetrokken,
   legeInstellingen,
   voerFlowUit,
   type ContractAfspraken,
@@ -366,4 +367,40 @@ test('een overlappende boeking en aanvraag staan samen in de waarschuwing', () =
   assert.equal(uit.aanvragen.length, 1);
   assert.match(uit.tekst, /blokkade/i);
   assert.match(uit.tekst, /overlappende aanvraag/i);
+});
+
+test('een teruggetrokken contractversie wordt niet opnieuw verzonden', () => {
+  const versie = gemaakt({ instellingen: instellingen({ bestuursakkoordVerplicht: false }) });
+  versie.verzendingen = [{
+    soort: 'contract',
+    idempotentie: 'contract:42:1',
+    ontvanger: 'jose@voorbeeld.nl',
+    werkelijk: 'jose@voorbeeld.nl',
+    status: 'ingetrokken',
+    berichtId: 'msg-1',
+    op: '2026-06-02T10:00:00.000Z',
+    versie: versie.versie,
+  }];
+  assert.equal(versieTeruggetrokken(versie), true);
+  const uit = voerFlowUit({ soort: 'verzend', proef: false, poging: 'opnieuw' }, context({
+    versies: [versie],
+    instellingen: instellingen({ bestuursakkoordVerplicht: false }),
+  }));
+  assert.equal(uit.ok, false);
+  if (uit.ok) return;
+  assert.match(uit.melding, /nieuwe versie/);
+  const opvolging = bouwOpvolging({
+    rechten: rechten({ boekingen: 'schrijven', instellingen: 'schrijven' }),
+    bron: bron(),
+    instellingen: instellingen({ bestuursakkoordVerplicht: false }),
+    versies: [versie],
+    betaling: { stand: 'niet_vastgelegd', toelichting: '' },
+    vandaag: '2026-06-02',
+    bekijkHref: '/beheer/aanvragen/1/?document=contract',
+    fout: '',
+    modus: 'aan',
+  });
+  assert.equal(opvolging.kanVerzenden, false);
+  assert.equal(opvolging.kanMaken, true);
+  assert.match(opvolging.redenen.join(' '), /teruggetrokken/);
 });

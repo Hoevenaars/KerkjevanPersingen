@@ -47,6 +47,8 @@ import { verstuurGecontroleerd } from '../../../lib/mail-transport.ts';
 import { legVerzendingVast } from '../../../lib/communicatie-log.ts';
 import { VAN_ADRES } from '../../../lib/mail-adressen.ts';
 import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astro';
+import { planFaseTerug } from '../../../platform/fase-terug.ts';
+import { voerFaseTerug } from '../../../lib/operatie/fase-terug.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -214,6 +216,22 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect(doel.toString());
       }
     }
+  } else if (aanvraag && actie === 'fase_terug') {
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
+      doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
+    } else if (snapshot.bron !== 'supabase' || !mailSessie) {
+      doel.searchParams.set('fout', 'Dit is de voorbeeldweergave. Er is niets opgeslagen en er is geen mail verstuurd.');
+    } else {
+      const uit = await voerFaseTerug(
+        mailSessie as never,
+        Number(aanvraag.id),
+        String(formulier.get('reden') ?? ''),
+        actorVanSessie(Astro.locals.beheer),
+      );
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    }
+    return Astro.redirect(doel.toString());
   } else {
     const operationeel = await postAlsSupabase({
       request: Astro.request,
@@ -305,7 +323,12 @@ const wereld: FaseWereld = {
     aanbetalingBinnen: item.aanbetalingBinnen,
     aanvraagId: item.aanvraagId,
   })),
-  documenten: snapshot.documenten.map((item) => ({ boekingId: item.boekingId, soort: item.soort, naam: item.naam })),
+  documenten: snapshot.documenten.map((item) => ({
+    boekingId: item.boekingId,
+    soort: item.soort,
+    naam: item.naam,
+    ingetrokken: item.ingetrokken === true,
+  })),
   mails: snapshot.communicatie.map((item) => ({ boekingId: item.boekingId, template: item.template, status: item.status })),
   betalingen: (snapshot.betalingen ?? []).map((item) => ({ boekingId: item.boekingId, soort: item.soort, status: item.status })),
   blokkades: snapshot.intern.map((item) => ({
@@ -334,6 +357,8 @@ const beeld = beoordeelAanvraag({
   eind: aanvraag.eind,
   boekingId: aanvraag.boekingId,
 }, wereld);
+const faseTerug = planFaseTerug(aanvraag.status, beeld);
+const faseTerugForm = faseTerug.kan ? faseTerug : null;
 const flowAan = documentenflowAan();
 const flowBoeking = snapshot.boekingen.find((item) => item.id === beeld.boeking?.id) ?? null;
 let opvolging = null;
@@ -481,6 +506,16 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
     <h2 class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.faseLabel}</h2>
     <p class="bh-muted">Aangevraagd op {labelAangevraagdOp(aanvraag.binnengekomen)}</p>
     <p class="bh-volgende">Volgende actie: <strong class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.volgendeActie}</strong></p>
+    {
+      kanBeoordelen && faseTerugForm && (
+        <form method="post" action={dossierPad} class="bh-form">
+          <p>{faseTerugForm.uitleg}</p>
+          <label for="fase-terug-reden">Reden voor een fase terug</label>
+          <textarea id="fase-terug-reden" name="reden" rows="3" required maxlength="500"></textarea>
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="fase_terug">Een fase terug</button>
+        </form>
+      )
+    }
     {
       beeld.fase === 'gereed' && (
         <>
