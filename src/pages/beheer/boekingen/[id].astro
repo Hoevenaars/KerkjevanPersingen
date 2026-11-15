@@ -647,7 +647,10 @@ function tabHref(tabNaam: string): string {
           aanvraagBijBoeking ? (
             <p>Het contract maak je bij de aanvraag. <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraagBijBoeking.id)}/?contract=genereren`}>Contract genereren</a>. Een bestaande versie vervangt u onder <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraagBijBoeking.id)}/#contract-opvolging`}>Contract en opvolging</a>. Verzenden gebeurt daar, met het PDF-pakket, na goedkeuring.</p>
           ) : contractDefinitief ? (
-            <p>Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan hieronder. De mail bevat het PDF-pakket.</p>
+            <p>
+              Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan hieronder. De mail bevat het PDF-pakket.
+              {!wizardOpen && <> <a href={nieuweVersieLink}>Nieuwe versie</a>.</>}
+            </p>
           ) : (
             <p class="bh-muted">Vul het contract in de wizard. Opslaan verstuurt geen mail.</p>
           )

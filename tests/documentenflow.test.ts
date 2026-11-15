@@ -197,6 +197,20 @@ test('verzenden zonder akkoord wordt geweigerd en een proef telt niet als contra
   const echte = voerFlowUit({ soort: 'verzend', proef: false, poging: '2' }, context({ versies: akkoord.versies, modus: 'test' }));
   assert.equal(echte.ok, false);
   assert.match(echte.ok ? '' : echte.melding, /Proefmail/);
+  const wacht = bouwOpvolging({
+    rechten: rechten({ aanvragen: 'schrijven', instellingen: 'schrijven' }),
+    bron: bron(),
+    instellingen: instellingen(),
+    versies: [versie],
+    betaling: { stand: 'niet_vastgelegd', toelichting: '' },
+    vandaag: '2026-06-02',
+    bekijkHref: '/beheer/aanvragen/a/',
+    fout: '',
+    modus: 'aan',
+  });
+  assert.equal(wacht.kanVerzenden, false);
+  assert.equal(wacht.kanGoedkeuren, true);
+  assert.match(wacht.redenen.join(' '), /Bestuursakkoord/);
 });
 
 test('een tweede verzending van dezelfde versie stuurt geen mail', () => {

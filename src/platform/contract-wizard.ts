@@ -247,13 +247,13 @@ export function afsprakenUitWizard(velden: ContractWizardVelden): ContractAfspra
   };
 }
 
-export function bronUitWizard(velden: ContractWizardVelden, boekingId: string): ContractBron {
+export function bronUitWizard(velden: ContractWizardVelden, boekingId: string, soort = ''): ContractBron {
   const huur = euroNaarCent(velden.huurprijs);
   const aan = euroNaarCent(velden.aanbetaling);
   const rest = huur != null && aan != null ? huur - aan : null;
   return {
     boekingId,
-    soort: '',
+    soort: soort.trim(),
     soortLabel: velden.soortLabel.trim(),
     activiteit: velden.activiteit.trim(),
     toelichting: '',
@@ -282,16 +282,136 @@ export function bronUitWizard(velden: ContractWizardVelden, boekingId: string): 
   };
 }
 
+/** De wizard opent voor het eerste contract, en opnieuw als iemand een nieuwe versie vraagt. */
+export function toonContractWizard(mag: boolean, heeftVersie: boolean, gevraagd: boolean): boolean {
+  return mag && (gevraagd || !heeftVersie);
+}
+
+export function adresUitAanvraagOfWizard(
+  aanvraag: { straat: string; huisnummer: string; toevoeging: string; postcode: string; woonplaats: string },
+  wizard: unknown,
+): { straat: string; huisnummer: string; toevoeging: string; postcode: string; woonplaats: string } {
+  if (aanvraag.straat.trim() || aanvraag.huisnummer.trim() || aanvraag.postcode.trim()) return aanvraag;
+  const bron = wizard && typeof wizard === 'object' ? wizard as Record<string, unknown> : {};
+  const lees = (sleutel: string) => typeof bron[sleutel] === 'string' ? bron[sleutel].trim() : '';
+  return {
+    straat: lees('straat'),
+    huisnummer: lees('huisnummer'),
+    toevoeging: lees('toevoeging'),
+    postcode: lees('postcode'),
+    woonplaats: lees('woonplaats'),
+  };
+}
+
+export interface BetaalregelPlan {
+  soort: 'aanbetaling' | 'restant';
+  bedrag: number;
+  verval: string;
+}
+
+export function betaalregelsUitWizard(velden: ContractWizardVelden): BetaalregelPlan[] | { fout: string } {
+  const huur = euroNaarCent(velden.huurprijs);
+  const aan = euroNaarCent(velden.aanbetaling);
+  if (huur == null || aan == null || huur < aan) return { fout: 'De bedragen kloppen niet. Er is niets opgeslagen.' };
+  const regels: BetaalregelPlan[] = [];
+  if (aan > 0) {
+    if (!DATUM.test(velden.aanbetalingVerval)) return { fout: 'De vervaldatum van de aanbetaling ontbreekt. Er is niets opgeslagen.' };
+    regels.push({ soort: 'aanbetaling', bedrag: aan / 100, verval: velden.aanbetalingVerval });
+  }
+  const rest = huur - aan;
+  if (rest > 0) {
+    if (!DATUM.test(velden.restVerval)) return { fout: 'De vervaldatum van de restbetaling ontbreekt. Er is niets opgeslagen.' };
+    regels.push({ soort: 'restant', bedrag: rest / 100, verval: velden.restVerval });
+  }
+  return regels;
+}
+
+export interface BestaandeBetaalregel {
+  id: number;
+  soort: string;
+  bedrag: number | null;
+  status: string;
+  vervaldatum: string;
+}
+
+export interface Betaalmutatie {
+  updates: { id: number; bedrag: number; vervaldatum: string | null; status: string }[];
+  inserts: { soort: 'aanbetaling' | 'restant'; bedrag: number; vervaldatum: string; status: 'open' }[];
+}
+
+function centenVan(bedrag: number | null): number | null {
+  if (bedrag == null || !Number.isFinite(bedrag)) return null;
+  return Math.round(bedrag * 100);
+}
+
+/** Zorgt dat het dossier straks precies één passende aanbetaling en restbetaling ziet. */
+export function planBetaalregels(
+  bestaand: readonly BestaandeBetaalregel[],
+  plan: readonly BetaalregelPlan[],
+): Betaalmutatie | { fout: string } {
+  const updates: Betaalmutatie['updates'] = [];
+  const inserts: Betaalmutatie['inserts'] = [];
+  const label = (soort: string) => (soort === 'aanbetaling' ? 'aanbetaling' : 'restbetaling');
+  for (const soort of ['aanbetaling', 'restant'] as const) {
+    const gewenst = plan.find((regel) => regel.soort === soort) ?? null;
+    const vanSoort = bestaand.filter((regel) => regel.soort === soort);
+    const actief = vanSoort.filter((regel) => regel.status !== 'geannuleerd');
+    const annuleer = (regel: BestaandeBetaalregel) => updates.push({
+      id: regel.id,
+      bedrag: regel.bedrag ?? 0,
+      vervaldatum: regel.vervaldatum || null,
+      status: 'geannuleerd',
+    });
+    if (!gewenst) {
+      if (actief.some((regel) => regel.status === 'ontvangen')) {
+        return { fout: `De ${label(soort)} is al ontvangen, terwijl dit contract die niet heeft. Er is niets opgeslagen.` };
+      }
+      for (const regel of actief) annuleer(regel);
+      continue;
+    }
+    const ontvangen = actief.filter((regel) => regel.status === 'ontvangen');
+    const open = actief.filter((regel) => regel.status !== 'ontvangen');
+    if (ontvangen.length > 1) {
+      return { fout: `Er staan twee ontvangen regels voor de ${label(soort)}. Er is niets opgeslagen.` };
+    }
+    if (ontvangen.length === 1) {
+      for (const regel of open) annuleer(regel);
+      const regel = ontvangen[0]!;
+      if (centenVan(regel.bedrag) !== centenVan(gewenst.bedrag)) {
+        return { fout: `De ${label(soort)} is al ontvangen en wijkt af van dit contract. Er is niets opgeslagen.` };
+      }
+      if ((regel.vervaldatum || '') !== gewenst.verval) {
+        updates.push({ id: regel.id, bedrag: gewenst.bedrag, vervaldatum: gewenst.verval, status: 'ontvangen' });
+      }
+      continue;
+    }
+    if (open.length > 0) {
+      const [houden, ...extra] = open;
+      for (const regel of extra) annuleer(regel);
+      updates.push({ id: houden!.id, bedrag: gewenst.bedrag, vervaldatum: gewenst.verval, status: 'open' });
+      continue;
+    }
+    const geannuleerd = vanSoort.find((regel) => regel.status === 'geannuleerd');
+    if (geannuleerd && soort === 'aanbetaling') {
+      updates.push({ id: geannuleerd.id, bedrag: gewenst.bedrag, vervaldatum: gewenst.verval, status: 'open' });
+      continue;
+    }
+    inserts.push({ soort, bedrag: gewenst.bedrag, vervaldatum: gewenst.verval, status: 'open' });
+  }
+  return { updates, inserts };
+}
+
 export function maakDefinitiefContract(
   invoer: ContractWizardVelden,
   boekingId: string,
   versie: number,
   opgesteldOp: string,
+  soort = '',
 ): { tekst: string; nummer: string; vingerafdruk: string; bron: ContractBron; afspraken: ContractAfspraken; instellingen: DocumentenflowInstellingen } | { fout: string } {
   const velden = zonderSpaties(invoer);
   const gaten = controleerWizard(velden);
   if (gaten.length > 0) return { fout: `Nog invullen: ${gaten.join(', ')}. Er is niets opgeslagen.` };
-  const bron = bronUitWizard(velden, boekingId);
+  const bron = bronUitWizard(velden, boekingId, soort);
   const afspraken = afsprakenUitWizard(velden);
   const instellingen = instellingenUitWizard(velden);
   const nummer = contractnummerVoor(boekingId, velden.periodeVan, versie);
