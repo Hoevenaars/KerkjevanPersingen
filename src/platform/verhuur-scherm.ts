@@ -114,7 +114,7 @@ export interface SchermFilter {
 
 const ARCHIEFSTATUS = new Set(['geannuleerd', 'afgewezen', 'gearchiveerd']);
 
-const QUERY_SLEUTELS = ['jaar', 'maand', 'q', 'aandacht', 'geannuleerd', 'vrij', 'sort', 'dir', 'bron', 'dossier', 'rij', 'weg'] as const;
+const QUERY_SLEUTELS = ['jaar', 'maand', 'q', 'aandacht', 'geannuleerd', 'vrij', 'sort', 'dir', 'bron', 'dossier', 'rij', 'weg', 'contract'] as const;
 
 export interface SchermRij {
   sleutel: string;

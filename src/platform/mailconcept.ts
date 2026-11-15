@@ -30,6 +30,8 @@ export function stelMailconceptSamen(input: {
   onderwerp: string;
   inhoud: string;
   vars?: Record<string, string>;
+  /** De tekst is al de brief die de beheerder heeft gelezen. Geen tweede aanhef. */
+  brief?: boolean;
   /** De tekst is al de hele brief, inclusief aanhef en groet. */
   briefAlCompleet?: boolean;
 }): Mailconcept | { fout: string } {
@@ -40,6 +42,21 @@ export function stelMailconceptSamen(input: {
     naam: input.naam,
     ...(input.vars ?? {}),
   };
+  if (input.brief) {
+    const onderwerp = input.onderwerp.trim();
+    const lichaam = input.inhoud.trim();
+    if (!onderwerp || !lichaam) return { fout: 'Genereer eerst het contract en lees het door. Er is geen mail verstuurd.' };
+    const omlijsting = kerkjeMail({ titel: onderwerp, hoofdtekst: lichaam });
+    return {
+      onderwerp,
+      html: omlijsting.html,
+      text: omlijsting.text,
+      replyTo: CONTRACTBEHEER_EMAIL,
+      afzender: VAN_ADRES,
+      ontvanger,
+      openVariabelen: openVariabelen(`${onderwerp}\n${omlijsting.text}`),
+    };
+  }
   if (input.template) {
     const inhoud = input.inhoud.trim()
       ? { ...input.template, hoofdtekst: input.inhoud.trim() }
@@ -78,7 +95,7 @@ export function stelMailconceptSamen(input: {
 }
 
 export function mailconceptMelding(modus: Mailmodus, testadres: string | null, verstuurd: boolean): string {
-  if (modus === 'uit') return 'De schakelaar staat uit. Het concept is niet naar een provider gestuurd.';
+  if (modus === 'uit') return 'De schakelaar Losse template uit beheer staat uit. Er is geen mail verstuurd. Zet die op Test of Aan onder Automatiseringen en verstuur opnieuw.';
   if (modus === 'dry-run') return 'Dry-run. Er is geen provider-call gedaan.';
   if (!verstuurd) return 'Verzenden is geblokkeerd. Er is geen provider-call gedaan.';
   if (modus === 'test') return `Testmail verstuurd naar ${testadres ?? 'het testmailadres'}.`;

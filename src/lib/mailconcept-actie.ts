@@ -28,6 +28,7 @@ export async function verwerkMailconcept(input: {
   onderwerp: string;
   inhoud: string;
   actorNaam: string;
+  brief?: boolean;
   env?: Record<string, unknown>;
   bewaar?: (regel: Record<string, unknown>) => Promise<{ error: string | null }>;
 }): Promise<{ ok: boolean; melding: string; preview: ReturnType<typeof stelMailconceptSamen> | null }> {
@@ -37,6 +38,7 @@ export async function verwerkMailconcept(input: {
     template: input.template,
     onderwerp: input.onderwerp,
     inhoud: input.inhoud,
+    brief: input.brief,
     briefAlCompleet: input.briefAlCompleet,
   });
   const templateSleutel = input.logTemplateId || input.template?.id || 'vrij';

@@ -8,6 +8,8 @@ interface Props {
   testadres: string | null;
   replyTo: string;
   preview?: { onderwerp: string; text: string } | null;
+  formActie?: string;
+  tab?: string;
   titel?: string;
   toelichting?: string;
   gekozenTemplate?: string;
@@ -26,6 +28,8 @@ const {
   testadres,
   replyTo,
   preview = null,
+  formActie = '',
+  tab = '',
   titel = 'Nieuw mailconcept',
   toelichting = '',
   gekozenTemplate = '',
@@ -36,8 +40,10 @@ const {
   toonConcept = true,
   contract = false,
 } = Astro.props;
-const tekst = preview?.text && !contract ? '' : inhoud;
-const onderwerpWaarde = preview?.onderwerp && !contract ? preview.onderwerp : (onderwerp || preview?.onderwerp || '');
+const tekst = inhoud;
+const onderwerpWaarde = preview?.onderwerp && !contract
+  ? preview.onderwerp
+  : (onderwerp || preview?.onderwerp || '');
 const groepen = groepeerOpProces(templates);
 ---
 
@@ -54,10 +60,9 @@ const groepen = groepeerOpProces(templates);
       </p>
     )
   }
-  <form method="post" class="bh-form">
-    {
-      contract && <input type="hidden" name="contract" value="1" />
-    }
+  <form method="post" action={formActie || undefined} class="bh-form">
+    {tab && <input type="hidden" name="tab" value={tab} />}
+    {contract && <input type="hidden" name="contract" value="1" />}
     {
       verbergTemplate ? (
         gekozenTemplate && <input type="hidden" name="templateId" value={gekozenTemplate} />
@@ -89,6 +94,7 @@ const groepen = groepeerOpProces(templates);
       {toonConcept && <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailconcept">Concept bewaren</button>}
       <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailpreview">Preview</button>
       <button class="bh-btn" type="submit" name="actie" value="mailverstuur">{verzendLabel}</button>
+      {!contract && <p class="bh-muted">Versturen blijft op dit scherm en toont wat er gebeurd is. Uit verstuurt geen mail.</p>}
     </div>
   </form>
   {

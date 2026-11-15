@@ -1,0 +1,81 @@
+---
+interface Props {
+  variant: 'kc' | 'bh';
+  actie: string;
+  boekingId: string;
+  terug: string;
+  brief: { onderwerp: string; tekst: string } | null;
+  magSchrijven: boolean;
+  modus: string;
+  ontvanger: string;
+}
+
+const { variant, actie, boekingId, terug, brief, magSchrijven, modus, ontvanger } = Astro.props;
+const knop = variant === 'kc' ? 'kc-knop kc-knop--olijf' : 'bh-btn';
+const secundair = variant === 'kc' ? 'kc-knop' : 'bh-btn bh-btn--sec';
+---
+
+<div class="contract-blok">
+  {
+    !magSchrijven ? (
+      <p>Genereren en versturen vraagt schrijfrecht op boekingen.</p>
+    ) : !brief ? (
+      <form method="post" action={actie}>
+        <input type="hidden" name="actie" value="contract_genereer" />
+        <input type="hidden" name="boekingId" value={boekingId} />
+        <input type="hidden" name="terug" value={terug} />
+        <p>Eerst het contract maken, dan doorlezen, en daarna pas versturen.</p>
+        <button class={knop} type="submit">Genereer contract</button>
+      </form>
+    ) : (
+      <>
+        <p>Lees het contract door. Versturen gebruikt deze tekst. Ontvanger: {ontvanger || 'geen e-mailadres'}. Huidige modus: {modus}.</p>
+        <article class="contract-lees">
+          <h4>{brief.onderwerp}</h4>
+          <pre>{brief.tekst}</pre>
+        </article>
+        <form method="post" action={actie}>
+          <input type="hidden" name="actie" value="contract_verstuur" />
+          <input type="hidden" name="boekingId" value={boekingId} />
+          <input type="hidden" name="terug" value={terug} />
+          <input type="hidden" name="mailOnderwerp" value={brief.onderwerp} />
+          <label for={`contract-tekst-${boekingId}`}>Tekst die verstuurd wordt</label>
+          <textarea id={`contract-tekst-${boekingId}`} name="mailInhoud" rows="16">{brief.tekst}</textarea>
+          <p>Uit verstuurt geen mail. Test gaat naar het testmailadres. Aan gaat naar de huurder.</p>
+          <button class={secundair} type="submit">Verstuur contract</button>
+        </form>
+      </>
+    )
+  }
+</div>
+
+<style>
+  .contract-blok {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .contract-lees {
+    margin: 0;
+    padding: 0.9rem 1rem;
+    background: #faf8f3;
+    border: 1px solid #e4dccb;
+  }
+  .contract-lees h4 {
+    margin: 0 0 0.6rem;
+  }
+  .contract-lees pre {
+    margin: 0;
+    white-space: pre-wrap;
+    font: inherit;
+  }
+  .contract-blok textarea {
+    width: 100%;
+    min-height: 16rem;
+    font: inherit;
+  }
+  .contract-blok label {
+    display: block;
+    font-weight: 600;
+  }
+</style>
