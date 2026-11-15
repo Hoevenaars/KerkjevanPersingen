@@ -28,7 +28,7 @@ Wilt u het ondertekend terugsturen? Daarna volgt de aanbetaling. Zodra die binne
 
 De verhuurvoorwaarden staan op https://kerkjepersingen.nl/verhuur/voorwaarden/.
 
-Vragen over het contract: Nelleke van der Pol, contractbeheer, of bel 06 52 66 84 49.
+Vragen over het contract: Hans Maas, contractbeheer, of bel 06 52 66 84 49.
 
 Met vriendelijke groet,
 Bestuur Het Kerkje van Persingen`;

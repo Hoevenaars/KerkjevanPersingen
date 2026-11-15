@@ -31,6 +31,8 @@ test('het contract van Nick Hoevenaars is leesbaar en gebruikt zijn boeking', ()
   assert.match(brief.tekst, /nick@example\.nl/);
   assert.match(brief.tekst, /Dorpstraat 1, Persingen/);
   assert.match(brief.tekst, /Expositie/);
+  assert.match(brief.tekst, /Hans Maas, contractbeheer/);
+  assert.equal(brief.tekst.includes('Nelleke van der Pol'), false);
   assert.equal(brief.tekst.includes('{{'), false);
 });
 
