@@ -6,6 +6,7 @@ import {
   magFaseTerug,
   magGoedkeuren,
   pastInFilter,
+  wereldZonderVervallenContract,
   type FaseAanvraag,
   type FaseWereld,
 } from '../src/platform/aanvraag-fase.ts';
@@ -203,6 +204,32 @@ test('contract, handtekening en aanbetaling bepalen de volgende actie', () => {
   assert.equal(regel.checklist.aanbetaling, true);
   assert.equal(regel.fase, 'gereed');
   assert.equal(regel.checklist.aanbetalingTekst, 'Ontvangen');
+});
+
+test('een nieuwe contractversie haalt de oude verzending uit de fase', () => {
+  const boeking = {
+    id: 'b-4',
+    nummer: '2026-4',
+    status: 'optie',
+    start: '2026-07-10',
+    eind: '2026-07-11',
+    titel: 'Concert',
+    huurder: 'De Vries',
+    aanbetalingBinnen: false,
+    aanvraagId: 'a-1',
+  };
+  const item = aanvraag({ status: 'goedgekeurd', boekingId: 'b-4' });
+  const bron = wereld({
+    aanvragen: [item],
+    boekingen: [boeking],
+    documenten: [{ boekingId: 'b-4', soort: 'getekend_contract', naam: 'getekend.pdf' }],
+    mails: [{ boekingId: 'b-4', template: 'contract_begeleiding', status: 'verzonden' }],
+  });
+  const vers = beoordeelAanvraag(item, wereldZonderVervallenContract(bron, 'b-4', { verzonden: false, ondertekend: false }));
+  assert.equal(vers.checklist.verzonden, false);
+  assert.equal(vers.checklist.ondertekend, false);
+  assert.equal(vers.volgendeActie, 'Contract verzenden');
+  assert.equal(bron.documenten.length, 1);
 });
 
 test('wachten op ondertekening kan één fase terug naar contract verzenden', () => {

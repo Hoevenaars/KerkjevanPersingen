@@ -269,6 +269,46 @@ export function checklistVan(boeking: FaseBoeking | null, wereld: FaseWereld): C
   };
 }
 
+export function contractStaatVanVersie(versie: {
+  ondertekening: string;
+  verzendingen: readonly { soort: string; status: string }[];
+}): { verzonden: boolean; ondertekend: boolean } {
+  return {
+    verzonden: versie.verzendingen.some((regel) => {
+      return (regel.soort === 'contract' || regel.soort === 'herhaling') && regel.status === 'verzonden';
+    }),
+    ondertekend: versie.ondertekening === 'ontvangen',
+  };
+}
+
+/**
+ * Een nieuwe contractversie telt zelf. Oudere verzendingen en handtekeningen
+ * houden de fase niet op "wachten" of "gereed".
+ */
+export function wereldZonderVervallenContract(
+  wereld: FaseWereld,
+  boekingId: string,
+  huidig: { verzonden: boolean; ondertekend: boolean },
+): FaseWereld {
+  if (huidig.verzonden && huidig.ondertekend) return wereld;
+  return {
+    ...wereld,
+    documenten: wereld.documenten.filter((document) => {
+      if (document.boekingId !== boekingId) return true;
+      const vorm = contractVorm(document.soort, document.naam);
+      if (!huidig.ondertekend && vorm === 'getekend') return false;
+      if (!huidig.verzonden && (vorm === 'contract' || vorm === 'getekend')) return false;
+      return true;
+    }),
+    mails: huidig.verzonden
+      ? wereld.mails
+      : wereld.mails.filter((mail) => {
+        if (mail.boekingId !== boekingId || mail.status !== 'verzonden') return true;
+        return !/contract|huurovereenkomst/i.test(mail.template);
+      }),
+  };
+}
+
 export function beschikbaarheidVoor(aanvraag: FaseAanvraag, wereld: FaseWereld): Beschikbaarheid {
   const periode = periodeVan(aanvraag.start, aanvraag.eind);
   if (!periode) {
