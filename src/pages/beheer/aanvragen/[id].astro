@@ -224,6 +224,10 @@ if (Astro.request.method === 'POST') {
       doel.searchParams.set('fout', 'Dit is de voorbeeldweergave. Er is niets gewijzigd en er is geen mail verstuurd.');
     } else {
       const uit = await trekFaseTerug(mailSessie as never, Number(aanvraag.id), actorVanSessie(Astro.locals.beheer));
+      if (uit.ok) {
+        doel.searchParams.set('contract', 'genereren');
+        doel.hash = 'contract-wizard';
+      }
       doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
     }
     return Astro.redirect(doel.toString());
@@ -473,7 +477,7 @@ const wizardVelden = wizardPost ?? wizardUitDossier({
 }, leesInstellingen(instellingRijen), bewaardeWizard);
 const contractParam = Astro.url.searchParams.get('contract');
 const wizardOpen = Boolean(beeld.boeking) && !Astro.locals.beheer?.viewAs && magContractBeheren(rechtenNu) && (
-  (kanContract && !contractDefinitief && (wizardPost != null || contractParam === 'genereren'))
+  (kanContract && (wizardPost != null || contractParam === 'genereren'))
   || (contractDefinitief && (wizardPost != null || contractParam === 'nieuw'))
 );
 const contractLink = (() => {
@@ -522,7 +526,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
     <p class="bh-volgende">Volgende actie: <strong class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.volgendeActie}</strong></p>
     {
       kanBeoordelen && magFaseTerug(beeld).ok && (
-        <form method="post" action={dossierPad} class="bh-acties" onsubmit="return confirm('Het openstaande contract wordt ingetrokken. De tekenlink werkt daarna niet meer. Daarna maak je een nieuwe versie. Er gaat geen mail uit.')">
+        <form method="post" action={dossierPad} class="bh-acties" onsubmit="return confirm('Het openstaande contract wordt ingetrokken. De tekenlink werkt daarna niet meer. Daarna kun je het contract opnieuw genereren. Er gaat geen mail uit.')">
           <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="fase_terug">Eén fase terug</button>
         </form>
       )
@@ -633,7 +637,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             )
           }
           {
-            kanContract && contractDefinitief && (
+            kanContract && contractDefinitief && !wizardOpen && (
               <p>
                 Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan bij het contract hieronder.
                 {' '}<a href={nieuweVersieLink}>Nieuwe versie</a>.

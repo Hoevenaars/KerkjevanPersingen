@@ -218,9 +218,13 @@ function boekingBij(aanvraag: FaseAanvraag, wereld: FaseWereld): FaseBoeking | n
 }
 
 function contractVorm(soort: string, naam: string): 'getekend' | 'contract' | 'geen' {
-  const sleutel = `${normaliseer(soort)} ${normaliseer(naam)}`;
+  const type = normaliseer(soort);
+  // Een ingetrokken contract blijft als bestand bestaan, met type overig.
+  // De bestandsnaam bevat dan nog "contract" en mag de fase niet vasthouden.
+  if (type === 'overig' || type === 'factuur') return 'geen';
+  const sleutel = `${type} ${normaliseer(naam)}`;
   if (/getekend/.test(sleutel)) return 'getekend';
-  if (/contract|huurovereenkomst/.test(sleutel)) return 'contract';
+  if (type === 'contract' || /contract|huurovereenkomst/.test(sleutel)) return 'contract';
   return 'geen';
 }
 
