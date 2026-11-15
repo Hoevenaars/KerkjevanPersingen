@@ -23,6 +23,7 @@ export async function verwerkMailconcept(input: {
   onderwerp: string;
   inhoud: string;
   actorNaam: string;
+  brief?: boolean;
   env?: Record<string, unknown>;
   bewaar?: (regel: Record<string, unknown>) => Promise<{ error: string | null }>;
 }): Promise<{ ok: boolean; melding: string; preview: ReturnType<typeof stelMailconceptSamen> | null }> {
@@ -32,6 +33,7 @@ export async function verwerkMailconcept(input: {
     template: input.template,
     onderwerp: input.onderwerp,
     inhoud: input.inhoud,
+    brief: input.brief,
   });
   if ('fout' in concept) return { ok: false, melding: concept.fout, preview: null };
   if (input.actie === 'mailpreview') return { ok: true, melding: 'Preview. Er is geen mail verstuurd.', preview: concept };

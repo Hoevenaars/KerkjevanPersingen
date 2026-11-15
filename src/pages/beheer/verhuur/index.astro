@@ -27,6 +27,8 @@ import {
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
 import { documentLinks } from '../../../lib/verhuur-document-link.ts';
+import { contractBronUitBoeking, genereerContractbrief } from '../../../platform/contract-brief.ts';
+import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
 
 if (!verhuurOverzichtAan()) return beheerUitResponse();
 if (!verhuurVerzoekToegestaan(Astro.request.method)) {
@@ -201,6 +203,18 @@ if (boeking && dossierRij) {
   });
 }
 
+const contractBesluit = magAutomatiseringUitvoeren('handmatige_template');
+const contractModus = contractBesluit.modus === 'test' ? 'Test' : contractBesluit.modus === 'aan' ? 'Aan' : 'Uit';
+const contractBron = boeking
+  ? contractBronUitBoeking(boeking, relatie
+    ? { naam: relatie.naam, email: relatie.email, telefoon: relatie.telefoon, adres: relatie.adres ?? '' }
+    : null)
+  : null;
+const gegenereerdContract = Astro.url.searchParams.get('contract') === '1' && contractBron
+  ? genereerContractbrief(contractBron)
+  : null;
+const contractBrief = gegenereerdContract && !('fout' in gegenereerdContract) ? gegenereerdContract : null;
+
 const maanden = Array.from({ length: 12 }, (_, index) => {
   const nummer = index + 1;
   const sleutel = `${filter.jaar}-${String(nummer).padStart(2, '0')}`;
@@ -209,12 +223,12 @@ const maanden = Array.from({ length: 12 }, (_, index) => {
 const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
 const bronParam = Astro.url.searchParams.get('bron');
-const sluitHref = adres({ dossier: null, rij: null, weg: null });
+const sluitHref = adres({ dossier: null, rij: null, weg: null, contract: null });
 const filterAantal = [filter.aandacht, filter.geannuleerd, filter.vrij].filter(Boolean).length;
 
 function sorteerHref(kolom: typeof filter.sort): string {
   const dir = filter.sort === kolom && filter.dir === 'asc' ? 'desc' : 'asc';
-  return adres({ sort: kolom, dir, dossier: null, rij: null, weg: null });
+  return adres({ sort: kolom, dir, dossier: null, rij: null, weg: null, contract: null });
 }
 
 function sorteerLabel(kolom: typeof filter.sort): string {
@@ -298,7 +312,7 @@ function sorteerLabel(kolom: typeof filter.sort): string {
           <p class="kc-leeg">Geen activiteiten in deze periode. Pas de maand of de zoekopdracht aan, of zet in Filter geannuleerde dossiers of vrije weekenden aan.</p>
         ) : (
           scherm.rijen.map((rij) => {
-            const open = rij.boekingId ? adres({ dossier: rij.boekingId, rij: null, weg: null }) : adres({ rij: rij.sleutel, dossier: null, weg: null });
+            const open = rij.boekingId ? adres({ dossier: rij.boekingId, rij: null, weg: null, contract: null }) : adres({ rij: rij.sleutel, dossier: null, weg: null, contract: null });
             const gekozen = rij.boekingId === dossierId || rij.sleutel === rijSleutel;
             return (
               <a
@@ -370,7 +384,13 @@ function sorteerLabel(kolom: typeof filter.sort): string {
         betaalregels={bronWeergave?.betaling ?? []}
         geschiedenis={bronWeergave?.geschiedenis ?? []}
         geschiedenisToelichting={bronWeergave?.geschiedenisToelichting ?? ''}
-        oudHref={`/beheer/boekingen/${encodeURIComponent(dossier.id)}/`}
+        oudHref={`/beheer/boekingen/${encodeURIComponent(dossier.id)}/?tab=documenten`}
+        contractActie="/beheer/verhuur/contract"
+        contractBrief={contractBrief}
+        contractModus={contractModus}
+        contractOntvanger={boeking?.email || relatie?.email || ''}
+        melding={melding ?? ''}
+        fout={fout ?? ''}
       />
     )
   }

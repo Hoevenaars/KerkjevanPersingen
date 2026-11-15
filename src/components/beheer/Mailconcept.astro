@@ -8,9 +8,24 @@ interface Props {
   testadres: string | null;
   replyTo: string;
   preview?: { onderwerp: string; text: string } | null;
+  formActie: string;
+  tab?: string;
+  gekozenTemplate?: string;
+  inhoud?: string;
 }
 
-const { templates, ontvanger, modus, testadres, replyTo, preview = null } = Astro.props;
+const {
+  templates,
+  ontvanger,
+  modus,
+  testadres,
+  replyTo,
+  preview = null,
+  formActie,
+  tab = '',
+  gekozenTemplate = '',
+  inhoud = '',
+} = Astro.props;
 const groepen = groepeerOpProces(templates);
 ---
 
@@ -21,7 +36,8 @@ const groepen = groepeerOpProces(templates);
     {modus === 'Test' && testadres ? ` Testmail wordt verstuurd naar: ${testadres}.` : ''}
     {modus === 'Uit' ? ' Uit doet geen provider-call.' : ''}
   </p>
-  <form method="post" class="bh-form">
+  <form method="post" action={formActie} class="bh-form">
+    {tab && <input type="hidden" name="tab" value={tab} />}
     <label for="templateId">Template</label>
     <select id="templateId" name="templateId">
       <option value="">Vrije tekst</option>
@@ -29,7 +45,7 @@ const groepen = groepeerOpProces(templates);
         groepen.map((groep) => (
           <optgroup label={groep.titel}>
             {groep.templates.map((item) => (
-              <option value={item.id}>{item.naam}</option>
+              <option value={item.id} selected={item.id === gekozenTemplate}>{item.naam}</option>
             ))}
           </optgroup>
         ))
@@ -38,11 +54,12 @@ const groepen = groepeerOpProces(templates);
     <label for="mailOnderwerp">Onderwerp</label>
     <input id="mailOnderwerp" name="mailOnderwerp" value={preview?.onderwerp ?? ''} />
     <label for="mailInhoud">Inhoud</label>
-    <textarea id="mailInhoud" name="mailInhoud" rows="8"></textarea>
+    <textarea id="mailInhoud" name="mailInhoud" rows="8">{inhoud}</textarea>
     <div class="bh-acties">
       <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailconcept">Concept bewaren</button>
       <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="mailpreview">Preview</button>
       <button class="bh-btn" type="submit" name="actie" value="mailverstuur">Versturen</button>
+      <p class="bh-muted">Versturen blijft op dit scherm en toont wat er gebeurd is. Uit verstuurt geen mail.</p>
     </div>
   </form>
   {

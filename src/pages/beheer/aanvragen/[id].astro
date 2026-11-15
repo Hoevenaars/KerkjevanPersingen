@@ -51,9 +51,9 @@ if (Astro.request.method === 'POST') {
       },
     });
     if (actie !== 'mailpreview') {
-      const doel = new URL(Astro.url.pathname, Astro.url.origin);
-      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
-      return Astro.redirect(doel.toString());
+      const params = new URLSearchParams();
+      params.set(uit.ok ? 'melding' : 'fout', uit.melding);
+      return Astro.redirect(`${Astro.url.pathname}?${params}`);
     }
     mailPreview = uit.preview && !('fout' in uit.preview) ? { onderwerp: uit.preview.onderwerp, text: uit.preview.text } : null;
     mailMelding = uit.melding;
@@ -267,7 +267,11 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           }
           {
             beeld.fase === 'in_behandeling' && !beeld.checklist.verzonden && beeld.boeking && (
-              <p>Het contract verstuur je met het bestaande mailformulier hieronder. Er komt geen tweede verzendknop bij.</p>
+              <p>
+                Genereer het contract bij de boeking, lees het door en verstuur het daar.
+                {' '}
+                <a href={`/beheer/boekingen/${encodeURIComponent(beeld.boeking.id)}/?tab=documenten`}>Open de documenten</a>.
+              </p>
             )
           }
           {
@@ -379,6 +383,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           testadres={testadres}
           replyTo={CONTRACTBEHEER_EMAIL}
           preview={mailPreview}
+          formActie={dossierPad}
         />
       </div>
     )
