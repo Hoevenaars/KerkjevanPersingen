@@ -22,7 +22,6 @@ import { STANDAARD_MAILTEMPLATES } from '../../../../platform/mailtemplates/cata
 import { laadMailtemplatesUitSupabase } from '../../../../platform/mailtemplates/supabase-bron.ts';
 import type { MailTemplateDef } from '../../../../platform/mailtemplates/types.ts';
 import { GEEN_TESTMAILADRES, normaliseerTestmailadres, TESTMAIL_SLEUTEL } from '../../../../platform/testmail.ts';
-import { documentenflowAan } from '../../../../platform/documentenflow-vlag.ts';
 import { controleerInstellingen, instellingRijen, leesInstellingen, legeInstellingen } from '../../../../platform/documentenflow.ts';
 import { magSchrijven } from '../../../../platform/rechten.ts';
 
@@ -142,8 +141,7 @@ if (Astro.request.method === 'POST') {
       publicatieRoute: String(form.get('publicatie') ?? '').trim(),
     };
     const controle = controleerInstellingen(instellingen);
-    if (!documentenflowAan()) fout = 'Documentenflow staat uit. Er is niets opgeslagen.';
-    else if (!magSchrijven(rechten, 'instellingen')) fout = 'Geen recht om deze instellingen te bewaren.';
+    if (!magSchrijven(rechten, 'instellingen')) fout = 'Geen recht om deze instellingen te bewaren.';
     else if (!db) fout = 'Geen databaseclient. Er is niets opgeslagen.';
     else if (controle) fout = controle;
     else {
@@ -240,8 +238,8 @@ try {
   lijst = STANDAARD_AUTOMATISERINGEN;
 }
 
-let documentenInstellingen = legeInstellingen();
-const magDocumenten = documentenflowAan() && magSchrijven(
+let documentenInstellingen = leesInstellingen([]);
+const magDocumenten = magSchrijven(
   Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
   'instellingen',
 );
@@ -294,7 +292,7 @@ const groepen = [
     magDocumenten && (
       <section class="bh-kaart">
         <h2>Contract en opvolging</h2>
-        <p>Leeg is de veilige stand. Zonder IBAN, ondertekenaar en vaststellingsdatum kan geen contract worden gemaakt. Zonder gereed-regel wordt een boeking niet vanzelf definitief.</p>
+        <p>De velden staan gevuld met wat al op de site staat: Nelleke van der Pol als contractbeheer, en het rekeningnummer van Steun ons. Pas een veld aan als de huur ergens anders hoort. Zonder gereed-regel wordt een boeking niet vanzelf definitief.</p>
         <form method="post" class="bh-form">
           <label for="df-bestuur">Bestuursakkoord voor nieuwe contracten</label>
           <select id="df-bestuur" name="bestuur">

@@ -18,7 +18,7 @@ import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
 import { CONTRACTBEHEER_EMAIL } from '../../../lib/mail-adressen.ts';
 import Mailconcept from '../../../components/beheer/Mailconcept.astro';
 import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
-import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
+import { besluitVoor } from '../../../lib/automatisering-register.ts';
 import { magAanvraagWijzigen } from '../../../platform/aanvraag.ts';
 import { magSchrijven } from '../../../platform/rechten.ts';
 import { zetReservelijstViaAanvraag } from '../../../lib/operatie/aanvraag-reservelijst.ts';
@@ -70,7 +70,7 @@ if (Astro.request.method === 'POST') {
       ? { naam: bestand.name, bytes: new Uint8Array(await bestand.arrayBuffer()) }
       : null;
     const flowActie = flowActieUit(actie, formulier);
-    const modus = magAutomatiseringUitvoeren('handmatige_template').modus;
+    const modus = (await besluitVoor('handmatige_template', undefined, omgevingsRecord())).modus;
     const uit = flowActie
       ? await pasDocumentenflowToe({
         client: mailSessie as never,
@@ -271,7 +271,7 @@ const tijdlijn = aanvraag && sessieClient
   ? await laadTijdlijn(sessieClient as never, { aanvraagId: aanvraag.id })
   : [];
 const testadres = await getTestMailRecipient().catch(() => null);
-const mailmodus = magAutomatiseringUitvoeren('handmatige_template').modus;
+const mailmodus = (await besluitVoor('handmatige_template', undefined, omgevingsRecord())).modus;
 const mailmodusLabel = mailmodus === 'test' ? 'Test' : mailmodus === 'aan' ? 'Aan' : 'Uit';
 const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam, aanvraag.informatievraag) : null;
 const fotos = aanvraag && sessieClient ? await lijstAanvraagFotos(sessieClient as never, aanvraag.id) : [];

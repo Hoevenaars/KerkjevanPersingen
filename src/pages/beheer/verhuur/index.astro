@@ -27,8 +27,7 @@ import {
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
 import { documentLinks } from '../../../lib/verhuur-document-link.ts';
-import { contractBronUitBoeking, genereerContractbrief } from '../../../platform/contract-brief.ts';
-import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
+import { wizardAdres } from '../../../platform/verhuurder.ts';
 
 if (!verhuurOverzichtAan()) return beheerUitResponse();
 if (!verhuurVerzoekToegestaan(Astro.request.method)) {
@@ -203,17 +202,12 @@ if (boeking && dossierRij) {
   });
 }
 
-const contractBesluit = magAutomatiseringUitvoeren('handmatige_template');
-const contractModus = contractBesluit.modus === 'test' ? 'Test' : contractBesluit.modus === 'aan' ? 'Aan' : 'Uit';
-const contractBron = boeking
-  ? contractBronUitBoeking(boeking, relatie
-    ? { naam: relatie.naam, email: relatie.email, telefoon: relatie.telefoon, adres: relatie.adres ?? '' }
-    : null)
+const contractAanvraag = boeking
+  ? snapshot.aanvragen.find((item) => item.boekingId === boeking.id || item.id === boeking.aanvraagId)
   : null;
-const gegenereerdContract = Astro.url.searchParams.get('contract') === '1' && contractBron
-  ? genereerContractbrief(contractBron)
-  : null;
-const contractBrief = gegenereerdContract && !('fout' in gegenereerdContract) ? gegenereerdContract : null;
+const contractHref = boeking
+  ? wizardAdres({ aanvraagId: contractAanvraag?.id, boekingId: boeking.id })
+  : '/beheer/boekingen/';
 
 const maanden = Array.from({ length: 12 }, (_, index) => {
   const nummer = index + 1;
@@ -385,10 +379,7 @@ function sorteerLabel(kolom: typeof filter.sort): string {
         geschiedenis={bronWeergave?.geschiedenis ?? []}
         geschiedenisToelichting={bronWeergave?.geschiedenisToelichting ?? ''}
         oudHref={`/beheer/boekingen/${encodeURIComponent(dossier.id)}/?tab=documenten`}
-        contractActie="/beheer/verhuur/contract"
-        contractBrief={contractBrief}
-        contractModus={contractModus}
-        contractOntvanger={boeking?.email || relatie?.email || ''}
+        contractHref={contractHref}
         melding={melding ?? ''}
         fout={fout ?? ''}
       />

@@ -1,5 +1,4 @@
 ---
-import ContractBrief from './ContractBrief.astro';
 import StatusMarkering from './StatusMarkering.astro';
 import StukBeoordeling from './StukBeoordeling.astro';
 import { staatKleur, type DossierActieZichtbaar, type DossierWeergave } from '../../platform/verhuur-scherm.ts';
@@ -22,10 +21,7 @@ interface Props {
   geschiedenis: { label: string; waarde: string }[];
   geschiedenisToelichting: string;
   oudHref: string;
-  contractActie: string;
-  contractBrief: { onderwerp: string; tekst: string } | null;
-  contractModus: string;
-  contractOntvanger: string;
+  contractHref: string;
   melding?: string;
   fout?: string;
 }
@@ -48,10 +44,7 @@ const {
   geschiedenis,
   geschiedenisToelichting,
   oudHref,
-  contractActie,
-  contractBrief,
-  contractModus,
-  contractOntvanger,
+  contractHref,
   melding = '',
   fout = '',
 } = Astro.props;
@@ -193,16 +186,13 @@ const aantal = dossier.taken.length;
         <div class="kc-kaart-inhoud">
           <StatusMarkering kleur="unknown" tekst="Onbekend" />
           <p>{dossier.contractTekst}</p>
-          <ContractBrief
-            variant="kc"
-            actie={contractActie}
-            boekingId={dossier.id}
-            terug={terug}
-            brief={contractBrief}
-            magSchrijven={magSchrijven}
-            modus={contractModus}
-            ontvanger={contractOntvanger}
-          />
+          {
+            magSchrijven ? (
+              <p><a class="kc-knop kc-knop--olijf" href={contractHref}>Contract genereren</a></p>
+            ) : (
+              <p>Het contract bekijken vraagt schrijfrecht op boekingen.</p>
+            )
+          }
           {
             dossier.documenten.length === 0 ? (
               <p>Er staat geen document bij deze boeking.</p>

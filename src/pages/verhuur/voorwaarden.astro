@@ -1,65 +1,31 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHeader from '../../components/PageHeader.astro';
+import { HUISREGELS_V1, VOORWAARDEN_V1 } from '../../platform/documenten/teksten-v1.ts';
 
 /*
-  Gebaseerd op de officiële documenten: "Voorwaarden voor verhuur, Kerkje van
-  Persingen, per 05-01-2026" en "Huisregels Persingen 2023". Aangeleverd door
-  Nelleke (contractbeheer), augustus 2026.
+  Versie 1.0, de tekst die ook in een contract wordt bevroren.
+  Vastgesteld op 15 november 2026. De korte samenvatting van augustus
+  is deze publicatie.
 */
 ---
 
 <Base
   title="Verhuurvoorwaarden"
-  description="Voorwaarden voor verhuur en het huishoudelijk reglement van het Kerkje van Persingen."
+  description="Verhuurvoorwaarden en huisregels van het Kerkje van Persingen, versie 1.0."
 >
   <PageHeader
     eyebrow="Verhuur"
-    title="Verhuurvoorwaarden en huishoudelijk reglement"
+    title="Verhuurvoorwaarden en huisregels"
     mark="boog"
   />
 
   <div class="wrap-narrow prose">
-    <h2>Algemeen, voor elke activiteit</h2>
-    <ul>
-      <li>Geen entreeheffing, bij geen enkele activiteit.</li>
-      <li>Geen horeca: eten of drinken verkopen is niet toegestaan. Uit gastvrijheid iets aanbieden mag wel.</li>
-      <li>Schade tijdens de huurperiode is voor rekening van de huurder.</li>
-      <li>Parkeren alleen op het terrein aan de overkant van de straat.</li>
-    </ul>
-
-    <h2>Exposities</h2>
-    <ul>
-      <li>Een expositie is in principe een heel weekend (zaterdag én zondag).</li>
-      <li>
-        Is de andere dag van dat weekend al gereserveerd voor een bruiloft, dan is een
-        losse dag mogelijk.
-      </li>
-      <li>Niet toegestaan: twee aaneengesloten weekends exposeren.</li>
-      <li>Dezelfde exposant kan niet binnen 18 maanden opnieuw exposeren. Dit geldt ook voor mede-exposanten.</li>
-      <li>Bij een groepsexpositie: maximaal 5 deelnemers, elk gebonden aan de 18-maandenregel.</li>
-      <li>Kunstwerken alleen ophangen aan de beschikbare systemen, max. 10 kg per systeemhouder.</li>
-    </ul>
-
-    <h2>Bruiloften</h2>
-    <ul>
-      <li>Ter beoordeling van het bestuur, ook op doordeweekse dagen mogelijk.</li>
-      <li>Staat er op vrijdag al een huwelijk, uitvaart of andere gebeurtenis gepland, dan kan het inrichten voor een weekendexpositie pas vanaf circa 16.30 uur.</li>
-    </ul>
-
-    <h2>Overige</h2>
+    <p>Versie 1.0, vastgesteld op 15 november 2026.</p>
+    <div class="documenttekst">{VOORWAARDEN_V1}</div>
+    <div class="documenttekst">{HUISREGELS_V1}</div>
     <p>
-      Herdenkingen, lezingen, vieringen en vergelijkbare bijeenkomsten, ter beoordeling
-      van het bestuur.
-    </p>
-
-    <h2>Tarieven</h2>
-    <p>
-      Zie de <a href="/verhuur/">Verhuur-pagina</a> voor de actuele tarieven, inclusief
-      de reeds vastgelegde verhoging die vanaf 2029 ingaat.
-    </p>
-
-    <p>
+      De actuele tarieven staan op de <a href="/verhuur/">verhuurpagina</a>.
       Vragen over de voorwaarden? Neem contact op via het{' '}
       <a href="/contact/">contactformulier</a> of bel{' '}
       <a href="tel:+31652668449">06 52 66 84 49</a>.
@@ -68,6 +34,8 @@ import PageHeader from '../../components/PageHeader.astro';
 </Base>
 
 <style>
-  .prose ul { padding-left: var(--s-6); }
-  .prose li + li { margin-top: var(--s-2); }
+  .documenttekst {
+    white-space: pre-wrap;
+    margin-top: var(--s-6);
+  }
 </style>
