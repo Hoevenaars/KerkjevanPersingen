@@ -16,6 +16,7 @@ import {
   interneLijsten,
   type InterneLijst,
 } from './documenten/teksten-v1.ts';
+import { VERHUURDER } from './verhuurder.ts';
 
 const PRIVACY = 'https://kerkjepersingen.nl/privacyverklaring/';
 const VERBODEN = /toegangs.?code|slotcode|pincode|wachtwoord|\{\{/;
@@ -189,19 +190,20 @@ function tekstWaarde(waarde: unknown): string {
 export function leesInstellingen(rijen: readonly { sleutel: string; waarde: unknown }[]): DocumentenflowInstellingen {
   const map = new Map(rijen.map((rij) => [rij.sleutel, rij.waarde]));
   const lees = (sleutel: string) => tekstWaarde(map.get(sleutel));
-  const bestuur = lees('documentenflow_bestuursakkoord');
+  const ofStandaard = (sleutel: string, standaard: string) => (map.has(sleutel) ? lees(sleutel) : standaard);
+  const bestuur = map.has('documentenflow_bestuursakkoord') ? lees('documentenflow_bestuursakkoord') : '';
   const regel = lees('documentenflow_gereed_regel');
   return {
     bestuursakkoordVerplicht: bestuur !== 'false',
     gereedRegel: regel === 'ondertekend' || regel === 'ondertekend_en_aanbetaling' ? regel : '',
-    ondertekenaarNaam: lees('documentenflow_ondertekenaar_naam'),
-    ondertekenaarFunctie: lees('documentenflow_ondertekenaar_functie'),
-    iban: lees('documentenflow_iban').replace(/\s+/g, '').toUpperCase(),
-    tenaamstelling: lees('documentenflow_tenaamstelling'),
-    voorwaardenVastgesteldOp: lees('documentenflow_voorwaarden_vastgesteld_op'),
-    huisregelsVastgesteldOp: lees('documentenflow_huisregels_vastgesteld_op'),
-    coordinatorContact: lees('documentenflow_coordinator'),
-    publicatieRoute: lees('documentenflow_publicatie_route'),
+    ondertekenaarNaam: ofStandaard('documentenflow_ondertekenaar_naam', VERHUURDER.ondertekenaarNaam),
+    ondertekenaarFunctie: ofStandaard('documentenflow_ondertekenaar_functie', VERHUURDER.ondertekenaarFunctie),
+    iban: ofStandaard('documentenflow_iban', VERHUURDER.iban).replace(/\s+/g, '').toUpperCase(),
+    tenaamstelling: ofStandaard('documentenflow_tenaamstelling', VERHUURDER.tenaamstelling),
+    voorwaardenVastgesteldOp: ofStandaard('documentenflow_voorwaarden_vastgesteld_op', VERHUURDER.voorwaardenVastgesteldOp),
+    huisregelsVastgesteldOp: ofStandaard('documentenflow_huisregels_vastgesteld_op', VERHUURDER.huisregelsVastgesteldOp),
+    coordinatorContact: ofStandaard('documentenflow_coordinator', VERHUURDER.coordinatorContact),
+    publicatieRoute: ofStandaard('documentenflow_publicatie_route', VERHUURDER.publicatieRoute),
   };
 }
 

@@ -13,7 +13,8 @@ import {
   wizardUitDossier,
   type ContractWizardVelden,
 } from '../src/platform/contract-wizard.ts';
-import { legeInstellingen } from '../src/platform/documentenflow.ts';
+import { legeInstellingen, leesInstellingen } from '../src/platform/documentenflow.ts';
+import { VERHUURDER } from '../src/platform/verhuurder.ts';
 
 const beheerder: Actor = {
   type: 'gebruiker',
@@ -113,6 +114,35 @@ test('bekende dossiergegevens staan ingevuld en gebruikstijden blijven leeg', ()
   assert.equal(velden.straat, '');
   assert.equal(velden.tijdVan, '');
   assert.equal(velden.iban, '');
+});
+
+test('een leeg contract krijgt de gepubliceerde verhuurder', () => {
+  const gelezen = leesInstellingen([]);
+  assert.equal(gelezen.iban, VERHUURDER.iban);
+  assert.equal(gelezen.ondertekenaarNaam, 'Nelleke van der Pol');
+  assert.equal(gelezen.gereedRegel, '');
+  assert.equal(leesInstellingen([{ sleutel: 'documentenflow_iban', waarde: '' }]).iban, '');
+  const velden = wizardUitDossier({
+    boekingId: '44',
+    soortLabel: 'Expositie',
+    activiteit: 'Ada',
+    naam: 'Ada Berg',
+    email: 'ada@voorbeeld.nl',
+    telefoon: '',
+    adres: '',
+    straat: 'Molenstraat',
+    huisnummer: '3',
+    toevoeging: '',
+    postcode: '6575 AB',
+    woonplaats: 'Persingen',
+    periodeVan: '2027-05-15',
+    periodeTot: '2027-05-16',
+    personen: '',
+    huurprijs: '',
+    aanbetaling: '',
+  }, gelezen);
+  assert.equal(velden.tenaamstelling, 'Stichting Het Kerkje van Persingen');
+  assert.equal(velden.voorwaardenVastgesteldOp, '2026-11-15');
 });
 
 test('definitief maken schrijft het contract en laat de status staan', async () => {
