@@ -77,7 +77,7 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   if (pad.startsWith('/beheer/kalender')) return 'kalender';
   if (pad.startsWith('/beheer/agenda') || pad.startsWith('/beheer/publiceren') || pad.startsWith('/beheer/website')) return 'agenda';
   if (pad.startsWith('/beheer/planning')) return 'planning';
-  if (pad.startsWith('/beheer/relaties')) return 'relaties';
+  if (pad.startsWith('/beheer/relaties') || pad.startsWith('/beheer/reservelijst')) return 'relaties';
   if (pad.startsWith('/beheer/finance')) return 'finance';
   if (pad.startsWith('/beheer/vrienden')) return 'vrienden';
   if (pad.startsWith('/beheer/nieuwsbrief')) return 'nieuwsbrief';

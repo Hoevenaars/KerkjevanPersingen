@@ -87,7 +87,8 @@ export function sectieVoorPad(pathname: string): HoofdSleutel | null {
     pad.startsWith('/beheer/contacten') ||
     pad.startsWith('/beheer/relaties') ||
     pad.startsWith('/beheer/vrienden') ||
-    pad.startsWith('/beheer/nieuwsbrief')
+    pad.startsWith('/beheer/nieuwsbrief') ||
+    pad.startsWith('/beheer/reservelijst')
   ) {
     return 'contacten';
   }
@@ -139,6 +140,9 @@ function contactenSub(rechten: GebruikerRechten): NavItem[] {
   }
   if (magZien(rechten, 'nieuwsbrief')) {
     items.push({ sleutel: 'nieuwsbrief', href: '/beheer/nieuwsbrief/', label: 'Nieuwsbrief' });
+  }
+  if (magZien(rechten, 'relaties')) {
+    items.push({ sleutel: 'reservelijst', href: '/beheer/reservelijst/', label: 'Reserve lijst' });
   }
   return items;
 }

@@ -126,6 +126,8 @@ export interface DemoRelatie {
   notities?: string;
   rollen: string[];
   reservelijst: boolean;
+  /** Kalenderdag of tijdstip. Leeg als de datum niet is vastgelegd. */
+  reservelijstSinds?: string;
 }
 
 export interface DemoVriend {
@@ -167,6 +169,7 @@ export const DEMO_RELATIES: DemoRelatie[] = [
     telefoon: '06 12 34 56 78',
     rollen: ['Exposant'],
     reservelijst: true,
+    reservelijstSinds: '2026-01-15',
   },
   {
     id: 'r-818',
@@ -191,6 +194,7 @@ export const DEMO_RELATIES: DemoRelatie[] = [
     telefoon: '06 11 22 33 44',
     rollen: ['Exposant'],
     reservelijst: true,
+    reservelijstSinds: '2026-06-02',
   },
 ];
 
