@@ -155,6 +155,14 @@ test('contract, handtekening en aanbetaling bepalen de volgende actie', () => {
   assert.equal(verzenden.fase, 'in_behandeling');
   assert.equal(verzenden.volgendeActie, 'Contract verzenden');
 
+  const viaMail = beoordeelAanvraag(item, wereld({
+    aanvragen: [item],
+    boekingen: [boeking],
+    mails: [{ boekingId: 'b-4', template: 'contract_begeleiding', status: 'verzonden' }],
+  }));
+  assert.equal(viaMail.checklist.verzonden, true);
+  assert.equal(viaMail.volgendeActie, 'Wachten op ondertekening');
+
   const wachten = beoordeelAanvraag(item, wereld({
     aanvragen: [item],
     boekingen: [boeking],

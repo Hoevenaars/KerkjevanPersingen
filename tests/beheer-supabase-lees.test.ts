@@ -89,6 +89,21 @@ test('supabase-leesmodel houdt relaties, annulering, datum en blokkade uit elkaa
   assert.equal(snapshot.fout, null);
 });
 
+test('een echte contractverzending telt mee bij de boeking', async () => {
+  const snapshot = await leesSupabaseBeheer(clientVan({
+    ...basis,
+    communicatie_verzendingen: [
+      { id: 4, boeking_id: 11, template_sleutel: 'contract_begeleiding', status: 'verzonden', verzonden_op: '2026-11-02T12:00:00Z', bedoelde_ontvanger: 'a@example.test', test: false },
+      { id: 5, boeking_id: 11, template_sleutel: 'contract_begeleiding', status: 'verzonden', verzonden_op: '2026-11-02T12:00:00Z', bedoelde_ontvanger: 'test@example.test', test: true },
+      { id: 6, boeking_id: null, template_sleutel: 'contract_begeleiding', status: 'verzonden', verzonden_op: '2026-11-02T12:00:00Z', bedoelde_ontvanger: 'a@example.test', test: false },
+    ],
+  }), { vandaag: '2026-09-30', testmodus: true });
+  const mails = snapshot.communicatie.filter((item) => item.template === 'contract_begeleiding');
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0]?.boekingId, '11');
+  assert.equal(mails[0]?.status, 'verzonden');
+});
+
 test('een beheerpagina gebruikt de sessie en niet de service-role', () => {
   const sessie = clientVan(basis);
   const admin = clientVan(basis);
@@ -184,13 +199,13 @@ test('normale beheer-url laadt de snapshot één keer per request', async () => 
     });
     assert.equal(expliciet, dashboard);
   });
-  assert.equal(selects, 18);
+  assert.equal(selects, 19);
 
   selects = 0;
   resetBeheerBronCache();
   await laadBeheerSnapshot(opties);
   await laadBeheerSnapshot(opties);
-  assert.equal(selects, 36);
+  assert.equal(selects, 38);
 });
 
 test('voorbeelddata deelt de supabase-snapshot van hetzelfde request niet', async () => {
