@@ -218,9 +218,13 @@ function boekingBij(aanvraag: FaseAanvraag, wereld: FaseWereld): FaseBoeking | n
 }
 
 function contractVorm(soort: string, naam: string): 'getekend' | 'contract' | 'geen' {
-  const sleutel = `${normaliseer(soort)} ${normaliseer(naam)}`;
+  const type = normaliseer(soort);
+  // Een ingetrokken contract blijft als bestand bestaan, met type overig.
+  // De bestandsnaam bevat dan nog "contract" en mag de fase niet vasthouden.
+  if (type === 'overig' || type === 'factuur') return 'geen';
+  const sleutel = `${type} ${normaliseer(naam)}`;
   if (/getekend/.test(sleutel)) return 'getekend';
-  if (/contract|huurovereenkomst/.test(sleutel)) return 'contract';
+  if (type === 'contract' || /contract|huurovereenkomst/.test(sleutel)) return 'contract';
   return 'geen';
 }
 
@@ -266,6 +270,46 @@ export function checklistVan(boeking: FaseBoeking | null, wereld: FaseWereld): C
     aanbetaling,
     aanbetalingTekst,
     compleet: verzonden && ondertekend && aanbetaling,
+  };
+}
+
+export function contractStaatVanVersie(versie: {
+  ondertekening: string;
+  verzendingen: readonly { soort: string; status: string }[];
+}): { verzonden: boolean; ondertekend: boolean } {
+  return {
+    verzonden: versie.verzendingen.some((regel) => {
+      return (regel.soort === 'contract' || regel.soort === 'herhaling') && regel.status === 'verzonden';
+    }),
+    ondertekend: versie.ondertekening === 'ontvangen',
+  };
+}
+
+/**
+ * Een nieuwe contractversie telt zelf. Oudere verzendingen en handtekeningen
+ * houden de fase niet op "wachten" of "gereed".
+ */
+export function wereldZonderVervallenContract(
+  wereld: FaseWereld,
+  boekingId: string,
+  huidig: { verzonden: boolean; ondertekend: boolean },
+): FaseWereld {
+  if (huidig.verzonden && huidig.ondertekend) return wereld;
+  return {
+    ...wereld,
+    documenten: wereld.documenten.filter((document) => {
+      if (document.boekingId !== boekingId) return true;
+      const vorm = contractVorm(document.soort, document.naam);
+      if (!huidig.ondertekend && vorm === 'getekend') return false;
+      if (!huidig.verzonden && (vorm === 'contract' || vorm === 'getekend')) return false;
+      return true;
+    }),
+    mails: huidig.verzonden
+      ? wereld.mails
+      : wereld.mails.filter((mail) => {
+        if (mail.boekingId !== boekingId || mail.status !== 'verzonden') return true;
+        return !/contract|huurovereenkomst/i.test(mail.template);
+      }),
   };
 }
 

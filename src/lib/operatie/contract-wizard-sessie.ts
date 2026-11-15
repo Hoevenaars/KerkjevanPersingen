@@ -3,6 +3,7 @@
  * De aanvraagstatus blijft staan. Er gaat geen mail uit.
  */
 
+import { randomBytes } from 'node:crypto';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { HUISREGELS_V1, PLATTEGROND_V1, VOORWAARDEN_V1 } from '../../platform/documenten/teksten-v1.ts';
 import { leesbareAuthFout } from './dossier-sessie.ts';
@@ -126,9 +127,62 @@ async function pasBetalingenToe(
   return null;
 }
 
+function tabelMist(message: string): boolean {
+  return /does not exist|schema cache|42P01/i.test(message);
+}
+
+/**
+ * De vorige versie geldt niet meer.
+ * Een open tekenlink stopt. Een al verstuurde contractmail telt niet meer als de huidige verzending.
+ * Een ondertekende PDF van die versie blijft in het dossier staan.
+ */
+async function laatVorigeVersieVervallen(
+  client: ContractWizardSessie,
+  boekingId: number,
+  versie: number,
+): Promise<string | null> {
+  const tekeningen = await client
+    .from('contract_tekeningen')
+    .select('id,ondertekend_op')
+    .eq('boeking_id', boekingId)
+    .eq('versie', versie);
+  if (tekeningen.error) {
+    if (tabelMist(tekeningen.error.message)) return null;
+    return leesbareAuthFout(tekeningen.error.message);
+  }
+  for (const rij of tekeningen.data ?? []) {
+    if (rij.ondertekend_op) continue;
+    const update = await client.from('contract_tekeningen').update({
+      verloopt_op: '1970-01-01T00:00:00.000Z',
+      token_hash: randomBytes(32).toString('hex'),
+      code_hash: null,
+      code_verloopt: null,
+      geverifieerd_op: null,
+    }).eq('id', rij.id);
+    if (update.error && !tabelMist(update.error.message)) return leesbareAuthFout(update.error.message);
+  }
+  const verzendingen = await client
+    .from('contract_verzendingen')
+    .select('id,soort,status')
+    .eq('boeking_id', boekingId)
+    .eq('versie', versie);
+  if (verzendingen.error) {
+    if (tabelMist(verzendingen.error.message)) return null;
+    return leesbareAuthFout(verzendingen.error.message);
+  }
+  for (const rij of verzendingen.data ?? []) {
+    const soort = String(rij.soort ?? '');
+    const status = String(rij.status ?? '');
+    if ((soort !== 'contract' && soort !== 'herhaling') || (status !== 'verzonden' && status !== 'bezig')) continue;
+    const update = await client.from('contract_verzendingen').update({ status: 'ingetrokken' }).eq('id', rij.id);
+    if (update.error && !tabelMist(update.error.message)) return leesbareAuthFout(update.error.message);
+  }
+  return null;
+}
+
 export async function bewaarDefinitiefContract(
   client: ContractWizardSessie,
-  input: { boekingId: number; aanvraagId: number | null; velden: ContractWizardVelden; actor: Actor },
+  input: { boekingId: number; aanvraagId: number | null; velden: ContractWizardVelden; actor: Actor; vervang?: boolean },
 ): Promise<{ ok: boolean; melding: string; nummer?: string }> {
   if (!magContractBeheren(input.actor.rechten ?? { isSuperAdmin: false, perModule: {} })) {
     return { ok: false, melding: 'Geen recht om een contract definitief te maken. Er is niets opgeslagen.' };
@@ -144,7 +198,7 @@ export async function bewaarDefinitiefContract(
   const versie = stand.versie + 1;
   const gemaakt = maakDefinitiefContract(input.velden, String(input.boekingId), versie, ymdInAmsterdam(new Date()), soort);
   if ('fout' in gemaakt) return { ok: false, melding: gemaakt.fout };
-  if (stand.definitief && stand.vingerafdruk === gemaakt.vingerafdruk) {
+  if (!input.vervang && stand.definitief && stand.vingerafdruk === gemaakt.vingerafdruk) {
     const betaling = await pasBetalingenToe(client, input.boekingId, input.velden);
     if (betaling) return { ok: false, melding: betaling };
     return { ok: true, melding: `Contract ${stand.nummer} is al opgeslagen. Er is geen mail verstuurd.`, nummer: stand.nummer };
@@ -163,6 +217,8 @@ export async function bewaarDefinitiefContract(
     afspraken: { ...gemaakt.afspraken, wizard: input.velden },
     bestuur_verplicht: true,
     bestuur: 'open',
+    ondertekening: 'open',
+    checks: {},
   }).select('id').maybeSingle();
   if (insert.error || !insert.data?.id) {
     const reden = insert.error ? leesbareAuthFout(insert.error.message) : 'De contractversie is niet opgeslagen.';
@@ -170,6 +226,11 @@ export async function bewaarDefinitiefContract(
   }
   const betaling = await pasBetalingenToe(client, input.boekingId, input.velden);
   if (betaling) return { ok: false, melding: betaling };
+  const vervallenFout = stand.versie > 0 ? await laatVorigeVersieVervallen(client, input.boekingId, stand.versie) : null;
+  const vervallen = stand.versie > 0
+    ? ` Versie ${stand.versie}${stand.nummer ? ` (${stand.nummer})` : ''} is vervallen.`
+    : '';
+  const vervallenWaarschuwing = vervallenFout ? ` De vorige tekenlink is niet ingetrokken: ${vervallenFout}` : '';
   const huur = euroNaarCent(input.velden.huurprijs);
   const aan = euroNaarCent(input.velden.aanbetaling);
   const boekingBijgewerkt = await client.from('boekingen').update({
@@ -187,7 +248,7 @@ export async function bewaarDefinitiefContract(
   if (boekingBijgewerkt.error) {
     return {
       ok: true,
-      melding: `Contract ${gemaakt.nummer} is opgeslagen. De boeking zelf is niet bijgewerkt. Het bestuur keurt deze versie nog goed. Er is geen mail verstuurd.`,
+      melding: `Contract ${gemaakt.nummer} is opgeslagen.${vervallen} De boeking zelf is niet bijgewerkt. Het bestuur keurt deze versie nog goed. Er is geen mail verstuurd.${vervallenWaarschuwing}`,
       nummer: gemaakt.nummer,
     };
   }
@@ -217,7 +278,7 @@ export async function bewaarDefinitiefContract(
   }
   return {
     ok: true,
-    melding: `Contract ${gemaakt.nummer} is opgeslagen. Het bestuur keurt deze versie nog goed. Er is geen mail verstuurd.`,
+    melding: `Contract ${gemaakt.nummer} is opgeslagen.${vervallen} Het bestuur keurt deze versie nog goed. Er is geen mail verstuurd.${vervallenWaarschuwing}`,
     nummer: gemaakt.nummer,
   };
 }

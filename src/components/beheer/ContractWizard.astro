@@ -5,17 +5,25 @@ interface Props {
   actie: string;
   velden: ContractWizardVelden;
   adresHint: string;
+  vervangt?: boolean;
 }
 
-const { actie, velden, adresHint } = Astro.props;
+const { actie, velden, adresHint, vervangt = false } = Astro.props;
 const rest = restTekst(velden);
 ---
 
 <section class="bh-kaart" id="contract-wizard">
-  <h2>Contract genereren</h2>
-  <p class="bh-muted">Wat al bekend is, staat ingevuld. Wat nog leeg is, hoort nog in het contract. Opslaan bewaart deze versie. Het bestuur keurt daarna goed. Er gaat nog geen mail uit.</p>
+  <h2>{vervangt ? 'Nieuwe versie' : 'Contract genereren'}</h2>
+  {
+    vervangt ? (
+      <p class="bh-muted">De gegevens van de huidige versie staan ingevuld. Pas aan wat anders moet. Opslaan laat die versie direct vervallen en maakt een nieuwe versie. Het bestuur keurt de nieuwe versie opnieuw goed. Een handtekening blijft bij de oude versie. Er gaat geen mail uit.</p>
+    ) : (
+      <p class="bh-muted">Wat al bekend is, staat ingevuld. Wat nog leeg is, hoort nog in het contract. Opslaan bewaart deze versie. Het bestuur keurt daarna goed. Er gaat nog geen mail uit.</p>
+    )
+  }
   {adresHint && <p>Op de aanvraag staat als adres: {adresHint}</p>}
-  <form method="post" action={actie} class="bh-form">
+  <form method="post" action={actie} class="bh-form" onsubmit={vervangt ? "return confirm('De huidige versie vervalt direct. De tekenlink werkt daarna niet meer. Er gaat geen mail uit.')" : undefined}>
+    {vervangt && <input type="hidden" name="nieuwe_versie" value="ja" />}
     <h3>Huurder</h3>
     <label for="naam">Naam</label>
     <input id="naam" name="naam" value={velden.naam} autocomplete="name" />
@@ -82,7 +90,7 @@ const rest = restTekst(velden);
     <input id="huisregelsVastgesteldOp" name="huisregelsVastgesteldOp" type="date" value={velden.huisregelsVastgesteldOp} />
 
     <div class="bh-acties">
-      <button class="bh-btn" type="submit" name="actie" value="contract_definitief">Contract opslaan</button>
+      <button class="bh-btn" type="submit" name="actie" value="contract_definitief">{vervangt ? 'Nieuwe versie opslaan' : 'Contract opslaan'}</button>
     </div>
   </form>
 </section>

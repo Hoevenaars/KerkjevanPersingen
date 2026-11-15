@@ -41,7 +41,7 @@ import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astr
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { contractPakketTekst } from '../../../platform/contract-pakket.ts';
 import { pdfBytes } from '../../../platform/documenten/pdf.ts';
-import { leesWizardVelden, toonContractWizard, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
+import { leesWizardVelden, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
 import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
 import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
@@ -151,7 +151,11 @@ if (Astro.request.method === 'POST') {
   if (boeking && actie === 'contract_definitief') {
     const velden = leesWizardVelden(formulier);
     if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
-      return Astro.redirect(boekingPad({ tab: 'documenten', contract: 'genereren', fout: 'In deze weergave is niets gewijzigd.' }));
+      return Astro.redirect(boekingPad({
+        tab: 'documenten',
+        contract: String(formulier.get('nieuwe_versie') ?? '') === 'ja' ? 'nieuw' : 'genereren',
+        fout: 'In deze weergave is niets gewijzigd.',
+      }));
     }
     if (snapshot.bron !== 'supabase' || !mailSessie || !/^\d+$/.test(boeking.id)) {
       wizardPost = velden;
@@ -162,6 +166,7 @@ if (Astro.request.method === 'POST') {
         aanvraagId: /^\d+$/.test(boeking.aanvraagId ?? '') ? Number(boeking.aanvraagId) : null,
         velden,
         actor: actorVanSessie(Astro.locals.beheer),
+        vervang: String(formulier.get('nieuwe_versie') ?? '') === 'ja',
       });
       if (!uit.ok) {
         wizardPost = velden;
@@ -397,12 +402,13 @@ const wizardVelden = wizardPost ?? wizardUitDossier({
   huurprijs: boeking.tarief,
   aanbetaling: boeking.aanbetaling,
 }, leesInstellingen(instellingRijen), bewaardeWizard);
-const wizardOpen = toonContractWizard(
-  kanContract,
-  contractDefinitief,
-  wizardPost != null || Astro.url.searchParams.get('contract') === 'genereren' || Astro.url.searchParams.get('contract') === '1',
+const contractParam = Astro.url.searchParams.get('contract');
+const wizardOpen = kanContract && (
+  (!contractDefinitief && (wizardPost != null || contractParam === 'genereren' || contractParam === '1'))
+  || (contractDefinitief && (wizardPost != null || contractParam === 'nieuw'))
 );
 const contractLink = `${basis}?tab=documenten&contract=genereren`;
+const nieuweVersieLink = `${basis}?tab=documenten&contract=nieuw#contract-wizard`;
 let opvolging = null;
 let opvolgingBetaling = '';
 if (kanContract && contractDefinitief && mailSessie && /^\d+$/.test(boeking.id)) {
@@ -639,11 +645,11 @@ function tabHref(tabNaam: string): string {
         <h2>Documenten</h2>
         {
           aanvraagBijBoeking ? (
-            <p>Het contract maak je bij de aanvraag. <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraagBijBoeking.id)}/?contract=genereren`}>Contract genereren</a>. Verzenden gebeurt daar, met het PDF-pakket, na goedkeuring.</p>
+            <p>Het contract maak je bij de aanvraag. <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraagBijBoeking.id)}/?contract=genereren`}>Contract genereren</a>. Een bestaande versie vervangt u onder <a href={`/beheer/aanvragen/${encodeURIComponent(aanvraagBijBoeking.id)}/#contract-opvolging`}>Contract en opvolging</a>. Verzenden gebeurt daar, met het PDF-pakket, na goedkeuring.</p>
           ) : contractDefinitief ? (
             <p>
               Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan hieronder. De mail bevat het PDF-pakket.
-              {!wizardOpen && <> <a href={contractLink}>Nieuwe versie</a>.</>}
+              {!wizardOpen && <> <a href={nieuweVersieLink}>Nieuwe versie</a>.</>}
             </p>
           ) : (
             <p class="bh-muted">Vul het contract in de wizard. Opslaan verstuurt geen mail.</p>
@@ -683,10 +689,19 @@ function tabHref(tabNaam: string): string {
             actie={`${basis}?tab=documenten`}
             velden={wizardVelden}
             adresHint={relatie?.adres ?? ''}
+            vervangt={contractDefinitief}
           />
         )
       }
-      {opvolging && <ContractOpvolging opvolging={opvolging} actie={`${basis}?tab=documenten`} betalingToelichting={opvolgingBetaling} toonMaken={false} />}
+      {opvolging && (
+        <ContractOpvolging
+          opvolging={opvolging}
+          actie={`${basis}?tab=documenten`}
+          betalingToelichting={opvolgingBetaling}
+          toonMaken={false}
+          nieuweVersieHref={contractDefinitief && kanContract && !wizardOpen ? nieuweVersieLink : ''}
+        />
+      )}
       </>
     )
   }

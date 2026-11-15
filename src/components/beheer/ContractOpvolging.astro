@@ -6,9 +6,10 @@ interface Props {
   actie: string;
   betalingToelichting: string;
   toonMaken?: boolean;
+  nieuweVersieHref?: string;
 }
 
-const { opvolging, actie, betalingToelichting, toonMaken = true } = Astro.props;
+const { opvolging, actie, betalingToelichting, toonMaken = true, nieuweVersieHref = '' } = Astro.props;
 const proef = opvolging.modus !== 'aan';
 ---
 
@@ -26,6 +27,15 @@ const proef = opvolging.modus !== 'aan';
     }
   </dl>
   {betalingToelichting && <p class="bh-muted">{betalingToelichting}</p>}
+  {opvolging.versie != null && opvolging.versie > 1 && <p>Eerdere versies gelden niet meer. Alleen deze versie kan worden goedgekeurd en verzonden.</p>}
+  {
+    nieuweVersieHref && (
+      <>
+        <p class="bh-acties"><a class="bh-btn" href={nieuweVersieHref}>Nieuwe versie</a></p>
+        <p class="bh-muted">U vult de gegevens opnieuw in. Opslaan laat de huidige versie direct vervallen en maakt een nieuwe versie. De tekenlink van de oude versie werkt daarna niet meer. Er gaat geen mail uit.</p>
+      </>
+    )
+  }
   {
     opvolging.redenen.length > 0 && (
       <p>Verzenden blijft dicht. Nog nodig: {opvolging.redenen.join(', ')}.</p>
@@ -38,7 +48,7 @@ const proef = opvolging.modus !== 'aan';
   }
 
   {
-    toonMaken && opvolging.kanMaken && (
+    toonMaken && opvolging.kanMaken && !nieuweVersieHref && (
       <form method="post" action={actie} class="bh-form">
         <input type="hidden" name="actie" value="df_maken" />
         <h3>Gebruiksafspraken</h3>

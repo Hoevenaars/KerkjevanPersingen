@@ -65,7 +65,7 @@ test('een ongetekend contract gaat terug naar verzenden en de tekenlink vervalt'
   const { client, tabellen } = geheugen();
   const uit = await trekFaseTerug(client, 12, beheer);
   assert.equal(uit.ok, true);
-  assert.match(uit.melding, /Contract verzenden/);
+  assert.match(uit.melding, /opnieuw genereren/);
   assert.equal(tabellen.contract_verzendingen[0]?.status, 'ingetrokken');
   assert.equal(tabellen.communicatie_verzendingen[0]?.status, 'geannuleerd');
   assert.equal(tabellen.documenten[0]?.type, 'overig');
