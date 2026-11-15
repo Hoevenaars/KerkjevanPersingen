@@ -1,5 +1,6 @@
 import generated from './generated-catalog.ts';
 import { MAILTEMPLATE_META, mapKnopActies } from './meta.ts';
+import { sorteerOpProces } from './proces.ts';
 import type { MailKnop, MailTemplateDef } from './types.ts';
 
 type GeneratedEntry = {
@@ -46,10 +47,9 @@ function normalize(entry: GeneratedEntry): GeneratedEntry {
   return entry;
 }
 
-export const STANDAARD_MAILTEMPLATES: MailTemplateDef[] = Object.values(generated as Record<string, GeneratedEntry>)
-  .map(normalize)
-  .map(bouwTemplate)
-  .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+export const STANDAARD_MAILTEMPLATES: MailTemplateDef[] = sorteerOpProces(
+  Object.values(generated as Record<string, GeneratedEntry>).map(normalize).map(bouwTemplate),
+);
 
 export function standaardTemplate(id: string): MailTemplateDef | undefined {
   return STANDAARD_MAILTEMPLATES.find((t) => t.id === id);
