@@ -387,7 +387,7 @@ async function scenarioNieuw(browser) {
       velden.length >= 2 &&
       velden.every((hoogte) => hoogte >= 52) &&
       contactKnoppen.primair === 0 &&
-      contactKnoppen.secundair === 3 &&
+      contactKnoppen.secundair === 4 &&
       tabel.aanwezig &&
       tabel.inKaart,
     `knoppen ${knoppen.knop.join(',')} velden ${[...knoppen.veld, ...velden].join(',')} contact ${contactKnoppen.secundair} tabel ${tabel.aanwezig}/${tabel.inKaart}`,

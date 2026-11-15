@@ -1,0 +1,68 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../layouts/Beheer.astro';
+import { formatNl } from '../../../platform/demo-data';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
+import { reservelijstRegels } from '../../../platform/reservelijst-weergave.ts';
+
+if (Astro.request.method !== 'GET' && Astro.request.method !== 'HEAD') {
+  return new Response('Deze pagina wijzigt niets.', {
+    status: 405,
+    headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+  });
+}
+
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const regels = reservelijstRegels(snapshot.relaties);
+---
+
+<Beheer titel="Reserve lijst">
+  <header class="bh-top">
+    <div>
+      <p class="bh-label">Contacten</p>
+      <h1>Reserve lijst</h1>
+      <p class="bh-hint">
+        {
+          snapshot.bron === 'supabase'
+            ? 'Relaties met het vinkje Op de reservelijst. Er gaat geen mail uit.'
+            : 'Voorbeeldlijst. Er gaat geen mail uit.'
+        }
+        De datum is de dag waarop iemand op de lijst is gezet. Wie er al op stond voordat die datum werd bijgehouden, heeft geen datum.
+      </p>
+    </div>
+  </header>
+
+  <section class="bh-kaart">
+  <table class="bh-tabel">
+    <thead>
+      <tr>
+        <th>Naam</th>
+        <th>E-mail</th>
+        <th>Telefoon</th>
+        <th>Op de lijst sinds</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        regels.length === 0 ? (
+          <tr>
+            <td colspan="4" class="bh-leeg">Niemand staat op de reserve lijst.</td>
+          </tr>
+        ) : (
+          regels.map((regel) => (
+            <tr>
+              <td>
+                <a class="bh-detail-link" href={`/beheer/relaties/${encodeURIComponent(regel.id)}/`}>{regel.naam}</a>
+              </td>
+              <td>{regel.email || '—'}</td>
+              <td>{regel.telefoon || '—'}</td>
+              <td>{regel.sinds ? formatNl(regel.sinds) : 'Niet vastgelegd'}</td>
+            </tr>
+          ))
+        )
+      }
+    </tbody>
+  </table>
+  </section>
+</Beheer>

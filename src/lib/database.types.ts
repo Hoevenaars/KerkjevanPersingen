@@ -510,13 +510,13 @@ isOneToOne: false
                   ]
                 },"relaties": {
                   Row: {
-                    "aangemaakt_op": string,"adres": string | null,"bijgewerkt_op": string,"email": string | null,"id": number,"legacy_id": string | null,"legacy_source": string | null,"naam": string,"notities": string | null,"op_reservelijst": boolean,"telefoon": string | null,"zoek": unknown
+                    "aangemaakt_op": string,"adres": string | null,"bijgewerkt_op": string,"email": string | null,"id": number,"legacy_id": string | null,"legacy_source": string | null,"naam": string,"notities": string | null,"op_reservelijst": boolean,"reservelijst_sinds": string | null,"telefoon": string | null,"zoek": unknown
                   }
                   Insert: {
-                    "aangemaakt_op"?: string,"adres"?: string | null,"bijgewerkt_op"?: string,"email"?: string | null,"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam": string,"notities"?: string | null,"op_reservelijst"?: boolean,"telefoon"?: string | null,"zoek"?: never
+                    "aangemaakt_op"?: string,"adres"?: string | null,"bijgewerkt_op"?: string,"email"?: string | null,"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam": string,"notities"?: string | null,"op_reservelijst"?: boolean,"reservelijst_sinds"?: string | null,"telefoon"?: string | null,"zoek"?: never
                   }
                   Update: {
-                    "aangemaakt_op"?: string,"adres"?: string | null,"bijgewerkt_op"?: string,"email"?: string | null,"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam"?: string,"notities"?: string | null,"op_reservelijst"?: boolean,"telefoon"?: string | null,"zoek"?: never
+                    "aangemaakt_op"?: string,"adres"?: string | null,"bijgewerkt_op"?: string,"email"?: string | null,"id"?: never,"legacy_id"?: string | null,"legacy_source"?: string | null,"naam"?: string,"notities"?: string | null,"op_reservelijst"?: boolean,"reservelijst_sinds"?: string | null,"telefoon"?: string | null,"zoek"?: never
                   }
                   Relationships: [
                     

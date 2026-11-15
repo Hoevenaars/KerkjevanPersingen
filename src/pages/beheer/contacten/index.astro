@@ -23,7 +23,7 @@ const nieuwsbrief = magZien(rechten, 'nieuwsbrief');
       <p class="bh-label">Contacten</p>
       <h1>Contacten</h1>
       <p class="bh-hint">
-        Relaties, vrienden en de nieuwsbrief blijven aparte lijsten. Een huurder is niet automatisch vriend of abonnee.
+        Relaties, vrienden, de nieuwsbrief en de reserve lijst blijven aparte lijsten. Een huurder is niet automatisch vriend of abonnee.
         Er gaat geen mail uit.
       </p>
     </div>
@@ -53,6 +53,15 @@ const nieuwsbrief = magZien(rechten, 'nieuwsbrief');
         <h2>Nieuwsbrief</h2>
         <p>Bestaande weken en voorbeelden. Bewaren en verzenden blijven uit tot daar apart toestemming voor is.</p>
         <p><a class="bh-btn bh-btn--sec" href="/beheer/nieuwsbrief/">Open nieuwsbrief</a></p>
+      </section>
+    )
+  }
+  {
+    relaties && (
+      <section class="bh-kaart">
+        <h2>Reserve lijst</h2>
+        <p>Naam, e-mail, telefoon en de datum waarop iemand op de lijst is gezet. Er gaat geen mail uit.</p>
+        <p><a class="bh-btn bh-btn--sec" href="/beheer/reservelijst/">Open reserve lijst</a></p>
       </section>
     )
   }

@@ -178,7 +178,7 @@ export async function leesSupabaseBeheer(
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
   const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, aanvraagAdresRijen, jobRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
-    lees(client, 'relaties', 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst'),
+    lees(client, 'relaties', 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst,reservelijst_sinds'),
     lees(client, 'relatie_rollen', 'relatie_id,rol,actief'),
     lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
     lees(client, 'betalingen', 'id,boeking_id,soort,bedrag,status,vervaldatum,ontvangen_op'),
@@ -227,6 +227,7 @@ export async function leesSupabaseBeheer(
     notities: tekst(rij.notities),
     rollen: rollenPerRelatie.get(tekst(rij.id)) ?? [],
     reservelijst: Boolean(rij.op_reservelijst),
+    reservelijstSinds: tekst(rij.reservelijst_sinds),
   }));
   const relatieNaam = new Map(relaties.map((relatie) => [relatie.id, relatie.naam]));
 
