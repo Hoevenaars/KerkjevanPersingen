@@ -5,6 +5,7 @@
 
 import { documentenflowAan } from '../../platform/documentenflow-vlag.ts';
 import { contractmailMagWeg, maakContractPdf, tekenUrl } from '../../platform/contract-pakket.ts';
+import { leesContractSjabloon } from '../contract-sjabloon-opslag.ts';
 import { hashTekenToken, maakTekenToken } from '../../platform/contract-tekenen.ts';
 import {
   betalingStand,
@@ -367,7 +368,9 @@ export async function pasDocumentenflowToe(input: {
   if (plan.mail && isContractmail(plan.mail.soort)) {
     pakketVersie = plan.versies.find((item) => item.versie === plan.mail?.versie) ?? context.versies.at(-1) ?? null;
     if (!pakketVersie) return { ok: false, melding: 'De contractversie ontbreekt. Er is geen mail verstuurd.' };
-    pakket = maakContractPdf(
+    const sjabloon = await leesContractSjabloon();
+    if (sjabloon.fout) return { ok: false, melding: sjabloon.fout };
+    pakket = await maakContractPdf(
       {
         tekst: pakketVersie.tekst,
         voorwaardenTekst: pakketVersie.voorwaardenTekst,
@@ -377,6 +380,7 @@ export async function pasDocumentenflowToe(input: {
       },
       `${pakketVersie.contractnummer}.pdf`,
       pakketVersie.contractnummer,
+      sjabloon.bytes,
     );
     if (!pakket.ok) return pakket;
   }

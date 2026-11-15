@@ -39,8 +39,8 @@ import { legVerzendingVast } from '../../../lib/communicatie-log.ts';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES } from '../../../lib/mail-adressen.ts';
 import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astro';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
-import { contractPakketTekst } from '../../../platform/contract-pakket.ts';
-import { pdfBytes } from '../../../platform/documenten/pdf.ts';
+import { maakContractPdf } from '../../../platform/contract-pakket.ts';
+import { leesContractSjabloon } from '../../../lib/contract-sjabloon-opslag.ts';
 import { leesWizardVelden, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
 import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
@@ -244,14 +244,21 @@ if (Astro.url.searchParams.get('document') === 'contract') {
   const versie = gelezen.lading.context.versies.find((item) => item.versie === gevraagd)
     ?? gelezen.lading.context.versies.reduce<ContractVersie | null>((best, item) => (!best || item.versie > best.versie ? item : best), null);
   if (!versie) return nietGevonden;
-  const bytes = pdfBytes(contractPakketTekst({
+  const sjabloon = await leesContractSjabloon();
+  if (sjabloon.fout) {
+    return new Response(sjabloon.fout, { status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+  const pdf = await maakContractPdf({
     tekst: versie.tekst,
     voorwaardenTekst: versie.voorwaardenTekst,
     huisregelsTekst: versie.huisregelsTekst,
     plattegrondTekst: versie.plattegrondTekst,
     soort: boeking.soort,
-  }));
-  return new Response(Buffer.from(bytes), {
+  }, `${versie.contractnummer}.pdf`, versie.contractnummer, sjabloon.bytes);
+  if (!pdf.ok) {
+    return new Response(pdf.melding, { status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+  return new Response(Buffer.from(pdf.bijlage.inhoud), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="${versie.contractnummer}.pdf"`,

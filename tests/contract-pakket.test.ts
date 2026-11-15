@@ -147,9 +147,9 @@ test('ontbrekende huurprijs of een nulbedrag levert geen contract', () => {
   assert.equal(voerFlowUit({ soort: 'maken', afspraken }, context({ bron: bron({ email: '' }) })).ok, false);
 });
 
-test('de provider-payload bevat de PDF en een mail zonder bijlage gaat niet weg', () => {
+test('de provider-payload bevat de PDF en een mail zonder bijlage gaat niet weg', async () => {
   const versie = versieVan();
-  const pdf = maakContractPdf({
+  const pdf = await maakContractPdf({
     tekst: versie.tekst,
     voorwaardenTekst: versie.voorwaardenTekst,
     huisregelsTekst: versie.huisregelsTekst,

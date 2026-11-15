@@ -3,6 +3,8 @@
  * De tekst wordt hierin gezet; er wordt geen leeg Word-bestand doorgestuurd.
  */
 
+import { inflateSync } from 'node:zlib';
+
 const EXTRA: Record<string, number> = {
   '\u20ac': 0x80,
   '\u201a': 0x82,
@@ -76,6 +78,64 @@ function latin1(tekst: string): Uint8Array {
   const bytes = new Uint8Array(tekst.length);
   for (let i = 0; i < tekst.length; i += 1) bytes[i] = tekst.charCodeAt(i) & 0xff;
   return bytes;
+}
+
+function directBevatTekst(buf: Buffer, naald: string): boolean {
+  if (buf.toString('latin1').includes(naald) || buf.toString('utf8').includes(naald)) return true;
+  if (buf.includes(Buffer.from(naald, 'utf16le'))) return true;
+  const be = Buffer.alloc(naald.length * 2);
+  for (let i = 0; i < naald.length; i += 1) {
+    const code = naald.charCodeAt(i);
+    be[i * 2] = code >> 8;
+    be[i * 2 + 1] = code & 0xff;
+  }
+  return buf.includes(be);
+}
+
+function bufferBevatTekst(buf: Buffer, naald: string): boolean {
+  if (directBevatTekst(buf, naald)) return true;
+  const latin = buf.toString('latin1');
+  const ontkomen = latin.replace(/\\([0-7]{1,3})/g, (_heel, octaal: string) => String.fromCharCode(Number.parseInt(octaal, 8)));
+  if (ontkomen.includes(naald)) return true;
+  const hex = /<([0-9A-Fa-f\s]+)>/g;
+  let treffer: RegExpExecArray | null;
+  while ((treffer = hex.exec(latin))) {
+    const cijfers = treffer[1].replace(/\s+/g, '');
+    if (cijfers.length < 4 || cijfers.length % 2 === 1) continue;
+    if (directBevatTekst(Buffer.from(cijfers, 'hex'), naald)) return true;
+  }
+  return false;
+}
+
+/** Zoekt tekst in de ruwe PDF en in uitgepakte FlateDecode-stromen. */
+export function pdfBevatTekst(bytes: Uint8Array, naald: string): boolean {
+  if (!naald) return false;
+  const ruw = Buffer.from(bytes);
+  if (bufferBevatTekst(ruw, naald)) return true;
+  let zoek = 0;
+  while (zoek < ruw.length) {
+    const start = ruw.indexOf('stream', zoek);
+    if (start < 0) break;
+    const kop = ruw.subarray(Math.max(0, start - 400), start).toString('latin1');
+    let dataStart = start + 6;
+    if (ruw[dataStart] === 0x0d && ruw[dataStart + 1] === 0x0a) dataStart += 2;
+    else if (ruw[dataStart] === 0x0a || ruw[dataStart] === 0x0d) dataStart += 1;
+    const eind = ruw.indexOf('endstream', dataStart);
+    if (eind < 0) break;
+    zoek = eind + 9;
+    if (!kop.includes('FlateDecode')) continue;
+    const lading = ruw.subarray(dataStart, eind);
+    for (const extra of [0, 1, 2]) {
+      if (lading.length <= extra) continue;
+      try {
+        const open = inflateSync(lading.subarray(0, lading.length - extra));
+        if (bufferBevatTekst(open, naald)) return true;
+      } catch {
+        continue;
+      }
+    }
+  }
+  return false;
 }
 
 /** Meerbladige PDF. Een form-feed in de tekst begint een nieuwe bladzijde. */

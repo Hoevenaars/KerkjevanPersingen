@@ -7,6 +7,7 @@ import { CONTRACTBEHEER_EMAIL, VAN_ADRES } from './mail-adressen.ts';
 import { verstuurGecontroleerd } from './mail-transport.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
 import { contractPakketTekst, PRIVACY_URL } from '../platform/contract-pakket.ts';
+import { leesContractSjabloon } from './contract-sjabloon-opslag.ts';
 import {
   voerTekenstap,
   type TekenDossier,
@@ -167,7 +168,9 @@ export async function behandelTekenpagina(input: {
   const env = input.env ?? process.env;
   const winkel = input.winkel === undefined ? supabaseTekenwinkel(env) : input.winkel;
   if (!winkel) return { ok: false, melding: 'Ondertekenen is nu niet beschikbaar.' };
-  const uit = await voerTekenstap(input.stap, winkel);
+  const sjabloon = await leesContractSjabloon(env);
+  if (sjabloon.fout) return { ok: false, melding: sjabloon.fout };
+  const uit = await voerTekenstap(input.stap, winkel, { sjabloon: sjabloon.bytes });
   if (!uit.ok || !uit.mail) return uit;
   if (uit.mail === 'code' && uit.code) {
     const id = await mailMetPdf({
