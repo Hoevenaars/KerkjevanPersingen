@@ -20,8 +20,28 @@ import Mailconcept from '../../../components/beheer/Mailconcept.astro';
 import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
 import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
 import { magAanvraagWijzigen } from '../../../platform/aanvraag.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
+import { zetReservelijstViaAanvraag } from '../../../lib/operatie/aanvraag-reservelijst.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import type { MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
+import { contractTemplateVan, stelContractbriefOp } from '../../../platform/contract-mail.ts';
+import { documentenflowAan } from '../../../platform/documentenflow-vlag.ts';
+import {
+  bouwOpvolging,
+  flowActieUit,
+  geldUitAdministratie,
+  legeInstellingen,
+  betalingStand,
+  type ContractBron,
+  type ContractVersie,
+} from '../../../platform/documentenflow.ts';
+import { ymdInAmsterdam } from '../../../platform/datum.ts';
+import { pdfBytes } from '../../../platform/documenten/pdf.ts';
+import { leesDocumentenDossier, pasDocumentenflowToe } from '../../../lib/operatie/documentenflow-sessie.ts';
+import { verstuurGecontroleerd } from '../../../lib/mail-transport.ts';
+import { legVerzendingVast } from '../../../lib/communicatie-log.ts';
+import { VAN_ADRES } from '../../../lib/mail-adressen.ts';
+import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astro';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -31,16 +51,99 @@ const mailSessie = sessieSupabaseUitAstro(Astro);
 const mailtemplates: MailTemplateDef[] = mailSessie ? await laadMailtemplatesUitSupabase(mailSessie) : [];
 let mailPreview: { onderwerp: string; text: string } | null = null;
 let mailMelding = '';
+let contractBewaard = false;
+let bewaardeOnderwerp = '';
+let bewaardeInhoud = '';
 
 if (Astro.request.method === 'POST') {
   const formulier = await Astro.request.formData();
   const actie = String(formulier.get('actie') ?? '');
+  if (aanvraag && actie.startsWith('df_')) {
+    const bestand = formulier.get('bestand');
+    const bijlage = bestand instanceof File && bestand.size > 0
+      ? { naam: bestand.name, bytes: new Uint8Array(await bestand.arrayBuffer()) }
+      : null;
+    const flowActie = flowActieUit(actie, formulier);
+    const modus = magAutomatiseringUitvoeren('handmatige_template').modus;
+    const uit = flowActie
+      ? await pasDocumentenflowToe({
+        client: mailSessie as never,
+        env: omgevingsRecord(),
+        actor: actorVanSessie(Astro.locals.beheer),
+        boekingId: aanvraag.boekingId ?? '',
+        actie: flowActie,
+        promotieAanwezig: Boolean(aanvraag.website?.trim()),
+        modus: modus === 'aan' || modus === 'test' ? modus : 'uit',
+        testadres: await getTestMailRecipient().catch(() => null),
+        bestand: bijlage,
+        verstuur: async (mail) => {
+          const verzonden = await verstuurGecontroleerd(
+            {
+              sleutel: 'handmatige_template',
+              naar: mail.naar,
+              onderwerp: mail.onderwerp,
+              tekst: mail.tekst,
+              richting: 'aanvrager',
+              bijlagen: mail.bijlagen.map((deel) => ({ bestandsnaam: deel.bestandsnaam, inhoud: pdfBytes(deel.tekst) })),
+            },
+            {
+              modus: mail.teltAlsVerzonden ? 'aan' : 'test',
+              testadres: mail.teltAlsVerzonden ? null : mail.naar,
+              env: omgevingsRecord(),
+            },
+          );
+          if (verzonden.providerAangeroepen) {
+            await legVerzendingVast({
+              aanvraagId: aanvraag.id,
+              boekingId: mail.teltAlsVerzonden && mail.soort === 'contract' ? aanvraag.boekingId : null,
+              templateSleutel: mail.soort === 'contract' ? 'huurovereenkomst' : mail.soort,
+              onderwerp: mail.teltAlsVerzonden ? mail.onderwerp : `[TEST] ${mail.onderwerp}`,
+              bedoeldeOntvanger: mail.bedoelde,
+              werkelijkeOntvanger: verzonden.werkelijkeOntvanger || mail.naar,
+              afzender: VAN_ADRES,
+              replyTo: CONTRACTBEHEER_EMAIL,
+              richting: 'uitgaand',
+              status: 'verzonden',
+              providerBerichtId: verzonden.providerBerichtId,
+              test: !mail.teltAlsVerzonden,
+              dedupSleutel: mail.idempotentie,
+              handmatig: true,
+            }, omgevingsRecord());
+          }
+          return {
+            verzonden: verzonden.verzonden,
+            berichtId: verzonden.providerBerichtId ?? null,
+            melding: verzonden.melding || (verzonden.verzonden ? 'Verzonden.' : 'Er is geen mail verstuurd.'),
+          };
+        },
+      })
+      : { ok: false, melding: 'Deze actie hoort niet bij het contract.' };
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    return Astro.redirect(doel.toString());
+  }
   if (aanvraag && (actie === 'mailpreview' || actie === 'mailconcept' || actie === 'mailverstuur')) {
-    const template = mailtemplates.find((item) => item.id === String(formulier.get('templateId') ?? '')) ?? null;
+    const contractmail = String(formulier.get('contract') ?? '') === '1';
+    if (contractmail) {
+      contractBewaard = true;
+      bewaardeOnderwerp = String(formulier.get('mailOnderwerp') ?? '');
+      bewaardeInhoud = String(formulier.get('mailInhoud') ?? '');
+    }
+    const template = contractmail
+      ? null
+      : mailtemplates.find((item) => item.id === String(formulier.get('templateId') ?? '')) ?? null;
     const uit = await verwerkMailconcept({
       actie,
-      dossier: { soort: 'aanvraag', id: aanvraag.id, ontvanger: aanvraag.email, naam: aanvraag.naam },
+      dossier: {
+        soort: 'aanvraag',
+        id: aanvraag.id,
+        ontvanger: aanvraag.email,
+        naam: aanvraag.naam,
+        boekingId: aanvraag.boekingId,
+      },
       template,
+      logTemplateId: contractmail ? String(formulier.get('templateId') ?? '') || 'contract_begeleiding' : undefined,
+      briefAlCompleet: contractmail,
       onderwerp: String(formulier.get('mailOnderwerp') ?? ''),
       inhoud: String(formulier.get('mailInhoud') ?? ''),
       actorNaam: Astro.locals.beheer?.gebruiker.naam ?? 'beheer',
@@ -57,6 +160,22 @@ if (Astro.request.method === 'POST') {
     }
     mailPreview = uit.preview && !('fout' in uit.preview) ? { onderwerp: uit.preview.onderwerp, text: uit.preview.text } : null;
     mailMelding = uit.melding;
+  } else if (aanvraag && (actie === 'reservelijst_aan' || actie === 'reservelijst_uit')) {
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
+      doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
+    } else if (snapshot.bron !== 'supabase' || !mailSessie) {
+      doel.searchParams.set('fout', 'Dit is de voorbeeldweergave. Er is niets opgeslagen en er is geen mail verstuurd.');
+    } else {
+      const uit = await zetReservelijstViaAanvraag(
+        mailSessie as never,
+        Number(aanvraag.id),
+        actie === 'reservelijst_aan',
+        actorVanSessie(Astro.locals.beheer),
+      );
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    }
+    return Astro.redirect(doel.toString());
   } else {
     const operationeel = await postAlsSupabase({
       request: Astro.request,
@@ -75,14 +194,41 @@ if (!aanvraag) {
   return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
 }
 
+if (Astro.url.searchParams.get('document') === 'contract') {
+  const nietGevonden = new Response('Niet gevonden', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex, nofollow' } });
+  if (!documentenflowAan() || !aanvraag.boekingId || !mailSessie) return nietGevonden;
+  const gelezen = await leesDocumentenDossier(mailSessie as never, aanvraag.boekingId);
+  if (!gelezen.ok) return new Response(gelezen.melding, { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  const gevraagd = Number(Astro.url.searchParams.get('versie'));
+  const versie = gelezen.lading.context.versies.find((item) => item.versie === gevraagd)
+    ?? gelezen.lading.context.versies.reduce<ContractVersie | null>((best, item) => (!best || item.versie > best.versie ? item : best), null);
+  if (!versie) return nietGevonden;
+  const bytes = pdfBytes([versie.tekst, versie.voorwaardenTekst, versie.huisregelsTekst].join('\n\f\n'));
+  return new Response(Buffer.from(bytes), {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${versie.contractnummer}.pdf"`,
+      'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+    },
+  });
+}
+
 const dossierPad = `/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`;
 const kanBeoordelen = !Astro.locals.beheer?.viewAs && magAanvraagWijzigen(
   Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
 );
 
-const relatie =
-  snapshot.relaties.find((r) => aanvraag.relatieId && r.id === aanvraag.relatieId) ??
-  snapshot.relaties.find((r) => r.email && r.email === aanvraag.email);
+const emailNorm = aanvraag.email.trim().toLowerCase();
+const gekoppeldeRelatie = aanvraag.relatieId
+  ? snapshot.relaties.find((r) => r.id === aanvraag.relatieId)
+  : undefined;
+const relatiesOpEmail = snapshot.relaties.filter((r) => r.email.trim().toLowerCase() === emailNorm);
+const relatie = gekoppeldeRelatie ?? (relatiesOpEmail.length === 1 ? relatiesOpEmail[0] : undefined);
+const meerdereRelaties = !gekoppeldeRelatie && relatiesOpEmail.length > 1;
+const kanReservelijst = !Astro.locals.beheer?.viewAs
+  && magSchrijven(Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} }, 'relaties')
+  && magSchrijven(Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} }, 'aanvragen');
 const flash = Astro.url.searchParams.get('demo') === '1';
 const sessieClient = sessieSupabaseUitAstro(Astro);
 const tijdlijn = aanvraag && sessieClient
@@ -144,6 +290,89 @@ const beeld = beoordeelAanvraag({
   eind: aanvraag.eind,
   boekingId: aanvraag.boekingId,
 }, wereld);
+const contractBoeking = snapshot.boekingen.find((item) => item.id === beeld.boeking?.id);
+const contractBron = stelContractbriefOp({
+  naam: aanvraag.naam,
+  soortLabel: SOORT_LABEL[aanvraag.soort] ?? aanvraag.soort,
+  start: aanvraag.start,
+  eind: aanvraag.eind,
+  tarief: contractBoeking?.tarief ?? '',
+  template: contractTemplateVan(mailtemplates),
+});
+const contractOnderwerp = contractBewaard ? bewaardeOnderwerp : contractBron.onderwerp;
+const contractInhoud = contractBewaard ? bewaardeInhoud : contractBron.tekst;
+const contractModusZin = mailmodus === 'test'
+  ? ` De schakelaar staat op Test, dus Verstuur contract mailt ${testadres || 'het testadres'} en laat “Contract verzonden” op nog niet staan.`
+  : mailmodus === 'uit'
+    ? ' De schakelaar staat uit, dus er gaat geen mail weg.'
+    : ' Verstuur contract mailt dit adres.';
+const contractToelichting = `Deze mail gaat naar ${aanvraag.naam}${aanvraag.email ? ` (${aanvraag.email})` : ''}. Antwoorden komen bij ${CONTRACTBEHEER_EMAIL}. Er wordt geen PDF bijgevoegd; dit is de tekst die ${aanvraag.naam.split(/\s+/)[0] || aanvraag.naam} ontvangt.${contractModusZin}`;
+const flowAan = documentenflowAan();
+const flowBoeking = snapshot.boekingen.find((item) => item.id === beeld.boeking?.id) ?? null;
+let opvolging = null;
+let opvolgingBetaling = '';
+if (flowAan && flowBoeking && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed')) {
+  const regels = (snapshot.betalingen ?? [])
+    .filter((regel) => regel.boekingId === flowBoeking.id)
+    .map((regel) => ({ soort: regel.soort, bedrag: regel.bedrag, status: regel.status, vervaldatum: regel.vervaldatum }));
+  const geld = geldUitAdministratie({ huurprijs: null, aanbetaling: null, regels });
+  const gast = snapshot.gastheren.find((item) => item.id === flowBoeking.gastheerId);
+  const bron: ContractBron = {
+    boekingId: flowBoeking.id,
+    soort: aanvraag.soort,
+    soortLabel: SOORT_LABEL[aanvraag.soort] ?? aanvraag.soort,
+    activiteit: flowBoeking.interneTitel || aanvraag.naam,
+    toelichting: aanvraag.toelichting,
+    periodeVan: aanvraag.start,
+    periodeTot: aanvraag.eind,
+    geboektOp: aanvraag.binnengekomen.slice(0, 10),
+    huurderNaam: aanvraag.naam,
+    straat: aanvraag.straat ?? '',
+    huisnummer: aanvraag.huisnummer ?? '',
+    toevoeging: aanvraag.toevoeging ?? '',
+    postcode: aanvraag.postcode ?? '',
+    woonplaats: aanvraag.woonplaats ?? '',
+    email: aanvraag.email,
+    telefoon: aanvraag.telefoon,
+    personen: aanvraag.personen,
+    huurprijsCent: geld.huurprijsCent,
+    aanbetalingCent: geld.aanbetalingCent,
+    aanbetalingVerval: geld.aanbetalingVerval,
+    restCent: geld.restCent,
+    restVerval: geld.restVerval,
+    gastNaam: gast?.naam ?? '',
+    gastEmail: gast?.email ?? '',
+    gastTelefoon: gast?.telefoon ?? '',
+    promotieAanwezig: Boolean(aanvraag.website?.trim() || fotos.length),
+    boekingStatus: flowBoeking.status,
+  };
+  let versies: ContractVersie[] = [];
+  let instellingen = legeInstellingen();
+  let betaling = betalingStand({ vlag: flowBoeking.aanbetalingBinnen, regels });
+  let fout = '';
+  if (sessieClient && /^\d+$/.test(flowBoeking.id)) {
+    const gelezen = await leesDocumentenDossier(sessieClient as never, flowBoeking.id, bron.promotieAanwezig);
+    if (!gelezen.ok) fout = gelezen.melding;
+    else {
+      versies = gelezen.lading.context.versies;
+      instellingen = gelezen.lading.context.instellingen;
+      betaling = gelezen.lading.context.betaling;
+      Object.assign(bron, gelezen.lading.context.bron);
+    }
+  }
+  opvolgingBetaling = betaling.toelichting;
+  opvolging = bouwOpvolging({
+    rechten: Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
+    bron,
+    instellingen,
+    versies,
+    betaling,
+    vandaag: ymdInAmsterdam(new Date()),
+    bekijkHref: `${dossierPad}?document=contract&versie=${versies.reduce((hoogste, item) => Math.max(hoogste, item.versie), 0) || 1}`,
+    fout,
+    modus: mailmodus === 'aan' || mailmodus === 'test' ? mailmodus : 'uit',
+  });
+}
 const kanGoedkeuren = beeld.geschikt && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
 const toonBeoordeling = beeld.fase === 'nieuw';
 const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed';
@@ -266,9 +495,11 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             )
           }
           {
-            beeld.fase === 'in_behandeling' && !beeld.checklist.verzonden && beeld.boeking && (
+            !flowAan && beeld.fase === 'in_behandeling' && !beeld.checklist.verzonden && beeld.boeking && (
               <p>
-                Genereer het contract bij de boeking, lees het door en verstuur het daar.
+                De volgende stap is één mail naar {aanvraag.naam}. De tekst staat hieronder klaar.
+                Er gaat geen PDF mee. Na een echte verzending wordt “Contract verzonden” afgerond.
+                Het contractbestand maak je bij de boeking. Daar lees je het door.
                 {' '}
                 <a href={`/beheer/boekingen/${encodeURIComponent(beeld.boeking.id)}/?tab=documenten`}>Open de documenten</a>.
               </p>
@@ -336,6 +567,44 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             </>
           )
         }
+        {
+          (kanReservelijst || relatie || meerdereRelaties) && (
+            <>
+              <dt>Reservelijst</dt>
+              <dd>
+                {
+                  meerdereRelaties ? (
+                    <>
+                      <p>Meerdere relaties hebben dit e-mailadres. Kies de juiste relatie.</p>
+                      <ul>
+                        {relatiesOpEmail.map((kandidaat) => (
+                          <li>
+                            <a href={`/beheer/relaties/${encodeURIComponent(kandidaat.id)}/`}>{kandidaat.naam}</a>
+                            {kandidaat.reservelijst ? ' · staat op de reservelijst' : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <>
+                      <p>{relatie?.reservelijst ? 'Staat op de reservelijst.' : 'Staat nog niet op de reservelijst.'}</p>
+                      {
+                        kanReservelijst && (
+                          <form method="post" action={dossierPad}>
+                            <p class="bh-muted">Dit kan ook als de aanvraag nog niet definitief is. De status blijft zoals hij is. Er gaat geen mail uit.</p>
+                            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value={relatie?.reservelijst ? 'reservelijst_uit' : 'reservelijst_aan'}>
+                              {relatie?.reservelijst ? 'Haal van de reservelijst' : 'Zet op de reservelijst'}
+                            </button>
+                          </form>
+                        )
+                      }
+                    </>
+                  )
+                }
+              </dd>
+            </>
+          )
+        }
       </dl>
     </section>
 
@@ -373,8 +642,32 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
     }
   </div>
 
+  {opvolging && <ContractOpvolging opvolging={opvolging} actie={dossierPad} betalingToelichting={opvolgingBetaling} />}
   {
-    beeld.fase === 'in_behandeling' && beeld.boeking && (
+    !flowAan && beeld.fase === 'in_behandeling' && beeld.boeking && !beeld.checklist.verzonden && (
+      <div id="contract-mail">
+        <Mailconcept
+          titel="Contract versturen"
+          toelichting={contractToelichting}
+          templates={[]}
+          ontvanger={aanvraag.email}
+          modus={mailmodusLabel}
+          testadres={testadres}
+          replyTo={CONTRACTBEHEER_EMAIL}
+          preview={mailPreview}
+          gekozenTemplate={contractBron.templateSleutel}
+          onderwerp={contractOnderwerp}
+          inhoud={contractInhoud}
+          verzendLabel="Verstuur contract"
+          verbergTemplate={true}
+          toonConcept={false}
+          contract={true}
+        />
+      </div>
+    )
+  }
+  {
+    beeld.fase === 'in_behandeling' && beeld.boeking && beeld.checklist.verzonden && (
       <div id="contract-mail">
         <Mailconcept
           templates={mailtemplates.map((item) => ({ id: item.id, naam: item.naam }))}

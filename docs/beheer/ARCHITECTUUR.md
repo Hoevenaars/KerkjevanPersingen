@@ -55,6 +55,7 @@ Echte verzending is uniek op `(boeking, template, relatie)`. Testmails hebben
 
 ## Bewust nog niet gebouwd
 
-Geen contractgenerator, geen digitale handtekening, geen klantportaal, geen
-bankkoppeling, geen facturatie, geen AI. Document-upload is wél voorbereid
+Geen digitale handtekening, geen klantportaal, geen bankkoppeling, geen
+facturatie, geen AI. Een contractgenerator voor het bestaande dossier staat
+achter `DOCUMENTENFLOW` en is standaard uit. Document-upload is wél voorbereid
 (private bucket `booking-documents`).

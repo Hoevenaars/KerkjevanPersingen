@@ -6,6 +6,7 @@ import { besluitVoor } from './automatisering-register.ts';
 import { legVerzendingVast } from './communicatie-log.ts';
 import { verstuurGecontroleerd } from './mail-transport.ts';
 import { getTestMailRecipient } from './testmail-adres.ts';
+import { boekingIdVoorLog } from '../platform/contract-mail.ts';
 import { mailconceptMelding, stelMailconceptSamen } from '../platform/mailconcept.ts';
 import type { MailTemplateDef } from '../platform/mailtemplates/types.ts';
 
@@ -14,12 +15,16 @@ export interface ConceptDossier {
   id: string;
   ontvanger: string;
   naam: string;
+  /** Boeking die meetelt voor de contractchecklist, alleen na een echte verzending. */
+  boekingId?: string | null;
 }
 
 export async function verwerkMailconcept(input: {
   actie: 'mailpreview' | 'mailconcept' | 'mailverstuur';
   dossier: ConceptDossier;
   template: MailTemplateDef | null;
+  logTemplateId?: string;
+  briefAlCompleet?: boolean;
   onderwerp: string;
   inhoud: string;
   actorNaam: string;
@@ -34,7 +39,9 @@ export async function verwerkMailconcept(input: {
     onderwerp: input.onderwerp,
     inhoud: input.inhoud,
     brief: input.brief,
+    briefAlCompleet: input.briefAlCompleet,
   });
+  const templateSleutel = input.logTemplateId || input.template?.id || 'vrij';
   if ('fout' in concept) return { ok: false, melding: concept.fout, preview: null };
   if (input.actie === 'mailpreview') return { ok: true, melding: 'Preview. Er is geen mail verstuurd.', preview: concept };
   if (concept.openVariabelen && input.actie === 'mailverstuur') {
@@ -45,7 +52,7 @@ export async function verwerkMailconcept(input: {
     if (input.bewaar) {
       const opgeslagen = await input.bewaar({
         [`${input.dossier.soort}_id`]: Number(input.dossier.id),
-        template_sleutel: input.template?.id ?? 'vrij',
+        template_sleutel: templateSleutel,
         dedup_sleutel: `${dedup}:concept`,
         status: 'concept',
         modus: 'concept',
@@ -77,8 +84,8 @@ export async function verwerkMailconcept(input: {
   if (uit.providerAangeroepen) {
     await legVerzendingVast({
       aanvraagId: input.dossier.soort === 'aanvraag' ? input.dossier.id : null,
-      boekingId: input.dossier.soort === 'boeking' ? input.dossier.id : null,
-      templateSleutel: input.template?.id ?? 'vrij',
+      boekingId: boekingIdVoorLog(input.dossier, uit.besluit.modus),
+      templateSleutel,
       onderwerp: uit.besluit.modus === 'test' ? `[TEST] ${concept.onderwerp}` : concept.onderwerp,
       bedoeldeOntvanger: concept.ontvanger,
       werkelijkeOntvanger: uit.werkelijkeOntvanger || '',

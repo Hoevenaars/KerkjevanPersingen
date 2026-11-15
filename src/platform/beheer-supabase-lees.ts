@@ -188,7 +188,7 @@ export async function leesSupabaseBeheer(
     }
   }
 
-  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, aanvraagAdresRijen, jobRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
+  const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, aanvraagAdresRijen, jobRijen, verzendRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
     leesRelaties(),
     lees(client, 'relatie_rollen', 'relatie_id,rol,actief'),
     lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
@@ -204,6 +204,7 @@ export async function leesSupabaseBeheer(
     lees(client, 'aanvragen', 'id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen,toelichting,binnengekomen_op,website,boeking_id,afwijsreden,relatie_id,informatievraag,akkoord_voorwaarden,mede_exposanten'),
     leesZacht(client, 'aanvragen', 'id,straat,huisnummer,huisnummer_toevoeging,postcode,woonplaats'),
     lees(client, 'communicatie_jobs', 'id,boeking_id,template_sleutel,status,gepland_op,ontvanger_email'),
+    leesZacht(client, 'communicatie_verzendingen', 'id,boeking_id,template_sleutel,status,verzonden_op,bedoelde_ontvanger,test'),
     lees(client, 'tarieven', 'id,verhuurtype_sleutel,prijstype,bedrag,geldig_vanaf,geldig_tot,toelichting'),
     lees(client, 'activiteit_bron', 'id,legacy_id,zichtbaarheid,soort,titel,interne_titel,slug,start_datum,eind_datum,publicatie_trigger,content_status,contentstatus,levenscyclus'),
     leesZacht(client, 'incidenten', 'id,boeking_id,omschrijving,status'),
@@ -442,14 +443,28 @@ export async function leesSupabaseBeheer(
     })),
     templates,
     instellingen: instellingenUit(instellingRijen),
-    communicatie: jobRijen.map((rij) => ({
-      id: tekst(rij.id),
-      boekingId: tekst(rij.boeking_id),
-      template: tekst(rij.template_sleutel),
-      status: tekst(rij.status),
-      wanneer: tekst(rij.gepland_op).slice(0, 10),
-      ontvanger: tekst(rij.ontvanger_email),
-    })),
+    communicatie: [
+      ...jobRijen.map((rij) => ({
+        id: tekst(rij.id),
+        boekingId: tekst(rij.boeking_id),
+        template: tekst(rij.template_sleutel),
+        status: tekst(rij.status),
+        wanneer: tekst(rij.gepland_op).slice(0, 10),
+        ontvanger: tekst(rij.ontvanger_email),
+      })),
+      ...verzendRijen.flatMap((rij) => {
+        const boekingId = tekst(rij.boeking_id);
+        if (!boekingId || rij.test === true || tekst(rij.status) !== 'verzonden') return [];
+        return [{
+          id: `verzending:${tekst(rij.id)}`,
+          boekingId,
+          template: tekst(rij.template_sleutel),
+          status: 'verzonden',
+          wanneer: tekst(rij.verzonden_op).slice(0, 10),
+          ontvanger: tekst(rij.bedoelde_ontvanger),
+        }];
+      }),
+    ],
     documenten: documentRijen.map((rij) => ({
       id: tekst(rij.id),
       boekingId: tekst(rij.boeking_id),
