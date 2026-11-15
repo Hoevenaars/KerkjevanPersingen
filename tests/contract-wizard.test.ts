@@ -44,7 +44,7 @@ function compleet(extra: Partial<ContractWizardVelden> = {}): ContractWizardVeld
     huurprijs: '490,00',
     aanbetaling: '0',
     restVerval: '2027-04-01',
-    ondertekenaarNaam: 'Nelleke van der Pol',
+    ondertekenaarNaam: 'Hans Maas',
     ondertekenaarFunctie: 'bestuur',
     tenaamstelling: 'Stichting Het Kerkje van Persingen',
     iban: 'NL91 ABNA 0417 1643 00',
