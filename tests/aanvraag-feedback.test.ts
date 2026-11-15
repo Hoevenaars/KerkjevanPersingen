@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normaliseerPostcode, stelAdresSamen, toonAdres } from '../src/platform/adres.ts';
-import { labelAkkoordVoorwaarden, sorteerAanvragen } from '../src/platform/aanvraag-weergave.ts';
+import { labelAangevraagdOp, labelAkkoordVoorwaarden, sorteerAanvragen } from '../src/platform/aanvraag-weergave.ts';
 import { aanvraagFotoPad, mimeUitBytes, valideerAanvraagFoto } from '../src/platform/aanvraag-foto.ts';
 import { INITIELE_TARIEVEN, kiesTarief } from '../src/platform/finance.ts';
 import { medeExposantenFout, parseMedeExposanten, serialiseerMedeExposanten, toonMedeExposanten } from '../src/platform/mede-exposanten.ts';
@@ -82,6 +82,13 @@ test('aanvragen sorteren op naam en datum zonder de rest te herschikken', () => 
   assert.equal(sorteerAanvragen(lijst, 'naam', 'asc')[0]?.naam, 'Anna');
   assert.equal(sorteerAanvragen(lijst, 'datum', 'desc')[0]?.naam, 'Anna');
   assert.equal(sorteerAanvragen(lijst, 'status', 'asc')[0]?.status, 'nieuw');
+});
+
+test('de aanvraagdatum blijft de dag waarop de aanvraag binnenkwam', () => {
+  assert.equal(labelAangevraagdOp('2026-09-01T09:12:00+02:00'), '1 september 2026');
+  assert.equal(labelAangevraagdOp('2026-08-28'), '28 augustus 2026');
+  assert.equal(labelAangevraagdOp(''), '—');
+  assert.equal(labelAangevraagdOp(null), '—');
 });
 
 test('akkoord is ja, nee of onbekend zonder verzonnen tijdstip', () => {

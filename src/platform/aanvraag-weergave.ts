@@ -3,6 +3,8 @@
  * Niet-exposities die vroeger `false` kregen, tonen geen expliciet nee.
  */
 
+import { formatNl } from './demo-data.ts';
+
 export function labelGastheer(soort: string | null | undefined): 'Expositiebegeleider' | 'Gastheer' {
   return (soort ?? '').trim().toLowerCase() === 'expositie' ? 'Expositiebegeleider' : 'Gastheer';
 }
@@ -34,6 +36,13 @@ export interface SorteerbareAanvraag {
   binnengekomen: string;
   akkoordVoorwaarden?: boolean | null;
   status: string;
+}
+
+/** Datum waarop de aanvraag binnenkwam. Een tijdstip telt als die dag. */
+export function labelAangevraagdOp(waarde: string | null | undefined): string {
+  const dag = (waarde ?? '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dag)) return '—';
+  return formatNl(dag);
 }
 
 export function leesAanvraagSortering(waarde: string | null): AanvraagSortering | null {
