@@ -428,7 +428,7 @@ if (kanContract && sessieClient) {
 const wizardVelden = wizardPost ?? wizardUitDossier({
   boekingId: beeld.boeking?.id ?? '',
   soortLabel: SOORT_LABEL[aanvraag.soort] ?? aanvraag.soort,
-  activiteit: contractBoeking?.interneTitel || aanvraag.naam,
+  activiteit: flowBoeking?.interneTitel || aanvraag.naam,
   naam: aanvraag.naam,
   email: aanvraag.email,
   telefoon: aanvraag.telefoon,
@@ -441,8 +441,8 @@ const wizardVelden = wizardPost ?? wizardUitDossier({
   periodeVan: aanvraag.start,
   periodeTot: aanvraag.eind,
   personen: aanvraag.personen,
-  huurprijs: contractBoeking?.tarief ?? '',
-  aanbetaling: contractBoeking?.aanbetaling ?? '',
+  huurprijs: flowBoeking?.tarief ?? '',
+  aanbetaling: flowBoeking?.aanbetaling ?? '',
 }, leesInstellingen(instellingRijen), bewaardeWizard);
 const wizardOpen = kanContract && !contractDefinitief && (wizardPost != null || Astro.url.searchParams.get('contract') === 'genereren');
 const contractLink = (() => {
