@@ -4,6 +4,8 @@
  */
 
 import { documentenflowAan } from '../../platform/documentenflow-vlag.ts';
+import { contractmailMagWeg, maakContractPdf, tekenUrl } from '../../platform/contract-pakket.ts';
+import { hashTekenToken, maakTekenToken } from '../../platform/contract-tekenen.ts';
 import {
   betalingStand,
   geldUitAdministratie,
@@ -103,7 +105,19 @@ function verzendingUitRij(rij: Rij): ContractVerzending {
     berichtId: rij.bericht_id == null ? null : tekst(rij.bericht_id),
     op: tekst(rij.op),
     versie: Number(rij.versie),
+    providerStatus: tekst(rij.provider_status) === 'geaccepteerd' ? 'geaccepteerd' : null,
   };
+}
+
+function veiligLog(melding: string): string {
+  return melding
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[adres]')
+    .replace(/\/tekenen\/[A-Za-z0-9_-]{20,}/g, '/tekenen/[token]')
+    .replace(/\b[A-Za-z0-9_-]{43,}\b/g, '[token]');
+}
+
+function isContractmail(soort: string): boolean {
+  return soort === 'contract' || soort === 'proef' || soort === 'herhaling';
 }
 
 export interface DossierLading {
@@ -257,6 +271,37 @@ async function bewaarVersies(client: DossierSessie, boekingId: number, vorige: r
   return null;
 }
 
+async function bewaarTekenlink(
+  client: DossierSessie,
+  boekingId: number,
+  versie: number,
+  email: string,
+): Promise<{ ok: true; link: string } | { ok: false; melding: string }> {
+  const token = maakTekenToken();
+  const tokenHash = hashTekenToken(token);
+  const verloopt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const bestaand = await client.from('contract_tekeningen').select('ondertekend_op').eq('boeking_id', boekingId).eq('versie', versie).maybeSingle();
+  if (bestaand.error && !/schema cache|does not exist|42P01/i.test(bestaand.error.message)) {
+    return { ok: false, melding: 'De tekenlink is niet opgeslagen. Er is geen mail verstuurd.' };
+  }
+  if (bestaand.error) return { ok: false, melding: 'De contractmigratie is nog niet uitgevoerd. Er is geen mail verstuurd.' };
+  if (bestaand.data && tekst(bestaand.data.ondertekend_op)) {
+    return { ok: false, melding: 'Deze versie is al ondertekend. Er is geen nieuwe link gemaakt en geen mail verstuurd.' };
+  }
+  const rij = {
+    token_hash: tokenHash,
+    verloopt_op: verloopt,
+    email,
+    vrijgegeven: false,
+  };
+  const antwoord = bestaand.data
+    ? await client.from('contract_tekeningen').update(rij).eq('boeking_id', boekingId).eq('versie', versie)
+    : await client.from('contract_tekeningen').insert({ ...rij, boeking_id: boekingId, versie });
+  const fout = 'error' in antwoord ? antwoord.error : null;
+  if (fout) return { ok: false, melding: 'De tekenlink is niet opgeslagen. Er is geen mail verstuurd.' };
+  return { ok: true, link: tekenUrl(token) };
+}
+
 export async function pasDocumentenflowToe(input: {
   client: DossierSessie | null;
   env: Record<string, unknown>;
@@ -269,7 +314,8 @@ export async function pasDocumentenflowToe(input: {
   bestand?: { naam: string; bytes: Uint8Array } | null;
   verstuur: (mail: FlowMail) => Promise<{ verzonden: boolean; berichtId: string | null; melding: string }>;
 }): Promise<{ ok: boolean; melding: string }> {
-  if (!documentenflowAan(input.env)) return { ok: false, melding: 'Documentenflow staat uit. Er is niets gewijzigd.' };
+  const extraMail = input.actie.soort === 'praktisch' || input.actie.soort === 'promotie';
+  if (extraMail && !documentenflowAan(input.env)) return { ok: false, melding: 'Documentenflow staat uit. Er is niets gewijzigd.' };
   if (!input.client) return { ok: false, melding: 'Voorbeeld. Er is niets opgeslagen en er is geen mail verstuurd.' };
   const gelezen = await leesDocumentenDossier(input.client, input.boekingId, input.promotieAanwezig);
   if (!gelezen.ok) return gelezen;
@@ -315,6 +361,39 @@ export async function pasDocumentenflowToe(input: {
     }, input.actor);
     if (!gezet.ok) return gezet;
   }
+  let manifest: { bestandsnaam: string; bytes: number; sha256: string; mime: 'application/pdf' }[] = [];
+  let pakket: ReturnType<typeof maakContractPdf> | null = null;
+  let pakketVersie: ContractVersie | null = null;
+  if (plan.mail && isContractmail(plan.mail.soort)) {
+    pakketVersie = plan.versies.find((item) => item.versie === plan.mail?.versie) ?? context.versies.at(-1) ?? null;
+    if (!pakketVersie) return { ok: false, melding: 'De contractversie ontbreekt. Er is geen mail verstuurd.' };
+    pakket = maakContractPdf(
+      {
+        tekst: pakketVersie.tekst,
+        voorwaardenTekst: pakketVersie.voorwaardenTekst,
+        huisregelsTekst: pakketVersie.huisregelsTekst,
+        plattegrondTekst: pakketVersie.plattegrondTekst,
+        soort: context.bron.soort,
+      },
+      `${pakketVersie.contractnummer}.pdf`,
+      pakketVersie.contractnummer,
+    );
+    if (!pakket.ok) return pakket;
+  }
+  async function zetStatus(idempotentie: string, status: 'verzonden' | 'geweigerd', berichtId: string | null) {
+    const volledig = await input.client!.from('contract_verzendingen').update({
+      status,
+      bericht_id: berichtId,
+      provider_status: status === 'verzonden' ? 'geaccepteerd' : null,
+      bijlagen: manifest,
+    }).eq('idempotentie', idempotentie);
+    if (volledig.error) {
+      await input.client!.from('contract_verzendingen').update({
+        status,
+        bericht_id: berichtId,
+      }).eq('idempotentie', idempotentie);
+    }
+  }
   if (plan.mail) {
     const claim = await input.client.from('contract_verzendingen').insert({
       boeking_id: Number(input.boekingId),
@@ -329,17 +408,77 @@ export async function pasDocumentenflowToe(input: {
       if (claim.error.code === '23505') return { ok: true, melding: 'Deze verzending bestaat al. Er is niet opnieuw gemaild.' };
       return { ok: false, melding: claim.error.message };
     }
+    if (pakket?.ok && pakketVersie) {
+      const link = await bewaarTekenlink(input.client, Number(input.boekingId), pakketVersie.versie, context.bron.email);
+      if (!link.ok) {
+        await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+        return link;
+      }
+      const contextMetLink: FlowContext = { ...context, tekenLink: link.link };
+      const opnieuw = voerFlowUit(input.actie, contextMetLink);
+      if (!opnieuw.ok || !opnieuw.mail) {
+        await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+        return { ok: false, melding: opnieuw.ok ? 'Er is geen mail verstuurd.' : opnieuw.melding };
+      }
+      plan.mail = opnieuw.mail;
+      plan.mail.bijlagen = [{
+        bestandsnaam: pakket.bijlage.bestandsnaam,
+        tekst: plan.mail.bijlagen[0]?.tekst ?? '',
+        bytes: pakket.bijlage.inhoud,
+      }];
+      const blokkade = contractmailMagWeg({
+        tekst: plan.mail.tekst,
+        link: link.link,
+        bijlagen: [{ bestandsnaam: pakket.bijlage.bestandsnaam, inhoud: pakket.bijlage.inhoud }],
+        contractnummer: pakketVersie.contractnummer,
+      });
+      if (blokkade) {
+        await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+        return { ok: false, melding: blokkade };
+      }
+      const pad = `contracten/${input.boekingId}/pakket-v${pakketVersie.versie}.pdf`;
+      const opslag = input.client as DossierSessie & {
+        storage?: { from(bucket: string): { upload(pad: string, body: Uint8Array, opties: { contentType: string; upsert: boolean }): Promise<{ error: { message: string } | null }> } };
+      };
+      if (!opslag.storage?.from) {
+        await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+        return { ok: false, melding: 'Het PDF-bestand is niet opgeslagen. Er is geen mail verstuurd.' };
+      }
+      const upload = await opslag.storage.from('booking-documents').upload(pad, pakket.bijlage.inhoud, { contentType: 'application/pdf', upsert: true });
+      if (upload.error) {
+        await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+        return { ok: false, melding: 'Het PDF-bestand is niet opgeslagen. Er is geen mail verstuurd.' };
+      }
+      manifest = [pakket.manifest];
+    }
     let uit: { verzonden: boolean; berichtId: string | null; melding: string };
     try {
       uit = await input.verstuur(plan.mail);
     } catch (error) {
-      uit = { verzonden: false, berichtId: null, melding: error instanceof Error ? error.message : 'Verzenden mislukt.' };
+      uit = { verzonden: false, berichtId: null, melding: veiligLog(error instanceof Error ? error.message : 'Verzenden mislukt.') };
     }
-    await input.client.from('contract_verzendingen').update({
-      status: uit.verzonden ? 'verzonden' : 'geweigerd',
-      bericht_id: uit.berichtId,
-    }).eq('idempotentie', plan.mail.idempotentie);
-    if (!uit.verzonden) return { ok: false, melding: uit.melding || 'Er is geen mail verstuurd.' };
+    if (uit.verzonden && !uit.berichtId) {
+      return { ok: false, melding: 'De mailprovider gaf geen mail-ID. De verzending blijft bezig en is niet opnieuw gestart.' };
+    }
+    const geaccepteerd = Boolean(uit.berichtId);
+    await zetStatus(plan.mail.idempotentie, geaccepteerd ? 'verzonden' : 'geweigerd', uit.berichtId);
+    if (geaccepteerd && (plan.mail.soort === 'contract' || plan.mail.soort === 'herhaling')) {
+      await input.client.from('contract_tekeningen').update({ vrijgegeven: true }).eq('boeking_id', Number(input.boekingId)).eq('versie', plan.mail.versie);
+    }
+    if (!geaccepteerd) {
+      await input.client.from('contract_tekeningen').update({ verloopt_op: new Date().toISOString(), vrijgegeven: false }).eq('boeking_id', Number(input.boekingId)).eq('versie', plan.mail.versie);
+      return { ok: false, melding: uit.melding || 'De mailprovider heeft de mail niet geaccepteerd. Er is niets als verzonden genoteerd.' };
+    }
+    if (plan.mail.soort === 'contract' || plan.mail.soort === 'herhaling') {
+      await input.client.from('documenten').insert({
+        boeking_id: Number(input.boekingId),
+        type: 'contract',
+        bestandsnaam: manifest[0]?.bestandsnaam || `${plan.mail.versie}.pdf`,
+        storage_pad: `contracten/${input.boekingId}/pakket-v${plan.mail.versie}.pdf`,
+        mime_type: 'application/pdf',
+        grootte_bytes: manifest[0]?.bytes ?? null,
+      });
+    }
   }
   await input.client.from('auditlog').insert({
     actor_naam: input.actor.naam,

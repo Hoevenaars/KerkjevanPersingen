@@ -13,7 +13,7 @@ const rest = restTekst(velden);
 
 <section class="bh-kaart" id="contract-wizard">
   <h2>Contract genereren</h2>
-  <p class="bh-muted">Wat al bekend is, staat ingevuld. Wat nog leeg is, hoort nog in het contract. Opslaan maakt het contract definitief en verstuurt geen mail.</p>
+  <p class="bh-muted">Wat al bekend is, staat ingevuld. Wat nog leeg is, hoort nog in het contract. Opslaan bewaart deze versie. Het bestuur keurt daarna goed. Er gaat nog geen mail uit.</p>
   {adresHint && <p>Op de aanvraag staat als adres: {adresHint}</p>}
   <form method="post" action={actie} class="bh-form">
     <h3>Huurder</h3>
@@ -82,7 +82,7 @@ const rest = restTekst(velden);
     <input id="huisregelsVastgesteldOp" name="huisregelsVastgesteldOp" type="date" value={velden.huisregelsVastgesteldOp} />
 
     <div class="bh-acties">
-      <button class="bh-btn" type="submit" name="actie" value="contract_definitief">Opslaan en Definitief maken</button>
+      <button class="bh-btn" type="submit" name="actie" value="contract_definitief">Contract opslaan</button>
     </div>
   </form>
 </section>

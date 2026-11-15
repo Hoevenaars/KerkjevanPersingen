@@ -6,7 +6,7 @@ import { besluitVoor } from './automatisering-register.ts';
 import { legVerzendingVast } from './communicatie-log.ts';
 import { verstuurGecontroleerd } from './mail-transport.ts';
 import { getTestMailRecipient } from './testmail-adres.ts';
-import { boekingIdVoorLog } from '../platform/contract-mail.ts';
+import { boekingIdVoorLog, isContractTemplate } from '../platform/contract-mail.ts';
 import { mailconceptMelding, stelMailconceptSamen } from '../platform/mailconcept.ts';
 import type { MailTemplateDef } from '../platform/mailtemplates/types.ts';
 
@@ -29,6 +29,7 @@ export async function verwerkMailconcept(input: {
   inhoud: string;
   actorNaam: string;
   brief?: boolean;
+  bijlagen?: { bestandsnaam: string; inhoud: Uint8Array }[];
   env?: Record<string, unknown>;
   bewaar?: (regel: Record<string, unknown>) => Promise<{ error: string | null }>;
 }): Promise<{ ok: boolean; melding: string; preview: ReturnType<typeof stelMailconceptSamen> | null }> {
@@ -65,6 +66,11 @@ export async function verwerkMailconcept(input: {
     }
     return { ok: true, melding: 'Concept bewaard. Er is geen mail verstuurd.', preview: concept };
   }
+  if (input.brief || isContractTemplate(templateSleutel)) {
+    if (!input.bijlagen?.length) {
+      return { ok: false, melding: 'Een contractmail zonder PDF-bijlage wordt niet verstuurd.', preview: concept };
+    }
+  }
   const env = input.env ?? process.env;
   const besluit = await besluitVoor('handmatige_template', undefined, env);
   const testadres = besluit.modus === 'test' ? await getTestMailRecipient(env) : null;
@@ -78,6 +84,8 @@ export async function verwerkMailconcept(input: {
       replyTo: concept.replyTo,
       richting: 'aanvrager',
       modus: besluit.modus,
+      bijlagen: input.bijlagen,
+      eisBijlagen: Boolean(input.brief || isContractTemplate(templateSleutel)),
     },
     { modus: besluit.modus, testadres, env },
   );

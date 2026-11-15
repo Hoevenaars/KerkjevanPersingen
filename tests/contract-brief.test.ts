@@ -63,14 +63,14 @@ test('versturen gebruikt de gelezen tekst en een lege brief verstuurt niets', as
     demo: false,
     opslag: null,
     gebruikerId: null,
-    verstuur: async (brief) => {
+    verstuur: async () => {
       aangeroepen += 1;
-      assert.equal(brief.tekst, gelezen.tekst);
       return { ok: true, melding: 'Mail verstuurd naar de dossierontvanger.' };
     },
   });
-  assert.equal(aangeroepen, 1);
-  assert.equal(uit.ok, true);
+  assert.equal(aangeroepen, 0);
+  assert.equal(uit.ok, false);
+  assert.match(uit.melding, /PDF/);
   assert.equal(uit.toonBrief, true);
 
   const leeg = await verwerkContractActie({
@@ -87,8 +87,8 @@ test('versturen gebruikt de gelezen tekst en een lege brief verstuurt niets', as
       return { ok: true, melding: 'niet' };
     },
   });
-  assert.equal(aangeroepen, 1);
-  assert.match(leeg.melding, /geen e-mailadres/);
+  assert.equal(aangeroepen, 0);
+  assert.match(leeg.melding, /PDF/);
 });
 
 test('genereren in het voorbeeld bewaart geen bestand', async () => {
@@ -107,7 +107,7 @@ test('genereren in het voorbeeld bewaart geen bestand', async () => {
     gebruikerId: null,
   });
   assert.equal(uploads, 0);
-  assert.match(uit.melding, /door te lezen/);
+  assert.match(uit.melding, /aanvraagdossier/);
   assert.match(uit.brief?.tekst ?? '', /Nick Hoevenaars/);
 });
 

@@ -112,7 +112,7 @@ test('documentenflow staat uit zonder vlag en BEHEER_ENABLED zet hem niet aan', 
     env: { BEHEER_ENABLED: 'true' },
     actor: { type: 'gebruiker', naam: 'Beheer', rechten: rechten({}) },
     boekingId: '42',
-    actie: { soort: 'voorleggen' },
+    actie: { soort: 'praktisch', proef: true, poging: '1' },
     modus: 'aan',
     testadres: null,
     verstuur: async () => { throw new Error('mail'); },
@@ -257,7 +257,7 @@ test('betaling toont alleen wat vastligt', () => {
     fout: '',
     modus: 'uit',
   });
-  assert.equal(weergave.regels.find((regel) => regel.label === 'Betaling')?.waarde, 'Niet vastgelegd');
+  assert.equal(weergave.regels.find((regel) => regel.label === 'Aanbetaling ontvangen')?.waarde, 'Niet vastgelegd');
   assert.equal(legeInstellingen().bestuursakkoordVerplicht, true);
   assert.equal(legeInstellingen().gereedRegel, '');
 });

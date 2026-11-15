@@ -12,7 +12,6 @@ interface Props {
 
 const { variant, actie, boekingId, terug, brief, magSchrijven, modus, ontvanger } = Astro.props;
 const knop = variant === 'kc' ? 'kc-knop kc-knop--olijf' : 'bh-btn';
-const secundair = variant === 'kc' ? 'kc-knop' : 'bh-btn bh-btn--sec';
 ---
 
 <div class="contract-blok">
@@ -29,21 +28,11 @@ const secundair = variant === 'kc' ? 'kc-knop' : 'bh-btn bh-btn--sec';
       </form>
     ) : (
       <>
-        <p>Lees het contract door. Versturen gebruikt deze tekst. Ontvanger: {ontvanger || 'geen e-mailadres'}. Huidige modus: {modus}.</p>
+        <p>Dit is alleen een leesversie. Het contractpakket, de goedkeuring en de mail met PDF staan in het aanvraagdossier. Hier wordt geen mail verstuurd. Ontvanger in het dossier: {ontvanger || 'geen e-mailadres'}. Modus: {modus}.</p>
         <article class="contract-lees">
           <h4>{brief.onderwerp}</h4>
           <pre>{brief.tekst}</pre>
         </article>
-        <form method="post" action={actie}>
-          <input type="hidden" name="actie" value="contract_verstuur" />
-          <input type="hidden" name="boekingId" value={boekingId} />
-          <input type="hidden" name="terug" value={terug} />
-          <input type="hidden" name="mailOnderwerp" value={brief.onderwerp} />
-          <label for={`contract-tekst-${boekingId}`}>Tekst die verstuurd wordt</label>
-          <textarea id={`contract-tekst-${boekingId}`} name="mailInhoud" rows="16">{brief.tekst}</textarea>
-          <p>Uit verstuurt geen mail. Test gaat naar het testmailadres. Aan gaat naar de huurder.</p>
-          <button class={secundair} type="submit">Verstuur contract</button>
-        </form>
       </>
     )
   }

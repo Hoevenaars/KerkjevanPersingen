@@ -206,10 +206,10 @@ test('definitief maken schrijft het contract en laat de status staan', async () 
   };
   const uit = await bewaarDefinitiefContract(client, { boekingId: 44, aanvraagId: 104, velden: compleet(), actor: beheerder });
   assert.equal(uit.ok, true);
-  assert.match(uit.melding, /definitief/);
+  assert.match(uit.melding, /opgeslagen/);
   assert.match(uit.melding, /geen mail/);
   const versie = schrijfsels.find((item) => item.tabel === 'contractversies');
-  assert.equal(versie?.waarden.bestuur_verplicht, false);
+  assert.equal(versie?.waarden.bestuur_verplicht, true);
   assert.match(String(versie?.waarden.tekst), /Huurovereenkomst/);
   for (const item of schrijfsels) assert.equal('status' in item.waarden, false);
   assert.equal(tabellen.boekingen[0].status, 'optie');
