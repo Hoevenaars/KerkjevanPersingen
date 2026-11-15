@@ -1,0 +1,151 @@
+---
+export const prerender = false;
+
+import Beheer from '../../../../layouts/Beheer.astro';
+import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
+import {
+  bewaarContractSjabloon,
+  leesContractSjabloon,
+  verwijderContractSjabloon,
+} from '../../../../lib/contract-sjabloon-opslag.ts';
+import {
+  CONTRACT_MERGEVELDEN,
+  leesSjabloonVelden,
+  voorbeeldContractSjabloon,
+} from '../../../../platform/documenten/pdf-sjabloon.ts';
+import { magSchrijven } from '../../../../platform/rechten.ts';
+
+if (Astro.url.searchParams.get('voorbeeld') === '1') {
+  const bytes = await voorbeeldContractSjabloon();
+  return new Response(Buffer.from(bytes), {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="huurovereenkomst-voorbeeld.pdf"',
+      'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+    },
+  });
+}
+
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const mag = magSchrijven(rechten, 'instellingen') && !Astro.locals.beheer?.viewAs;
+let melding = '';
+let fout = '';
+let onbekend: string[] = [];
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const actie = String(form.get('actie') ?? '');
+  if (!mag) {
+    fout = 'Geen recht om het contractsjabloon te wijzigen. Er is niets opgeslagen.';
+  } else if (actie === 'verwijder') {
+    const weg = await verwijderContractSjabloon();
+    if (!weg.ok) fout = weg.melding;
+    else melding = 'Het contractsjabloon is verwijderd. Nieuwe contracten gebruiken weer de platte PDF.';
+  } else if (actie === 'bewaar') {
+    const bestand = form.get('sjabloon');
+    if (!(bestand instanceof File) || bestand.size === 0) {
+      fout = 'Kies een PDF-bestand.';
+    } else {
+      const uit = await bewaarContractSjabloon(new Uint8Array(await bestand.arrayBuffer()));
+      if (!uit.ok) fout = uit.melding;
+      else {
+        onbekend = uit.onbekend;
+        melding = `Sjabloon opgeslagen. ${uit.bekende.length} mergeveld${uit.bekende.length === 1 ? '' : 'en'} worden ingevuld.`;
+      }
+    }
+  } else {
+    fout = 'Deze actie hoort niet bij het contractsjabloon.';
+  }
+  if (melding || (actie === 'verwijder' && !fout)) {
+    const admin = maakBeheerAdminClient();
+    await admin?.from('auditlog').insert({
+      actor_naam: Astro.locals.beheer?.gebruiker.naam || 'beheer',
+      actor_type: 'gebruiker',
+      onderwerp_type: 'instelling',
+      onderwerp_id: 'contractsjabloon',
+      actie: actie === 'verwijder' ? 'contractsjabloon_verwijder' : 'contractsjabloon_bewaar',
+      dedup_sleutel: `contractsjabloon:${actie}:${Date.now()}`,
+    });
+  }
+}
+
+const stand = await leesContractSjabloon();
+if (stand.fout && !fout) fout = stand.fout;
+const info = stand.bytes ? await leesSjabloonVelden(stand.bytes) : null;
+if (info?.fout && !fout && !melding) fout = info.fout;
+if (info && onbekend.length === 0) onbekend = info.onbekend;
+---
+
+<Beheer titel="Contractsjabloon">
+  <header class="bh-top">
+    <div>
+      <h1>Contractsjabloon</h1>
+      <p class="bh-hint">Een PDF met tekstvelden. Bij elk contract worden die velden gevuld met de gegevens uit de overeenkomst.</p>
+    </div>
+  </header>
+
+  {melding && <p class="bh-flash">{melding}</p>}
+  {fout && <p class="bh-flash bh-flash--fout" role="alert">{fout}</p>}
+  {onbekend.length > 0 && <p class="bh-hint">Deze velden hebben geen bekende naam en blijven leeg: {onbekend.join(', ')}.</p>}
+
+  <section class="bh-kaart">
+    <h2>Huidig sjabloon</h2>
+    {
+      stand.bytes ? (
+        <p>Er staat een sjabloon. Gevonden mergevelden: {info?.bekende.join(', ') || 'geen'}.</p>
+      ) : (
+        <p>Er is nog geen sjabloon. Contracten worden als platte tekst-PDF gemaakt.</p>
+      )
+    }
+    <p class="bh-hint">
+      Zet in de PDF formuliervelden (in LibreOffice: Formulier, tekstvak) en geef elk veld exact de naam uit de lijst, bijvoorbeeld <code>huurder</code>.
+      Zichtbare tekst als <code>{'{{huurder}}'}</code> in een gewone alinea wordt niet ingevuld.
+      De ingevulde letters komen in Helvetica, zodat het euroteken en accenten passen.
+      De verhuurvoorwaarden en huisregels worden achter het sjabloon gezet. Alleen als het sjabloon de vastgestelde voorwaardentekst al bevat, gebeurt dat niet nog eens.
+    </p>
+    <p><a href="?voorbeeld=1">Download een leeg voorbeeldsjabloon</a></p>
+    {
+      mag && (
+        <form method="post" enctype="multipart/form-data" class="bh-form">
+          <input type="hidden" name="actie" value="bewaar" />
+          <label for="sjabloon">PDF-sjabloon</label>
+          <input id="sjabloon" name="sjabloon" type="file" accept="application/pdf,.pdf" required />
+          <div class="bh-acties">
+            <button class="bh-btn" type="submit">Sjabloon bewaren</button>
+          </div>
+        </form>
+      )
+    }
+    {
+      mag && stand.bytes && (
+        <form method="post">
+          <input type="hidden" name="actie" value="verwijder" />
+          <button class="bh-btn bh-btn--sec" type="submit">Sjabloon verwijderen</button>
+        </form>
+      )
+    }
+  </section>
+
+  <section class="bh-kaart">
+    <h2>Veldnamen</h2>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Veldnaam</th>
+          <th>Inhoud</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          CONTRACT_MERGEVELDEN.map(([sleutel, label]) => (
+            <tr>
+              <td><code>{sleutel}</code></td>
+              <td>{label}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+</Beheer>

@@ -4,8 +4,9 @@
  */
 
 import { createHash } from 'node:crypto';
-import { pdfBytes } from './documenten/pdf.ts';
+import { pdfBevatTekst, pdfBytes } from './documenten/pdf.ts';
 import { DOCUMENTVERSIE } from './documenten/teksten-v1.ts';
+import { veldenUitContracttekst, vulPdfSjabloon } from './documenten/pdf-sjabloon.ts';
 
 export const PRIVACY_URL = 'https://kerkjepersingen.nl/privacyverklaring/';
 export const TEKEN_BASIS = 'https://kerkjepersingen.nl';
@@ -104,22 +105,35 @@ export function pdfBijlageFout(bijlage: PdfBijlage, contractnummer?: string): st
     return 'De bijlage is geen geldige PDF. Er is geen mail verstuurd.';
   }
   if (contractnummer) {
-    const latin = Buffer.from(bytes).toString('latin1');
-    if (!latin.includes(contractnummer) || !latin.includes('Verhuurvoorwaarden')) {
+    if (!pdfBevatTekst(bytes, contractnummer) || !pdfBevatTekst(bytes, 'Verhuurvoorwaarden')) {
       return 'De PDF bevat niet het contract en de voorwaarden. Er is geen mail verstuurd.';
     }
   }
   return null;
 }
 
-export function maakContractPdf(bron: PakketBron, bestandsnaam: string, contractnummer: string):
-  | { ok: true; bijlage: PdfBijlage; manifest: BijlageManifest }
-  | { ok: false; melding: string } {
+export async function maakContractPdf(
+  bron: PakketBron,
+  bestandsnaam: string,
+  contractnummer: string,
+  sjabloon?: Uint8Array | null,
+): Promise<{ ok: true; bijlage: PdfBijlage; manifest: BijlageManifest } | { ok: false; melding: string }> {
   const tekst = contractPakketTekst(bron);
   if (!tekst.includes(contractnummer) || !tekst.includes(bron.voorwaardenTekst.slice(0, 40))) {
     return { ok: false, melding: 'Het contractpakket is onvolledig. Er is geen mail verstuurd.' };
   }
-  const inhoud = pdfBytes(tekst);
+  let inhoud: Uint8Array;
+  if (sjabloon && sjabloon.byteLength > 0) {
+    const velden = veldenUitContracttekst(bron.tekst);
+    if (!velden || velden.contractnummer !== contractnummer) {
+      return { ok: false, melding: 'De contracttekst levert geen mergevelden. Er is geen mail verstuurd.' };
+    }
+    const gevuld = await vulPdfSjabloon({ sjabloon, velden, bijlage: bron });
+    if (!gevuld.ok) return gevuld;
+    inhoud = gevuld.pdf;
+  } else {
+    inhoud = pdfBytes(tekst);
+  }
   const bijlage = { bestandsnaam, inhoud };
   const fout = pdfBijlageFout(bijlage, contractnummer);
   if (fout) return { ok: false, melding: fout };

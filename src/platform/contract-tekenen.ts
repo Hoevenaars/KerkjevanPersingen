@@ -5,7 +5,8 @@
  */
 
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { contractPakketTekst, sha256Hex, type PakketBron } from './contract-pakket.ts';
+import { contractPakketTekst, maakContractPdf, sha256Hex, type PakketBron } from './contract-pakket.ts';
+import { voegTekstAanPdf } from './documenten/pdf-sjabloon.ts';
 import { pdfBytes } from './documenten/pdf.ts';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -151,7 +152,21 @@ function openDossier(dossier: TekenDossier | null, nu: string): { ok: true; doss
   return { ok: true, dossier };
 }
 
-export async function voerTekenstap(stap: TekenStap, winkel: TekenWinkel): Promise<TekenUitkomst> {
+async function pdfUitDossier(
+  dossier: TekenDossier,
+  sjabloon: Uint8Array | null,
+): Promise<{ ok: true; pdf: Uint8Array } | { ok: false; melding: string }> {
+  if (!sjabloon) return { ok: true, pdf: pdfBytes(contractPakketTekst(dossier.pakket)) };
+  const gemaakt = await maakContractPdf(dossier.pakket, `${dossier.contractnummer}.pdf`, dossier.contractnummer, sjabloon);
+  if (!gemaakt.ok) return gemaakt;
+  return { ok: true, pdf: gemaakt.bijlage.inhoud };
+}
+
+export async function voerTekenstap(
+  stap: TekenStap,
+  winkel: TekenWinkel,
+  opties?: { sjabloon?: Uint8Array | null },
+): Promise<TekenUitkomst> {
   if (!tokenVormGeldig(stap.token)) return { ok: false, melding: 'Deze link is ongeldig.' };
   const hash = hashTekenToken(stap.token);
   const gelezen = openDossier(await winkel.lees(hash), stap.nu);
@@ -169,10 +184,14 @@ export async function voerTekenstap(stap: TekenStap, winkel: TekenWinkel): Promi
         versie: dossier.versie,
         documentHash: dossier.documentHash || '',
       };
-      return { ok: true, melding: 'Getekend contract.', dossier, pdf: ondertekendePdf(dossier, bewijs) };
+      const basis = await pdfUitDossier(dossier, opties?.sjabloon ?? null);
+      if (!basis.ok) return basis;
+      const pdf = opties?.sjabloon ? await voegTekstAanPdf(basis.pdf, bewijsTekst(bewijs)) : ondertekendePdf(dossier, bewijs);
+      return { ok: true, melding: 'Getekend contract.', dossier, pdf };
     }
-    const pdf = pdfBytes(contractPakketTekst(dossier.pakket));
-    return { ok: true, melding: 'Contract.', dossier, pdf: stap.soort === 'download' ? pdf : undefined };
+    const los = await pdfUitDossier(dossier, opties?.sjabloon ?? null);
+    if (!los.ok) return los;
+    return { ok: true, melding: 'Contract.', dossier, pdf: stap.soort === 'download' ? los.pdf : undefined };
   }
 
   if (dossier.ondertekendOp) {
@@ -214,8 +233,9 @@ export async function voerTekenstap(stap: TekenStap, winkel: TekenWinkel): Promi
   const naam = stap.naam.replace(/\s+/g, ' ').trim();
   if (naam.length < 3) return { ok: false, melding: 'Vul uw volledige naam in.' };
   if (!stap.akkoord) return { ok: false, melding: 'Vink aan dat u akkoord gaat met de contractuele bepalingen.' };
-  const ongetekend = pdfBytes(contractPakketTekst(dossier.pakket));
-  const documentHash = sha256Hex(ongetekend);
+  const ongetekend = await pdfUitDossier(dossier, opties?.sjabloon ?? null);
+  if (!ongetekend.ok) return ongetekend;
+  const documentHash = sha256Hex(ongetekend.pdf);
   const bewijs: TekenBewijs = {
     naam,
     email: dossier.email,
@@ -224,7 +244,7 @@ export async function voerTekenstap(stap: TekenStap, winkel: TekenWinkel): Promi
     versie: dossier.versie,
     documentHash,
   };
-  const pdf = ondertekendePdf(dossier, bewijs);
+  const pdf = opties?.sjabloon ? await voegTekstAanPdf(ongetekend.pdf, bewijsTekst(bewijs)) : ondertekendePdf(dossier, bewijs);
   const stand = await winkel.legOndertekening({
     tokenHash: hash,
     naam,

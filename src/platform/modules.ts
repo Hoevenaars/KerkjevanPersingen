@@ -130,6 +130,7 @@ export const INSTELLINGEN_PAGINAS = [
   { module: 'automatiseringen', href: '/beheer/instellingen/automatiseringen/', label: 'Automatiseringen' },
   { module: 'systeembeheer', href: '/beheer/instellingen/systeem/', label: 'Systeem' },
   { module: 'templates', href: '/beheer/instellingen/mailtemplates/', label: 'Mailtemplates' },
+  { module: 'instellingen', href: '/beheer/instellingen/contractsjabloon/', label: 'Contractsjabloon' },
   { module: 'gebruikers', href: '/beheer/instellingen/gebruikers/', label: 'Gebruikers' },
 ] as const;
 
