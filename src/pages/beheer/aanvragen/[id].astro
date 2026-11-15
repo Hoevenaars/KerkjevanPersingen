@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
-import { beoordeelAanvraag, type FaseWereld } from '../../../platform/aanvraag-fase';
+import { beoordeelAanvraag, magFaseTerug, type FaseWereld } from '../../../platform/aanvraag-fase';
 import { periodeLabel } from '../../../platform/verhuur-overzicht';
 import { labelAangevraagdOp, labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { toonMedeExposanten } from '../../../platform/mede-exposanten';
@@ -11,6 +11,7 @@ import { lijstAanvraagFotos } from '../../../lib/aanvraag-foto-opslag';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { herkomstUitQuery } from '../../../platform/beheer-hoofdnav.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
+import { trekFaseTerug } from '../../../lib/operatie/fase-terug.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { laadTijdlijn } from '../../../lib/communicatie-log.ts';
 import { briefMeerInformatie } from '../../../lib/operatie/informatievraag.ts';
@@ -214,6 +215,17 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect(doel.toString());
       }
     }
+  } else if (aanvraag && actie === 'fase_terug') {
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
+      doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
+    } else if (snapshot.bron !== 'supabase' || !mailSessie) {
+      doel.searchParams.set('fout', 'Dit is de voorbeeldweergave. Er is niets gewijzigd en er is geen mail verstuurd.');
+    } else {
+      const uit = await trekFaseTerug(mailSessie as never, Number(aanvraag.id), actorVanSessie(Astro.locals.beheer));
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    }
+    return Astro.redirect(doel.toString());
   } else {
     const operationeel = await postAlsSupabase({
       request: Astro.request,
@@ -481,6 +493,13 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
     <h2 class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.faseLabel}</h2>
     <p class="bh-muted">Aangevraagd op {labelAangevraagdOp(aanvraag.binnengekomen)}</p>
     <p class="bh-volgende">Volgende actie: <strong class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.volgendeActie}</strong></p>
+    {
+      kanBeoordelen && magFaseTerug(beeld).ok && (
+        <form method="post" action={dossierPad} class="bh-acties" onsubmit="return confirm('Het openstaande contract wordt ingetrokken. De tekenlink werkt daarna niet meer. Daarna maak je een nieuwe versie. Er gaat geen mail uit.')">
+          <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="fase_terug">Eén fase terug</button>
+        </form>
+      )
+    }
     {
       beeld.fase === 'gereed' && (
         <>
