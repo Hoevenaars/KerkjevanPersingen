@@ -9,6 +9,7 @@ interface Props {
   bevestigHref: string;
   formulierActie: string;
   dossierActie: string;
+  stukActie: string;
   terug: string;
   magSchrijven: boolean;
   demo: boolean;
@@ -32,6 +33,7 @@ const {
   bevestigHref,
   formulierActie,
   dossierActie,
+  stukActie,
   terug,
   magSchrijven,
   demo,
@@ -124,9 +126,6 @@ const aantal = dossier.taken.length;
               <div>
                 <b>Tekst voor de website</b>
                 {dossier.versie && <small> · {dossier.versie}</small>}
-                <div style="margin-top:7px">
-                  <StatusMarkering kleur={staatKleur(dossier.stukken)} tekst={dossier.stukkenLabel} />
-                </div>
                 {
                   dossier.stukTekst ? (
                     <p>{dossier.stukTekst}</p>
@@ -134,7 +133,7 @@ const aantal = dossier.taken.length;
                     <p>Er is geen aangeleverde tekst gevonden.</p>
                   )
                 }
-                <StukBeoordeling />
+                <StukBeoordeling paneel={dossier.tekstPaneel} boekingId={dossier.id} terug={terug} actie={stukActie} />
               </div>
             </div>
           </div>
@@ -153,7 +152,7 @@ const aantal = dossier.taken.length;
                     <p>Er is geen publieke foto gekoppeld.</p>
                   )
                 }
-                <StukBeoordeling />
+                <StukBeoordeling paneel={dossier.fotoPaneel} boekingId={dossier.id} terug={terug} actie={stukActie} />
               </div>
             </div>
           </div>
@@ -172,7 +171,7 @@ const aantal = dossier.taken.length;
                         <p>Geen veilige voorbeeldlink. Het bestand blijft privé.</p>
                       )
                     }
-                    <StukBeoordeling />
+                    <StukBeoordeling paneel={bestand.paneel} boekingId={dossier.id} terug={terug} actie={stukActie} />
                   </div>
                 </div>
               </div>
@@ -208,7 +207,7 @@ const aantal = dossier.taken.length;
                       <p>Geen veilige voorbeeldlink. Het bestand blijft privé.</p>
                     )
                   }
-                  <StukBeoordeling />
+                  <StukBeoordeling paneel={document.paneel} boekingId={dossier.id} terug={terug} actie={stukActie} />
                 </div>
               ))
             )

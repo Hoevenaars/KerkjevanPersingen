@@ -49,12 +49,7 @@ const wereld: FaseWereld = {
     aanbetalingBinnen: item.aanbetalingBinnen,
     aanvraagId: item.aanvraagId,
   })),
-  documenten: snapshot.documenten.map((item) => ({
-    boekingId: item.boekingId,
-    soort: item.soort,
-    naam: item.naam,
-    ingetrokken: item.ingetrokken === true,
-  })),
+  documenten: snapshot.documenten.map((item) => ({ boekingId: item.boekingId, soort: item.soort, naam: item.naam })),
   mails: snapshot.communicatie.map((item) => ({ boekingId: item.boekingId, template: item.template, status: item.status })),
   betalingen: (snapshot.betalingen ?? []).map((item) => ({ boekingId: item.boekingId, soort: item.soort, status: item.status })),
   blokkades: snapshot.intern.map((item) => ({

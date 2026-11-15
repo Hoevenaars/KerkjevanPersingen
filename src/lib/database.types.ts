@@ -540,6 +540,25 @@ isOneToOne: false
       referencedColumns: ["sleutel"]
     }
                   ]
+                },"stuk_beoordelingen": {
+                  Row: {
+                    "beoordeeld_door": string,"beoordeeld_op": string,"beoordelaar_naam": string,"boeking_id": number,"id": number,"reden": string | null,"status": string,"stuk_id": string,"stuk_type": string,"versie": number
+                  }
+                  Insert: {
+                    "beoordeeld_door": string,"beoordeeld_op"?: string,"beoordelaar_naam": string,"boeking_id": number,"id"?: never,"reden"?: string | null,"status": string,"stuk_id": string,"stuk_type": string,"versie": number
+                  }
+                  Update: {
+                    "beoordeeld_door"?: string,"beoordeeld_op"?: string,"beoordelaar_naam"?: string,"boeking_id"?: number,"id"?: never,"reden"?: string | null,"status"?: string,"stuk_id"?: string,"stuk_type"?: string,"versie"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "stuk_beoordelingen_boeking_id_fkey"
+      columns: ["boeking_id"]
+isOneToOne: false
+      referencedRelation: "boekingen"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"toegangstokens": {
                   Row: {
                     "aangemaakt_op": string,"aanvraag_id": number | null,"boeking_id": number | null,"doel": string,"gebruikt_op": string | null,"id": number,"ingetrokken_op": string | null,"token_hash": string,"verloopt_op": string

@@ -65,8 +65,6 @@ export interface FaseDocument {
   boekingId: string;
   soort: string;
   naam: string;
-  /** Ingetrokken contract telt niet meer als verzonden of ondertekend. */
-  ingetrokken?: boolean;
 }
 
 export interface FaseMail {
@@ -219,7 +217,7 @@ function boekingBij(aanvraag: FaseAanvraag, wereld: FaseWereld): FaseBoeking | n
   return wereld.boekingen.find((boeking) => boeking.aanvraagId && boeking.aanvraagId === aanvraag.id) ?? null;
 }
 
-export function contractDocumentVorm(soort: string, naam: string): 'getekend' | 'contract' | 'geen' {
+function contractVorm(soort: string, naam: string): 'getekend' | 'contract' | 'geen' {
   const sleutel = `${normaliseer(soort)} ${normaliseer(naam)}`;
   if (/getekend/.test(sleutel)) return 'getekend';
   if (/contract|huurovereenkomst/.test(sleutel)) return 'contract';
@@ -236,8 +234,8 @@ export function checklistVan(boeking: FaseBoeking | null, wereld: FaseWereld): C
       compleet: false,
     };
   }
-  const documenten = wereld.documenten.filter((document) => document.boekingId === boeking.id && !document.ingetrokken);
-  const vormen = documenten.map((document) => contractDocumentVorm(document.soort, document.naam));
+  const documenten = wereld.documenten.filter((document) => document.boekingId === boeking.id);
+  const vormen = documenten.map((document) => contractVorm(document.soort, document.naam));
   const mailVerzonden = wereld.mails.some((mail) => {
     if (mail.boekingId !== boeking.id || mail.status !== 'verzonden') return false;
     return /contract|huurovereenkomst/i.test(mail.template);
@@ -428,6 +426,26 @@ export function beoordeelAanvraag(aanvraag: FaseAanvraag, wereld: FaseWereld): A
     boeking,
     geschikt,
   };
+}
+
+/**
+ * Eén stap terug, alleen zolang er nog niets is getekend, betaald of definitief geboekt.
+ * Van "Wachten op ondertekening" terug naar "Contract verzenden".
+ */
+export function magFaseTerug(beeld: AanvraagBeeld): { ok: true; van: string; naar: string } | { ok: false; melding: string } {
+  if (beeld.boeking && isDefinitieveBoeking(beeld.boeking.status)) {
+    return { ok: false, melding: 'Een definitieve boeking gaat niet een fase terug.' };
+  }
+  if (beeld.checklist.ondertekend) {
+    return { ok: false, melding: 'Een ondertekend contract gaat niet een fase terug.' };
+  }
+  if (beeld.checklist.aanbetaling) {
+    return { ok: false, melding: 'Na een ontvangen aanbetaling blijft de fase staan.' };
+  }
+  if (beeld.fase === 'in_behandeling' && beeld.volgendeActie === 'Wachten op ondertekening' && beeld.boeking) {
+    return { ok: true, van: 'Wachten op ondertekening', naar: 'Contract verzenden' };
+  }
+  return { ok: false, melding: 'Deze fase heeft geen vorige stap.' };
 }
 
 export function magGoedkeuren(beeld: AanvraagBeeld, status: string): { ok: boolean; melding?: string } {

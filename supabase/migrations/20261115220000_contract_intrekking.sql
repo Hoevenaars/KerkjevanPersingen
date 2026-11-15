@@ -1,21 +1,19 @@
--- Een fase terug: een ingetrokken contract telt niet meer als verzonden.
--- Het bestand en de verzending blijven staan. Er gaat geen mail uit.
+-- Een ongetekend contract kan één fase terug.
+-- De versie blijft bevroren. De verzending telt daarna niet meer als verzonden.
 -- Terugdraaien:
---   alter table public.documenten drop column if exists ingetrokken_op;
 --   drop policy if exists verzendingen_update_dossier on public.communicatie_verzendingen;
 --   drop policy if exists jobs_update_aanvraag on public.communicatie_jobs;
-
-alter table public.documenten
-  add column if not exists ingetrokken_op timestamptz;
-
-comment on column public.documenten.ingetrokken_op is
-  'Gezet bij een fase terug. Het bestand blijft, maar telt niet meer als verzonden of ondertekend contract.';
+--   update public.contract_verzendingen set status = 'verzonden' where status = 'ingetrokken';
+--   alter table public.contract_verzendingen drop constraint if exists contract_verzendingen_status_check;
+--   alter table public.contract_verzendingen
+--     add constraint contract_verzendingen_status_check
+--     check (status in ('bezig', 'verzonden', 'geweigerd'));
 
 do $$
 declare
-  naam text;
+  beperking record;
 begin
-  for naam in
+  for beperking in
     select con.conname
     from pg_constraint con
     join pg_class rel on rel.oid = con.conrelid
@@ -26,12 +24,9 @@ begin
       and pg_get_constraintdef(con.oid) ilike '%status%'
       and pg_get_constraintdef(con.oid) not ilike '%provider_status%'
   loop
-    execute format('alter table public.contract_verzendingen drop constraint %I', naam);
+    execute format('alter table public.contract_verzendingen drop constraint %I', beperking.conname);
   end loop;
 end $$;
-
-alter table public.contract_verzendingen
-  drop constraint if exists contract_verzendingen_status_check;
 
 alter table public.contract_verzendingen
   add constraint contract_verzendingen_status_check

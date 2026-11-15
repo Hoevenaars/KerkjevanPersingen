@@ -557,13 +557,6 @@ function alVerzonden(versies: readonly ContractVersie[], soort: ContractVerzendi
   return versies.some((versie) => versie.verzendingen.some((regel) => regel.soort === soort && regel.status === 'verzonden'));
 }
 
-/** Een ingetrokken contractversie mag niet opnieuw naar de huurder. */
-export function versieTeruggetrokken(versie: ContractVersie): boolean {
-  const regels = versie.verzendingen.filter((regel) => regel.soort === 'contract' || regel.soort === 'herhaling');
-  const open = regels.some((regel) => regel.status === 'verzonden' || regel.status === 'bezig');
-  return regels.some((regel) => regel.status === 'ingetrokken') && !open;
-}
-
 function kopieer(versie: ContractVersie, wijziging: Partial<ContractVersie>): ContractVersie {
   return { ...versie, ...wijziging, checks: { ...versie.checks }, verzendingen: [...versie.verzendingen], afspraken: { ...versie.afspraken } };
 }
@@ -574,6 +567,12 @@ function vervang(versies: readonly ContractVersie[], versie: ContractVersie): Co
 
 function bestuurAkkoord(versie: ContractVersie): boolean {
   return !versie.bestuurVerplicht || versie.bestuur === 'akkoord';
+}
+
+function versieIngetrokken(versie: ContractVersie): boolean {
+  return versie.verzendingen.some((regel) => {
+    return (regel.soort === 'contract' || regel.soort === 'herhaling') && regel.status === 'ingetrokken';
+  });
 }
 
 function mailDoel(context: FlowContext, proef: boolean): { ok: true; naar: string; telt: boolean } | { ok: false; melding: string } {
@@ -664,11 +663,11 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
   if (actie.soort === 'verzend' || actie.soort === 'opnieuw') {
     if (!magContractBeheren(context.rechten)) return weiger('Geen recht om het contract te verzenden.');
     if (!bestuurAkkoord(huidig)) return weiger('Verzenden kan pas na bestuursakkoord op deze versie.');
-    if (versieTeruggetrokken(huidig)) {
-      return weiger('Deze versie is teruggetrokken. Maak een nieuwe versie. Er is geen mail verstuurd.');
-    }
     if (!versiePastBijGegevens(huidig, context.bron, context.instellingen)) {
       return weiger('De boekingsgegevens zijn gewijzigd. De eerdere goedkeuring geldt niet meer. Maak een nieuwe versie. Er is geen mail verstuurd.');
+    }
+    if (versieIngetrokken(huidig)) {
+      return weiger('Deze versie is ingetrokken. Maak een nieuwe versie. Er is geen mail verstuurd.');
     }
     const opnieuw = actie.soort === 'opnieuw';
     const doel = mailDoel(context, opnieuw ? false : actie.proef);
@@ -879,10 +878,11 @@ export function bouwOpvolging(input: {
   const huidig = laatste(input.versies);
   const afspraken = huidig?.afspraken ?? { tijdVan: '', tijdTot: '', opbouw: '', afbouw: '', contactpersoon: input.bron.huurderNaam };
   const past = huidig ? versiePastBijGegevens(huidig, input.bron, input.instellingen) : false;
+  const ingetrokken = huidig ? versieIngetrokken(huidig) : false;
   const redenen = [
     ...(huidig ? [] : ontbrekendeContractgegevens(input.bron, afspraken, input.instellingen)),
     ...(huidig && !past ? ['De boekingsgegevens zijn gewijzigd. Maak een nieuwe contractversie'] : []),
-    ...(huidig && versieTeruggetrokken(huidig) ? ['Deze versie is teruggetrokken. Maak een nieuwe versie'] : []),
+    ...(ingetrokken ? ['Deze versie is ingetrokken. Maak een nieuwe versie'] : []),
   ];
   const beheer = magContractBeheren(input.rechten);
   const bestuur = magBestuurBesluiten(input.rechten);

@@ -177,17 +177,6 @@ export async function leesSupabaseBeheer(
   client: SupabaseLeesClient,
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
-  async function leesDocumenten(): Promise<Record<string, unknown>[]> {
-    const metIntrekking = 'id,boeking_id,bestandsnaam,type,geupload_op,storage_pad,mime_type,ingetrokken_op';
-    try {
-      return await lees(client, 'documenten', metIntrekking);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes('ingetrokken_op')) throw error;
-      return lees(client, 'documenten', 'id,boeking_id,bestandsnaam,type,geupload_op,storage_pad,mime_type');
-    }
-  }
-
   async function leesRelaties(): Promise<Record<string, unknown>[]> {
     const metSinds = 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst,reservelijst_sinds';
     try {
@@ -208,7 +197,7 @@ export async function leesSupabaseBeheer(
     lees(client, 'gastbegeleider_toewijzingen', 'id,boeking_id,relatie_id,datum,type'),
     lees(client, 'vrienden', 'id,naam,email,telefoon,geboortedatum,actief,frequentie'),
     lees(client, 'nieuwsbrieven', 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd'),
-    leesDocumenten(),
+    lees(client, 'documenten', 'id,boeking_id,bestandsnaam,type,geupload_op,storage_pad,mime_type'),
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
     lees(client, 'publieke_activiteiten', 'id,boeking_id,titel,slug,start_datum,eind_datum,gepubliceerd,inhoud_status,inhoud_versie,beoordeling_toelichting,omschrijving,korte_omschrijving,volledige_omschrijving,zichtbaarheid,contentstatus,levenscyclus,publicatie_trigger,foto_pad,praktische_informatie,exposanten,annuleringsreden,geannuleerd_op,geannuleerd_door,legacy_id,aanvullende_afbeeldingen'),
@@ -481,7 +470,6 @@ export async function leesSupabaseBeheer(
       boekingId: tekst(rij.boeking_id),
       naam: tekst(rij.bestandsnaam),
       soort: tekst(rij.type),
-      ingetrokken: rij.ingetrokken_op != null && tekst(rij.ingetrokken_op) !== '',
       datum: tekst(rij.geupload_op).slice(0, 10),
       pad: tekst(rij.storage_pad),
       mime: tekst(rij.mime_type),

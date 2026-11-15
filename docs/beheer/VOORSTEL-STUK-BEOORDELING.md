@@ -1,8 +1,7 @@
 # Voorstel: beoordeling van een aangeleverd stuk
 
-Status: **niet uitgevoerd**. Niet op productie toepassen zonder akkoord.
-De verhuuragenda toont de bestaande status en laat een stuk bekijken.
-Goedkeuren, afkeuren, de reden, de beoordelaar en de datum staan in het dossier, maar de knoppen zijn uit. Er is nog geen goedgekeurde tabel, en deze branch bevat geen migratie. Een nieuwe upload kan pas opnieuw worden beoordeeld als die opslag én de schrijfrechten getest zijn.
+Status: **uitgevoerd in de applicatie**. De migratie `20261115210000_stuk_beoordelingen.sql` moet op het project Kerkje van Persingen staan voordat de knoppen bewaren.
+Goedkeuren en afkeuren schrijven één rij per onderdeel en per versie, met reden, beoordelaar en datum. De knop publiceert de website niet en verstuurt geen mail.
 
 ## Wat er al is
 
@@ -11,34 +10,15 @@ Goedkeuren, afkeuren, de reden, de beoordelaar en de datum staan in het dossier,
 - `content_beoordelen` op het kernpad kan daarna een social-mediabericht starten. Een stuk goedkeuren mag geen publicatie, mail of betaling zijn.
 - `documenten` en `content_intake_bestanden` hebben geen beoordelingsstatus. De documentbucket uit de eerste migratie ontbreekt in de audit van 8 november 2026.
 
-## Wat ontbreekt
+## Opslag
 
-Een additieve tabel, één rij per stuk en per versie:
+De tabel staat in `supabase/migrations/20261115210000_stuk_beoordelingen.sql`. Eén rij per stuk en per versie. Versie 0 is de huidige aanlevering zolang een nieuwe upload de teller nog niet heeft verhoogd. Afkeuren bewaart een reden. De naam van de beoordelaar staat op de rij, omdat de auditlog niet voor elke beheerder leesbaar is.
 
-```sql
-create table if not exists public.stuk_beoordelingen (
-  id bigint generated always as identity primary key,
-  boeking_id bigint not null references public.boekingen (id),
-  stuk_type text not null check (stuk_type in ('inhoud', 'document', 'intake')),
-  stuk_id text not null,
-  versie integer not null check (versie > 0),
-  status text not null check (status in ('goedgekeurd', 'afgekeurd')),
-  reden text,
-  beoordeeld_door uuid,
-  beoordeeld_op timestamptz not null default now(),
-  unique (stuk_type, stuk_id, versie)
-);
+Een nieuwe versie krijgt een nieuwe rij. Een eerdere goedkeuring blijft staan en geldt niet meer voor de nieuwe versie. De schrijfactie gaat via de ingelogde sessie, schrijft een auditregel, en wijzigt geen betaling, contract, publicatie of mail.
 
-alter table public.stuk_beoordelingen enable row level security;
-revoke all on table public.stuk_beoordelingen from anon;
-```
+## Test
 
-Een nieuwe versie krijgt een nieuwe rij. Een eerdere goedkeuring blijft staan en geldt niet meer voor de nieuwe versie.
-Afkeuren bewaart een reden. De schrijfactie gaat via de ingelogde sessie, schrijft een auditregel, en wijzigt geen betaling, contract, publicatie of mail.
-
-## Test buiten productie
-
-1. Migratie op een lege of staging-database, niet op het project Kerkje van Persingen.
+1. Migratie op het project Kerkje van Persingen.
 2. Goedkeuren, afkeuren met reden, en dezelfde versie een tweede keer.
 3. Een hogere versie toont weer "Te beoordelen".
 4. Controleren dat `betalingen`, `zichtbaarheid` en `communicatie_jobs` gelijk blijven.

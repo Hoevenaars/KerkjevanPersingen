@@ -8,7 +8,6 @@ import {
   betalingStand,
   bouwOpvolging,
   contractTekst,
-  versieTeruggetrokken,
   legeInstellingen,
   voerFlowUit,
   type ContractAfspraken,
@@ -369,38 +368,35 @@ test('een overlappende boeking en aanvraag staan samen in de waarschuwing', () =
   assert.match(uit.tekst, /overlappende aanvraag/i);
 });
 
-test('een teruggetrokken contractversie wordt niet opnieuw verzonden', () => {
-  const versie = gemaakt({ instellingen: instellingen({ bestuursakkoordVerplicht: false }) });
+test('een ingetrokken contractversie gaat niet opnieuw de deur uit', () => {
+  const versie = gemaakt();
+  versie.bestuur = 'akkoord';
   versie.verzendingen = [{
     soort: 'contract',
     idempotentie: 'contract:42:1',
     ontvanger: 'jose@voorbeeld.nl',
     werkelijk: 'jose@voorbeeld.nl',
     status: 'ingetrokken',
-    berichtId: 'msg-1',
+    berichtId: 'msg',
     op: '2026-06-02T10:00:00.000Z',
     versie: versie.versie,
   }];
-  assert.equal(versieTeruggetrokken(versie), true);
-  const uit = voerFlowUit({ soort: 'verzend', proef: false, poging: 'opnieuw' }, context({
-    versies: [versie],
-    instellingen: instellingen({ bestuursakkoordVerplicht: false }),
-  }));
+  const uit = voerFlowUit({ soort: 'verzend', proef: false, poging: 'opnieuw' }, context({ versies: [versie] }));
   assert.equal(uit.ok, false);
-  if (uit.ok) return;
-  assert.match(uit.melding, /nieuwe versie/);
-  const opvolging = bouwOpvolging({
-    rechten: rechten({ boekingen: 'schrijven', instellingen: 'schrijven' }),
+  if (!uit.ok) assert.match(uit.melding, /ingetrokken/);
+  const opnieuw = voerFlowUit({ soort: 'opnieuw', poging: '2' }, context({ versies: [versie] }));
+  assert.equal(opnieuw.ok, false);
+  const weergave = bouwOpvolging({
+    rechten: rechten({ aanvragen: 'schrijven' }),
     bron: bron(),
-    instellingen: instellingen({ bestuursakkoordVerplicht: false }),
+    instellingen: instellingen(),
     versies: [versie],
     betaling: { stand: 'niet_vastgelegd', toelichting: '' },
     vandaag: '2026-06-02',
-    bekijkHref: '/beheer/aanvragen/1/?document=contract',
+    bekijkHref: '/beheer/aanvragen/a/',
     fout: '',
     modus: 'aan',
   });
-  assert.equal(opvolging.kanVerzenden, false);
-  assert.equal(opvolging.kanMaken, true);
-  assert.match(opvolging.redenen.join(' '), /teruggetrokken/);
+  assert.equal(weergave.kanVerzenden, false);
+  assert.match(weergave.redenen.join(' '), /ingetrokken/);
 });

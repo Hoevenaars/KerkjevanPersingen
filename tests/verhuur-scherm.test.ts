@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import type { DemoBoeking } from '../src/platform/demo-data.ts';
 import { maakVerhuurOverzicht, type OverzichtBetaling, type OverzichtInvoer } from '../src/platform/verhuur-overzicht.ts';
 import {
-  STUK_BEOORDELING_BLOKKADE,
   aandachtVan,
   beoordeelDossierActie,
   beoordeelGastheerActie,
@@ -16,7 +15,6 @@ import {
   maakDossierWeergave,
   mobielStatus,
   staatKleur,
-  stukKanBeoordelen,
   stukkenStand,
   stukkenTekst,
   veiligeBestandsUrl,
@@ -71,8 +69,6 @@ describe('stukken', () => {
     assert.equal(stukkenTekst('onbekend'), 'Onbekend');
     assert.equal(staatKleur('onbekend'), 'unknown');
     assert.equal(staatKleur('compleet'), 'ok');
-    assert.equal(stukKanBeoordelen(), false);
-    assert.match(STUK_BEOORDELING_BLOKKADE, /nog niet opgeslagen/);
   });
 
   test('een expliciete indiening vraagt beoordeling en een akkoord is compleet', () => {
@@ -291,7 +287,7 @@ describe('agendaweergave', () => {
     assert.equal(mobielStatus(geannuleerd), 'Geannuleerd');
   });
 
-  test('het dossier toont de ledger en geen verzonnen contract of beoordelknop', () => {
+  test('het dossier toont de ledger en geen verzonnen contractstatus', () => {
     const overzicht = maakVerhuurOverzicht(invoer({
       jaar: 2027,
       maand: 7,
@@ -348,7 +344,8 @@ describe('agendaweergave', () => {
     assert.equal(dossier.betalingen[0].tekst, 'Ontvangen');
     assert.match(dossier.betalingen[1].detail, /390/);
     assert.match(dossier.betaalToelichting, /aanbetaling_ontvangen beslist niet/);
-    assert.equal(stukKanBeoordelen(), false);
+    assert.equal(dossier.tekstPaneel.kan, false);
+    assert.equal(dossier.fotoPaneel.status, 'te_beoordelen');
     const bron = dossierUitBron({
       boeking: { ...withaar, gastheerId: 'g', email: 'mirjam@example.test' },
       invoer: invoer({
@@ -477,7 +474,7 @@ describe('adres en filter', () => {
     const betaling = beoordeelDossierActie({ ...basis, actie: 'betaling' });
     if (!betaling.ok) assert.match(betaling.melding, /bevestigingsmail/);
     const stuk = beoordeelDossierActie({ ...basis, actie: 'goedkeuren' });
-    if (!stuk.ok) assert.match(stuk.melding, /publiceert|opslag/);
+    if (!stuk.ok) assert.match(stuk.melding, /publiceert/);
   });
 
   test('een onveilig bestandspad wordt geen link', () => {

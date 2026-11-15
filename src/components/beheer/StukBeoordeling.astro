@@ -1,21 +1,37 @@
 ---
-import { STUK_BEOORDELING_BLOKKADE, stukKanBeoordelen } from '../../platform/verhuur-scherm.ts';
+import StatusMarkering from './StatusMarkering.astro';
+import type { StukPaneel } from '../../platform/stuk-beoordeling.ts';
 
-const actief = stukKanBeoordelen();
+interface Props {
+  paneel: StukPaneel;
+  boekingId: string;
+  terug: string;
+  actie: string;
+}
+
+const { paneel, boekingId, terug, actie } = Astro.props;
 ---
 
-<div class="kc-beoordeel" data-stuk-actief={actief ? 'ja' : 'nee'}>
-  <p class="kc-bijschrift">Beoordelaar: nog niet vastgelegd</p>
-  <p class="kc-bijschrift">Datum beoordeling: nog niet vastgelegd</p>
-  <label>
-    Reden bij afkeuren
-    <textarea name="reden" rows="2" disabled={!actief} placeholder="De reden wordt bewaard zodra de opslag is goedgekeurd."></textarea>
-  </label>
-  <div class="kc-beoordeel-knoppen">
-    <button class="kc-knop kc-knop--olijf" type="button" disabled={!actief}>Goedkeuren</button>
-    <button class="kc-knop" type="button" disabled={!actief}>Afkeuren</button>
-  </div>
-  <p class="kc-bijschrift">
-    {STUK_BEOORDELING_BLOKKADE} Na een nieuwe upload kan opnieuw worden beoordeeld. De eerdere beslissing blijft dan staan en geldt niet voor de nieuwe versie.
-  </p>
+<div class="kc-beoordeel">
+  <StatusMarkering kleur={paneel.kleur} tekst={paneel.statusTekst} />
+  <p class="kc-bijschrift">Beoordelaar: {paneel.beoordelaar}</p>
+  <p class="kc-bijschrift">Datum beoordeling: {paneel.datum}</p>
+  {paneel.reden && <p>Reden: {paneel.reden}</p>}
+  {paneel.eerdere && <p class="kc-bijschrift">{paneel.eerdere}</p>}
+  <form method="post" action={actie}>
+    <input type="hidden" name="boekingId" value={boekingId} />
+    <input type="hidden" name="terug" value={terug} />
+    <input type="hidden" name="stukType" value={paneel.stukType} />
+    <input type="hidden" name="stukId" value={paneel.stukId} />
+    <input type="hidden" name="versie" value={String(paneel.versie)} />
+    <label>
+      Reden bij afkeuren
+      <textarea name="reden" rows="2" disabled={!paneel.kan} placeholder="Alleen nodig bij afkeuren."></textarea>
+    </label>
+    <div class="kc-beoordeel-knoppen">
+      <button class="kc-knop kc-knop--olijf" type="submit" name="besluit" value="goedkeuren" disabled={!paneel.kan}>Goedkeuren</button>
+      <button class="kc-knop" type="submit" name="besluit" value="afkeuren" disabled={!paneel.kan}>Afkeuren</button>
+    </div>
+  </form>
+  <p class="kc-bijschrift">{paneel.toelichting}</p>
 </div>
