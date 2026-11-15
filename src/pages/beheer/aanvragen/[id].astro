@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
-import { beoordeelAanvraag, magFaseTerug, type FaseWereld } from '../../../platform/aanvraag-fase';
+import { beoordeelAanvraag, contractStaatVanVersie, magFaseTerug, wereldZonderVervallenContract, type FaseWereld } from '../../../platform/aanvraag-fase';
 import { periodeLabel } from '../../../platform/verhuur-overzicht';
 import { labelAangevraagdOp, labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { toonMedeExposanten } from '../../../platform/mede-exposanten';
@@ -193,7 +193,7 @@ if (Astro.request.method === 'POST') {
       if (waarde) doel.searchParams.set(sleutel, waarde);
     }
     if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
-      doel.searchParams.set('contract', 'genereren');
+      doel.searchParams.set('contract', String(formulier.get('nieuwe_versie') ?? '') === 'ja' ? 'nieuw' : 'genereren');
       doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
       return Astro.redirect(doel.toString());
     }
@@ -206,6 +206,7 @@ if (Astro.request.method === 'POST') {
         aanvraagId: /^\d+$/.test(aanvraag.id) ? Number(aanvraag.id) : null,
         velden,
         actor: actorVanSessie(Astro.locals.beheer),
+        vervang: String(formulier.get('nieuwe_versie') ?? '') === 'ja',
       });
       if (!uit.ok) {
         wizardPost = velden;
@@ -342,18 +343,20 @@ const wereld: FaseWereld = {
       levenscyclus: item.levenscyclus ?? 'actief',
     })),
 };
-const beeld = beoordeelAanvraag({
+const faseAanvraag = {
   id: aanvraag.id,
   status: aanvraag.status,
   naam: aanvraag.naam,
   start: aanvraag.start,
   eind: aanvraag.eind,
   boekingId: aanvraag.boekingId,
-}, wereld);
+};
+let beeld = beoordeelAanvraag(faseAanvraag, wereld);
 const flowAan = documentenflowAan();
 const flowBoeking = snapshot.boekingen.find((item) => item.id === beeld.boeking?.id) ?? null;
 let opvolging = null;
 let opvolgingBetaling = '';
+let contractVersies: ContractVersie[] = [];
 if (flowBoeking && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed')) {
   const regels = (snapshot.betalingen ?? [])
     .filter((regel) => regel.boekingId === flowBoeking.id)
@@ -398,6 +401,7 @@ if (flowBoeking && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'))
     if (!gelezen.ok) fout = gelezen.melding;
     else {
       versies = gelezen.lading.context.versies;
+      contractVersies = versies;
       instellingen = gelezen.lading.context.instellingen;
       betaling = gelezen.lading.context.betaling;
       Object.assign(bron, gelezen.lading.context.bron);
@@ -416,6 +420,13 @@ if (flowBoeking && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'))
     modus: mailmodus === 'aan' || mailmodus === 'test' ? mailmodus : 'uit',
   });
 }
+if (contractVersies.length > 0 && flowBoeking) {
+  const huidig = contractVersies.reduce((hoogste, item) => (item.versie > hoogste.versie ? item : hoogste));
+  const staat = contractStaatVanVersie(huidig);
+  if (!staat.verzonden || !staat.ondertekend) {
+    beeld = beoordeelAanvraag(faseAanvraag, wereldZonderVervallenContract(wereld, flowBoeking.id, staat));
+  }
+}
 const rechtenNu = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
 const kanContract = !Astro.locals.beheer?.viewAs
   && magContractBeheren(rechtenNu)
@@ -423,10 +434,14 @@ const kanContract = !Astro.locals.beheer?.viewAs
   && beeld.fase === 'in_behandeling'
   && Boolean(beeld.boeking)
   && !beeld.checklist.verzonden;
+const magNieuweVersie = !Astro.locals.beheer?.viewAs
+  && magContractBeheren(rechtenNu)
+  && Boolean(beeld.boeking)
+  && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed');
 let contractDefinitief = false;
 let contractNummer = '';
 let bewaardeWizard: Partial<ContractWizardVelden> | null = null;
-if (kanContract && sessieClient && beeld.boeking && /^\d+$/.test(beeld.boeking.id)) {
+if ((kanContract || magNieuweVersie) && sessieClient && beeld.boeking && /^\d+$/.test(beeld.boeking.id)) {
   const stand = await leesContractWizardStand(sessieClient as never, Number(beeld.boeking.id));
   if (!('fout' in stand) && !('mist' in stand)) {
     contractDefinitief = stand.definitief;
@@ -435,7 +450,7 @@ if (kanContract && sessieClient && beeld.boeking && /^\d+$/.test(beeld.boeking.i
   }
 }
 let instellingRijen: { sleutel: string; waarde: unknown }[] = [];
-if (kanContract && sessieClient) {
+if ((kanContract || magNieuweVersie) && sessieClient) {
   const gelezen = await (sessieClient as unknown as {
     from: (tabel: string) => { select: (kolommen: string) => Promise<{ data: { sleutel: string; waarde: unknown }[] | null }> };
   }).from('instellingen').select('sleutel,waarde');
@@ -460,7 +475,11 @@ const wizardVelden = wizardPost ?? wizardUitDossier({
   huurprijs: flowBoeking?.tarief ?? '',
   aanbetaling: flowBoeking?.aanbetaling ?? '',
 }, leesInstellingen(instellingRijen), bewaardeWizard);
-const wizardOpen = kanContract && (wizardPost != null || Astro.url.searchParams.get('contract') === 'genereren');
+const contractParam = Astro.url.searchParams.get('contract');
+const wizardOpen = Boolean(beeld.boeking) && !Astro.locals.beheer?.viewAs && magContractBeheren(rechtenNu) && (
+  (kanContract && (wizardPost != null || contractParam === 'genereren'))
+  || (contractDefinitief && (wizardPost != null || contractParam === 'nieuw'))
+);
 const contractLink = (() => {
   const params = new URLSearchParams(Astro.url.searchParams);
   params.delete('melding');
@@ -468,6 +487,14 @@ const contractLink = (() => {
   params.delete('demo');
   params.set('contract', 'genereren');
   return `${dossierPad}?${params.toString()}`;
+})();
+const nieuweVersieLink = (() => {
+  const params = new URLSearchParams(Astro.url.searchParams);
+  params.delete('melding');
+  params.delete('fout');
+  params.delete('demo');
+  params.set('contract', 'nieuw');
+  return `${dossierPad}?${params.toString()}#contract-wizard`;
 })();
 const kanGoedkeuren = beeld.geschikt && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
 const toonBeoordeling = beeld.fase === 'nieuw';
@@ -613,7 +640,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             kanContract && contractDefinitief && !wizardOpen && (
               <p>
                 Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan bij het contract hieronder.
-                {' '}<a href={contractLink}>Contract opnieuw genereren</a>.
+                {' '}<a href={nieuweVersieLink}>Nieuwe versie</a>.
               </p>
             )
           }
@@ -754,13 +781,22 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
     }
   </div>
 
-  {opvolging && <ContractOpvolging opvolging={opvolging} actie={dossierPad} betalingToelichting={opvolgingBetaling} toonMaken={flowAan} />}
+  {opvolging && (
+    <ContractOpvolging
+      opvolging={opvolging}
+      actie={dossierPad}
+      betalingToelichting={opvolgingBetaling}
+      toonMaken={flowAan}
+      nieuweVersieHref={contractDefinitief && magNieuweVersie && !wizardOpen ? nieuweVersieLink : ''}
+    />
+  )}
   {
     wizardOpen && (
       <ContractWizard
         actie={dossierPad}
         velden={wizardVelden}
         adresHint={!wizardVelden.straat && !wizardVelden.huisnummer ? aanvraag.adres : ''}
+        vervangt={contractDefinitief}
       />
     )
   }

@@ -215,3 +215,191 @@ test('definitief maken schrijft het contract en laat de status staan', async () 
   assert.equal(tabellen.boekingen[0].status, 'optie');
   assert.equal(tabellen.aanvragen[0].status, 'goedgekeurd');
 });
+
+function sessieMet(tabellen: Record<string, Record<string, unknown>[]>): {
+  client: ContractWizardSessie;
+  schrijfsels: { tabel: string; waarden: Record<string, unknown> }[];
+} {
+  const schrijfsels: { tabel: string; waarden: Record<string, unknown> }[] = [];
+  const client: ContractWizardSessie = {
+    from(tabel) {
+      const filters: { kolom: string; waarde: unknown }[] = [];
+      let oplopend = true;
+      let limiet = 100;
+      let soort: 'lees' | 'schrijf' = 'lees';
+      let waarden: Record<string, unknown> = {};
+      let genoteerd = false;
+      const noteer = () => {
+        if (soort !== 'schrijf' || genoteerd) return;
+        genoteerd = true;
+        schrijfsels.push({ tabel, waarden });
+      };
+      const gevondenRijen = () => {
+        const gewoon = filters.filter((filter) => !filter.kolom.startsWith('__'));
+        const gevonden = (tabellen[tabel] ?? []).filter((rij) => gewoon.every((filter) => rij[filter.kolom] === filter.waarde));
+        const orderFilter = filters.find((filter) => filter.kolom.startsWith('__order_'));
+        if (orderFilter) {
+          const kolom = orderFilter.kolom.slice('__order_'.length);
+          gevonden.sort((a, b) => Number(a[kolom]) - Number(b[kolom]));
+          if (orderFilter.waarde === false) gevonden.reverse();
+        }
+        return gevonden.slice(0, limiet);
+      };
+      const query = {
+        select() {
+          return query;
+        },
+        eq(kolom: string, waarde: unknown) {
+          filters.push({ kolom, waarde });
+          return query;
+        },
+        order(kolom: string, opties?: { ascending?: boolean }) {
+          oplopend = opties?.ascending !== false;
+          filters.push({ kolom: `__order_${kolom}`, waarde: oplopend });
+          return query;
+        },
+        limit(aantal: number) {
+          limiet = aantal;
+          return query;
+        },
+        maybeSingle() {
+          noteer();
+          return Promise.resolve({ data: gevondenRijen()[0] ?? null, error: null });
+        },
+        then(resolve: (waarde: { data: Record<string, unknown>[] | null; error: null }) => unknown, reject?: (reden: unknown) => unknown) {
+          noteer();
+          return Promise.resolve({ data: gevondenRijen(), error: null }).then(resolve, reject);
+        },
+      };
+      return {
+        select: query.select,
+        update(volgende: Record<string, unknown>) {
+          soort = 'schrijf';
+          waarden = volgende;
+          return query;
+        },
+        insert(rij: Record<string, unknown>) {
+          soort = 'schrijf';
+          waarden = rij;
+          const opgeslagen = { id: (tabellen[tabel]?.length ?? 0) + 1, ...rij };
+          tabellen[tabel] = [...(tabellen[tabel] ?? []), opgeslagen];
+          return query;
+        },
+        upsert(rij: Record<string, unknown>) {
+          soort = 'schrijf';
+          waarden = rij;
+          tabellen[tabel] = [...(tabellen[tabel] ?? []), rij];
+          return query;
+        },
+      };
+    },
+  };
+  return { client, schrijfsels };
+}
+
+test('een nieuwe versie laat de vorige direct vervallen', async () => {
+  const eerste = maakDefinitiefContract(compleet(), '44', 1, '2026-11-15');
+  assert.ok(!('fout' in eerste));
+  if ('fout' in eerste) return;
+  const tabellen: Record<string, Record<string, unknown>[]> = {
+    contractversies: [{
+      id: 1,
+      boeking_id: 44,
+      versie: 1,
+      contractnummer: eerste.nummer,
+      vingerafdruk: eerste.vingerafdruk,
+      afspraken: { wizard: compleet() },
+    }],
+    contract_tekeningen: [
+      { id: 9, boeking_id: 44, versie: 1, ondertekend_op: null, token_hash: 'oud' },
+    ],
+    contract_verzendingen: [
+      { id: 3, boeking_id: 44, versie: 1, soort: 'contract', status: 'verzonden' },
+      { id: 4, boeking_id: 44, versie: 1, soort: 'proef', status: 'verzonden' },
+    ],
+    boekingen: [{ id: 44, status: 'optie' }],
+    aanvragen: [{ id: 104, status: 'goedgekeurd' }],
+    instellingen: [],
+  };
+  const { client, schrijfsels } = sessieMet(tabellen);
+  const uit = await bewaarDefinitiefContract(client, {
+    boekingId: 44,
+    aanvraagId: 104,
+    velden: compleet(),
+    actor: beheerder,
+    vervang: true,
+  });
+  assert.equal(uit.ok, true);
+  assert.match(uit.melding, /vervallen/);
+  assert.match(uit.melding, /geen mail/);
+  const versies = schrijfsels.filter((item) => item.tabel === 'contractversies' && item.waarden.versie === 2);
+  assert.equal(versies.length, 1);
+  assert.equal(versies[0]?.waarden.bestuur, 'open');
+  assert.equal(versies[0]?.waarden.ondertekening, 'open');
+  assert.equal(tabellen.boekingen[0]?.status, 'optie');
+  const tekeningen = schrijfsels.filter((item) => item.tabel === 'contract_tekeningen');
+  assert.equal(tekeningen.length, 1);
+  assert.equal(tekeningen[0]?.waarden.verloopt_op, '1970-01-01T00:00:00.000Z');
+  assert.notEqual(tekeningen[0]?.waarden.token_hash, 'oud');
+  const ingetrokken = schrijfsels.filter((item) => item.tabel === 'contract_verzendingen');
+  assert.equal(ingetrokken.length, 1);
+  assert.equal(ingetrokken[0]?.waarden.status, 'ingetrokken');
+});
+
+test('dezelfde gegevens zonder nieuwe versie laten de tekenlink staan', async () => {
+  const eerste = maakDefinitiefContract(compleet(), '44', 1, '2026-11-15');
+  assert.ok(!('fout' in eerste));
+  if ('fout' in eerste) return;
+  const tabellen: Record<string, Record<string, unknown>[]> = {
+    contractversies: [{
+      id: 1,
+      boeking_id: 44,
+      versie: 1,
+      contractnummer: eerste.nummer,
+      vingerafdruk: eerste.vingerafdruk,
+      afspraken: {},
+    }],
+    contract_tekeningen: [{ id: 9, boeking_id: 44, versie: 1, ondertekend_op: null }],
+    boekingen: [{ id: 44 }],
+    aanvragen: [],
+    instellingen: [],
+  };
+  const { client, schrijfsels } = sessieMet(tabellen);
+  const uit = await bewaarDefinitiefContract(client, { boekingId: 44, aanvraagId: null, velden: compleet(), actor: beheerder });
+  assert.equal(uit.ok, true);
+  assert.match(uit.melding, /al opgeslagen/);
+  assert.equal(schrijfsels.some((item) => item.tabel === 'contract_tekeningen'), false);
+  assert.equal(schrijfsels.some((item) => item.tabel === 'contractversies'), false);
+});
+
+test('een ondertekende oude versie behoudt de downloadlink', async () => {
+  const eerste = maakDefinitiefContract(compleet(), '44', 1, '2026-11-15');
+  assert.ok(!('fout' in eerste));
+  if ('fout' in eerste) return;
+  const tabellen: Record<string, Record<string, unknown>[]> = {
+    contractversies: [{
+      id: 1,
+      boeking_id: 44,
+      versie: 1,
+      contractnummer: eerste.nummer,
+      vingerafdruk: 'anders',
+      afspraken: {},
+    }],
+    contract_tekeningen: [{ id: 9, boeking_id: 44, versie: 1, ondertekend_op: '2026-11-01T10:00:00.000Z', token_hash: 'blijft' }],
+    contract_verzendingen: [],
+    boekingen: [{ id: 44 }],
+    aanvragen: [],
+    instellingen: [],
+  };
+  const { client, schrijfsels } = sessieMet(tabellen);
+  const uit = await bewaarDefinitiefContract(client, {
+    boekingId: 44,
+    aanvraagId: null,
+    velden: compleet({ huurprijs: '500,00' }),
+    actor: beheerder,
+  });
+  assert.equal(uit.ok, true);
+  assert.match(uit.melding, /vervallen/);
+  assert.equal(schrijfsels.some((item) => item.tabel === 'contract_tekeningen'), false);
+  assert.equal(schrijfsels.some((item) => item.tabel === 'contractversies' && item.waarden.versie === 2), true);
+});
