@@ -70,7 +70,9 @@ describe('reviewmail na de einddatum', () => {
     const brief = renderMailBericht(tpl, VOORBEELD_VARIABELEN);
     assert.equal(brief.html.split(KERKJE_MAIL_MERK).length - 1, 1);
     assert.equal(brief.html.includes('{{'), false);
-    assert.match(brief.html, /Laat een Google Review achter/);
+    assert.match(brief.html, /Deel uw ervaring op Google/);
+    assert.match(brief.html, /Wat fijn dat uw Pianoconcert/);
+    assert.match(brief.html, /Alvast hartelijk dank/);
     assert.match(brief.html, new RegExp(GOOGLE_REVIEW_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(brief.text, new RegExp(GOOGLE_REVIEW_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.equal(/<\/?[a-z][^>]*>/i.test(brief.text), false);
@@ -97,7 +99,7 @@ describe('reviewmail na de einddatum', () => {
       const brief = renderMailBericht(tpl, VOORBEELD_VARIABELEN);
       assert.equal(brief.html.includes('href=""'), false);
       assert.equal(brief.html.includes(GOOGLE_REVIEW_URL), false);
-      assert.match(brief.html, /fijne ervaring/);
+      assert.match(brief.html, /met plezier terugkijken/);
       assert.equal(googleReviewUrl(), '');
     } finally {
       delete process.env.GOOGLE_REVIEW_URL;

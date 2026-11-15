@@ -186,6 +186,6 @@ function reviewKnop(knoppen: KerkjeMailCta[]): KerkjeMailCta[] {
     console.warn('[mail] GOOGLE_REVIEW_URL ontbreekt. De reviewmail blijft leesbaar, zonder knop.');
     return [];
   }
-  const label = knoppen.find((knop) => knop.label.trim())?.label || 'Laat een Google Review achter';
+  const label = knoppen.find((knop) => knop.label.trim())?.label || 'Deel uw ervaring op Google';
   return [{ label, href: url }];
 }

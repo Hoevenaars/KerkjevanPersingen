@@ -236,14 +236,14 @@ export default {
     "onderwerp": "Dank voor uw bezoek aan het Kerkje",
     "aanhef": "Beste {{voornaam}},",
     "introductie": "",
-    "hoofdtekst": "Dank dat u het Kerkje van Persingen heeft gebruikt voor {{activiteitstype}}.\n\nWij hopen dat u een fijne ervaring heeft gehad.\n\nEen korte review helpt het Kerkje en toekomstige bezoekers en exposanten.",
-    "slottekst": "",
+    "hoofdtekst": "Wat fijn dat uw {{activiteitstype}} in het Kerkje van Persingen heeft plaatsgevonden!\n\nWe hopen dat u en uw gasten met plezier terugkijken op deze bijzondere gelegenheid.\n\nMogen we u iets vragen?\n\nZou u een minuutje de tijd willen nemen om uw ervaring met ons te delen? Met uw Google-review helpt u anderen om ons bijzondere kerkje te ontdekken. Bovendien helpt uw feedback ons om het steeds een beetje beter te doen.",
+    "slottekst": "Alvast hartelijk dank! We hopen u in de toekomst nog eens te mogen verwelkomen.",
     "ondertekening": "Stichting Het Kerkje van Persingen",
-    "callToActionTekst": "Laat een Google Review achter",
+    "callToActionTekst": "Deel uw ervaring op Google",
     "secundaireTekst": "",
     "knoppen": [
       {
-        "label": "Laat een Google Review achter",
+        "label": "Deel uw ervaring op Google",
         "actie": "link"
       }
     ],
