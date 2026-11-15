@@ -428,6 +428,26 @@ export function beoordeelAanvraag(aanvraag: FaseAanvraag, wereld: FaseWereld): A
   };
 }
 
+/**
+ * Eén stap terug, alleen zolang er nog niets is getekend, betaald of definitief geboekt.
+ * Van "Wachten op ondertekening" terug naar "Contract verzenden".
+ */
+export function magFaseTerug(beeld: AanvraagBeeld): { ok: true; van: string; naar: string } | { ok: false; melding: string } {
+  if (beeld.boeking && isDefinitieveBoeking(beeld.boeking.status)) {
+    return { ok: false, melding: 'Een definitieve boeking gaat niet een fase terug.' };
+  }
+  if (beeld.checklist.ondertekend) {
+    return { ok: false, melding: 'Een ondertekend contract gaat niet een fase terug.' };
+  }
+  if (beeld.checklist.aanbetaling) {
+    return { ok: false, melding: 'Na een ontvangen aanbetaling blijft de fase staan.' };
+  }
+  if (beeld.fase === 'in_behandeling' && beeld.volgendeActie === 'Wachten op ondertekening' && beeld.boeking) {
+    return { ok: true, van: 'Wachten op ondertekening', naar: 'Contract verzenden' };
+  }
+  return { ok: false, melding: 'Deze fase heeft geen vorige stap.' };
+}
+
 export function magGoedkeuren(beeld: AanvraagBeeld, status: string): { ok: boolean; melding?: string } {
   if (status !== 'in_behandeling') {
     return { ok: false, melding: 'Beoordeel eerst of de activiteit in het Kerkje van Persingen past.' };

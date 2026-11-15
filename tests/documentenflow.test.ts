@@ -367,3 +367,36 @@ test('een overlappende boeking en aanvraag staan samen in de waarschuwing', () =
   assert.match(uit.tekst, /blokkade/i);
   assert.match(uit.tekst, /overlappende aanvraag/i);
 });
+
+test('een ingetrokken contractversie gaat niet opnieuw de deur uit', () => {
+  const versie = gemaakt();
+  versie.bestuur = 'akkoord';
+  versie.verzendingen = [{
+    soort: 'contract',
+    idempotentie: 'contract:42:1',
+    ontvanger: 'jose@voorbeeld.nl',
+    werkelijk: 'jose@voorbeeld.nl',
+    status: 'ingetrokken',
+    berichtId: 'msg',
+    op: '2026-06-02T10:00:00.000Z',
+    versie: versie.versie,
+  }];
+  const uit = voerFlowUit({ soort: 'verzend', proef: false, poging: 'opnieuw' }, context({ versies: [versie] }));
+  assert.equal(uit.ok, false);
+  if (!uit.ok) assert.match(uit.melding, /ingetrokken/);
+  const opnieuw = voerFlowUit({ soort: 'opnieuw', poging: '2' }, context({ versies: [versie] }));
+  assert.equal(opnieuw.ok, false);
+  const weergave = bouwOpvolging({
+    rechten: rechten({ aanvragen: 'schrijven' }),
+    bron: bron(),
+    instellingen: instellingen(),
+    versies: [versie],
+    betaling: { stand: 'niet_vastgelegd', toelichting: '' },
+    vandaag: '2026-06-02',
+    bekijkHref: '/beheer/aanvragen/a/',
+    fout: '',
+    modus: 'aan',
+  });
+  assert.equal(weergave.kanVerzenden, false);
+  assert.match(weergave.redenen.join(' '), /ingetrokken/);
+});

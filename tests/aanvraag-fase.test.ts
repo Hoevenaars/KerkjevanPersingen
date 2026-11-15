@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   beoordeelAanvraag,
   leesAanvraagFilter,
+  magFaseTerug,
   magGoedkeuren,
   pastInFilter,
   type FaseAanvraag,
@@ -202,6 +203,51 @@ test('contract, handtekening en aanbetaling bepalen de volgende actie', () => {
   assert.equal(regel.checklist.aanbetaling, true);
   assert.equal(regel.fase, 'gereed');
   assert.equal(regel.checklist.aanbetalingTekst, 'Ontvangen');
+});
+
+test('wachten op ondertekening kan één fase terug naar contract verzenden', () => {
+  const item = aanvraag({ status: 'goedgekeurd', boekingId: 'b-9', naam: 'Nick Hoevenaars' });
+  const beeld = beoordeelAanvraag(item, wereld({
+    aanvragen: [item],
+    boekingen: [{
+      id: 'b-9',
+      nummer: 'KVP-20270212-9',
+      status: 'optie',
+      start: '2026-07-10',
+      eind: '2026-07-12',
+      titel: 'Concert',
+      huurder: 'Nick Hoevenaars',
+      aanbetalingBinnen: false,
+      aanvraagId: 'a-1',
+    }],
+    mails: [{ boekingId: 'b-9', template: 'huurovereenkomst', status: 'verzonden' }],
+  }));
+  assert.equal(beeld.fase, 'in_behandeling');
+  assert.equal(beeld.volgendeActie, 'Wachten op ondertekening');
+  const terug = magFaseTerug(beeld);
+  assert.equal(terug.ok, true);
+  if (terug.ok) assert.equal(terug.naar, 'Contract verzenden');
+});
+
+test('na ondertekening of een definitieve boeking blijft de fase staan', () => {
+  const open = aanvraag({ status: 'goedgekeurd', boekingId: 'b-9' });
+  const getekend = beoordeelAanvraag(open, wereld({
+    aanvragen: [open],
+    boekingen: [{
+      id: 'b-9', nummer: '1', status: 'optie', start: '2026-07-10', eind: '2026-07-12',
+      titel: 'Concert', huurder: 'Nick', aanbetalingBinnen: false,
+    }],
+    documenten: [{ boekingId: 'b-9', soort: 'getekend_contract', naam: 'getekend.pdf' }],
+  }));
+  assert.equal(magFaseTerug(getekend).ok, false);
+  const klaar = beoordeelAanvraag(open, wereld({
+    aanvragen: [open],
+    boekingen: [{
+      id: 'b-9', nummer: '1', status: 'definitief', start: '2026-07-10', eind: '2026-07-12',
+      titel: 'Concert', huurder: 'Nick', aanbetalingBinnen: true,
+    }],
+  }));
+  assert.equal(magFaseTerug(klaar).ok, false);
 });
 
 test('een bestaande definitieve boeking blijft Gereed zonder contract', () => {
