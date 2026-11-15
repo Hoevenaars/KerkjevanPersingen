@@ -5,9 +5,10 @@ interface Props {
   opvolging: ContractOpvolgingWeergave;
   actie: string;
   betalingToelichting: string;
+  toonMaken?: boolean;
 }
 
-const { opvolging, actie, betalingToelichting } = Astro.props;
+const { opvolging, actie, betalingToelichting, toonMaken = true } = Astro.props;
 const proef = opvolging.modus !== 'aan';
 ---
 
@@ -37,7 +38,7 @@ const proef = opvolging.modus !== 'aan';
   }
 
   {
-    opvolging.kanMaken && (
+    toonMaken && opvolging.kanMaken && (
       <form method="post" action={actie} class="bh-form">
         <input type="hidden" name="actie" value="df_maken" />
         <h3>Gebruiksafspraken</h3>
@@ -52,14 +53,22 @@ const proef = opvolging.modus !== 'aan';
         <label for="df-contact">Contactpersoon</label>
         <input id="df-contact" name="contactpersoon" value={opvolging.afspraken.contactpersoon} required maxlength="120" />
         <div class="bh-acties">
-          <button class="bh-btn" type="submit">Maken</button>
+          <button class="bh-btn" type="submit">{opvolging.versie ? 'Nieuwe versie' : 'Contract maken'}</button>
         </div>
       </form>
     )
   }
 
   <div class="bh-acties">
-    {opvolging.kanBekijken && <a class="bh-btn bh-btn--sec" href={opvolging.bekijkHref}>Bekijken</a>}
+    {opvolging.kanBekijken && <a class="bh-btn bh-btn--sec" href={opvolging.bekijkHref}>Contract bekijken</a>}
+    {
+      opvolging.kanGoedkeuren && (
+        <form method="post" action={actie}>
+          <input type="hidden" name="actie" value="df_akkoord" />
+          <button class="bh-btn" type="submit">Goedkeuren</button>
+        </form>
+      )
+    }
     {
       opvolging.kanVerzenden && (
         <form method="post" action={actie}>
@@ -71,28 +80,21 @@ const proef = opvolging.modus !== 'aan';
       )
     }
     {
+      opvolging.kanOpnieuw && (
+        <form method="post" action={actie}>
+          <input type="hidden" name="actie" value="df_opnieuw" />
+          <input type="hidden" name="poging" value={crypto.randomUUID()} />
+          <button class="bh-btn bh-btn--sec" type="submit">Opnieuw verzenden</button>
+        </form>
+      )
+    }
+    {
       opvolging.kanProef && (
         <form method="post" action={actie}>
           <input type="hidden" name="actie" value="df_verzend" />
           <input type="hidden" name="proef" value="ja" />
           <input type="hidden" name="poging" value={crypto.randomUUID()} />
           <button class="bh-btn bh-btn--sec" type="submit">Proefmail</button>
-        </form>
-      )
-    }
-    {
-      opvolging.kanVoorleggen && (
-        <form method="post" action={actie}>
-          <input type="hidden" name="actie" value="df_voorleggen" />
-          <button class="bh-btn" type="submit">Ter goedkeuring</button>
-        </form>
-      )
-    }
-    {
-      opvolging.kanAkkoord && (
-        <form method="post" action={actie}>
-          <input type="hidden" name="actie" value="df_akkoord" />
-          <button class="bh-btn" type="submit">Akkoord</button>
         </form>
       )
     }
@@ -107,22 +109,6 @@ const proef = opvolging.modus !== 'aan';
       </form>
     )
   }
-  {
-    opvolging.kanOndertekenen && (
-      <form method="post" action={actie} class="bh-form" enctype="multipart/form-data">
-        <input type="hidden" name="actie" value="df_ondertekend" />
-        <h3>Ondertekend exemplaar</h3>
-        <label for="df-nummer">Contractnummer</label>
-        <input id="df-nummer" name="contractnummer" value={opvolging.nummerVoorOndertekening} required />
-        <label for="df-versie">Versie</label>
-        <input id="df-versie" name="contractversie" value={opvolging.versieVoorOndertekening} required inputmode="numeric" />
-        <label for="df-bestand">Bestand, als u het ontvangen exemplaar wilt bewaren</label>
-        <input id="df-bestand" name="bestand" type="file" accept="application/pdf" />
-        <button class="bh-btn" type="submit">Ondertekend ontvangen</button>
-      </form>
-    )
-  }
-
   {
     opvolging.praktischStand && <p>{opvolging.praktischStand}</p>
   }

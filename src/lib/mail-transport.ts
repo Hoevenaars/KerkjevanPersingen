@@ -12,6 +12,7 @@ import {
   type Mailmodus,
 } from '../platform/testmail.ts';
 import { getTestMailRecipient } from './testmail-adres.ts';
+import { resendAttachments } from '../platform/contract-pakket.ts';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES, isNoreplyAdres, replyToHeader, replyToVoor, richtingVoorMail } from './mail-adressen.ts';
 import { isInterneKerkjeSleutel, toezichtBcc } from './toezicht-bcc.ts';
 
@@ -31,6 +32,8 @@ export interface MailBericht {
   modus?: Mailmodus;
   bedoeldeOntvanger?: string;
   bijlagen?: { bestandsnaam: string; inhoud: Uint8Array }[];
+  eisBijlagen?: boolean;
+  idempotentieSleutel?: string;
 }
 
 export interface ResendInhoud {
@@ -46,6 +49,8 @@ export interface ResendInhoud {
   headers?: Record<string, string>;
   testmodus?: boolean;
   bijlagen?: { bestandsnaam: string; inhoud: Uint8Array }[];
+  eisBijlagen?: boolean;
+  idempotentieSleutel?: string;
 }
 
 export interface MailTransport {
@@ -253,6 +258,11 @@ export async function verstuurMetResend(
   if (isNoreplyAdres(replyTo)) {
     throw new Error('Reply-To wijst naar het sending-only adres');
   }
+  const attachments = inhoud.eisBijlagen || inhoud.bijlagen?.length
+    ? resendAttachments(
+      (inhoud.bijlagen ?? []).map((bijlage) => ({ bestandsnaam: bijlage.bestandsnaam, inhoud: bijlage.inhoud })),
+    )
+    : undefined;
   const { Resend } = await import('resend');
   const resend = new Resend(apiKey);
   const { data, error } = await resend.emails.send({
@@ -264,15 +274,8 @@ export async function verstuurMetResend(
     replyTo,
     ...(inhoud.testmodus || !inhoud.bcc?.length ? {} : { bcc: inhoud.bcc }),
     ...(inhoud.headers ? { headers: inhoud.headers } : {}),
-    ...(inhoud.bijlagen?.length
-      ? {
-        attachments: inhoud.bijlagen.map((bijlage) => ({
-          filename: bijlage.bestandsnaam,
-          content: Buffer.from(bijlage.inhoud),
-        })),
-      }
-      : {}),
-  });
+    ...(attachments ? { attachments } : {}),
+  }, inhoud.idempotentieSleutel ? { idempotencyKey: inhoud.idempotentieSleutel } : undefined);
   if (error) throw new Error(error.message);
   return data?.id ?? null;
 }
@@ -296,6 +299,8 @@ function resendTransport(): MailTransport {
         bcc,
       });
       if (bericht.bijlagen?.length) inhoud.bijlagen = bericht.bijlagen;
+      inhoud.eisBijlagen = bericht.eisBijlagen;
+      inhoud.idempotentieSleutel = bericht.idempotentieSleutel;
       if (test) {
         inhoud.bcc = [];
         inhoud.cc = [];

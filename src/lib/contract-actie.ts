@@ -78,48 +78,19 @@ export async function verwerkContractActie(input: {
   const vers = genereerContractbrief(input.bron);
   if (!isBrief(vers)) return { ok: false, melding: vers.fout, toonBrief: false, brief: null };
   if (input.actie === 'contract_genereer') {
-    if (input.demo) {
-      return {
-        ok: true,
-        melding: 'Contract staat klaar om door te lezen. Dit is een voorbeeld: er is niets opgeslagen.',
-        toonBrief: true,
-        brief: vers,
-      };
-    }
-    if (!input.opslag) {
-      return {
-        ok: false,
-        melding: 'Geen ingelogde sessie. Het contract staat hier om te lezen. Er is niets opgeslagen.',
-        toonBrief: true,
-        brief: vers,
-      };
-    }
-    const bewaard = await bewaarContractdocument(
-      input.opslag,
-      input.bron,
-      vers,
-      input.bestaandeContracten + 1,
-      input.gebruikerId,
-    );
     return {
       ok: true,
-      melding: bewaard.opgeslagen
-        ? `Contract staat klaar om door te lezen. Bestand: ${bewaard.detail}.`
-        : `Contract staat klaar om door te lezen. ${bewaard.detail}`,
+      melding: 'Dit is een leesversie. Het contractpakket met PDF maakt u in het aanvraagdossier. Er is niets opgeslagen en er is geen mail verstuurd.',
       toonBrief: true,
       brief: vers,
     };
   }
   const tekst = input.tekst.trim() || vers.tekst;
   const onderwerp = input.onderwerp.trim() || vers.onderwerp;
-  const brief = { onderwerp, tekst };
-  if (input.bron.email === 'niet ingevuld') {
-    return { ok: false, melding: 'Deze boeking heeft geen e-mailadres. Er is geen mail verstuurd.', toonBrief: true, brief };
-  }
-  if (input.demo) {
-    return { ok: true, melding: 'Voorbeeld. De brief is niet verstuurd.', toonBrief: true, brief };
-  }
-  if (!input.verstuur) return { ok: false, melding: 'Verzenden is niet beschikbaar. Er is geen mail verstuurd.', toonBrief: true, brief };
-  const uit = await input.verstuur(brief);
-  return { ok: uit.ok, melding: uit.melding, toonBrief: true, brief };
+  return {
+    ok: false,
+    melding: 'Een contractmail zonder het PDF-contractpakket wordt niet verstuurd. Gebruik het contract in het aanvraagdossier.',
+    toonBrief: true,
+    brief: { onderwerp, tekst },
+  };
 }

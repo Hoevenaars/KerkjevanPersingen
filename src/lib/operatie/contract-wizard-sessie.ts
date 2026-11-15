@@ -57,7 +57,7 @@ export async function leesContractWizardStand(
   }
   const rij = antwoord.data?.[0];
   if (!rij) return { definitief: false, nummer: '', versie: 0, velden: null, vingerafdruk: '' };
-  const definitief = rij.bestuur_verplicht === false || rij.bestuur === 'akkoord';
+  const definitief = Boolean(String(rij.contractnummer ?? '').trim());
   const afspraken = rij.afspraken && typeof rij.afspraken === 'object' ? rij.afspraken as { wizard?: unknown } : {};
   return {
     definitief,
@@ -94,7 +94,7 @@ export async function bewaarDefinitiefContract(
   const gemaakt = maakDefinitiefContract(input.velden, String(input.boekingId), versie, ymdInAmsterdam(new Date()));
   if ('fout' in gemaakt) return { ok: false, melding: gemaakt.fout };
   if (stand.definitief && stand.vingerafdruk === gemaakt.vingerafdruk) {
-    return { ok: true, melding: `Contract ${stand.nummer} is al definitief. Er is geen mail verstuurd.`, nummer: stand.nummer };
+    return { ok: true, melding: `Contract ${stand.nummer} is al opgeslagen. Er is geen mail verstuurd.`, nummer: stand.nummer };
   }
   const vandaag = ymdInAmsterdam(new Date());
   const insert = await client.from('contractversies').insert({
@@ -108,7 +108,7 @@ export async function bewaarDefinitiefContract(
     plattegrond_tekst: PLATTEGROND_V1,
     vingerafdruk: gemaakt.vingerafdruk,
     afspraken: { ...gemaakt.afspraken, wizard: input.velden },
-    bestuur_verplicht: false,
+    bestuur_verplicht: true,
     bestuur: 'open',
   }).select('id').maybeSingle();
   if (insert.error || !insert.data?.id) {
@@ -132,7 +132,7 @@ export async function bewaarDefinitiefContract(
   if (boekingBijgewerkt.error) {
     return {
       ok: true,
-      melding: `Contract ${gemaakt.nummer} is definitief. De boeking zelf is niet bijgewerkt. Er is geen mail verstuurd.`,
+      melding: `Contract ${gemaakt.nummer} is opgeslagen. De boeking zelf is niet bijgewerkt. Het bestuur keurt deze versie nog goed. Er is geen mail verstuurd.`,
       nummer: gemaakt.nummer,
     };
   }
@@ -162,7 +162,7 @@ export async function bewaarDefinitiefContract(
   }
   return {
     ok: true,
-    melding: `Contract ${gemaakt.nummer} is definitief. Er is nog geen mail verstuurd.`,
+    melding: `Contract ${gemaakt.nummer} is opgeslagen. Het bestuur keurt deze versie nog goed. Er is geen mail verstuurd.`,
     nummer: gemaakt.nummer,
   };
 }

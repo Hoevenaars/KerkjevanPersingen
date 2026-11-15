@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { voegDagenToe } from './datum.ts';
 import { magSchrijven } from './rechten.ts';
 import type { GebruikerRechten } from './types.ts';
+import { contractMailTekst, contractPakketTekst, PRIVACY_URL } from './contract-pakket.ts';
 import {
   DOCUMENTVERSIE,
   HUISREGELS_V1,
@@ -18,7 +19,7 @@ import {
 } from './documenten/teksten-v1.ts';
 import { VERHUURDER } from './verhuurder.ts';
 
-const PRIVACY = 'https://kerkjepersingen.nl/privacyverklaring/';
+const PRIVACY = PRIVACY_URL;
 const VERBODEN = /toegangs.?code|slotcode|pincode|wachtwoord|\{\{/;
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
 const IBAN = /^[A-Z]{2}\d{2}[A-Z0-9]{8,30}$/;
@@ -79,7 +80,7 @@ export interface ContractBron {
 }
 
 export interface ContractVerzending {
-  soort: 'contract' | 'proef' | 'praktisch' | 'promotie' | 'bevestiging';
+  soort: 'contract' | 'proef' | 'praktisch' | 'promotie' | 'bevestiging' | 'herhaling';
   idempotentie: string;
   ontvanger: string;
   werkelijk: string;
@@ -87,6 +88,7 @@ export interface ContractVerzending {
   berichtId: string | null;
   op: string;
   versie: number;
+  providerStatus?: 'geaccepteerd' | null;
 }
 
 export interface ContractVersie {
@@ -132,7 +134,7 @@ export interface FlowMail {
   bedoelde: string;
   onderwerp: string;
   tekst: string;
-  bijlagen: { bestandsnaam: string; tekst: string }[];
+  bijlagen: { bestandsnaam: string; tekst: string; bytes?: Uint8Array }[];
   teltAlsVerzonden: boolean;
   versie: number;
 }
@@ -143,6 +145,7 @@ export type FlowActie =
   | { soort: 'akkoord' }
   | { soort: 'terug'; toelichting: string }
   | { soort: 'verzend'; proef: boolean; poging: string }
+  | { soort: 'opnieuw'; poging: string }
   | { soort: 'ondertekend'; contractnummer: string; versie: number }
   | { soort: 'vink'; id: string; aan: boolean }
   | { soort: 'praktisch'; proef: boolean; poging: string }
@@ -160,6 +163,7 @@ export interface FlowContext {
   betaling: BetalingStand;
   modus: 'uit' | 'test' | 'aan';
   testadres: string | null;
+  tekenLink?: string | null;
 }
 
 export type FlowUitkomst =
@@ -339,7 +343,8 @@ export function ontbrekendeContractgegevens(
   eis(Boolean(afspraken.tijdVan.trim() && afspraken.tijdTot.trim()), 'Gebruikstijden');
   eis(Boolean(afspraken.opbouw.trim() && afspraken.afbouw.trim()), 'Opbouw en afbouw');
   eis(Boolean((afspraken.contactpersoon || bron.huurderNaam).trim()), 'Contactpersoon');
-  eis(bron.huurprijsCent != null && bron.aanbetalingCent != null && bron.restCent != null && bron.restCent >= 0, 'Huurprijs en betaling');
+  eis(bron.huurprijsCent != null && bron.huurprijsCent > 0, 'Huurprijs');
+  eis(bron.aanbetalingCent != null && bron.restCent != null && bron.restCent >= 0, 'Betaling');
   if ((bron.aanbetalingCent ?? 0) > 0) eis(DATUM.test(bron.aanbetalingVerval), 'Vervaldatum aanbetaling');
   if ((bron.restCent ?? 0) > 0) eis(DATUM.test(bron.restVerval), 'Vervaldatum restbetaling');
   return gaten;
@@ -428,10 +433,17 @@ export function vingerafdruk(
     prijs: bron.huurprijsCent,
     aanbetaling: bron.aanbetalingCent,
     rest: bron.restCent,
+    aanbetalingVerval: bron.aanbetalingVerval,
+    restVerval: bron.restVerval,
     van: bron.periodeVan,
     tot: bron.periodeTot,
     soort: bron.soort,
     activiteit: bron.activiteit,
+    huurder: bron.huurderNaam,
+    email: bron.email,
+    telefoon: bron.telefoon,
+    adres: [bron.straat, bron.huisnummer, bron.toevoeging, bron.postcode, bron.woonplaats],
+    personen: bron.personen,
     afspraken,
     iban: instellingen.iban,
     ondertekenaar: instellingen.ondertekenaarNaam,
@@ -440,8 +452,17 @@ export function vingerafdruk(
     huisregelsOp: instellingen.huisregelsVastgesteldOp,
     voorwaarden: VOORWAARDEN_V1,
     huisregels: HUISREGELS_V1,
+    plattegrond: bron.soort.trim().toLowerCase() === 'expositie' ? PLATTEGROND_V1 : '',
   };
   return createHash('sha256').update(JSON.stringify(lading)).digest('hex');
+}
+
+export function versiePastBijGegevens(
+  versie: ContractVersie,
+  bron: ContractBron,
+  instellingen: DocumentenflowInstellingen,
+): boolean {
+  return versie.vingerafdruk === vingerafdruk(bron, versie.afspraken, instellingen);
 }
 
 export function contractnummerVoor(boekingId: string, periodeVan: string, versie: number): string {
@@ -612,7 +633,13 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
   if (actie.soort === 'akkoord' || actie.soort === 'terug') {
     if (!magBestuurBesluiten(context.rechten)) return weiger('Geen recht om bestuursakkoord te geven.');
     if (!huidig.bestuurVerplicht) return weiger('Deze versie vraagt geen bestuursakkoord.');
-    if (huidig.bestuur !== 'wacht') return weiger('Leg het contract eerst voor. Er is niets gewijzigd.');
+    if (!versiePastBijGegevens(huidig, context.bron, context.instellingen)) {
+      return weiger('De boekingsgegevens zijn gewijzigd. De eerdere goedkeuring geldt niet meer. Maak een nieuwe versie. Er is niets gewijzigd.');
+    }
+    if (actie.soort === 'akkoord' && huidig.bestuur === 'akkoord') {
+      return { ok: true, melding: 'Deze versie is al goedgekeurd.', versies: [...context.versies], mail: null, promoveer: false };
+    }
+    if (!['open', 'wacht', 'terug'].includes(huidig.bestuur)) return weiger('Deze versie kan niet worden goedgekeurd.');
     const terug = actie.soort === 'terug';
     return {
       ok: true,
@@ -627,36 +654,56 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
       promoveer: false,
     };
   }
-  if (actie.soort === 'verzend') {
+  if (actie.soort === 'verzend' || actie.soort === 'opnieuw') {
     if (!magContractBeheren(context.rechten)) return weiger('Geen recht om het contract te verzenden.');
     if (!bestuurAkkoord(huidig)) return weiger('Verzenden kan pas na bestuursakkoord op deze versie.');
-    const doel = mailDoel(context, actie.proef);
+    if (!versiePastBijGegevens(huidig, context.bron, context.instellingen)) {
+      return weiger('De boekingsgegevens zijn gewijzigd. De eerdere goedkeuring geldt niet meer. Maak een nieuwe versie. Er is geen mail verstuurd.');
+    }
+    const opnieuw = actie.soort === 'opnieuw';
+    const doel = mailDoel(context, opnieuw ? false : actie.proef);
     if (!doel.ok) return weiger(doel.melding);
-    if (doel.telt && alVerzonden([huidig], 'contract')) {
+    const geaccepteerd = alVerzonden([huidig], 'contract');
+    if (!opnieuw && doel.telt && geaccepteerd) {
       return { ok: true, melding: 'Dit contract is al verzonden. Er is niet opnieuw gemaild.', versies: [...context.versies], mail: null, promoveer: false };
     }
-    if (huidig.verzendingen.some((regel) => regel.idempotentie === `verzend:${huidig.versie}:${actie.poging}` && regel.status !== 'geweigerd')) {
+    if (opnieuw && !geaccepteerd) return weiger('Er is nog geen geaccepteerde verzending om te herhalen. Er is geen mail verstuurd.');
+    const poging = actie.poging;
+    const geweigerd = huidig.verzendingen.some((regel) => regel.soort === 'contract' && regel.status === 'geweigerd');
+    const idempotentie = opnieuw
+      ? `herhaling:${context.bron.boekingId}:${huidig.versie}:${poging}`
+      : doel.telt
+        ? geweigerd
+          ? `contract:${context.bron.boekingId}:${huidig.versie}:${poging}`
+          : `contract:${context.bron.boekingId}:${huidig.versie}`
+        : `proef:${huidig.versie}:${poging}`;
+    if (huidig.verzendingen.some((regel) => regel.idempotentie === idempotentie && regel.status !== 'geweigerd')) {
       return { ok: true, melding: 'Deze verzending is al gedaan. Er is niet opnieuw gemaild.', versies: [...context.versies], mail: null, promoveer: false };
     }
-    const bijlage = [huidig.tekst, huidig.voorwaardenTekst, huidig.huisregelsTekst].join('\n\f\n');
+    const bijlage = contractPakketTekst({
+      tekst: huidig.tekst,
+      voorwaardenTekst: huidig.voorwaardenTekst,
+      huisregelsTekst: huidig.huisregelsTekst,
+      plattegrondTekst: huidig.plattegrondTekst,
+      soort: context.bron.soort,
+    });
     return {
       ok: true,
       melding: doel.telt ? 'Het contract kan worden verzonden.' : 'De proefmail kan naar het testadres.',
       versies: [...context.versies],
       promoveer: false,
       mail: {
-        soort: doel.telt ? 'contract' : 'proef',
-        idempotentie: doel.telt ? `contract:${context.bron.boekingId}:${huidig.versie}` : `proef:${huidig.versie}:${actie.poging}`,
+        soort: opnieuw ? 'herhaling' : doel.telt ? 'contract' : 'proef',
+        idempotentie,
         naar: doel.naar,
         bedoelde: context.bron.email,
         onderwerp: `Huurovereenkomst ${huidig.contractnummer}`,
-        tekst: [
-          `Beste ${voornaam(context.bron.huurderNaam)},`,
-          '',
-          `Bij deze mail zit de huurovereenkomst ${huidig.contractnummer}, documentversie ${huidig.versie}, met de verhuurvoorwaarden en de huisregels die bij deze versie horen.`,
-          `Privacyverklaring: ${PRIVACY}`,
-          'Dit bericht is nog geen definitieve bevestiging van de reservering.',
-        ].join('\n'),
+        tekst: contractMailTekst({
+          naam: context.bron.huurderNaam,
+          contractnummer: huidig.contractnummer,
+          versie: huidig.versie,
+          link: context.tekenLink ?? null,
+        }),
         bijlagen: [{ bestandsnaam: `${huidig.contractnummer}.pdf`, tekst: bijlage }],
         teltAlsVerzonden: doel.telt,
         versie: huidig.versie,
@@ -741,6 +788,9 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
   if (!context.instellingen.gereedRegel) return weiger('Er is nog geen vastgestelde regel voor Gereed. Er is niets gewijzigd.');
   if (huidig.ondertekening !== 'ontvangen') return weiger('Het ondertekende contract is nog niet ontvangen.');
   if (!bestuurAkkoord(huidig)) return weiger('Bestuursakkoord op deze versie ontbreekt.');
+  if ((context.bron.aanbetalingCent ?? 0) > 0 && context.betaling.stand !== 'ontvangen') {
+    return weiger('De aanbetaling is nog niet ontvangen. Een handtekening maakt de boeking niet definitief.');
+  }
   if (context.instellingen.gereedRegel === 'ondertekend_en_aanbetaling' && context.betaling.stand !== 'ontvangen') {
     return weiger('De vastgelegde betaling is nog niet ontvangen.');
   }
@@ -782,9 +832,11 @@ export interface ContractOpvolgingWeergave {
   kanBekijken: boolean;
   bekijkHref: string;
   kanVerzenden: boolean;
+  kanOpnieuw: boolean;
   kanProef: boolean;
   kanVoorleggen: boolean;
   kanAkkoord: boolean;
+  kanGoedkeuren: boolean;
   kanTerug: boolean;
   kanOndertekenen: boolean;
   kanVinken: boolean;
@@ -816,12 +868,17 @@ export function bouwOpvolging(input: {
 }): ContractOpvolgingWeergave {
   const huidig = laatste(input.versies);
   const afspraken = huidig?.afspraken ?? { tijdVan: '', tijdTot: '', opbouw: '', afbouw: '', contactpersoon: input.bron.huurderNaam };
-  const redenen = huidig ? [] : ontbrekendeContractgegevens(input.bron, afspraken, input.instellingen);
+  const past = huidig ? versiePastBijGegevens(huidig, input.bron, input.instellingen) : false;
+  const redenen = [
+    ...(huidig ? [] : ontbrekendeContractgegevens(input.bron, afspraken, input.instellingen)),
+    ...(huidig && !past ? ['De boekingsgegevens zijn gewijzigd. Maak een nieuwe contractversie'] : []),
+  ];
   const beheer = magContractBeheren(input.rechten);
   const bestuur = magBestuurBesluiten(input.rechten);
   const klaar = Boolean(huidig) && redenen.length === 0;
-  const akkoord = huidig ? bestuurAkkoord(huidig) : false;
+  const akkoord = huidig ? bestuurAkkoord(huidig) && past : false;
   const verzonden = huidig ? alVerzonden([huidig], 'contract') : false;
+  const verzendRegel = huidig?.verzendingen.find((regel) => regel.soort === 'contract' && regel.status === 'verzonden') ?? null;
   const praktisch = expositieVenster({
     soort: input.bron.soort,
     start: input.bron.periodeVan,
@@ -853,15 +910,34 @@ export function bouwOpvolging(input: {
             ? 'Terug voor aanpassing'
             : 'Nog niet voorgelegd';
   const regels: OpvolgingRegel[] = [
-    { label: 'Contract', waarde: huidig ? `${huidig.contractnummer} · versie ${huidig.versie}` : 'Nog niet gemaakt' },
+    { label: 'Contract gegenereerd', waarde: huidig ? `${huidig.contractnummer} · versie ${huidig.versie} · ${huidig.opgesteldOp}` : 'Nog niet' },
+    {
+      label: 'Bestuur akkoord',
+      waarde: !huidig?.bestuurVerplicht
+        ? 'Niet vereist'
+        : huidig && !past
+          ? 'Vervallen'
+          : huidig?.bestuur === 'akkoord'
+            ? `${bestuurTekst}${huidig.bestuurActor ? ` · ${huidig.bestuurActor}` : ''}${huidig.bestuurOp ? ` · ${huidig.bestuurOp.slice(0, 16).replace('T', ' ')}` : ''}`
+            : bestuurTekst,
+    },
+    {
+      label: 'Contract verzonden',
+      waarde: verzendRegel
+        ? `Geaccepteerd door de mailprovider · ${verzendRegel.op.slice(0, 16).replace('T', ' ')}. Aflevering is niet bevestigd.`
+        : 'Nog niet',
+    },
+    {
+      label: 'Huurder ondertekend',
+      waarde: huidig?.ondertekening === 'ontvangen'
+        ? `Ondertekend${huidig.ondertekeningActor ? ` · ${huidig.ondertekeningActor}` : ''}${huidig.ondertekeningOp ? ` · ${huidig.ondertekeningOp.slice(0, 16).replace('T', ' ')}` : ''}`
+        : 'Nog niet',
+    },
+    { label: 'Aanbetaling ontvangen', waarde: input.betaling.stand === 'ontvangen' ? 'Ontvangen' : input.betaling.stand === 'open' ? 'Nog niet' : 'Niet vastgelegd' },
   ];
-  if (huidig?.bestuurVerplicht) regels.push({ label: 'Bestuur', waarde: bestuurTekst });
-  regels.push(
-    { label: 'Huurder', waarde: huidig?.ondertekening === 'ontvangen' ? 'Ondertekend ontvangen' : 'Nog open' },
-    { label: 'Betaling', waarde: input.betaling.stand === 'ontvangen' ? 'Ontvangen' : input.betaling.stand === 'open' ? 'Open' : 'Niet vastgelegd' },
-    { label: 'Gastbegeleider', waarde: input.bron.gastNaam.trim() || 'Nog niet toegewezen' },
-  );
+  const aanbetalingOpen = (input.bron.aanbetalingCent ?? 0) > 0 && input.betaling.stand !== 'ontvangen';
   const gereedKlaar = Boolean(input.instellingen.gereedRegel && huidig && huidig.ondertekening === 'ontvangen' && akkoord
+    && !aanbetalingOpen
     && (input.instellingen.gereedRegel === 'ondertekend' || input.betaling.stand === 'ontvangen')
     && !alVerzonden(input.versies, 'bevestiging'));
   return {
@@ -872,9 +948,11 @@ export function bouwOpvolging(input: {
     kanBekijken: Boolean(huidig),
     bekijkHref: input.bekijkHref,
     kanVerzenden: beheer && klaar && akkoord && !verzonden && input.modus === 'aan',
+    kanOpnieuw: beheer && klaar && akkoord && verzonden && input.modus === 'aan',
     kanProef: beheer && klaar && akkoord && input.modus !== 'uit',
-    kanVoorleggen: beheer && Boolean(huidig?.bestuurVerplicht) && huidig?.bestuur !== 'akkoord' && huidig?.bestuur !== 'wacht',
-    kanAkkoord: bestuur && huidig?.bestuur === 'wacht',
+    kanVoorleggen: false,
+    kanGoedkeuren: bestuur && Boolean(huidig?.bestuurVerplicht) && past && huidig?.bestuur !== 'akkoord',
+    kanAkkoord: bestuur && Boolean(huidig?.bestuurVerplicht) && past && huidig?.bestuur !== 'akkoord',
     kanTerug: bestuur && huidig?.bestuur === 'wacht',
     kanOndertekenen: beheer && Boolean(huidig) && huidig?.ondertekening !== 'ontvangen',
     kanVinken: beheer || magSchrijven(input.rechten, 'planning'),
@@ -929,6 +1007,7 @@ export function flowActieUit(actie: string, formulier: { get(naam: string): unkn
   if (actie === 'df_akkoord') return { soort: 'akkoord' };
   if (actie === 'df_terug') return { soort: 'terug', toelichting: lees('toelichting') };
   if (actie === 'df_verzend') return { soort: 'verzend', proef: lees('proef') === 'ja', poging: lees('poging') || 'eenmalig' };
+  if (actie === 'df_opnieuw') return { soort: 'opnieuw', poging: lees('poging') || 'eenmalig' };
   if (actie === 'df_ondertekend') return { soort: 'ondertekend', contractnummer: lees('contractnummer'), versie: Number(lees('contractversie')) };
   if (actie === 'df_vink') return { soort: 'vink', id: lees('punt'), aan: lees('aan') !== 'nee' };
   if (actie === 'df_praktisch') return { soort: 'praktisch', proef: lees('proef') === 'ja', poging: lees('poging') || 'eenmalig' };

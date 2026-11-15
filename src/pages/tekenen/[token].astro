@@ -1,0 +1,209 @@
+---
+export const prerender = false;
+
+import Base from '../../layouts/Base.astro';
+import { behandelTekenpagina, pakketVanDossier } from '../../lib/contract-tekenen.ts';
+import { tokenVormGeldig } from '../../platform/contract-tekenen.ts';
+import { createHmac } from 'node:crypto';
+
+const token = Astro.params.token ?? '';
+const geheim = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.CRON_SECRET || '').trim();
+const nu = new Date().toISOString();
+
+function ipHash(): string | null {
+  const ip = Astro.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  if (!ip || !geheim) return null;
+  return createHmac('sha256', geheim).update(ip).digest('hex').slice(0, 16);
+}
+
+if (!tokenVormGeldig(token) || !geheim) {
+  Astro.response.status = 404;
+  return new Response('Deze link is ongeldig.', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' },
+  });
+}
+
+const cookieNaam = 'kvp_teken';
+let melding = '';
+let fout = '';
+let netGeverifieerd = false;
+
+if (Astro.request.method === 'POST') {
+  const formulier = await Astro.request.formData();
+  const actie = String(formulier.get('actie') ?? '');
+  const stap = actie === 'code'
+    ? { soort: 'code' as const, token, nu, geheim }
+    : actie === 'controle'
+      ? { soort: 'controle' as const, token, nu, geheim, code: String(formulier.get('code') ?? '') }
+      : actie === 'onderteken'
+        ? {
+          soort: 'onderteken' as const,
+          token,
+          nu,
+          geheim,
+          naam: String(formulier.get('naam') ?? ''),
+          akkoord: String(formulier.get('akkoord') ?? '') === 'ja',
+          cookie: Astro.cookies.get(cookieNaam)?.value ?? '',
+          ipHash: ipHash(),
+          userAgent: Astro.request.headers.get('user-agent') ?? '',
+        }
+        : null;
+  if (!stap) {
+    fout = 'Deze actie hoort niet bij het contract.';
+  } else {
+    const uit = await behandelTekenpagina({ stap });
+    if (!uit.ok) fout = uit.melding;
+    else {
+      melding = uit.melding;
+      if (actie === 'controle') netGeverifieerd = true;
+      if (uit.cookie) {
+        Astro.cookies.set(cookieNaam, uit.cookie, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/tekenen/',
+          secure: Astro.url.protocol === 'https:',
+          maxAge: 30 * 60,
+        });
+      }
+    }
+  }
+}
+
+const beeld = await behandelTekenpagina({ stap: { soort: 'bekijk', token, nu } });
+if (!beeld.ok) {
+  return new Response(beeld.melding, {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' },
+  });
+}
+
+if (Astro.url.searchParams.get('bestand') === 'pdf') {
+  const bestand = await behandelTekenpagina({ stap: { soort: 'download', token, nu } });
+  if (!bestand.ok || !bestand.pdf) {
+    return new Response('De PDF is niet beschikbaar.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+  return new Response(Buffer.from(bestand.pdf), {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${beeld.dossier.contractnummer}.pdf"`,
+      'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+    },
+  });
+}
+
+const dossier = beeld.dossier;
+const tekst = pakketVanDossier(dossier);
+const geverifieerd = netGeverifieerd || (Boolean(dossier.geverifieerdOp) && Boolean(Astro.cookies.get(cookieNaam)?.value));
+const ondertekend = Boolean(dossier.ondertekendOp);
+---
+
+<Base title="Contract ondertekenen" description="Onderteken uw huurovereenkomst met het Kerkje van Persingen." noindex={true}>
+  <main class="teken">
+    <p class="merk">Kerkje van Persingen</p>
+    <h1>{ondertekend ? 'Contract ondertekend' : 'Huurovereenkomst'}</h1>
+    <p>{dossier.contractnummer} · versie {dossier.versie}</p>
+    {melding && <p class="melding">{melding}</p>}
+    {fout && <p class="fout">{fout}</p>}
+    {
+      ondertekend ? (
+        <p>Uw elektronische ondertekening is vastgelegd. Dit is geen gekwalificeerde elektronische handtekening. Het contract kan niet meer worden gewijzigd.</p>
+      ) : (
+        <p>Lees de overeenkomst en de voorwaarden. Daarna bevestigt u uw e-mailadres met een code en ondertekent u deze versie.</p>
+      )
+    }
+    <p><a href={`?bestand=pdf`}>Download de PDF</a></p>
+    <article><pre>{tekst}</pre></article>
+    {
+      !ondertekend && (
+        <form method="post">
+          <input type="hidden" name="actie" value="code" />
+          <button type="submit">Stuur een code naar mijn e-mailadres</button>
+        </form>
+      )
+    }
+    {
+      !ondertekend && (
+        <form method="post">
+          <input type="hidden" name="actie" value="controle" />
+          <label for="code">Code uit de e-mail</label>
+          <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required />
+          <button type="submit">Bevestig de code</button>
+        </form>
+      )
+    }
+    {
+      !ondertekend && geverifieerd && (
+        <form method="post">
+          <input type="hidden" name="actie" value="onderteken" />
+          <label for="naam">Volledige naam</label>
+          <input id="naam" name="naam" required maxlength="120" value={dossier.huurderNaam} />
+          <label class="vink">
+            <input type="checkbox" name="akkoord" value="ja" required />
+            Ik ga akkoord met de contractuele bepalingen in deze versie.
+          </label>
+          <button type="submit">Ondertekenen</button>
+          <p>Dit is een elektronische bevestiging, geen gekwalificeerde elektronische handtekening.</p>
+        </form>
+      )
+    }
+  </main>
+</Base>
+
+<style>
+  .teken {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+  .merk {
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+  }
+  article {
+    background: #fff;
+    border: 1px solid #e4dccb;
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+  pre {
+    white-space: pre-wrap;
+    font: inherit;
+    margin: 0;
+  }
+  form {
+    display: grid;
+    gap: 0.6rem;
+    margin: 1rem 0;
+  }
+  label {
+    font-weight: 600;
+  }
+  input[type='text'], input:not([type='checkbox']) {
+    font: inherit;
+    font-size: 1.1rem;
+    padding: 0.7rem;
+  }
+  button {
+    font: inherit;
+    font-size: 1.1rem;
+    min-height: 3rem;
+    background: #4a5235;
+    color: #fff;
+    border: 0;
+    padding: 0.7rem 1rem;
+  }
+  .vink {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    font-weight: 500;
+  }
+  .melding, .fout {
+    padding: 0.7rem 0.8rem;
+  }
+  .melding { background: #e7efe4; }
+  .fout { background: #f8e6e2; }
+</style>
