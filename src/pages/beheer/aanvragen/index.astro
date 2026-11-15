@@ -4,6 +4,7 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import { AANVRAAG_LABEL, SOORT_LABEL } from '../../../platform/demo-data';
 import {
+  labelAangevraagdOp,
   leesAanvraagSortering,
   sorteerAanvragen,
   type AanvraagSortering,
@@ -168,6 +169,9 @@ function periodeVan(start: string, eind: string): string {
         <th aria-sort={ariaSort('datum')}>
           <a class="bh-sorteer" href={kolomHref('datum')}>Periode{pijl('datum')}</a>
         </th>
+        <th aria-sort={ariaSort('binnen')}>
+          <a class="bh-sorteer" href={kolomHref('binnen')}>Aangevraagd{pijl('binnen')}</a>
+        </th>
         <th>Fase</th>
         <th>Volgende actie</th>
       </tr>
@@ -176,7 +180,7 @@ function periodeVan(start: string, eind: string): string {
       {
         lijst.length === 0 ? (
           <tr>
-            <td colspan="4" class="bh-leeg">Geen aanvragen in deze filter.</td>
+            <td colspan="5" class="bh-leeg">Geen aanvragen in deze filter.</td>
           </tr>
         ) : (
           lijst.map((item) => {
@@ -188,6 +192,7 @@ function periodeVan(start: string, eind: string): string {
                   <small class="bh-fase-sub">{SOORT_LABEL[item.soort] ?? item.soort}</small>
                 </td>
                 <td>{periodeVan(item.start, item.eind)}</td>
+                <td>{labelAangevraagdOp(item.binnengekomen)}</td>
                 <td>
                   <span class={`bh-badge bh-fase bh-fase--${beeld?.toon ?? 'oranje'}`}>{beeld?.faseLabel ?? 'Nieuw'}</span>
                 </td>

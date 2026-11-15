@@ -5,7 +5,7 @@ import Beheer from '../../../layouts/Beheer.astro';
 import { SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
 import { beoordeelAanvraag, type FaseWereld } from '../../../platform/aanvraag-fase';
 import { periodeLabel } from '../../../platform/verhuur-overzicht';
-import { labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
+import { labelAangevraagdOp, labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { toonMedeExposanten } from '../../../platform/mede-exposanten';
 import { lijstAanvraagFotos } from '../../../lib/aanvraag-foto-opslag';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
@@ -164,6 +164,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
   <section class="bh-kaart bh-fase-paneel" aria-label="Fase">
     <p class="bh-label">Fase</p>
     <h2 class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.faseLabel}</h2>
+    <p class="bh-muted">Aangevraagd op {labelAangevraagdOp(aanvraag.binnengekomen)}</p>
     <p class="bh-volgende">Volgende actie: <strong class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.volgendeActie}</strong></p>
     {
       beeld.fase === 'gereed' && (
