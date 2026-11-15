@@ -80,4 +80,11 @@ describe('eerstvolgendeVrijeWeekenden', () => {
     const weekenden = eerstvolgendeVrijeWeekenden(new Set(), 1, new Date('2026-11-08T12:00:00Z'));
     assert.equal(weekenden[0].zaterdag, '2026-11-14');
   });
+
+  test('13 en 14 februari 2027 blijven uit de lijst, ook als die dagen vrij zijn', () => {
+    const weekenden = eerstvolgendeVrijeWeekenden(new Set(), 1, new Date('2027-02-10T12:00:00Z'));
+    assert.equal(weekenden[0].zaterdag, '2027-02-20');
+    assert.equal(weekenden[0].zondag, '2027-02-21');
+    assert.equal(weekenden.some((weekend) => weekend.zaterdag === '2027-02-13'), false);
+  });
 });

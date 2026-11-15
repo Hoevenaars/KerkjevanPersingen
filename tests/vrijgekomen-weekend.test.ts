@@ -140,6 +140,12 @@ describe('volledigVrijeWeekenden', () => {
     assert.equal(keuzes.includes('2026-10-24'), true);
     assert.equal(keuzes.includes('2026-10-31'), true);
   });
+
+  test('13 en 14 februari 2027 staan niet in de keuze, ook als ze vrij zijn', () => {
+    const keuzes = volledigVrijeWeekenden(new Set(), new Date('2027-02-10T12:00:00Z'), 1);
+    assert.equal(keuzes.some((keuze) => keuze.zaterdag === '2027-02-13'), false);
+    assert.equal(keuzes.some((keuze) => keuze.zaterdag === '2027-02-20'), true);
+  });
 });
 
 describe('banner aan of uit', () => {

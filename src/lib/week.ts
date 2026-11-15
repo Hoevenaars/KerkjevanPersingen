@@ -61,6 +61,17 @@ function volgendWeekend(zaterdag: string): {zaterdag: string; zondag: string} {
   return {zaterdag: volgendeZaterdag, zondag: utc.toISOString().slice(0, 10)};
 }
 
+/**
+ * Zaterdag 13 februari 2027 (met zondag 14, en de vrijdag ervoor) is uit de
+ * winterstop gehaald zodat daar een boeking kan worden gezet. Het weekend
+ * blijft buiten elk aanbod van vrije weekenden.
+ */
+export const ZATERDAG_NIET_AANBIEDEN = '2027-02-13';
+
+export function weekendNietAanbieden(zaterdag: string): boolean {
+  return zaterdag === ZATERDAG_NIET_AANBIEDEN;
+}
+
 /** Eerstvolgende zaterdag in Nederlandse tijd — op zondag de volgende, niet gisteren. */
 export function eerstvolgendeZaterdag(nu = new Date()): string {
   const [jaar, maand, dag] = ymdAmsterdam(nu).split('-').map(Number);
@@ -89,7 +100,7 @@ export function eerstvolgendeVrijeWeekenden(
     const zondag = utc.toISOString().slice(0, 10);
     const zaterdagVrij = !bezetteDagen.has(zaterdag);
     const zondagVrij = !bezetteDagen.has(zondag);
-    if (zaterdagVrij || zondagVrij) {
+    if ((zaterdagVrij || zondagVrij) && !weekendNietAanbieden(zaterdag)) {
       resultaat.push({zaterdag, zondag, zaterdagVrij, zondagVrij});
     }
     zaterdag = volgendWeekend(zaterdag).zaterdag;

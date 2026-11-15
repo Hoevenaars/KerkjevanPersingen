@@ -14,7 +14,7 @@
  * Na afloop van een gekozen weekend verdwijnt die vorm vanzelf — Nederlandse tijd.
  */
 
-import { komendWeekend } from './week.ts';
+import { komendWeekend, weekendNietAanbieden } from './week.ts';
 
 /** Terugval zolang de instelling niet gelezen kan worden. */
 export const VRIJGEKOMEN_WEEKEND_BANNER_AAN = true;
@@ -340,7 +340,7 @@ export function volledigVrijeWeekenden(
   let veiligheid = 0;
   while (zaterdag <= horizon && veiligheid < 120) {
     const zondag = zondagVanZaterdag(zaterdag);
-    if (zondag >= vandaag && weekendVolledigVrij(zaterdag, bezetteDagen)) {
+    if (zondag >= vandaag && weekendVolledigVrij(zaterdag, bezetteDagen) && !weekendNietAanbieden(zaterdag)) {
       resultaat.push({
         zaterdag,
         zondag,
