@@ -162,6 +162,12 @@ function instellingenSub(rechten: GebruikerRechten): NavItem[] {
       groep: organisatie,
       toelichting: 'nog niet op te slaan',
     });
+    items.push({
+      sleutel: 'contractsjabloon',
+      href: '/beheer/instellingen/contractsjabloon/',
+      label: 'Contractsjabloon',
+      groep: organisatie,
+    });
   }
   if (magZien(rechten, 'finance_instellingen')) {
     items.push({

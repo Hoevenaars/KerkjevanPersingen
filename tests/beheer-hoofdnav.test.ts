@@ -111,6 +111,8 @@ describe('zes hoofdonderdelen', () => {
     assert.equal(sub.find((item) => item.sleutel === 'migratie')?.groep, 'Technisch');
     assert.equal(sub.find((item) => item.sleutel === 'migratie')?.toelichting, 'alleen bekijken');
     assert.equal(sub.find((item) => item.sleutel === 'verhuurinstellingen')?.toelichting, 'nog niet op te slaan');
+    assert.equal(sub.find((item) => item.sleutel === 'contractsjabloon')?.groep, 'Organisatie en verhuur');
+    assert.equal(sub.find((item) => item.sleutel === 'contractsjabloon')?.href, '/beheer/instellingen/contractsjabloon/');
     const verhuur = subitems('verhuur', admin, agendaOpties);
     assert.equal(verhuur.some((item) => item.sleutel === 'kalender'), false);
     assert.equal(verhuur.find((item) => item.sleutel === 'planning')?.label, 'Gastbegeleiders');
