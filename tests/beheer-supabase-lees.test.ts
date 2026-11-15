@@ -18,7 +18,7 @@ function clientVan(tabellen: Record<string, Record<string, unknown>[]>): Supabas
 }
 
 const basis = {
-  relaties: [{ id: 1, naam: 'Huurder A', email: 'a@example.test', telefoon: '1', adres: '', op_reservelijst: false }, { id: 2, naam: 'Gast B', email: 'b@example.test', telefoon: '2', adres: '', op_reservelijst: false }],
+  relaties: [{ id: 1, naam: 'Huurder A', email: 'a@example.test', telefoon: '1', adres: '', op_reservelijst: true, reservelijst_sinds: '2026-04-03T22:30:00Z' }, { id: 2, naam: 'Gast B', email: 'b@example.test', telefoon: '2', adres: '', op_reservelijst: false, reservelijst_sinds: null }],
   relatie_rollen: [{ relatie_id: 1, rol: 'huurder' }],
   boekingen: [
     { id: 10, nummer: 'BKG-1', status: 'geannuleerd', verhuurtype_sleutel: null, interne_titel: '1/2 mei', start_datum: '2024-05-01', eind_datum: '2024-05-02', huurder_relatie_id: 1, gastheer_relatie_id: null, huurder_naam_snapshot: 'Huurder A', huurder_email_snapshot: 'a@example.test', tarief_bedrag: 100, aanbetaling_ontvangen: false, interne_notities: '' },
@@ -61,6 +61,9 @@ test('supabase-leesmodel houdt relaties, annulering, datum en blokkade uit elkaa
   assert.equal(snapshot.bron, 'supabase');
   assert.equal(snapshot.alleenLezen, true);
   assert.equal(snapshot.relaties.length, 2);
+  assert.equal(snapshot.relaties[0].reservelijst, true);
+  assert.equal(snapshot.relaties[0].reservelijstSinds, '2026-04-03T22:30:00Z');
+  assert.equal(snapshot.relaties[1].reservelijstSinds, '');
   assert.deepEqual(snapshot.relaties[0].rollen, ['huurder']);
   assert.equal(snapshot.boekingen[0].status, 'geannuleerd');
   assert.equal(snapshot.boekingen[0].periode, 'verleden');
@@ -136,6 +139,40 @@ test('een beheerpagina gebruikt de sessie en niet de service-role', () => {
     heeftVerzoek: false,
     admin,
   }), admin);
+});
+
+test('ontbrekende reservelijst_sinds laat beheer laden', async () => {
+  const bron = clientVan(basis);
+  const client: SupabaseLeesClient = {
+    from(tabel: string) {
+      return {
+        async select(kolommen: string) {
+          if (tabel === 'relaties' && kolommen.includes('reservelijst_sinds')) {
+            return { data: null, error: { message: 'column relaties.reservelijst_sinds does not exist' } };
+          }
+          const antwoord = await bron.from(tabel).select(kolommen);
+          if (tabel !== 'relaties' || !antwoord.data) return antwoord;
+          return {
+            data: antwoord.data.map((rij) => {
+              const { reservelijst_sinds: _weg, ...rest } = rij as Record<string, unknown>;
+              return rest;
+            }),
+            error: null,
+          };
+        },
+      };
+    },
+  };
+  const snapshot = await leesSupabaseBeheer(client, { vandaag: '2026-09-30', testmodus: true });
+  assert.equal(snapshot.bron, 'supabase');
+  assert.equal(snapshot.fout, null);
+  assert.equal(snapshot.relaties.length, 2);
+  assert.equal(snapshot.relaties[0].naam, 'Huurder A');
+  assert.equal(snapshot.relaties[1].naam, 'Gast B');
+  assert.equal(snapshot.relaties[0].reservelijst, true);
+  assert.equal(snapshot.relaties[1].reservelijst, false);
+  assert.equal(snapshot.relaties[0].reservelijstSinds, '');
+  assert.equal(snapshot.relaties[1].reservelijstSinds, '');
 });
 
 test('een supabase-fout toont geen voorbeelddata', async () => {

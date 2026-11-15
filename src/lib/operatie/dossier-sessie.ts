@@ -452,19 +452,21 @@ async function wereldVoorGoedkeuren(client: DossierSessie): Promise<FaseWereld |
 }
 
 async function geschikt(client: DossierSessie, id: number, actor: Actor): Promise<DossierResultaat> {
+  if (!Number.isInteger(id)) return { ok: false, melding: 'Deze aanvraag kan niet worden beoordeeld. Er is niets gewijzigd.' };
   if (!mag(actor, 'aanvragen')) return { ok: false, melding: 'Geen recht om een aanvraag te beoordelen.' };
   const aanvraag = await leesAanvraag(client, id);
   if ('fout' in aanvraag) return { ok: false, melding: aanvraag.fout };
   if (aanvraag.status === 'in_behandeling') return { ok: true, melding: 'De activiteit is al als geschikt beoordeeld.' };
   const poort = magStatusZetten(aanvraag.status as AanvraagStatus, 'in_behandeling', rechtenVan(actor));
   if (!poort.ok) return { ok: false, melding: poort.melding ?? 'Overgang geweigerd.' };
-  const { error } = await client
+  const gezet = await client
     .from('aanvragen')
     .update({ status: 'in_behandeling' })
     .eq('id', id)
     .select('id')
     .maybeSingle();
-  if (error) return { ok: false, melding: leesbareAuthFout(error.message) };
+  if (gezet.error) return { ok: false, melding: leesbareAuthFout(gezet.error.message) };
+  if (gezet.data?.id == null) return { ok: false, melding: 'De beoordeling is niet opgeslagen. Er is niets gewijzigd.' };
   await audit(client, actor, {
     actie: 'geschikt',
     type: 'aanvraag',

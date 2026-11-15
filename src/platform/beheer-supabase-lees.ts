@@ -177,8 +177,19 @@ export async function leesSupabaseBeheer(
   client: SupabaseLeesClient,
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
+  async function leesRelaties(): Promise<Record<string, unknown>[]> {
+    const metSinds = 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst,reservelijst_sinds';
+    try {
+      return await lees(client, 'relaties', metSinds);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('reservelijst_sinds')) throw error;
+      return lees(client, 'relaties', 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst');
+    }
+  }
+
   const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, aanvraagAdresRijen, jobRijen, verzendRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
-    lees(client, 'relaties', 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst'),
+    leesRelaties(),
     lees(client, 'relatie_rollen', 'relatie_id,rol,actief'),
     lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
     lees(client, 'betalingen', 'id,boeking_id,soort,bedrag,status,vervaldatum,ontvangen_op'),
@@ -228,6 +239,7 @@ export async function leesSupabaseBeheer(
     notities: tekst(rij.notities),
     rollen: rollenPerRelatie.get(tekst(rij.id)) ?? [],
     reservelijst: Boolean(rij.op_reservelijst),
+    reservelijstSinds: tekst(rij.reservelijst_sinds),
   }));
   const relatieNaam = new Map(relaties.map((relatie) => [relatie.id, relatie.naam]));
 

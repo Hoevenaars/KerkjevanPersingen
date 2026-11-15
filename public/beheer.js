@@ -71,6 +71,20 @@
     }
   });
 
+  function formulierNaarDossier(root, paginaUrl) {
+    let doel;
+    try {
+      doel = new URL(paginaUrl, location.origin);
+    } catch {
+      return;
+    }
+    const actie = doel.pathname + doel.search;
+    root.querySelectorAll('form').forEach((form) => {
+      const huidige = (form.getAttribute('action') || '').trim();
+      if (!huidige || huidige === '#' || huidige.startsWith('?')) form.setAttribute('action', actie);
+    });
+  }
+
   async function openDetail(url) {
     if (!detail || !detailInhoud) {
       window.location.href = url;
@@ -91,6 +105,7 @@
 
       main.querySelectorAll('.bh-demo').forEach((node) => node.remove());
       detailInhoud.innerHTML = main.innerHTML;
+      formulierNaarDossier(detailInhoud, url);
       detailInhoud.querySelectorAll('a:not([target])').forEach((link) => {
         if (link.classList.contains('bh-detail-link')) return;
         if (link.getAttribute('href')?.startsWith('/beheer/')) {

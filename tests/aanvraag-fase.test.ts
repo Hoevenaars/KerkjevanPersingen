@@ -331,6 +331,84 @@ test('goedkeuren leest de agenda opnieuw en weigert een bezette periode', async 
   assert.match(uit.melding, /Bakker/);
 });
 
+test('geschikt zet een nieuwe aanvraag in behandeling zonder boeking', async () => {
+  const updates: string[] = [];
+  const client = fakeClient({ status: 'nieuw' });
+  const origineel = client.from;
+  client.from = (tabel: string) => {
+    const query = origineel.call(client, tabel) as ReturnType<DossierSessie['from']> & {
+      update: (waarden: Record<string, unknown>) => unknown;
+    };
+    const update = query.update.bind(query);
+    query.update = (waarden: Record<string, unknown>) => {
+      updates.push(String(waarden.status));
+      return update(waarden);
+    };
+    return query;
+  };
+  const uit = await voerDossierViaSessie(client, {
+    soort: 'beoordeel',
+    aanvraagId: '12',
+    besluit: 'in_behandeling',
+  }, beheer);
+  assert.equal(uit.ok, true);
+  assert.match(uit.melding, /geschikt/);
+  assert.deepEqual(updates, ['in_behandeling']);
+});
+
+test('geschikt met een id dat geen getal is wijzigt niets', async () => {
+  const uit = await voerDossierViaSessie(fakeClient({ status: 'nieuw' }), {
+    soort: 'beoordeel',
+    aanvraagId: 'a-101',
+    besluit: 'in_behandeling',
+  }, beheer);
+  assert.equal(uit.ok, false);
+  assert.match(uit.melding, /niets gewijzigd/);
+});
+
+test('geschikt meldt het als de database geen rij teruggeeft', async () => {
+  const client: DossierSessie = {
+    from(tabel: string) {
+      const q = {
+        actie: 'select',
+        select() { return q; },
+        update() { q.actie = 'update'; return q; },
+        insert() { return q; },
+        eq() { return q; },
+        neq() { return q; },
+        in() { return q; },
+        async maybeSingle() {
+          if (tabel === 'aanvragen' && q.actie === 'select') {
+            return {
+              data: {
+                id: 12,
+                status: 'nieuw',
+                naam: 'Kim',
+                email: 'kim@example.test',
+                start_datum: '2027-03-02',
+                eind_datum: '2027-03-02',
+              },
+              error: null,
+            };
+          }
+          return { data: null, error: null };
+        },
+        then(resolve: (waarde: { data: Record<string, unknown>[]; error: null }) => unknown) {
+          return Promise.resolve(resolve({ data: [], error: null }));
+        },
+      };
+      return q as unknown as ReturnType<DossierSessie['from']>;
+    },
+  };
+  const uit = await voerDossierViaSessie(client, {
+    soort: 'beoordeel',
+    aanvraagId: '12',
+    besluit: 'in_behandeling',
+  }, beheer);
+  assert.equal(uit.ok, false);
+  assert.match(uit.melding, /niet opgeslagen/);
+});
+
 test('afwijzen zonder reden wijzigt niets', async () => {
   const uit = await voerDossierViaSessie(fakeClient({ status: 'nieuw' }), {
     soort: 'beoordeel',

@@ -1617,6 +1617,14 @@ body[data-beheer-modus='preview'] .bh-acties .bh-btn {
   opacity: 0.45;
 }
 
+/* Het zijpaneel toont een dossier van een andere module. De knoppen volgen
+   het dossier, niet de leesmodus van de lijst erachter. */
+#bh-detail .bh-acties button,
+#bh-detail .bh-acties .bh-btn {
+  pointer-events: auto;
+  opacity: 1;
+}
+
 @media (max-width: 800px) {
   .bh-gebruiker-form .bh-form-rij {
     grid-template-columns: 1fr;

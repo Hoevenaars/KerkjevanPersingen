@@ -8,7 +8,7 @@ Supabase is de bron van de publieke website en van `/beheer`.
 
 ```text
 PUBLIEKE WEBSITE  ──leest──────────────►  SUPABASE
-/admin            ──verwijst───────────►  /beheer
+/admin            ──bestaat niet──────────►  404
 /beheer           ──Supabase-login, tenzij BEHEER_ENABLED=false
 ```
 

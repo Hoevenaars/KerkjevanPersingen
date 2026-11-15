@@ -97,6 +97,12 @@ describe('zes hoofdonderdelen', () => {
     assert.equal(magContactenZien(hans), false);
     assert.deepEqual(hoofditems(vriend, agendaOpties).map((item) => item.sleutel), ['contacten']);
     assert.deepEqual(subitems('contacten', vriend, agendaOpties).map((item) => item.label), ['Vrienden']);
+    assert.deepEqual(subitems('contacten', admin, agendaOpties).map((item) => item.label), [
+      'Relaties',
+      'Vrienden',
+      'Nieuwsbrief',
+      'Reserve lijst',
+    ]);
   });
 
   test('instellingen zetten migratie bij technisch en benoemen wat niet opslaat', () => {
@@ -119,6 +125,7 @@ describe('paden blijven bereikbaar', () => {
     assert.equal(sectieVoorPad('/beheer/aanvragen/12/'), 'verhuur');
     assert.equal(sectieVoorPad('/beheer/publiceren/'), 'website');
     assert.equal(sectieVoorPad('/beheer/nieuwsbrief/3/'), 'contacten');
+    assert.equal(sectieVoorPad('/beheer/reservelijst/'), 'contacten');
     assert.equal(sectieVoorPad('/beheer/instellingen/finance/'), 'instellingen');
     assert.equal(sectieVoorPad('/beheer/finance/'), 'financien');
     assert.equal(sectieVoorPad('/beheer/migratie/'), 'instellingen');
@@ -146,6 +153,25 @@ describe('paden blijven bereikbaar', () => {
     assert.equal(herkomstUitQuery('https://elders.example'), null);
     assert.equal(dossierHref('b 1', true), '/beheer/verhuur/?dossier=b%201');
     assert.equal(dossierHref('b1', false), '/beheer/boekingen/b1/');
+  });
+
+  test('reserve lijst hoort bij contacten en het relatierecht', () => {
+    assert.equal(moduleVoorPad('/beheer/reservelijst/'), 'relaties');
+    assert.deepEqual(locatieVoorPad('/beheer/reservelijst/', admin, agendaOpties), {
+      hoofd: 'Contacten',
+      sub: 'Reserve lijst',
+    });
+    assert.equal(
+      toegangVoorBeheerPad({
+        pathname: '/beheer/reservelijst/',
+        methode: 'GET',
+        ingelogd: true,
+        actief: true,
+        rechten: vriend,
+        viewAsActief: false,
+      }),
+      'verborgen',
+    );
   });
 
   test('contacten schrijft niets en erft geen module', () => {

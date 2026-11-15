@@ -19,6 +19,7 @@ import { CONTRACTBEHEER_EMAIL } from '../../../lib/mail-adressen.ts';
 import Mailconcept from '../../../components/beheer/Mailconcept.astro';
 import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
 import { magAutomatiseringUitvoeren } from '../../../platform/automatisering.ts';
+import { magAanvraagWijzigen } from '../../../platform/aanvraag.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import type { MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
 import { contractTemplateVan, stelContractbriefOp } from '../../../platform/contract-mail.ts';
@@ -93,6 +94,11 @@ if (Astro.request.method === 'POST') {
 if (!aanvraag) {
   return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
 }
+
+const dossierPad = `/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`;
+const kanBeoordelen = !Astro.locals.beheer?.viewAs && magAanvraagWijzigen(
+  Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
+);
 
 const relatie =
   snapshot.relaties.find((r) => aanvraag.relatieId && r.id === aanvraag.relatieId) ??
@@ -198,7 +204,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
   {mailMelding && <p class="bh-flash">{mailMelding}</p>}
   {Astro.url.searchParams.get('fout') && <p class="bh-flash">{Astro.url.searchParams.get('fout')}</p>}
 
-  <section class="bh-kaart bh-fase-paneel" aria-label="Fase">
+  <section class="bh-kaart bh-fase-paneel" id="beoordeling" aria-label="Fase">
     <p class="bh-label">Fase</p>
     <h2 class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.faseLabel}</h2>
     <p class="bh-muted">Aangevraagd op {labelAangevraagdOp(aanvraag.binnengekomen)}</p>
@@ -221,19 +227,25 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
         <>
           <h3>Past deze activiteit in het Kerkje van Persingen?</h3>
           {
-            beeld.geschikt ? (
+            !kanBeoordelen ? (
+              <p>Je kunt deze aanvraag bekijken. Beoordelen vraagt schrijfrecht op aanvragen.</p>
+            ) : beeld.geschikt ? (
               <p class="bh-fase bh-fase--groen">Ja, geschikt. Afgerond.</p>
             ) : (
-              <form method="post" class="bh-acties">
+              <form method="post" action={dossierPad} class="bh-acties">
                 <button class="bh-btn" type="submit" name="actie" value="geschikt">Ja, geschikt</button>
               </form>
             )
           }
-          <form method="post" class="bh-form">
-            <label for="reden">Afwijsreden, als de activiteit niet past</label>
-            <textarea id="reden" name="reden" rows="3" required></textarea>
-            <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="weiger">Nee, afwijzen</button>
-          </form>
+          {
+            kanBeoordelen && (
+              <form method="post" action={dossierPad} class="bh-form">
+                <label for="reden">Afwijsreden, als de activiteit niet past</label>
+                <textarea id="reden" name="reden" rows="3" required></textarea>
+                <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="weiger">Nee, afwijzen</button>
+              </form>
+            )
+          }
           <h3>Is de ruimte beschikbaar?</h3>
           <p class={`bh-fase bh-fase--${beeld.beschikbaarheid.uitkomst === 'beschikbaar' ? 'groen' : beeld.beschikbaarheid.uitkomst === 'aanvraag' ? 'oranje' : 'rood'}`}>
             <strong>{beeld.beschikbaarheid.kop}.</strong> {beeld.beschikbaarheid.tekst}
@@ -255,8 +267,8 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             ))
           }
           {
-            kanGoedkeuren && (
-              <form method="post" class="bh-acties">
+            kanBeoordelen && kanGoedkeuren && (
+              <form method="post" action={dossierPad} class="bh-acties">
                 <button class="bh-btn" type="submit" name="actie" value="akkoord">Goedkeuren en in behandeling nemen</button>
               </form>
             )
@@ -369,7 +381,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           <h2>Vraag aan de aanvrager</h2>
           {
             beeld.fase === 'in_behandeling' && snapshot.bron === 'supabase' && (
-              <form method="post" class="bh-form">
+              <form method="post" action={dossierPad} class="bh-form">
                 <label for="vraag">Vraag</label>
                 <textarea id="vraag" name="vraag" rows="5" required>{aanvraag.informatievraag ?? ''}</textarea>
                 <p class="bh-muted">Reply-To blijft {CONTRACTBEHEER_EMAIL}. Concept, opslaan en preview doen geen provider-call.</p>
@@ -385,7 +397,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
                 <h3>Preview</h3>
                 <p><strong>{voorbeeld.onderwerp}</strong></p>
                 <pre class="bh-muted">{voorbeeld.text}</pre>
-                <form method="post">
+                <form method="post" action={dossierPad}>
                   <p>Testmail wordt verstuurd naar: {testadres || 'geen geldig testmailadres ingesteld'} zolang de schakelaar op Test staat. Uit verstuurt niets.</p>
                   <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="meer_verstuur">Verstuur vraag</button>
                 </form>

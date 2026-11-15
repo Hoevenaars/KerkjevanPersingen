@@ -14,9 +14,14 @@ import {
   statusLabel,
   type Automatisering,
 } from '../../../../platform/automatisering.ts';
+import { verstuurAutomatiseringTestmails } from '../../../../lib/automatisering-testmail.ts';
 import { maakBeheerAdminClient } from '../../../../lib/supabase.ts';
 import { getTestMailRecipient } from '../../../../lib/testmail-adres.ts';
-import { normaliseerTestmailadres, TESTMAIL_SLEUTEL } from '../../../../platform/testmail.ts';
+import { vatTestmailsSamen } from '../../../../platform/automatisering-testmail.ts';
+import { STANDAARD_MAILTEMPLATES } from '../../../../platform/mailtemplates/catalog.ts';
+import { laadMailtemplatesUitSupabase } from '../../../../platform/mailtemplates/supabase-bron.ts';
+import type { MailTemplateDef } from '../../../../platform/mailtemplates/types.ts';
+import { GEEN_TESTMAILADRES, normaliseerTestmailadres, TESTMAIL_SLEUTEL } from '../../../../platform/testmail.ts';
 
 type Rij = {
   sleutel: string;
@@ -63,6 +68,9 @@ type OngetypedeQuery = {
   };
   upsert: (waarden: unknown, opties?: { onConflict?: string }) => Promise<{ error: { message: string } | null }>;
   insert: (rij: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+  update: (waarden: Record<string, unknown>) => {
+    eq: (kolom: string, waarde: string) => Promise<{ error: { message: string } | null }>;
+  };
 };
 type Ongetypeerd = {
   from: (tabel: string) => OngetypedeQuery;
@@ -113,36 +121,74 @@ if (Astro.request.method === 'POST') {
         melding = 'Testmailadres opgeslagen.';
       }
     }
-  } else {
-  const sleutel = String(form.get('sleutel') ?? '');
-  const status = String(form.get('status') ?? '');
-  const bevestigd = String(form.get('bevestig') ?? '') === 'ja';
-  const gebruiker = Astro.locals.beheer?.gebruiker.naam || 'beheer';
-  try {
-    const huidig = (await lees()).find((item) => item.sleutel === sleutel);
-    if (!huidig) fout = 'Automatisering niet gevonden.';
+  } else if (String(form.get('actie') ?? '') === 'verstuur_testmails') {
+    const superAdmin = Astro.locals.beheer?.rechten.isSuperAdmin === true;
+    if (!superAdmin) fout = 'Alleen een super admin mag testmails versturen.';
+    else if (!testmailadres) fout = `${GEEN_TESTMAILADRES} Er is niets verstuurd.`;
     else {
-      const plan = planStatuswijziging(huidig, status, bevestigd);
-      if (plan.soort === 'bevestiging' && isStatus(status)) {
-        bevestiging = { sleutel, status };
-      } else if (plan.soort === 'weigering') {
-        fout = plan.reden ?? 'Status niet gewijzigd.';
-      } else if (plan.soort === 'wijziging' && isStatus(status) && db) {
-        const regel = auditregel(huidig, status, gebruiker);
-        const opgeslagen = await db.rpc('zet_automatisering_status', {
-          p_sleutel: regel.automatisering,
-          p_status: regel.nieuweStatus,
-          p_gebruiker: regel.gebruiker,
+      try {
+        const register = await lees();
+        let templates: MailTemplateDef[] = STANDAARD_MAILTEMPLATES;
+        if (client) {
+          try {
+            const uitSupabase = await laadMailtemplatesUitSupabase(client as never);
+            if (uitSupabase.length > 0) templates = uitSupabase;
+          } catch {
+            templates = STANDAARD_MAILTEMPLATES;
+          }
+        }
+        const resultaten = await verstuurAutomatiseringTestmails({
+          register,
+          testadres: testmailadres,
+          templates,
         });
-        if (opgeslagen.error) throw new Error(opgeslagen.error.message);
-        melding = `${huidig.naam} staat op ${statusLabel(status)}.`;
-      } else if (plan.soort === 'wijziging' && !db) {
-        fout = 'Geen Supabase-client. De status is niet opgeslagen.';
+        const samen = vatTestmailsSamen(resultaten, testmailadres);
+        melding = samen.melding;
+        fout = samen.fout;
+        if (db) {
+          const nu = new Date().toISOString();
+          for (const regel of resultaten) {
+            const bijgewerkt = await db.from('automatiseringen').update({
+              laatste_run: nu,
+              laatste_resultaat: (regel.verzonden ? `testmail naar ${testmailadres}` : regel.reden).slice(0, 240),
+            }).eq('sleutel', regel.sleutel);
+            if (bijgewerkt.error) fout = fout || bijgewerkt.error.message;
+          }
+        }
+      } catch (error) {
+        fout = error instanceof Error ? error.message : 'Testmails versturen mislukt.';
       }
     }
-  } catch (error) {
-    fout = error instanceof Error ? error.message : 'Opslaan mislukt.';
-  }
+  } else {
+    const sleutel = String(form.get('sleutel') ?? '');
+    const status = String(form.get('status') ?? '');
+    const bevestigd = String(form.get('bevestig') ?? '') === 'ja';
+    const gebruiker = Astro.locals.beheer?.gebruiker.naam || 'beheer';
+    try {
+      const huidig = (await lees()).find((item) => item.sleutel === sleutel);
+      if (!huidig) fout = 'Automatisering niet gevonden.';
+      else {
+        const plan = planStatuswijziging(huidig, status, bevestigd);
+        if (plan.soort === 'bevestiging' && isStatus(status)) {
+          bevestiging = { sleutel, status };
+        } else if (plan.soort === 'weigering') {
+          fout = plan.reden ?? 'Status niet gewijzigd.';
+        } else if (plan.soort === 'wijziging' && isStatus(status) && db) {
+          const regel = auditregel(huidig, status, gebruiker);
+          const opgeslagen = await db.rpc('zet_automatisering_status', {
+            p_sleutel: regel.automatisering,
+            p_status: regel.nieuweStatus,
+            p_gebruiker: regel.gebruiker,
+          });
+          if (opgeslagen.error) throw new Error(opgeslagen.error.message);
+          melding = `${huidig.naam} staat op ${statusLabel(status)}.`;
+        } else if (plan.soort === 'wijziging' && !db) {
+          fout = 'Geen Supabase-client. De status is niet opgeslagen.';
+        }
+      }
+    } catch (error) {
+      fout = error instanceof Error ? error.message : 'Opslaan mislukt.';
+    }
   }
 }
 
@@ -179,7 +225,11 @@ const groepen = [
         <form method="post" class="bh-form">
           <label for="testmailadres">Testmailadres</label>
           <input id="testmailadres" name="testmailadres" type="email" required value={testmailadres ?? ''} />
-          <button class="bh-btn" type="submit" name="actie" value="testmailadres">Testmailadres bewaren</button>
+          <div class="bh-acties">
+            <button class="bh-btn" type="submit" name="actie" value="testmailadres">Testmailadres bewaren</button>
+            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="verstuur_testmails" onclick="return confirm('Alle automatiseringen die op Test staan, versturen een mail naar het opgeslagen testmailadres. Doorgaan?')">Versturen testmails</button>
+          </div>
+          <p class="bh-muted">Versturen testmails stuurt één mail per automatisering op Test, alleen naar het opgeslagen adres. Aan en Uit blijven stil.</p>
         </form>
       ) : (
         <p class="bh-muted">Alleen een super admin kan dit adres wijzigen.</p>

@@ -1,4 +1,6 @@
 ---
+import { groepeerOpProces } from '../../platform/mailtemplates/proces.ts';
+
 interface Props {
   templates: { id: string; naam: string }[];
   ontvanger: string;
@@ -36,6 +38,7 @@ const {
 } = Astro.props;
 const tekst = preview?.text && !contract ? '' : inhoud;
 const onderwerpWaarde = preview?.onderwerp && !contract ? preview.onderwerp : (onderwerp || preview?.onderwerp || '');
+const groepen = groepeerOpProces(templates);
 ---
 
 <section class="bh-kaart">
@@ -63,11 +66,17 @@ const onderwerpWaarde = preview?.onderwerp && !contract ? preview.onderwerp : (o
           <label for="templateId">Template</label>
           <select id="templateId" name="templateId">
             <option value="">Vrije tekst</option>
-            {templates.map((item) => (
-              <option value={item.id} selected={item.id === gekozenTemplate}>
-                {item.naam}
-              </option>
-            ))}
+            {
+              groepen.map((groep) => (
+                <optgroup label={groep.titel}>
+                  {groep.templates.map((item) => (
+                    <option value={item.id} selected={item.id === gekozenTemplate}>
+                      {item.naam}
+                    </option>
+                  ))}
+                </optgroup>
+              ))
+            }
           </select>
         </>
       )
