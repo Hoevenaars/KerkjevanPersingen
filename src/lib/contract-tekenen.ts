@@ -205,18 +205,23 @@ export async function behandelTekenpagina(input: {
       ].join('\n\n'),
       ondertekening: 'Team Kerkje van Persingen',
     });
-    const id = await mailMetPdf({
-      naar: uit.dossier.email,
-      onderwerp: `Ondertekend contract ${uit.dossier.contractnummer}`,
-      tekst: brief.text,
-      html: brief.html,
-      sleutel: 'handmatige_template',
-      richting: 'aanvrager',
-      pdf: uit.pdf,
-      naam,
-      idempotentie: `teken-bevestiging:${uit.dossier.boekingId}:${uit.dossier.versie}`,
-      env,
-    });
+    let id: string | null = null;
+    try {
+      id = await mailMetPdf({
+        naar: uit.dossier.email,
+        onderwerp: `Ondertekend contract ${uit.dossier.contractnummer}`,
+        tekst: brief.text,
+        html: brief.html,
+        sleutel: 'handmatige_template',
+        richting: 'aanvrager',
+        pdf: uit.pdf,
+        naam,
+        idempotentie: `teken-bevestiging:${uit.dossier.boekingId}:${uit.dossier.versie}`,
+        env,
+      });
+    } catch {
+      id = null;
+    }
     if (id) {
       const client = maakBeheerAdminClient(env) as { from?: (tabel: string) => { update: (rij: Rij) => { eq: (kolom: string, waarde: unknown) => Promise<unknown> } } } | null;
       await client?.from?.('contract_tekeningen').update({ bevestiging_id: id }).eq('token_hash', uit.dossier.tokenHash);
