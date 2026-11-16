@@ -4,11 +4,13 @@ import Icoon from './Icoon.astro';
 interface Props {
   href: string | null;
   aantal: number;
+  waarde?: string;
   label: string;
   icoon: 'post' | 'blad' | 'kalender';
 }
 
-const { href, aantal, label, icoon } = Astro.props;
+const { href, aantal, waarde, label, icoon } = Astro.props;
+const tekst = waarde ?? String(aantal);
 ---
 
 {
@@ -16,7 +18,7 @@ const { href, aantal, label, icoon } = Astro.props;
     <a class="bh-teller" href={href}>
       <span class="bh-teller-icoon"><Icoon naam={icoon} /></span>
       <span class="bh-teller-tekst">
-        <strong>{aantal}</strong>
+        <strong class:list={[{ 'bh-teller-woord': Boolean(waarde) }]}>{tekst}</strong>
         <span>{label}</span>
       </span>
       <span class="bh-chevron" aria-hidden="true" />
@@ -25,7 +27,7 @@ const { href, aantal, label, icoon } = Astro.props;
     <span class="bh-teller bh-teller-stil">
       <span class="bh-teller-icoon"><Icoon naam={icoon} /></span>
       <span class="bh-teller-tekst">
-        <strong>{aantal}</strong>
+        <strong class:list={[{ 'bh-teller-woord': Boolean(waarde) }]}>{tekst}</strong>
         <span>{label}</span>
       </span>
     </span>

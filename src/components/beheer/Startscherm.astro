@@ -11,7 +11,7 @@ interface Props {
 }
 
 const { scherm, groet } = Astro.props;
-const [nieuw, behandeling, binnenkort] = scherm.tellers;
+const [nieuw, behandeling, vriendenmail] = scherm.tellers;
 
 function gasten(item: StartAgendaItem): string {
   if (item.zonderBegeleider) return 'Nog geen gastbegeleider ingepland';
@@ -27,7 +27,7 @@ function gasten(item: StartAgendaItem): string {
   <ul class="bh-tellers">
     <li><Teller href={nieuw.href} aantal={nieuw.aantal} label={nieuw.label} icoon="post" /></li>
     <li><Teller href={behandeling.href} aantal={behandeling.aantal} label={behandeling.label} icoon="blad" /></li>
-    <li><Teller href={binnenkort.href} aantal={binnenkort.aantal} label={binnenkort.label} icoon="kalender" /></li>
+    <li><Teller href={vriendenmail.href} aantal={vriendenmail.aantal} waarde={vriendenmail.waarde} label={vriendenmail.label} icoon="post" /></li>
   </ul>
 
   <div class="bh-start-kolommen">

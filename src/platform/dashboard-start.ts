@@ -73,10 +73,23 @@ export interface StartToewijzing {
   relatieNaam: string;
 }
 
+export type VriendenmailStand = 'Gereed' | 'Te controleren';
+
+export interface StartNieuwsbrief {
+  id: string;
+  week: string;
+  verstuurd: boolean;
+  overgeslagen: boolean;
+  /** De nog niet verzonden brief van deze week is klaar voor verzending. */
+  goedgekeurd: boolean;
+}
+
 export interface StartTeller {
-  sleutel: 'nieuw' | 'behandeling' | 'binnenkort';
+  sleutel: 'nieuw' | 'behandeling' | 'vriendenmail';
   label: string;
   aantal: number;
+  /** Woord op de kaart, in plaats van het aantal. */
+  waarde?: string;
   href: string | null;
 }
 
@@ -138,15 +151,30 @@ export interface StartInvoer {
   faseBetalingen?: readonly { boekingId: string; soort: string; status: string }[];
   toewijzingen: readonly StartToewijzing[];
   gastheren: readonly { id: string; naam: string }[];
-  ziet: { aanvragen: boolean; boekingen: boolean; agenda: boolean; planning: boolean };
+  nieuwsbrieven?: readonly StartNieuwsbrief[];
+  ziet: { aanvragen: boolean; boekingen: boolean; agenda: boolean; planning: boolean; nieuwsbrief?: boolean };
   href: {
     nieuw: string;
     behandeling: string;
+    nieuwsbrief?: string;
     aanvraag: (id: string) => string;
     boeking: (id: string) => string;
     activiteit: (id: string) => string;
     planning: (naam: string, start: string) => string;
   };
+}
+
+function weekmaandag(vandaag: string): string {
+  const dagnummer = weekdag(vandaag);
+  const terug = dagnummer === 0 ? 6 : dagnummer - 1;
+  return voegDagenToe(vandaag, -terug);
+}
+
+/** De vriendenmail van deze week. Een goedgekeurde, nog niet verzonden brief is gereed. */
+export function vriendenmailStand(brieven: readonly StartNieuwsbrief[], vandaag: string): VriendenmailStand {
+  const deze = brieven.find((brief) => dag(brief.week) === weekmaandag(vandaag));
+  if (!deze || deze.verstuurd || deze.overgeslagen || deze.goedgekeurd) return 'Gereed';
+  return 'Te controleren';
 }
 
 function dag(waarde: string | undefined): string {
@@ -364,6 +392,8 @@ export function startscherm(input: StartInvoer): Startscherm {
         || a.item.naam.localeCompare(b.item.naam, 'nl');
     });
   const agenda = agendaVan(input, tot);
+  const magNieuwsbrief = input.ziet.nieuwsbrief !== false;
+  const vriendenmail = vriendenmailStand(input.nieuwsbrieven ?? [], input.vandaag);
   const nieuw: StartGroep = input.ziet.aanvragen
     ? {
         totaal: nieuwAlles.length,
@@ -383,7 +413,13 @@ export function startscherm(input: StartInvoer): Startscherm {
     tellers: [
       { sleutel: 'nieuw', label: 'Nieuwe aanvragen', aantal: nieuw.totaal, href: nieuw.href },
       { sleutel: 'behandeling', label: 'In behandeling', aantal: behandeling.totaal, href: behandeling.href },
-      { sleutel: 'binnenkort', label: 'Binnen 14 dagen', aantal: agenda.length, href: '#agenda' },
+      {
+        sleutel: 'vriendenmail',
+        label: 'Vrienden mail',
+        aantal: 0,
+        waarde: magNieuwsbrief ? vriendenmail : '—',
+        href: magNieuwsbrief ? (input.href.nieuwsbrief ?? '/beheer/nieuwsbrief/') : null,
+      },
     ],
     nieuw,
     behandeling,
