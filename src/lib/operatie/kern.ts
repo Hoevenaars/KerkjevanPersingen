@@ -43,7 +43,8 @@ import { replyToVoor, richtingVoorMail } from '../mail-adressen.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { hashToegangstoken, nieuwToegangstoken, tokenIsVerlopen } from '../../platform/magictoken.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
-import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailHtml } from '../../platform/mailtemplates/render.ts';
+import { metReservering } from '../../platform/mailtemplates/definitief-mail.ts';
+import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailBericht } from '../../platform/mailtemplates/render.ts';
 import { kerkjeMail } from '../kerkje-mail.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
 import { beoordeelPublicatie } from '../../platform/publicatie.ts';
@@ -640,7 +641,7 @@ function templateVoor(wereld: Wereld, id: string): import('../../platform/mailte
 
 function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingRij, link?: string): { onderwerp: string; tekst: string; html: string } {
   const template = templateVoor(wereld, stapItem.templateId);
-  const vars = {
+  const basis = {
     voornaam: boeking.naam.split(' ')[0] || boeking.naam,
     naam: boeking.naam,
     activiteitstype: boeking.verhuurtype,
@@ -648,10 +649,14 @@ function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingR
     datum: boeking.start,
     bedrag: String(boeking.aanbetalingBedrag),
   };
+  const vars = stapItem.templateId === 'booking_confirmed'
+    ? metReservering(basis, { start: boeking.start, eind: boeking.eind, titel: boeking.titel, soort: boeking.verhuurtype })
+    : basis;
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : stapItem.templateId;
-  const tekst = `${template ? plainTekstUitTemplate(template, vars) : stapItem.conditie}${link ? `\n\n${link}` : ''}`;
-  const html = template
-    ? renderMailHtml(template, vars, { voorbeeldUrl: link || 'https://kerkjepersingen.nl/', templateId: template.id })
+  const gerenderd = template ? renderMailBericht(template, vars, { voorbeeldUrl: link || 'https://kerkjepersingen.nl/', templateId: template.id }) : null;
+  const tekst = `${gerenderd && stapItem.templateId === 'booking_confirmed' ? gerenderd.text : template ? plainTekstUitTemplate(template, vars) : stapItem.conditie}${link ? `\n\n${link}` : ''}`;
+  const html = gerenderd
+    ? gerenderd.html
     : kerkjeMail({ titel: onderwerp, hoofdtekst: stapItem.conditie }).html;
   return { onderwerp, tekst, html };
 }
@@ -1673,17 +1678,22 @@ function mailVoorPlan(
   const al = wereld.jobs.some((job) => job.dedup === dedup && (job.status === 'verzonden' || job.status === 'wachtrij'));
   if (al) return { tekst: 'De bevestigingsmail was al verzonden en is niet opnieuw verstuurd.', teVersturen: [] };
   const template = templateVoor(wereld, bevestiging.templateId);
-  const vars = {
+  const basis = {
     voornaam: invoer.naam.split(' ')[0] || invoer.naam,
     naam: invoer.naam,
     datum: invoer.start,
     activiteitstype: invoer.verhuurtype,
+    activiteitnaam: invoer.titel,
     tijd: invoer.heleDag ? '' : `${invoer.tijdVan}–${invoer.tijdTot}`,
   };
+  const vars = bevestiging.templateId === 'booking_confirmed'
+    ? metReservering(basis, { start: invoer.start, eind: invoer.eind, titel: invoer.titel, soort: invoer.verhuurtype, tijdVan: invoer.tijdVan, tijdTot: invoer.tijdTot, heleDag: invoer.heleDag })
+    : basis;
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : bevestiging.naam;
-  const tekst = template ? plainTekstUitTemplate(template, vars) : bevestiging.pastBij;
-  const html = template
-    ? renderMailHtml(template, vars, { voorbeeldUrl: ctx.basisUrl, templateId: template.id })
+  const gerenderd = template ? renderMailBericht(template, vars, { voorbeeldUrl: ctx.basisUrl, templateId: template.id }) : null;
+  const tekst = gerenderd && bevestiging.templateId === 'booking_confirmed' ? gerenderd.text : template ? plainTekstUitTemplate(template, vars) : bevestiging.pastBij;
+  const html = gerenderd
+    ? gerenderd.html
     : kerkjeMail({ titel: onderwerp, hoofdtekst: bevestiging.pastBij }).html;
   const kop = verzendKop(bevestiging.templateId, undefined, { email: invoer.email, naam: invoer.naam });
   return {
@@ -1735,11 +1745,15 @@ function conceptJob(
   naar = aanvraag.email,
 ): { mutatie: Mutatie; verzend: VerzendOpdracht | null } {
   const template = templateVoor(wereld, templateId);
-  const vars = { voornaam: aanvraag.naam.split(' ')[0] || aanvraag.naam, naam: aanvraag.naam, datum: aanvraag.start, activiteitstype: aanvraag.verhuurtype };
+  const basis = { voornaam: aanvraag.naam.split(' ')[0] || aanvraag.naam, naam: aanvraag.naam, datum: aanvraag.start, activiteitstype: aanvraag.verhuurtype };
+  const vars = templateId === 'booking_confirmed'
+    ? metReservering(basis, { start: aanvraag.start, eind: aanvraag.eind, soort: aanvraag.verhuurtype })
+    : basis;
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : templateId;
-  const tekst = template ? plainTekstUitTemplate(template, vars) : templateId;
-  const html = template
-    ? renderMailHtml(template, vars, { voorbeeldUrl: 'https://kerkjepersingen.nl/', templateId: template.id })
+  const gerenderd = template ? renderMailBericht(template, vars, { voorbeeldUrl: 'https://kerkjepersingen.nl/', templateId: template.id }) : null;
+  const tekst = gerenderd && templateId === 'booking_confirmed' ? gerenderd.text : template ? plainTekstUitTemplate(template, vars) : templateId;
+  const html = gerenderd
+    ? gerenderd.html
     : kerkjeMail({ titel: onderwerp, hoofdtekst: templateId }).html;
   const dedup = `job:aanvraag:${aanvraag.id}:${templateId}`;
   const mutatie: Mutatie = {
