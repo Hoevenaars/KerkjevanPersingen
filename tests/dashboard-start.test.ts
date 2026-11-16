@@ -1,16 +1,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { periodeKort, startscherm, type StartInvoer } from '../src/platform/dashboard-start.ts';
+import { datumBlok, periodeKort, startscherm, type StartInvoer } from '../src/platform/dashboard-start.ts';
 
 const href: StartInvoer['href'] = {
-  aanvragen: '/beheer/aanvragen/',
-  opties: '/beheer/boekingen/?status=optie',
+  nieuw: '/beheer/aanvragen/?fase=nieuw',
+  behandeling: '/beheer/aanvragen/?fase=in_behandeling',
   aanvraag: (id) => `/beheer/aanvragen/${id}/`,
   boeking: (id) => `/beheer/boekingen/${id}/`,
   activiteit: (id) => `/beheer/agenda/${id}/`,
   planning: (naam, start) => `/beheer/planning/?jaar=${start.slice(0, 4)}&maand=${Number(start.slice(5, 7))}&q=${encodeURIComponent(naam)}`,
-  planningZonder: (start) => `/beheer/planning/?begeleider=nee&jaar=${start.slice(0, 4)}&maand=${Number(start.slice(5, 7))}`,
 };
 
 function invoer(extra: Partial<StartInvoer> = {}): StartInvoer {
@@ -31,9 +30,13 @@ function invoer(extra: Partial<StartInvoer> = {}): StartInvoer {
   };
 }
 
-test('periode toont een meerdaagse activiteit één keer, met tijdstip als dat bekend is', () => {
+test('een meerdaagse activiteit is één agendaregel met een datumblok', () => {
   assert.equal(periodeKort('2026-11-21', '2026-11-22', '2026-11-16'), 'za 21 – zo 22 nov');
-  assert.equal(periodeKort('2026-11-21T14:00:00', '2026-11-21T14:00:00', '2026-11-16'), 'za 21 nov');
+  assert.deepEqual(datumBlok('2026-11-21T14:00:00', '2026-11-22T17:00:00'), {
+    week: 'za – zo',
+    dagen: '21 – 22',
+    maand: 'nov',
+  });
   const scherm = startscherm(invoer({
     boekingen: [{
       id: 'expo',
@@ -45,15 +48,15 @@ test('periode toont een meerdaagse activiteit één keer, met tijdstip als dat b
       soort: 'expositie',
     }],
   }));
-  assert.equal(scherm.agendaTotaal, 1);
   assert.equal(scherm.tellers[2]?.aantal, 1);
-  assert.equal(scherm.agenda[0]?.wanneer, 'za 21 – zo 22 nov');
+  assert.equal(scherm.agenda.length, 1);
   assert.equal(scherm.agenda[0]?.tijd, '14:00–17:00');
   assert.equal(scherm.agenda[0]?.soort, 'Expositie');
   assert.equal(scherm.agenda[0]?.zonderBegeleider, true);
+  assert.equal(scherm.agenda[0]?.href, '/beheer/boekingen/expo/');
 });
 
-test('opties tellen mee, maar staan niet als boeking in de agenda', () => {
+test('opties en geannuleerde boekingen staan niet in de agenda', () => {
   const scherm = startscherm(invoer({
     boekingen: [
       {
@@ -67,23 +70,13 @@ test('opties tellen mee, maar staan niet als boeking in de agenda', () => {
         optieEind: '2026-11-25',
       },
       {
-        id: 'later',
-        titel: 'Optie later',
-        huurder: 'Kees',
-        start: '2027-03-01',
-        eind: '2027-03-02',
-        status: 'optie',
+        id: 'stop',
+        titel: 'Afgezegd',
+        huurder: 'Lot',
+        start: '2026-11-19',
+        eind: '2026-11-19',
+        status: 'geannuleerd',
         soort: 'concert',
-      },
-      {
-        id: 'weg',
-        titel: 'Verlopen',
-        huurder: 'Oud',
-        start: '2026-08-01',
-        eind: '2026-08-02',
-        status: 'optie_verlopen',
-        soort: 'concert',
-        optieEind: '2026-07-01',
       },
       {
         id: 'vast',
@@ -96,14 +89,9 @@ test('opties tellen mee, maar staan niet als boeking in de agenda', () => {
       },
     ],
   }));
-  assert.equal(scherm.tellers[1]?.aantal, 2);
-  assert.equal(scherm.tellers[1]?.href, '/beheer/boekingen/?status=optie');
-  assert.equal(scherm.agenda.some((item) => item.naam === 'Optie nu'), false);
-  assert.equal(scherm.agenda.some((item) => item.naam === 'Vast'), true);
-  const actie = scherm.acties.find((item) => item.id === 'opties');
-  assert.equal(actie?.aantal, 1);
-  assert.match(actie?.toelichting ?? '', /Piet/);
-  assert.equal(actie?.href, '/beheer/boekingen/nu/');
+  assert.deepEqual(scherm.agenda.map((item) => item.naam), ['Vast']);
+  assert.equal(scherm.tellers[1]?.label, 'In behandeling');
+  assert.equal(JSON.stringify(scherm).includes('Piet'), false);
 });
 
 test('gastbegeleiders komen uit de planning en blijven allemaal zichtbaar', () => {
@@ -128,15 +116,12 @@ test('gastbegeleiders komen uit de planning en blijven allemaal zichtbaar', () =
       gastheerId: 'g-1',
     }],
   }));
-  assert.equal(scherm.agenda.length, 1);
   assert.deepEqual(scherm.agenda[0]?.begeleiders.map((item) => item.naam), ['Betty Vos', 'Henk Vos']);
   assert.match(scherm.agenda[0]?.begeleiders[0]?.href ?? '', /q=Betty%20Vos/);
-  assert.match(scherm.agenda[0]?.begeleiders[0]?.href ?? '', /maand=11/);
   assert.equal(scherm.agenda[0]?.zonderBegeleider, false);
-  assert.equal(scherm.acties.some((item) => item.id === 'gastbegeleiders'), false);
 });
 
-test('een boeking zonder koppeling meldt dat er geen gastbegeleider is', () => {
+test('een boeking zonder koppeling en een interne activiteit blijven uit elkaar', () => {
   const scherm = startscherm(invoer({
     boekingen: [{
       id: 'expo',
@@ -148,23 +133,34 @@ test('een boeking zonder koppeling meldt dat er geen gastbegeleider is', () => {
       soort: 'expositie',
     }],
     intern: [{
-      id: 'bestuur',
-      titel: 'Bestuursbijeenkomst',
+      id: 'schoon',
+      titel: 'Grote schoonmaak',
       start: '2026-11-19',
       eind: '2026-11-19',
       blokkeert: false,
     }],
   }));
-  assert.equal(scherm.agenda[0]?.naam, 'Bestuursbijeenkomst');
-  assert.equal(scherm.agenda[0]?.zonderBegeleider, false);
+  assert.equal(scherm.agenda[0]?.naam, 'Grote schoonmaak');
   assert.equal(scherm.agenda[0]?.soort, 'Intern');
+  const handmatig = startscherm(invoer({
+    intern: [{
+      id: 'schoon-2',
+      titel: 'Interne activiteit — Grote schoonmaak',
+      start: '2026-11-19',
+      eind: '2026-11-19',
+      blokkeert: true,
+    }],
+  }));
+  assert.equal(handmatig.agenda[0]?.naam, 'Grote schoonmaak');
+  assert.equal(handmatig.agenda[0]?.soort, 'Intern');
+  assert.equal(handmatig.agenda[0]?.zonderBegeleider, false);
+  assert.equal(scherm.agenda[0]?.zonderBegeleider, false);
+  assert.equal(scherm.agenda[0]?.href, '/beheer/agenda/schoon/');
   assert.equal(scherm.agenda[1]?.zonderBegeleider, true);
-  const actie = scherm.acties.find((item) => item.id === 'gastbegeleiders');
-  assert.match(actie?.href ?? '', /begeleider=nee/);
-  assert.equal(scherm.agendaTotaal, 2);
+  assert.equal(scherm.agenda.length, 2);
 });
 
-test('de agenda toont vijf activiteiten en bewaart de rest', () => {
+test('de agenda toont elke activiteit in de veertien dagen', () => {
   const boekingen = Array.from({ length: 6 }, (_, index) => ({
     id: `b${index}`,
     titel: `Activiteit ${index}`,
@@ -179,94 +175,57 @@ test('de agenda toont vijf activiteiten en bewaart de rest', () => {
     gastheren: [{ id: 'g', naam: 'Henk' }],
     boekingen,
   }));
-  assert.equal(scherm.agenda.length, 5);
-  assert.equal(scherm.agendaExtra.length, 1);
-  assert.equal(scherm.agendaTotaal, 6);
+  assert.equal(scherm.agenda.length, 6);
+  assert.equal(scherm.tellers[2]?.aantal, 6);
   assert.equal(scherm.agenda[0]?.naam, 'Activiteit 0');
-  assert.equal(scherm.agendaExtra[0]?.naam, 'Activiteit 5');
+  assert.equal(scherm.agenda[5]?.naam, 'Activiteit 5');
 });
 
-test('acties bundelen aanvragen, contracten en ontbrekende exposanteninformatie', () => {
+test('nieuw en in behandeling volgen de aanvraagfase, met de echte vervolgstap', () => {
   const scherm = startscherm(invoer({
     aanvragen: [
-      { id: 'a1', naam: 'Nova', start: '2026-12-01', eind: '2026-12-02', status: 'nieuw' },
-      { id: 'a2', naam: 'Ada', start: '2026-12-04', eind: '2026-12-05', status: 'goedgekeurd', boekingId: 'b-ada' },
+      { id: 'oud', naam: 'Marieke', start: '2026-12-01', eind: '2026-12-02', status: 'nieuw', soort: 'concert', binnengekomen: '2026-09-01' },
+      { id: 'vers', naam: 'Jona', start: '2026-12-03', eind: '2026-12-03', status: 'nieuw', soort: 'expositie', binnengekomen: '2026-11-10' },
+      { id: 'los', naam: 'Hendriks', start: '2026-11-20', eind: '2026-11-20', status: 'in_behandeling', soort: 'bruiloft', binnengekomen: '2026-08-01' },
+      { id: 'ada', naam: 'Ada', start: '2027-05-15', eind: '2027-05-16', status: 'goedgekeurd', soort: 'expositie', boekingId: 'b-ada', binnengekomen: '2026-11-01' },
+      { id: 'klaar', naam: 'Kim', start: '2026-09-09', eind: '2026-09-09', status: 'goedgekeurd', boekingId: 'b-kim', binnengekomen: '2026-08-01' },
     ],
     boekingen: [
-      {
-        id: 'b-ada',
-        titel: 'Ada',
-        huurder: 'Ada',
-        start: '2026-12-04',
-        eind: '2026-12-05',
-        status: 'optie',
-        soort: 'expositie',
-        aanvraagId: 'a2',
-      },
-      {
-        id: 'b-expo',
-        titel: 'Keramiek',
-        huurder: 'Sanne',
-        start: '2026-11-28',
-        eind: '2026-11-29',
-        status: 'definitief',
-        soort: 'expositie',
-        gastheerId: 'g',
-      },
+      { id: 'b-ada', titel: 'Ada', huurder: 'Ada', start: '2027-05-15', eind: '2027-05-16', status: 'optie', soort: 'expositie', aanvraagId: 'ada' },
+      { id: 'b-kim', titel: 'Kim', huurder: 'Kim', start: '2026-09-09', eind: '2026-09-09', status: 'definitief', soort: 'bruiloft', aanvraagId: 'klaar', aanbetalingBinnen: true },
     ],
-    activiteiten: [{
-      id: 'act-expo',
-      boekingId: 'b-expo',
-      titel: 'Keramiek',
-      start: '2026-11-28',
-      eind: '2026-11-29',
-      contentstatus: 'niet_aangeleverd',
-      soort: 'expositie',
-    }],
-    gastheren: [{ id: 'g', naam: 'Henk' }],
-    faseBetalingen: [
-      { boekingId: 'b-expo', soort: 'restant', status: 'open' },
-    ],
-    documenten: [],
+    documenten: [{ boekingId: 'b-kim', soort: 'Contract', naam: 'getekend-kim.pdf' }],
+    faseBetalingen: [{ boekingId: 'b-ada', soort: 'restant', status: 'open' }],
   }));
-  assert.equal(scherm.tellers[0]?.aantal, 2);
-  assert.equal(scherm.acties[0]?.id, 'aanvragen');
-  assert.equal(scherm.acties[0]?.href, '/beheer/aanvragen/');
-  assert.equal(scherm.acties.some((item) => item.id === 'contracten'), true);
-  assert.match(scherm.acties.find((item) => item.id === 'contracten')?.toelichting ?? '', /niet verstuurd/);
-  assert.match(scherm.acties.find((item) => item.id === 'exposanten')?.toelichting ?? '', /Sanne/);
-  assert.equal(JSON.stringify(scherm).includes('betaling'), false);
-  assert.equal(JSON.stringify(scherm).includes('restant'), false);
-  assert.equal(scherm.acties.length <= 5, true);
-});
-
-test('een optie zonder einddatum en een lege contentstatus vragen geen actie', () => {
-  const scherm = startscherm(invoer({
-    boekingen: [{
-      id: 'open',
-      titel: 'Open optie',
-      huurder: 'Lot',
-      start: '2026-11-20',
-      eind: '2026-11-21',
-      status: 'optie',
-      soort: 'expositie',
-    }],
-    activiteiten: [{
-      id: 'leeg',
-      boekingId: 'open',
-      titel: 'Open optie',
-      start: '2026-11-20',
-      eind: '2026-11-21',
-      contentstatus: null,
-    }],
-  }));
+  assert.equal(scherm.tellers[0]?.aantal, 3);
+  assert.equal(scherm.tellers[0]?.href, '/beheer/aanvragen/?fase=nieuw');
+  assert.deepEqual(scherm.nieuw.rijen.map((rij) => rij.naam), ['Jona', 'Marieke', 'Hendriks']);
+  assert.equal(scherm.nieuw.rijen[0]?.soort, 'Expositie');
+  assert.equal(scherm.nieuw.rijen[0]?.wanneer, '3 dec 2026');
   assert.equal(scherm.tellers[1]?.aantal, 1);
-  assert.equal(scherm.acties.some((item) => item.id === 'opties'), false);
-  assert.equal(scherm.acties.some((item) => item.id === 'exposanten'), false);
-  assert.equal(scherm.agendaTotaal, 0);
+  assert.equal(scherm.behandeling.rijen[0]?.naam, 'Ada');
+  assert.equal(scherm.behandeling.rijen[0]?.stap, 'Contract verzenden');
+  assert.equal(scherm.behandeling.href, '/beheer/aanvragen/?fase=in_behandeling');
+  assert.equal(JSON.stringify(scherm).includes('restant'), false);
+  assert.equal(JSON.stringify(scherm).includes('Kim'), false);
 });
 
-test('wie boekingen niet mag zien, ziet geen opties en geen huur in de agenda', () => {
+test('van elke aanvraaggroep zijn hooguit vijf rijen zichtbaar', () => {
+  const aanvragen = Array.from({ length: 6 }, (_, index) => ({
+    id: `a${index}`,
+    naam: `Aanvraag ${index}`,
+    start: '2026-12-01',
+    eind: '2026-12-01',
+    status: 'nieuw',
+    binnengekomen: `2026-11-${String(10 - index).padStart(2, '0')}`,
+  }));
+  const scherm = startscherm(invoer({ aanvragen }));
+  assert.equal(scherm.nieuw.totaal, 6);
+  assert.equal(scherm.nieuw.rijen.length, 5);
+  assert.equal(scherm.nieuw.rijen[0]?.naam, 'Aanvraag 0');
+});
+
+test('wie aanvragen niet mag zien, ziet geen lijst en geen huur zonder boekingsrecht', () => {
   const scherm = startscherm(invoer({
     ziet: { aanvragen: false, boekingen: false, agenda: true, planning: false },
     aanvragen: [{ id: 'a', naam: 'Nova', start: '2026-12-01', eind: '2026-12-01', status: 'nieuw' }],
@@ -283,7 +242,7 @@ test('wie boekingen niet mag zien, ziet geen opties en geen huur in de agenda', 
   }));
   assert.equal(scherm.tellers[0]?.aantal, 0);
   assert.equal(scherm.tellers[0]?.href, null);
-  assert.equal(scherm.tellers[1]?.aantal, 0);
+  assert.equal(scherm.nieuw.rijen.length, 0);
   assert.deepEqual(scherm.agenda.map((item) => item.naam), ['Sluiting']);
   assert.equal(scherm.agenda[0]?.soort, 'Blokkade');
 });
@@ -294,5 +253,5 @@ test('het dashboard toont geen betalingsblokken', () => {
   assert.equal(pagina.includes('Openstaande betalingen'), false);
   assert.equal(pagina.includes('financi'), false);
   assert.equal(scherm.includes('betaling'), false);
-  assert.equal(scherm.includes('Afwijkingen'), false);
+  assert.equal(scherm.includes('Opties'), false);
 });

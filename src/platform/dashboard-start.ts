@@ -1,22 +1,21 @@
 /**
  * Compact startscherm van /beheer.
  * Leest alleen bestaande dossiers. Er gaat geen mail uit en er wijzigt geen status.
- * Betalingen blijven buiten dit scherm.
+ * De aanvraagfase is dezelfde als de aanvragenlijst. Betalingen worden niet getoond.
  */
 
-import { contentstatusNaarBeheer } from '../lib/agenda-zichtbaarheid.ts';
-import { beoordeelAanvraag, checklistVan, pastInFilter, type FaseWereld } from './aanvraag-fase.ts';
+import { beoordeelAanvraag, pastInFilter, type FaseWereld } from './aanvraag-fase.ts';
 import { isYmd, voegDagenToe, weekdag } from './datum.ts';
 import { SOORT_LABEL } from './demo-data.ts';
+import { isInterneActiviteitTitel, INTERNE_TITEL_PREFIX } from './handmatige-boeking.ts';
 import { leesbareTitel } from './verhuur-classificatie.ts';
 
 export const VENSTER_DAGEN = 14;
-export const NADEREND_DAGEN = 56;
-export const MAX_ACTIES = 5;
-export const MAX_AGENDA = 5;
+export const MAX_AANVRAGEN = 5;
 
 const BEVESTIGD = new Set(['definitief', 'afgerond', 'migratie_vastgelegd']);
-const OPEN_FILTER = { modus: 'fase' as const, fase: 'alle' as const, technisch: null, melding: '' };
+const FILTER_NIEUW = { modus: 'fase' as const, fase: 'nieuw' as const, technisch: null, melding: '' };
+const FILTER_BEHANDELING = { modus: 'fase' as const, fase: 'in_behandeling' as const, technisch: null, melding: '' };
 const DAGEN = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
 const MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
@@ -26,6 +25,8 @@ export interface StartAanvraag {
   start: string;
   eind: string;
   status: string;
+  soort?: string;
+  binnengekomen?: string;
   boekingId?: string;
 }
 
@@ -73,18 +74,26 @@ export interface StartToewijzing {
 }
 
 export interface StartTeller {
-  sleutel: 'aanvragen' | 'opties' | 'binnenkort';
+  sleutel: 'nieuw' | 'behandeling' | 'binnenkort';
   label: string;
   aantal: number;
   href: string | null;
 }
 
-export interface StartActie {
+export interface StartAanvraagRij {
   id: string;
-  titel: string;
-  toelichting: string;
   href: string;
-  aantal: number;
+  naam: string;
+  wanneer: string;
+  soort: string;
+  stap: string;
+  toon: 'groen' | 'oranje' | 'rood';
+}
+
+export interface StartGroep {
+  totaal: number;
+  href: string | null;
+  rijen: StartAanvraagRij[];
 }
 
 export interface StartBegeleider {
@@ -92,10 +101,17 @@ export interface StartBegeleider {
   href: string | null;
 }
 
+export interface AgendaDatum {
+  week: string;
+  dagen: string;
+  maand: string;
+}
+
 export interface StartAgendaItem {
   id: string;
   href: string;
   wanneer: string;
+  datum: AgendaDatum;
   tijd: string;
   naam: string;
   soort: string;
@@ -105,10 +121,9 @@ export interface StartAgendaItem {
 
 export interface Startscherm {
   tellers: StartTeller[];
-  acties: StartActie[];
+  nieuw: StartGroep;
+  behandeling: StartGroep;
   agenda: StartAgendaItem[];
-  agendaExtra: StartAgendaItem[];
-  agendaTotaal: number;
 }
 
 export interface StartInvoer {
@@ -125,22 +140,13 @@ export interface StartInvoer {
   gastheren: readonly { id: string; naam: string }[];
   ziet: { aanvragen: boolean; boekingen: boolean; agenda: boolean; planning: boolean };
   href: {
-    aanvragen: string;
-    opties: string;
+    nieuw: string;
+    behandeling: string;
     aanvraag: (id: string) => string;
     boeking: (id: string) => string;
     activiteit: (id: string) => string;
     planning: (naam: string, start: string) => string;
-    planningZonder: (start: string) => string;
   };
-}
-
-interface ContractPunt {
-  sleutel: string;
-  naam: string;
-  start: string;
-  href: string;
-  soort: 'verzenden' | 'handtekening';
 }
 
 function dag(waarde: string | undefined): string {
@@ -168,13 +174,13 @@ function tijdVan(start: string, eind: string): string {
   return van || tot;
 }
 
-function stuk(ymd: string, metJaar: boolean): { dag: string; nummer: number; maand: string; jaar: string } {
+function stuk(ymd: string): { dag: string; nummer: number; maand: string; jaar: string } {
   const [jaar, maand, nummer] = ymd.split('-').map(Number);
   return {
     dag: DAGEN[weekdag(ymd)] ?? '',
     nummer,
     maand: MAANDEN[maand - 1] ?? '',
-    jaar: metJaar ? String(jaar) : '',
+    jaar: String(jaar),
   };
 }
 
@@ -184,17 +190,51 @@ export function periodeKort(start: string, eind: string, vandaag: string): strin
   const tot = dag(eind) && dag(eind) >= begin ? dag(eind) : begin;
   const jaarNu = vandaag.slice(0, 4);
   const metJaar = begin.slice(0, 4) !== jaarNu || tot.slice(0, 4) !== jaarNu;
-  const links = stuk(begin, metJaar);
-  if (tot === begin) {
-    return [links.dag, links.nummer, links.maand, links.jaar].filter(Boolean).join(' ');
-  }
-  const rechts = stuk(tot, metJaar);
+  const links = stuk(begin);
+  const jaar = metJaar ? links.jaar : '';
+  if (tot === begin) return [links.dag, links.nummer, links.maand, jaar].filter(Boolean).join(' ');
+  const rechts = stuk(tot);
   if (begin.slice(0, 7) === tot.slice(0, 7)) {
     const kern = `${links.dag} ${links.nummer} – ${rechts.dag} ${rechts.nummer} ${links.maand}`;
-    return links.jaar ? `${kern} ${links.jaar}` : kern;
+    return jaar ? `${kern} ${jaar}` : kern;
   }
-  const tekst = (deel: ReturnType<typeof stuk>) => [deel.dag, deel.nummer, deel.maand, deel.jaar].filter(Boolean).join(' ');
-  return `${tekst(links)} – ${tekst(rechts)}`;
+  const tekst = (deel: ReturnType<typeof stuk>, jaarTonen: boolean) =>
+    [deel.dag, deel.nummer, deel.maand, jaarTonen ? deel.jaar : ''].filter(Boolean).join(' ');
+  return `${tekst(links, metJaar)} – ${tekst(rechts, metJaar)}`;
+}
+
+export function datumBlok(start: string, eind: string): AgendaDatum {
+  const begin = dag(start);
+  if (!begin) return { week: '', dagen: '', maand: '' };
+  const tot = dag(eind) && dag(eind) >= begin ? dag(eind) : begin;
+  const links = stuk(begin);
+  if (tot === begin) return { week: links.dag, dagen: String(links.nummer), maand: links.maand };
+  const rechts = stuk(tot);
+  const week = `${links.dag} – ${rechts.dag}`;
+  if (links.maand === rechts.maand && links.jaar === rechts.jaar) {
+    return { week, dagen: `${links.nummer} – ${rechts.nummer}`, maand: links.maand };
+  }
+  return {
+    week,
+    dagen: `${links.nummer} ${links.maand} – ${rechts.nummer} ${rechts.maand}`,
+    maand: links.jaar === rechts.jaar ? links.jaar : `${links.jaar} – ${rechts.jaar}`,
+  };
+}
+
+export function datumKort(start: string, eind: string): string {
+  const begin = dag(start);
+  if (!begin) return '';
+  const tot = dag(eind) && dag(eind) >= begin ? dag(eind) : begin;
+  const links = stuk(begin);
+  if (tot === begin) return `${links.nummer} ${links.maand} ${links.jaar}`;
+  const rechts = stuk(tot);
+  if (links.maand === rechts.maand && links.jaar === rechts.jaar) {
+    return `${links.nummer} – ${rechts.nummer} ${links.maand} ${links.jaar}`;
+  }
+  if (links.jaar === rechts.jaar) {
+    return `${links.nummer} ${links.maand} – ${rechts.nummer} ${rechts.maand} ${links.jaar}`;
+  }
+  return `${links.nummer} ${links.maand} ${links.jaar} – ${rechts.nummer} ${rechts.maand} ${rechts.jaar}`;
 }
 
 function soortLabel(soort: string, intern = false, blokkeert = false): string {
@@ -202,6 +242,18 @@ function soortLabel(soort: string, intern = false, blokkeert = false): string {
   const sleutel = soort.trim();
   if (!sleutel) return '';
   return SOORT_LABEL[sleutel] ?? sleutel;
+}
+
+function internWeergave(titel: string, blokkeert: boolean): { naam: string; soort: string } {
+  const schoon = titel.trim();
+  if (isInterneActiviteitTitel(schoon)) {
+    const naam = schoon.slice(INTERNE_TITEL_PREFIX.length).trim();
+    return { naam: naam || schoon, soort: 'Intern' };
+  }
+  return {
+    naam: schoon || 'Interne activiteit',
+    soort: soortLabel('', true, blokkeert),
+  };
 }
 
 function wereldVan(input: StartInvoer): FaseWereld {
@@ -248,10 +300,7 @@ function wereldVan(input: StartInvoer): FaseWereld {
   };
 }
 
-function begeleidersVan(
-  boeking: StartBoeking,
-  input: StartInvoer,
-): StartBegeleider[] {
+function begeleidersVan(boeking: StartBoeking, input: StartInvoer): StartBegeleider[] {
   const namen = new Map<string, string>();
   const gastId = boeking.gastheerId?.trim() ?? '';
   if (gastId) {
@@ -273,67 +322,72 @@ function begeleidersVan(
     .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
 }
 
-function activiteitBij(boekingId: string, activiteiten: readonly StartActiviteit[]): StartActiviteit | null {
-  return activiteiten.find((item) => item.boekingId === boekingId)
-    ?? activiteiten.find((item) => item.id === boekingId)
-    ?? null;
+function rijVan(item: StartAanvraag, beeld: ReturnType<typeof beoordeelAanvraag>, input: StartInvoer): StartAanvraagRij {
+  const stap = beeld.volgendeActie && beeld.volgendeActie !== 'Geen actie' ? beeld.volgendeActie : '';
+  return {
+    id: item.id,
+    href: input.href.aanvraag(item.id),
+    naam: item.naam,
+    wanneer: datumKort(item.start, item.eind),
+    soort: soortLabel(item.soort ?? ''),
+    stap,
+    toon: beeld.toon,
+  };
 }
 
-function contentOntbreekt(activiteit: StartActiviteit | null): boolean {
-  if (!activiteit || activiteit.levenscyclus === 'geannuleerd' || activiteit.trigger === 'niet_publiceren') return false;
-  const ruw = activiteit.contentstatus?.trim() || activiteit.inhoudStatus?.trim() || '';
-  if (!ruw) return false;
-  const stand = contentstatusNaarBeheer(ruw);
-  return stand === 'niet_aangeleverd' || stand === 'aanpassing_nodig';
-}
-
-function aantalTekst(aantal: number, enkel: string, meer: string): string {
-  return aantal === 1 ? `1 ${enkel}` : `${aantal} ${meer}`;
+function legeGroep(): StartGroep {
+  return { totaal: 0, href: null, rijen: [] };
 }
 
 export function startscherm(input: StartInvoer): Startscherm {
   const tot = voegDagenToe(input.vandaag, VENSTER_DAGEN);
-  const totNaderend = voegDagenToe(input.vandaag, NADEREND_DAGEN);
   const wereld = wereldVan(input);
-  const openAanvragen = input.ziet.aanvragen
-    ? input.aanvragen
-      .map((item) => ({ item, beeld: beoordeelAanvraag(item, wereld) }))
-      .filter(({ item, beeld }) => pastInFilter(beeld.fase, OPEN_FILTER, item.status))
-      .sort((a, b) => dag(a.item.start).localeCompare(dag(b.item.start)) || a.item.naam.localeCompare(b.item.naam, 'nl'))
+  const beoordeeld = input.ziet.aanvragen
+    ? input.aanvragen.map((item) => ({ item, beeld: beoordeelAanvraag(item, wereld) }))
     : [];
-
-  const opties = input.ziet.boekingen
-    ? input.boekingen.filter((item) => item.status === 'optie')
-    : [];
-
-  const agendaAlles = agendaVan(input, tot);
-  const acties = actiesVan(input, wereld, openAanvragen, opties, agendaAlles, tot, totNaderend);
+  const nieuwAlles = beoordeeld
+    .filter(({ item, beeld }) => pastInFilter(beeld.fase, FILTER_NIEUW, item.status))
+    .sort((a, b) => {
+      const binnenA = (a.item.binnengekomen ?? '').slice(0, 10) || dag(a.item.start);
+      const binnenB = (b.item.binnengekomen ?? '').slice(0, 10) || dag(b.item.start);
+      return binnenB.localeCompare(binnenA) || a.item.naam.localeCompare(b.item.naam, 'nl');
+    });
+  const behandelingAlles = beoordeeld
+    .filter(({ item, beeld }) => pastInFilter(beeld.fase, FILTER_BEHANDELING, item.status))
+    .sort((a, b) => {
+      const voorbij = (item: StartAanvraag) => {
+        const einde = dag(item.eind) || dag(item.start);
+        return einde && einde < input.vandaag ? 1 : 0;
+      };
+      return voorbij(a.item) - voorbij(b.item)
+        || dag(a.item.start).localeCompare(dag(b.item.start))
+        || a.item.naam.localeCompare(b.item.naam, 'nl');
+    });
+  const agenda = agendaVan(input, tot);
+  const nieuw: StartGroep = input.ziet.aanvragen
+    ? {
+        totaal: nieuwAlles.length,
+        href: input.href.nieuw,
+        rijen: nieuwAlles.slice(0, MAX_AANVRAGEN).map(({ item, beeld }) => rijVan(item, beeld, input)),
+      }
+    : legeGroep();
+  const behandeling: StartGroep = input.ziet.aanvragen
+    ? {
+        totaal: behandelingAlles.length,
+        href: input.href.behandeling,
+        rijen: behandelingAlles.slice(0, MAX_AANVRAGEN).map(({ item, beeld }) => rijVan(item, beeld, input)),
+      }
+    : legeGroep();
 
   return {
     tellers: [
-      {
-        sleutel: 'aanvragen',
-        label: 'Nieuwe aanvragen',
-        aantal: openAanvragen.length,
-        href: input.ziet.aanvragen ? input.href.aanvragen : null,
-      },
-      {
-        sleutel: 'opties',
-        label: 'Opties',
-        aantal: opties.length,
-        href: input.ziet.boekingen ? input.href.opties : null,
-      },
-      {
-        sleutel: 'binnenkort',
-        label: 'Binnen 14 dagen',
-        aantal: agendaAlles.length,
-        href: '#komende',
-      },
+      { sleutel: 'nieuw', label: 'Nieuwe aanvragen', aantal: nieuw.totaal, href: nieuw.href },
+      { sleutel: 'behandeling', label: 'In behandeling', aantal: behandeling.totaal, href: behandeling.href },
+      { sleutel: 'binnenkort', label: 'Binnen 14 dagen', aantal: agenda.length, href: '#agenda' },
     ],
-    acties: acties.slice(0, MAX_ACTIES),
-    agenda: agendaAlles.slice(0, MAX_AGENDA),
-    agendaExtra: agendaAlles.slice(MAX_AGENDA),
-    agendaTotaal: agendaAlles.length,
+    nieuw,
+    behandeling,
+    agenda,
   };
 }
 
@@ -350,6 +404,7 @@ function agendaVan(input: StartInvoer, tot: string): StartAgendaItem[] {
           id: `boeking:${boeking.id}`,
           href: input.href.boeking(boeking.id),
           wanneer: periodeKort(boeking.start, boeking.eind, input.vandaag),
+          datum: datumBlok(boeking.start, boeking.eind),
           tijd: tijdVan(boeking.start, boeking.eind),
           naam: leesbareTitel(boeking.titel, boeking.huurder),
           soort: soortLabel(boeking.soort),
@@ -368,9 +423,9 @@ function agendaVan(input: StartInvoer, tot: string): StartAgendaItem[] {
           id: `intern:${intern.id}`,
           href: input.href.activiteit(intern.id),
           wanneer: periodeKort(intern.start, intern.eind, input.vandaag),
+          datum: datumBlok(intern.start, intern.eind),
           tijd: tijdVan(intern.start, intern.eind),
-          naam: intern.titel.trim() || 'Interne activiteit',
-          soort: soortLabel('', true, intern.blokkeert),
+          ...internWeergave(intern.titel, intern.blokkeert),
           begeleiders: [],
           zonderBegeleider: false,
         },
@@ -380,158 +435,4 @@ function agendaVan(input: StartInvoer, tot: string): StartAgendaItem[] {
   return items
     .sort((a, b) => a.start.localeCompare(b.start) || a.item.naam.localeCompare(b.item.naam, 'nl'))
     .map((rij) => rij.item);
-}
-
-function actiesVan(
-  input: StartInvoer,
-  wereld: FaseWereld,
-  openAanvragen: { item: StartAanvraag; beeld: ReturnType<typeof beoordeelAanvraag> }[],
-  opties: readonly StartBoeking[],
-  agenda: readonly StartAgendaItem[],
-  tot: string,
-  totNaderend: string,
-): StartActie[] {
-  const acties: StartActie[] = [];
-
-  if (openAanvragen.length > 0) {
-    const eerst = openAanvragen[0].item;
-    acties.push({
-      id: 'aanvragen',
-      titel: 'Nieuwe aanvragen beoordelen',
-      toelichting: `${aantalTekst(openAanvragen.length, 'aanvraag wacht', 'aanvragen wachten')} op beoordeling.`,
-      href: openAanvragen.length === 1 ? input.href.aanvraag(eerst.id) : input.href.aanvragen,
-      aantal: openAanvragen.length,
-    });
-  }
-
-  const contracten = contractPunten(input, wereld, openAanvragen, totNaderend);
-  if (contracten.length > 0) {
-    const verzenden = contracten.filter((item) => item.soort === 'verzenden').length;
-    const handtekening = contracten.length - verzenden;
-    const toelichting = verzenden > 0 && handtekening > 0
-      ? `${aantalTekst(contracten.length, 'contract vraagt', 'contracten vragen')} een vervolgstap.`
-      : verzenden > 0
-        ? `${aantalTekst(verzenden, 'contract is', 'contracten zijn')} nog niet verstuurd.`
-        : `${aantalTekst(handtekening, 'contract wacht', 'contracten wachten')} op een handtekening.`;
-    const eerst = [...contracten].sort((a, b) => a.start.localeCompare(b.start) || a.naam.localeCompare(b.naam, 'nl'))[0];
-    acties.push({
-      id: 'contracten',
-      titel: 'Contracten',
-      toelichting,
-      href: eerst.href,
-      aantal: contracten.length,
-    });
-  }
-
-  const verlopen = opties
-    .map((item) => ({ item, eind: dag(item.optieEind) }))
-    .filter(({ item, eind }) => {
-      if (!eind || eind > tot) return false;
-      return eind >= input.vandaag || dag(item.eind) >= input.vandaag || dag(item.start) >= input.vandaag;
-    })
-    .sort((a, b) => a.eind.localeCompare(b.eind) || a.item.huurder.localeCompare(b.item.huurder, 'nl'));
-  if (verlopen.length > 0) {
-    const eerst = verlopen[0];
-    const naam = eerst.item.huurder || eerst.item.titel;
-    acties.push({
-      id: 'opties',
-      titel: 'Opties verlopen binnenkort',
-      toelichting: verlopen.length === 1
-        ? `De optie van ${naam} loopt tot ${periodeKort(eerst.eind, eerst.eind, input.vandaag)}.`
-        : `${verlopen.length} opties met een bekende einddatum lopen af binnen 14 dagen.`,
-      href: verlopen.length === 1 ? input.href.boeking(eerst.item.id) : input.href.opties,
-      aantal: verlopen.length,
-    });
-  }
-
-  if (input.ziet.boekingen || input.ziet.agenda) {
-    const exposities = input.boekingen
-      .filter((item) => {
-        if (!BEVESTIGD.has(item.status) || item.soort !== 'expositie') return false;
-        if (!raakt(item.start, item.eind, input.vandaag, totNaderend)) return false;
-        return contentOntbreekt(activiteitBij(item.id, input.activiteiten));
-      })
-      .sort((a, b) => dag(a.start).localeCompare(dag(b.start)) || a.huurder.localeCompare(b.huurder, 'nl'));
-    if (exposities.length > 0) {
-      const eerst = exposities[0];
-      const activiteit = activiteitBij(eerst.id, input.activiteiten);
-      const naam = eerst.huurder || eerst.titel;
-      acties.push({
-        id: 'exposanten',
-        titel: 'Exposanteninformatie',
-        toelichting: exposities.length === 1
-          ? `Exposanteninformatie ontbreekt voor ${naam}.`
-          : `${exposities.length} naderende exposities missen exposanteninformatie.`,
-        href: exposities.length === 1 && activiteit
-          ? input.href.activiteit(activiteit.id)
-          : input.href.boeking(eerst.id),
-        aantal: exposities.length,
-      });
-    }
-  }
-
-  const zonder = agenda.filter((item) => item.zonderBegeleider);
-  if (zonder.length > 0 && input.ziet.planning) {
-    const eerst = zonder[0];
-    const start = input.boekingen.find((item) => `boeking:${item.id}` === eerst.id)?.start ?? input.vandaag;
-    acties.push({
-      id: 'gastbegeleiders',
-      titel: 'Gastbegeleiders',
-      toelichting: zonder.length === 1
-        ? `${eerst.naam} heeft nog geen gastbegeleider.`
-        : `${zonder.length} activiteiten in de komende twee weken hebben nog geen gastbegeleider.`,
-      href: input.href.planningZonder(dag(start) || input.vandaag),
-      aantal: zonder.length,
-    });
-  }
-
-  return acties;
-}
-
-function contractPunten(
-  input: StartInvoer,
-  wereld: FaseWereld,
-  openAanvragen: { item: StartAanvraag; beeld: ReturnType<typeof beoordeelAanvraag> }[],
-  totNaderend: string,
-): ContractPunt[] {
-  const punten: ContractPunt[] = [];
-  const gezien = new Set<string>();
-  if (input.ziet.aanvragen) {
-    for (const { item, beeld } of openAanvragen) {
-      const soort = beeld.volgendeActie === 'Contract verzenden'
-        ? 'verzenden'
-        : beeld.volgendeActie === 'Wachten op ondertekening'
-          ? 'handtekening'
-          : null;
-      if (!soort) continue;
-      const sleutel = beeld.boeking?.id || item.boekingId || item.id;
-      if (gezien.has(sleutel)) continue;
-      gezien.add(sleutel);
-      punten.push({
-        sleutel,
-        naam: item.naam,
-        start: dag(item.start),
-        href: input.href.aanvraag(item.id),
-        soort,
-      });
-    }
-  }
-  if (input.ziet.boekingen) {
-    for (const boeking of input.boekingen) {
-      if (!BEVESTIGD.has(boeking.status) || gezien.has(boeking.id)) continue;
-      if (!raakt(boeking.start, boeking.eind, input.vandaag, totNaderend)) continue;
-      const faseBoeking = wereld.boekingen.find((item) => item.id === boeking.id) ?? null;
-      const lijst = checklistVan(faseBoeking, wereld);
-      if (!lijst.verzonden || lijst.ondertekend) continue;
-      gezien.add(boeking.id);
-      punten.push({
-        sleutel: boeking.id,
-        naam: boeking.huurder || boeking.titel,
-        start: dag(boeking.start),
-        href: input.href.boeking(boeking.id),
-        soort: 'handtekening',
-      });
-    }
-  }
-  return punten;
 }

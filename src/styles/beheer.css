@@ -2017,11 +2017,28 @@ body[data-beheer-modus='preview'] .bh-acties .bh-btn {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-.bh-start .bh-top {
-  margin-bottom: 0;
-  padding-bottom: var(--s-3);
+.bh-start-groet {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--pine);
+}
+
+.bh-icoon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .bh-tellers {
@@ -2033,27 +2050,42 @@ body[data-beheer-modus='preview'] .bh-acties .bh-btn {
   list-style: none;
 }
 
-.bh-tellers a,
-.bh-teller-stil {
+.bh-teller {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.2rem;
-  min-height: 5.25rem;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 4.75rem;
   padding: var(--s-3) var(--s-4);
   background: var(--white);
   border: var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   color: inherit;
   text-decoration: none;
   box-shadow: var(--shadow);
 }
 
-.bh-tellers a:hover {
+a.bh-teller:hover {
   border-color: var(--olive);
 }
 
-.bh-tellers strong {
+.bh-teller-icoon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  background: var(--cream-deep);
+  color: var(--olive-dark);
+}
+
+.bh-teller-tekst {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.bh-teller strong {
   font-family: var(--font-display);
   font-size: var(--t-2xl);
   font-weight: 600;
@@ -2061,131 +2093,226 @@ body[data-beheer-modus='preview'] .bh-acties .bh-btn {
   color: var(--pine);
 }
 
-.bh-tellers span {
-  font-size: var(--t-base);
+.bh-teller-tekst span {
+  font-size: var(--t-sm);
   font-weight: 600;
   line-height: 1.3;
-  color: var(--ink);
+  color: var(--ink-soft);
 }
 
-.bh-blok h2 {
-  margin: 0 0 var(--s-2);
+.bh-chevron {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: auto;
+  border-right: 2px solid var(--olive);
+  border-bottom: 2px solid var(--olive);
+  transform: rotate(-45deg);
+  flex: 0 0 auto;
+}
+
+.bh-start-kolommen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.bh-paneel {
+  background: var(--white);
+  border: var(--border);
+  border-radius: 14px;
+  padding: var(--s-4);
+  box-shadow: var(--shadow);
+}
+
+.bh-paneel h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
   font-family: var(--font-display);
   font-size: var(--t-lg);
   font-weight: 600;
+  color: var(--pine);
 }
 
-.bh-start-lijst,
-.bh-agenda {
+.bh-paneel h2 .bh-icoon {
+  color: var(--olive-dark);
+}
+
+.bh-groep + .bh-groep {
+  margin-top: var(--s-3);
+}
+
+.bh-subkop {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 2.5rem;
+  margin: 0;
+  padding: 0.35rem var(--s-3);
+  background: color-mix(in srgb, var(--olive) 16%, var(--cream));
+  border-radius: 8px;
+}
+
+.bh-subkop h3 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--pine);
+}
+
+.bh-subkop h3 span {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.bh-subkop a {
+  color: var(--olive-dark);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.bh-subkop a:hover {
+  text-decoration: underline;
+}
+
+.bh-rijen,
+.bh-agenda {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.bh-start-lijst > li,
-.bh-agenda > li {
-  display: block;
-}
-
-.bh-start-lijst a {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.15rem;
-  width: 100%;
+.bh-rijen a,
+.bh-agenda .bh-agendarij {
+  display: grid;
+  align-items: center;
+  gap: 0.15rem var(--s-3);
   min-height: 3.25rem;
-  padding: var(--s-3) 0;
-  border-top: var(--border);
+  padding: var(--s-3) var(--s-2);
+  border-bottom: var(--border);
   color: inherit;
   text-decoration: none;
 }
 
-.bh-start-lijst li:last-child a {
-  border-bottom: var(--border);
+.bh-rijen a {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.bh-actie-titel {
-  font-size: var(--t-base);
-  font-weight: 600;
-  color: var(--pine);
+.bh-agenda .bh-agendarij {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
-.bh-start-lijst a:hover .bh-actie-titel {
+.bh-rijen li:last-child a,
+.bh-agenda li:last-child .bh-agendarij {
+  border-bottom: 0;
+}
+
+.bh-rijen a:hover strong,
+.bh-agenda .bh-agendarij:hover strong {
   text-decoration: underline;
 }
 
-.bh-actie-tekst {
-  font-size: var(--t-base);
-  line-height: 1.4;
-  color: var(--ink-soft);
-}
-
-.bh-agenda-item {
-  display: grid;
-  grid-template-columns: minmax(9.5rem, 13rem) minmax(0, 1fr);
-  gap: var(--s-1) var(--s-4);
-  align-items: start;
-  padding: var(--s-3) 0;
-  border-top: var(--border);
-}
-
-.bh-agenda li:last-child .bh-agenda-item {
-  border-bottom: var(--border);
-}
-
-.bh-agenda-wanneer,
-.bh-agenda-naam {
-  color: var(--pine);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.bh-agenda-wanneer {
+.bh-rij-kop,
+.bh-agendatekst {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-height: 2.75rem;
-  justify-content: center;
-  font-size: var(--t-base);
-}
-
-.bh-agenda-tijd,
-.bh-soort {
-  color: var(--ink-soft);
-  font-size: var(--t-sm);
-  font-weight: 500;
-}
-
-.bh-agenda-kern {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem var(--s-3);
   min-width: 0;
 }
 
-.bh-agenda-naam {
+.bh-rij-kop strong,
+.bh-agendatekst strong {
   font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bh-rij-meta,
+.bh-agenda-soort,
+.bh-gast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
   line-height: 1.35;
 }
 
-.bh-agenda-naam:hover,
-.bh-agenda-wanneer:hover,
-.bh-gast a:hover {
-  text-decoration: underline;
+.bh-rij-meta {
+  grid-column: 1;
 }
 
-.bh-gast {
-  margin: 0.15rem 0 0;
+.bh-rij-meta span::before,
+.bh-agenda-soort span::before {
+  content: '·';
+  margin-right: 0.45rem;
+  color: var(--ink-mute);
+}
+
+.bh-agendatekst {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.bh-datumblok {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  min-height: 4.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--olive) 16%, var(--cream));
+  color: var(--pine);
+  text-align: center;
+  line-height: 1.15;
+}
+
+.bh-datumblok span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.bh-datumblok strong {
+  font-family: var(--font-display);
   font-size: var(--t-base);
+  font-weight: 600;
+}
+
+.bh-pil {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: var(--t-xs);
+  font-weight: 600;
   line-height: 1.4;
 }
 
-.bh-gast a {
+.bh-pil--groen {
+  background: color-mix(in srgb, var(--olive) 22%, var(--cream));
   color: var(--pine);
-  font-weight: 600;
-  text-decoration: none;
+}
+
+.bh-pil--oranje {
+  background: color-mix(in srgb, var(--sand) 70%, var(--white));
+  color: #6a5a20;
+}
+
+.bh-pil--rood {
+  background: color-mix(in srgb, var(--brick) 18%, var(--white));
+  color: var(--brick-dark);
 }
 
 .bh-gast-mist {
@@ -2193,31 +2320,15 @@ body[data-beheer-modus='preview'] .bh-acties .bh-btn {
   color: var(--ink);
 }
 
-.bh-meer {
-  margin-top: var(--s-2);
+.bh-start-leeg {
+  margin: var(--s-3) var(--s-2);
+  color: var(--ink-mute);
+  font-size: var(--t-sm);
 }
 
-.bh-meer summary {
-  display: flex;
-  align-items: center;
-  min-height: 2.75rem;
-  cursor: pointer;
-  font-size: var(--t-base);
-  font-weight: 600;
-  color: var(--pine);
-}
-
-@media (max-width: 720px) {
+@media (max-width: 980px) {
+  .bh-start-kolommen,
   .bh-tellers {
     grid-template-columns: 1fr;
-  }
-
-  .bh-agenda-item {
-    grid-template-columns: 1fr;
-    gap: 0.15rem;
-  }
-
-  .bh-agenda-wanneer {
-    min-height: 0;
   }
 }

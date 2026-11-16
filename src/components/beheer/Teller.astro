@@ -1,0 +1,33 @@
+---
+import Icoon from './Icoon.astro';
+
+interface Props {
+  href: string | null;
+  aantal: number;
+  label: string;
+  icoon: 'post' | 'blad' | 'kalender';
+}
+
+const { href, aantal, label, icoon } = Astro.props;
+---
+
+{
+  href ? (
+    <a class="bh-teller" href={href}>
+      <span class="bh-teller-icoon"><Icoon naam={icoon} /></span>
+      <span class="bh-teller-tekst">
+        <strong>{aantal}</strong>
+        <span>{label}</span>
+      </span>
+      <span class="bh-chevron" aria-hidden="true" />
+    </a>
+  ) : (
+    <span class="bh-teller bh-teller-stil">
+      <span class="bh-teller-icoon"><Icoon naam={icoon} /></span>
+      <span class="bh-teller-tekst">
+        <strong>{aantal}</strong>
+        <span>{label}</span>
+      </span>
+    </span>
+  )
+}

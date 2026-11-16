@@ -1,0 +1,42 @@
+---
+import type { StartGroep } from '../../platform/dashboard-start.ts';
+
+interface Props {
+  titel: string;
+  groep: StartGroep;
+  leeg: string;
+  toonStap: boolean;
+}
+
+const { titel, groep, leeg, toonStap } = Astro.props;
+---
+
+<div class="bh-groep">
+  <div class="bh-subkop">
+    <h3>{titel} <span>({groep.totaal})</span></h3>
+    {groep.href && <a href={groep.href}>Alles bekijken <span aria-hidden="true">→</span></a>}
+  </div>
+  {
+    groep.rijen.length === 0 ? (
+      <p class="bh-start-leeg">{leeg}</p>
+    ) : (
+      <ul class="bh-rijen">
+        {groep.rijen.map((rij) => (
+          <li>
+            <a href={rij.href}>
+              <span class="bh-rij-kop">
+                <strong>{rij.naam}</strong>
+                {toonStap && rij.stap && <span class={`bh-pil bh-pil--${rij.toon}`}>{rij.stap}</span>}
+              </span>
+              <span class="bh-rij-meta">
+                {rij.wanneer}
+                {rij.soort && <span>{rij.soort}</span>}
+              </span>
+              <span class="bh-chevron" aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</div>

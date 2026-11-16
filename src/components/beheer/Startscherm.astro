@@ -1,84 +1,59 @@
 ---
-import type { Startscherm } from '../../platform/dashboard-start.ts';
+import type { StartAgendaItem, Startscherm } from '../../platform/dashboard-start.ts';
+import AanvraagGroep from './AanvraagGroep.astro';
 import AgendaRegel from './AgendaRegel.astro';
+import Icoon from './Icoon.astro';
+import Teller from './Teller.astro';
 
 interface Props {
   scherm: Startscherm;
+  groet: string;
 }
 
-const { scherm } = Astro.props;
-const extra = scherm.agendaExtra.length;
+const { scherm, groet } = Astro.props;
+const [nieuw, behandeling, binnenkort] = scherm.tellers;
+
+function gasten(item: StartAgendaItem): string {
+  if (item.zonderBegeleider) return 'Nog geen gastbegeleider ingepland';
+  if (item.begeleiders.length === 0) return '';
+  const namen = item.begeleiders.map((gast) => gast.naam).join(', ');
+  return item.begeleiders.length === 1 ? `Gastbegeleider: ${namen}` : `Gastbegeleiders: ${namen}`;
+}
 ---
 
 <div class="bh-start">
-  <header class="bh-top">
-    <h1>Dashboard</h1>
-  </header>
+  <h1 class="bh-start-groet">{groet}</h1>
 
   <ul class="bh-tellers">
-    {
-      scherm.tellers.map((teller) => (
-        <li>
-          {
-            teller.href ? (
-              <a href={teller.href}>
-                <strong>{teller.aantal}</strong>
-                <span>{teller.label}</span>
-              </a>
-            ) : (
-              <span class="bh-teller-stil">
-                <strong>{teller.aantal}</strong>
-                <span>{teller.label}</span>
-              </span>
-            )
-          }
-        </li>
-      ))
-    }
+    <li><Teller href={nieuw.href} aantal={nieuw.aantal} label={nieuw.label} icoon="post" /></li>
+    <li><Teller href={behandeling.href} aantal={behandeling.aantal} label={behandeling.label} icoon="blad" /></li>
+    <li><Teller href={binnenkort.href} aantal={binnenkort.aantal} label={binnenkort.label} icoon="kalender" /></li>
   </ul>
 
-  <section class="bh-blok" aria-labelledby="acties-kop">
-    <h2 id="acties-kop">Acties</h2>
-    {
-      scherm.acties.length === 0 ? (
-        <p class="bh-leeg">Geen openstaande acties.</p>
-      ) : (
-        <ul class="bh-start-lijst">
-          {scherm.acties.map((actie) => (
-            <li>
-              <a href={actie.href}>
-                <span class="bh-actie-titel">{actie.titel}</span>
-                <span class="bh-actie-tekst">{actie.toelichting}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )
-    }
-  </section>
+  <div class="bh-start-kolommen">
+    <section class="bh-paneel" aria-labelledby="aanvragen-kop">
+      <h2 id="aanvragen-kop">
+        <Icoon naam="blad" />
+        Aanvragen
+      </h2>
+      <AanvraagGroep titel="Nieuwe aanvragen" groep={scherm.nieuw} leeg="Geen nieuwe aanvragen." toonStap={false} />
+      <AanvraagGroep titel="In behandeling" groep={scherm.behandeling} leeg="Geen aanvragen in behandeling." toonStap={true} />
+    </section>
 
-  <section class="bh-blok" id="komende" aria-labelledby="agenda-kop">
-    <h2 id="agenda-kop">Komende twee weken</h2>
-    {
-      scherm.agendaTotaal === 0 ? (
-        <p class="bh-leeg">Geen activiteiten in de komende twee weken.</p>
-      ) : (
-        <>
+    <section class="bh-paneel" id="agenda" aria-labelledby="agenda-kop">
+      <h2 id="agenda-kop">
+        <Icoon naam="kalender" />
+        Agenda — komende 14 dagen
+      </h2>
+      {
+        scherm.agenda.length === 0 ? (
+          <p class="bh-start-leeg">Geen activiteiten in de komende 14 dagen.</p>
+        ) : (
           <ul class="bh-agenda">
-            {scherm.agenda.map((item) => <AgendaRegel item={item} />)}
+            {scherm.agenda.map((item) => <AgendaRegel item={item} gasten={gasten(item)} />)}
           </ul>
-          {
-            extra > 0 && (
-              <details class="bh-meer">
-                <summary>Toon nog {extra} {extra === 1 ? 'activiteit' : 'activiteiten'}</summary>
-                <ul class="bh-agenda">
-                  {scherm.agendaExtra.map((item) => <AgendaRegel item={item} />)}
-                </ul>
-              </details>
-            )
-          }
-        </>
-      )
-    }
-  </section>
+        )
+      }
+    </section>
+  </div>
 </div>
