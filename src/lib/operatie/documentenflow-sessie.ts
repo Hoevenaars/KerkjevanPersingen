@@ -24,6 +24,7 @@ import { SOORT_LABEL } from '../../platform/demo-data.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import type { Actor } from './kern.ts';
 import { voerDossierViaSessie, type DossierSessie } from './dossier-sessie.ts';
+import { noteerGetekendDocument } from './ontvangst.ts';
 
 type Fout = { message: string; code?: string } | null;
 type Rij = Record<string, unknown>;
@@ -498,6 +499,10 @@ export async function pasDocumentenflowToe(input: {
         grootte_bytes: manifest[0]?.bytes ?? null,
       });
     }
+  }
+  if (input.actie.soort === 'ondertekend' && !input.bestand) {
+    const bewijs = await noteerGetekendDocument(input.client, Number(input.boekingId), null);
+    if (bewijs) return { ok: false, melding: bewijs };
   }
   await input.client.from('auditlog').insert({
     actor_naam: input.actor.naam,
