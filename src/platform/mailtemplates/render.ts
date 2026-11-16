@@ -1,3 +1,4 @@
+import { definitiefMail } from './definitief-mail.ts';
 import type { MailTemplateInhoud, MailVariabelenMap } from './types.ts';
 import { maakActieToken, type MailActieSoort } from './actie.ts';
 import { kerkjeMail, type KerkjeMailCta } from '../../lib/kerkje-mail.ts';
@@ -115,6 +116,8 @@ export function renderMailBericht(
   vars: MailVariabelenMap,
   opties: MailRenderOpties = {},
 ): { html: string; text: string } {
+  const templateId = opties.templateId ?? ('id' in inhoud && typeof inhoud.id === 'string' ? inhoud.id : undefined);
+  if (templateId === 'booking_confirmed') return definitiefMail(inhoud, vars);
   const onderwerp = onderwerpUitTemplate(inhoud, vars);
   const hoofdBron = vervangVariabelen(inhoud.hoofdtekst, vars);
   const knoppen = ctaVoor(inhoud, vars, {

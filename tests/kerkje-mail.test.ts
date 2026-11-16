@@ -77,7 +77,6 @@ describe('centrale Kerkje-mail', () => {
 
   const stromen: { id: string; template: string; sleutel: string; rol: string; antwoordNaarAanvrager: boolean; cta?: string }[] = [
     { id: 'aanvraagbevestiging', template: 'booking_request_received', sleutel: 'aanvraag_bevestiging', rol: 'huurder', antwoordNaarAanvrager: false },
-    { id: 'reservering-definitief', template: 'booking_confirmed', sleutel: 'statusmail_huurder', rol: 'huurder', antwoordNaarAanvrager: false },
     { id: 'contentverzoek', template: 'booking_content_request', sleutel: 'content_herinnering', rol: 'huurder', antwoordNaarAanvrager: false, cta: 'Informatie aanleveren' },
     { id: 'praktisch-huurder', template: 'booking_practical_information', sleutel: 'herinnering', rol: 'huurder', antwoordNaarAanvrager: false },
     { id: 'praktisch-gastheer', template: 'host_practical_information', sleutel: 'gastheer_mail', rol: 'gastheer', antwoordNaarAanvrager: false },
@@ -118,19 +117,45 @@ describe('centrale Kerkje-mail', () => {
     });
   }
 
-  test('de definitieve reservering noemt het vervolg en heeft geen knop', () => {
+  test('de definitieve reservering is een brief zonder knop', () => {
     const tpl = standaardTemplate('booking_confirmed');
     assert.ok(tpl);
-    const brief = renderMailBericht(tpl, VOORBEELD_VARIABELEN);
-    assert.match(brief.text, /definitief bevestigd/);
-    assert.match(brief.text, /Activiteit: Pianoconcert/);
-    assert.match(brief.text, /Voorbereiding: Ruim voor uw activiteit/);
-    assert.match(brief.text, /Praktische afspraken:/);
-    assert.match(brief.text, /Laatste informatie:/);
-    assert.match(brief.text, /Heeft u tussentijds vragen/);
+    const brief = renderMailBericht(tpl, {
+      ...VOORBEELD_VARIABELEN,
+      voornaam: 'Nick',
+      activiteitnaam: 'Kerklicht: Kaarslicht Concert',
+      activiteitstype: 'concert',
+      datum_van: '2027-02-12',
+      datum_tot: '2027-02-14',
+      tijd_van: '12:00',
+      tijd_tot: '23:00',
+    }, { templateId: 'booking_confirmed' });
+    assert.match(brief.text, /Wat fijn dat we u binnenkort mogen verwelkomen/);
+    assert.match(brief.text, /Activiteit: Kerklicht: Kaarslicht Concert/);
+    assert.match(brief.text, /Datum: vrijdag 12 t\/m zondag 14 februari 2027/);
+    assert.match(brief.text, /Tijd: 12.00 – 23.00 uur/);
+    assert.match(brief.text, /En nu\?/);
+    assert.equal(brief.text.includes('Bekijk'), false);
+    assert.equal(brief.html.includes('<ul'), false);
     assert.equal(brief.html.includes('Bekijk uw reservering'), false);
-    assert.equal(brief.text.includes('{{'), false);
-    eenKaart(brief.html);
+    assert.equal(brief.text.split('Stichting Het Kerkje van Persingen').length - 1, 1);
+    assert.equal(brief.html.includes('data-kerkje-mail'), false);
+    assert.match(brief.html, /max-width:600px/);
+    assert.equal(tpl.onderwerp, 'Uw reservering is definitief | Kerkje van Persingen');
+    const zelfdeDag = renderMailBericht(tpl, { voornaam: 'Nick', activiteitstype: 'concert', datum_van: '2027-06-14', datum_tot: '2027-06-14' }, { templateId: 'booking_confirmed' });
+    assert.match(zelfdeDag.text, /Datum: maandag 14 juni 2027/);
+    assert.equal(zelfdeDag.text.includes('Tijd:'), false);
+    const inhoud = bouwResendInhoud({
+      naar: TO,
+      onderwerp: tpl.onderwerp,
+      tekst: brief.text,
+      html: brief.html,
+      sleutel: 'statusmail_huurder',
+      templateId: 'booking_confirmed',
+      ontvangerRol: 'huurder',
+      aanvragerEmail: AANVRAGER,
+    });
+    assert.equal(inhoud.replyTo, CONTRACTBEHEER_EMAIL);
   });
 
   test('een tweede omlijsting wordt geweigerd', () => {

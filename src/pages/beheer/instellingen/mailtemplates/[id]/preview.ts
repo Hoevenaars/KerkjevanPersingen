@@ -30,6 +30,6 @@ export const POST: APIRoute = async ({ params, request }) => {
     knoppen: base.knoppen,
   };
 
-  const html = renderMailHtml(inhoud, VOORBEELD_VARIABELEN, { voorbeeldUrl: 'https://kerkjepersingen.nl/' });
+  const html = renderMailHtml(inhoud, VOORBEELD_VARIABELEN, { voorbeeldUrl: 'https://kerkjepersingen.nl/', templateId: id });
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 };

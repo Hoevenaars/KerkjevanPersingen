@@ -6,7 +6,8 @@
 import { bevestigingVoor, mailDedup, type HandmatigeBoeking } from '../../platform/handmatige-boeking.ts';
 import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
-import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailHtml } from '../../platform/mailtemplates/render.ts';
+import { metReservering } from '../../platform/mailtemplates/definitief-mail.ts';
+import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailBericht } from '../../platform/mailtemplates/render.ts';
 import { magAutomatiseringUitvoeren, type Automatisering } from '../../platform/automatisering.ts';
 import { laadAutomatiseringsregister } from '../automatisering-register.ts';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES } from '../mail-adressen.ts';
@@ -55,18 +56,21 @@ export async function verstuurHandmatigeBevestiging(
   }
 
   const template = standaardTemplate(bevestiging.templateId);
-  const vars = {
+  const basis = {
     voornaam: boeking.naam.split(' ')[0] || boeking.naam,
     naam: boeking.naam,
     datum: boeking.start,
     activiteitstype: boeking.verhuurtype,
+    activiteitnaam: boeking.titel,
     tijd: '',
   };
+  const vars = bevestiging.templateId === 'booking_confirmed'
+    ? metReservering(basis, { start: boeking.start, eind: boeking.eind, titel: boeking.titel, soort: boeking.verhuurtype, tijdVan: boeking.tijdVan, tijdTot: boeking.tijdTot, heleDag: boeking.heleDag })
+    : basis;
   const onderwerp = template ? onderwerpUitTemplate(template, vars) : bevestiging.naam;
-  const tekst = template ? plainTekstUitTemplate(template, vars) : bevestiging.pastBij;
-  const html = template
-    ? renderMailHtml(template, vars, { voorbeeldUrl: 'https://kerkjepersingen.nl/', templateId: template.id })
-    : undefined;
+  const gerenderd = template ? renderMailBericht(template, vars, { voorbeeldUrl: 'https://kerkjepersingen.nl/', templateId: template.id }) : null;
+  const tekst = gerenderd && bevestiging.templateId === 'booking_confirmed' ? gerenderd.text : template ? plainTekstUitTemplate(template, vars) : bevestiging.pastBij;
+  const html = gerenderd?.html;
   const register = await registerVoorExplicieteKeuze(bevestiging.automatieSleutel, env);
   try {
     const uit = await verstuurGecontroleerd(
