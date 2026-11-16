@@ -13,8 +13,8 @@ const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
     <div>
       <h1>Nieuwsbrief</h1>
       <p class="bh-hint">
-        Weken uit {snapshot.bron === 'supabase' ? 'Supabase' : 'de voorbeelddata'}. Openen, bewerken en
-        “verzenden” raakt de echte vriendenmail niet.
+        Weken uit {snapshot.bron === 'supabase' ? 'Supabase' : 'de voorbeelddata'}. Dit scherm verstuurt
+        niets. De donderdagcron mailt een voorbeeld en de vrijdagcron de vrienden, zolang de schakelaar aan staat.
       </p>
     </div>
   </header>

@@ -34,11 +34,12 @@ function verbodenTransport() {
   };
 }
 
-test('alleen contact en nieuwe aanvraag naar bestuur mogen een provider', async () => {
+test('contact, nieuwe aanvraag en de nieuwsbrief mogen een provider', async () => {
   assert.equal(magAutomatiseringUitvoeren('contact_bestuur').provider, true);
   assert.equal(magAutomatiseringUitvoeren('aanvraag_bestuur').provider, true);
+  assert.equal(magAutomatiseringUitvoeren('nieuwsbrief').provider, true);
   const actief = STANDAARD_AUTOMATISERINGEN.filter((item) => item.status === 'actief').map((item) => item.sleutel);
-  assert.deepEqual(actief.sort(), ['aanvraag_bestuur', 'contact_bestuur']);
+  assert.deepEqual(actief.sort(), ['aanvraag_bestuur', 'contact_bestuur', 'nieuwsbrief']);
 
   let aangeroepen = 0;
   const uit = await verstuurGecontroleerd(
@@ -69,8 +70,8 @@ test('alleen contact en nieuwe aanvraag naar bestuur mogen een provider', async 
   assert.equal(aangeroepen, 2);
 });
 
-test('nieuwsbrief, workflow en betaalherinnering blijven dicht', async () => {
-  for (const sleutel of ['nieuwsbrief', 'workflow', 'betaalherinnering'] as const) {
+test('workflow en betaalherinnering blijven dicht', async () => {
+  for (const sleutel of ['workflow', 'betaalherinnering'] as const) {
     const besluit = magAutomatiseringUitvoeren(sleutel);
     assert.equal(besluit.provider, false);
     assert.equal(besluit.uitvoeren, false);
@@ -78,7 +79,15 @@ test('nieuwsbrief, workflow en betaalherinnering blijven dicht', async () => {
     assert.equal(uit.verzonden, false);
     assert.equal(uit.providerAangeroepen, false);
   }
-  const nieuwsbrief = await verstuurWekelijkseNieuwsbrief();
+});
+
+test('nieuwsbrief op uit verstuurt niets', async () => {
+  const register = STANDAARD_AUTOMATISERINGEN.map((item) =>
+    item.sleutel === 'nieuwsbrief' ? { ...item, status: 'uit' as const } : item,
+  );
+  const uit = await verstuurGecontroleerd({ ...bericht, sleutel: 'nieuwsbrief' }, { register, transport: verbodenTransport() });
+  assert.equal(uit.providerAangeroepen, false);
+  const nieuwsbrief = await verstuurWekelijkseNieuwsbrief({ register, transport: verbodenTransport() });
   assert.equal(nieuwsbrief.verstuurd, 0);
   assert.match(nieuwsbrief.overgeslagen, /geblokkeerd/);
 });
@@ -146,10 +155,13 @@ test('uit blokkeert en test gaat alleen naar het testmailadres', async () => {
 test('risicovolle activatie vraagt bevestiging en schrijft een auditregel', () => {
   const nieuwsbrief = STANDAARD_AUTOMATISERINGEN.find((item) => item.sleutel === 'nieuwsbrief');
   assert.ok(nieuwsbrief);
-  assert.equal(planStatuswijziging(nieuwsbrief, 'actief', false).soort, 'bevestiging');
-  assert.equal(planStatuswijziging(nieuwsbrief, 'actief', true).soort, 'wijziging');
-  assert.equal(planStatuswijziging(nieuwsbrief, 'uit', false).soort, 'ongewijzigd');
-  const regel = auditregel(nieuwsbrief, 'actief', 'tester', '2026-09-30T12:00:00.000Z');
+  assert.equal(nieuwsbrief.status, 'actief');
+  assert.equal(planStatuswijziging(nieuwsbrief, 'actief', false).soort, 'ongewijzigd');
+  assert.equal(planStatuswijziging(nieuwsbrief, 'uit', false).soort, 'wijziging');
+  const uit = { ...nieuwsbrief, status: 'uit' as const };
+  assert.equal(planStatuswijziging(uit, 'actief', false).soort, 'bevestiging');
+  assert.equal(planStatuswijziging(uit, 'actief', true).soort, 'wijziging');
+  const regel = auditregel(uit, 'actief', 'tester', '2026-09-30T12:00:00.000Z');
   assert.deepEqual(regel, {
     automatisering: 'nieuwsbrief',
     oudeStatus: 'uit',

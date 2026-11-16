@@ -35,7 +35,7 @@ export interface Verzending {
   vriendId: string;
   email: string;
   test: boolean;
-  status: 'concept';
+  status: 'concept' | 'verzonden' | 'fout';
   templateSleutel: string;
 }
 
@@ -45,6 +45,24 @@ export interface NieuwsbriefBron {
   template(sleutel: string): Promise<NieuwsbriefTemplate | null>;
   legVast(verzending: Verzending): Promise<void>;
   agenda(): Promise<{ activiteiten: Activiteit[]; overzicht: AgendaOverzicht }>;
+  alLiveVerzonden(nieuwsbriefId: string): Promise<ReadonlySet<string>>;
+  markeerVerstuurd(id: string): Promise<void>;
+}
+
+export interface KlaargezetteBrief {
+  vriend: Vriend;
+  html: string;
+  text: string;
+  replyTo: string;
+  subject: string;
+}
+
+export interface VoorbereideNieuwsbrief {
+  stoppen: 'geannuleerd door bestuur' | 'al verstuurd deze week' | null;
+  week: NieuwsbriefWeek | null;
+  template: NieuwsbriefTemplate | null;
+  brieven: KlaargezetteBrief[];
+  voorbeeld: { html: string; text: string; replyTo: string; subject: string } | null;
 }
 
 export interface DroogResultaat {
@@ -56,22 +74,18 @@ export interface DroogResultaat {
   verzendingen: number;
 }
 
-export async function draaiNieuwsbriefDryRun(opties: {
+export async function bereidNieuwsbrief(opties: {
   datum?: Date;
   vrienden: VriendenBron;
   bron: NieuwsbriefBron;
   templateSleutel?: string;
-}): Promise<DroogResultaat> {
+}): Promise<VoorbereideNieuwsbrief> {
   const datum = opties.datum ?? new Date();
   const sleutel = opties.templateSleutel ?? 'nieuwsbrief_week';
   const maandag = maandagVanWeekIso(datum);
   let week = await opties.bron.week(maandag);
-  if (week?.geannuleerd) {
-    return { verstuurd: 0, gepland: 0, overgeslagen: 'geannuleerd door bestuur', template: null, ontvangers: [], verzendingen: 0 };
-  }
-  if (week?.verstuurd) {
-    return { verstuurd: 0, gepland: 0, overgeslagen: 'al verstuurd deze week', template: null, ontvangers: [], verzendingen: 0 };
-  }
+  if (week?.geannuleerd) return { stoppen: 'geannuleerd door bestuur', week: null, template: null, brieven: [], voorbeeld: null };
+  if (week?.verstuurd) return { stoppen: 'al verstuurd deze week', week, template: null, brieven: [], voorbeeld: null };
   if (!week) week = await opties.bron.maakWeek(maandag);
 
   const ontvangers = await getVriendenVoorVerzending(datum, opties.vrienden);
@@ -81,6 +95,7 @@ export async function draaiNieuwsbriefDryRun(opties: {
     bron: 'ingebouwd' as const,
   };
   const agenda = await opties.bron.agenda();
+  const brieven: KlaargezetteBrief[] = [];
   for (const vriend of ontvangers) {
     const brief = briefVoor(week, vriend, agenda.activiteiten, agenda.overzicht, datum);
     if (brief.replyTo !== NIEUWSBRIEF_REPLY_TO) {
@@ -92,22 +107,52 @@ export async function draaiNieuwsbriefDryRun(opties: {
     if (!brief.html.includes(vriend.uitschrijfToken) && !brief.html.includes(encodeURIComponent(vriend.uitschrijfToken))) {
       throw new Error('Nieuwsbrief mist het afmeldtoken.');
     }
+    brieven.push({ vriend, ...brief });
+  }
+  const voorbeeld = briefVoor(
+    week,
+    { _id: 'preview', email: 'preview@kerkjepersingen.nl', actief: true, frequentie: 'wekelijks', uitschrijfToken: 'preview' },
+    agenda.activiteiten,
+    agenda.overzicht,
+    datum,
+  );
+  return { stoppen: null, week, template: gekozen, brieven, voorbeeld };
+}
+
+export async function draaiNieuwsbriefDryRun(opties: {
+  datum?: Date;
+  vrienden: VriendenBron;
+  bron: NieuwsbriefBron;
+  templateSleutel?: string;
+}): Promise<DroogResultaat> {
+  const voorbereid = await bereidNieuwsbrief(opties);
+  if (voorbereid.stoppen || !voorbereid.week || !voorbereid.template) {
+    return {
+      verstuurd: 0,
+      gepland: 0,
+      overgeslagen: voorbereid.stoppen ?? 'geen editie',
+      template: null,
+      ontvangers: [],
+      verzendingen: 0,
+    };
+  }
+  for (const brief of voorbereid.brieven) {
     await opties.bron.legVast({
-      nieuwsbriefId: week.id,
-      vriendId: vriend._id,
-      email: vriend.email,
+      nieuwsbriefId: voorbereid.week.id,
+      vriendId: brief.vriend._id,
+      email: brief.vriend.email,
       test: true,
       status: 'concept',
-      templateSleutel: gekozen.sleutel,
+      templateSleutel: voorbereid.template.sleutel,
     });
   }
   return {
     verstuurd: 0,
-    gepland: ontvangers.length,
-    overgeslagen: ontvangers.length === 0 ? 'geen ontvangers deze verzendronde' : 'dry-run, geen mail',
-    template: gekozen,
-    ontvangers: ontvangers.map((vriend) => vriend.email),
-    verzendingen: ontvangers.length,
+    gepland: voorbereid.brieven.length,
+    overgeslagen: voorbereid.brieven.length === 0 ? 'geen ontvangers deze verzendronde' : 'dry-run, geen mail',
+    template: voorbereid.template,
+    ontvangers: voorbereid.brieven.map((brief) => brief.vriend.email),
+    verzendingen: voorbereid.brieven.length,
   };
 }
 
@@ -171,9 +216,27 @@ export function supabaseNieuwsbrief(): NieuwsbriefBron {
         nieuwsbrief_id: Number(verzending.nieuwsbriefId),
         vriend_id: Number(verzending.vriendId),
         email_op_verzendmoment: verzending.email,
-        test: true,
-        status: 'concept',
+        test: verzending.test,
+        status: verzending.status,
+        verzonden_op: verzending.status === 'verzonden' ? new Date().toISOString() : null,
       });
+      if (error) throw new Error(error.message);
+    },
+    async alLiveVerzonden(nieuwsbriefId) {
+      const { data, error } = await client
+        .from('nieuwsbrief_verzendingen')
+        .select('email_op_verzendmoment')
+        .eq('nieuwsbrief_id', Number(nieuwsbriefId))
+        .eq('test', false)
+        .eq('status', 'verzonden');
+      if (error) throw new Error(error.message);
+      return new Set((data ?? []).map((rij) => String(rij.email_op_verzendmoment ?? '').trim().toLowerCase()).filter(Boolean));
+    },
+    async markeerVerstuurd(id) {
+      const { error } = await client
+        .from('nieuwsbrieven')
+        .update({ verstuurd: true, verstuurd_op: new Date().toISOString() })
+        .eq('id', Number(id));
       if (error) throw new Error(error.message);
     },
     async agenda() {
@@ -211,6 +274,17 @@ export function geheugenNieuwsbrief(start?: { template?: NieuwsbriefTemplate }):
     },
     async agenda() {
       return { activiteiten: [], overzicht: { vandaag: null, volgende: null, daarna: null } };
+    },
+    async alLiveVerzonden(nieuwsbriefId) {
+      return new Set(
+        verzendingen
+          .filter((item) => item.nieuwsbriefId === nieuwsbriefId && !item.test && item.status === 'verzonden')
+          .map((item) => item.email.trim().toLowerCase()),
+      );
+    },
+    async markeerVerstuurd(id) {
+      const week = weken.find((item) => item.id === id);
+      if (week) week.verstuurd = true;
     },
   };
 }

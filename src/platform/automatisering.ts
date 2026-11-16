@@ -113,7 +113,7 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
     naam: 'Nieuwsbrief',
     omschrijving: 'Wekelijkse vriendenmail en de previewcron.',
     categorie: 'automatisering',
-    status: 'uit',
+    status: 'actief',
     mailcategorie: 'automatisering',
     trigger: 'Cron vrijdag / donderdag-preview',
     actieveTrigger: true,
