@@ -87,6 +87,7 @@ if (Astro.request.method === 'POST') {
               naar: mail.naar,
               onderwerp: mail.onderwerp,
               tekst: mail.tekst,
+              html: mail.html,
               richting: 'aanvrager',
               bijlagen: mail.bijlagen.flatMap((deel) => deel.bytes ? [{ bestandsnaam: deel.bestandsnaam, inhoud: deel.bytes }] : []),
               eisBijlagen: mail.soort === 'contract' || mail.soort === 'proef' || mail.soort === 'herhaling',

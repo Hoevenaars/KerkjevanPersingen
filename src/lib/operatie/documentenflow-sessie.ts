@@ -292,7 +292,7 @@ async function bewaarTekenlink(
   boekingId: number,
   versie: number,
   email: string,
-): Promise<{ ok: true; link: string } | { ok: false; melding: string }> {
+): Promise<{ ok: true; link: string; verloopt: string } | { ok: false; melding: string }> {
   const token = maakTekenToken();
   const tokenHash = hashTekenToken(token);
   const verloopt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
@@ -315,7 +315,7 @@ async function bewaarTekenlink(
     : await client.from('contract_tekeningen').insert({ ...rij, boeking_id: boekingId, versie });
   const fout = 'error' in antwoord ? antwoord.error : null;
   if (fout) return { ok: false, melding: 'De tekenlink is niet opgeslagen. Er is geen mail verstuurd.' };
-  return { ok: true, link: tekenUrl(token) };
+  return { ok: true, link: tekenUrl(token), verloopt };
 }
 
 export async function pasDocumentenflowToe(input: {
@@ -433,7 +433,7 @@ export async function pasDocumentenflowToe(input: {
         await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
         return link;
       }
-      const contextMetLink: FlowContext = { ...context, tekenLink: link.link };
+      const contextMetLink: FlowContext = { ...context, tekenLink: link.link, tekenVerloopt: link.verloopt };
       const opnieuw = voerFlowUit(input.actie, contextMetLink);
       if (!opnieuw.ok || !opnieuw.mail) {
         await zetStatus(plan.mail.idempotentie, 'geweigerd', null);

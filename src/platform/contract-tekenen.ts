@@ -125,7 +125,7 @@ export type TekenStap =
 
 export type TekenUitkomst =
   | { ok: false; melding: string }
-  | { ok: true; melding: string; dossier: TekenDossier; pdf?: Uint8Array; code?: string; cookie?: string; mail?: 'code' | 'bevestiging' };
+  | { ok: true; melding: string; dossier: TekenDossier; pdf?: Uint8Array; code?: string; cookie?: string; mail?: 'code' | 'bevestiging'; metSjabloon?: boolean };
 
 export interface TekenWinkel {
   lees(tokenHash: string): Promise<TekenDossier | null>;

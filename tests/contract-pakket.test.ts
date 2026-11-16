@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { VOORWAARDEN_V1 } from '../src/platform/documenten/teksten-v1.ts';
 import {
+  CONTRACT_MAIL_ONDERWERP,
   contractmailMagWeg,
   contractPakketTekst,
   maakContractPdf,
@@ -284,7 +285,9 @@ test('een tekenlink werkt eenmalig, verloopt, en hoort niet bij een andere boeki
   const geheim = 'test-geheim';
   const nu = '2026-06-02T10:00:00.000Z';
   assert.equal((await voerTekenstap({ soort: 'bekijk', token: andere, nu }, winkel)).ok, false);
-  assert.equal((await voerTekenstap({ soort: 'bekijk', token, nu: '2026-07-01T00:00:00.000Z' }, winkel)).ok, false);
+  const verlopen = await voerTekenstap({ soort: 'bekijk', token, nu: '2026-07-01T00:00:00.000Z' }, winkel);
+  assert.equal(verlopen.ok, false);
+  if (!verlopen.ok) assert.equal(verlopen.melding, 'Deze link is verlopen.');
   const codeUit = await voerTekenstap({ soort: 'code', token, nu, geheim }, winkel);
   assert.equal(codeUit.ok, true);
   if (!codeUit.ok || !codeUit.code) return;
@@ -380,6 +383,114 @@ test('een proeflink die nog niet is vrijgegeven kan niet worden ondertekend', as
   const code = await voerTekenstap({ soort: 'code', token, nu: '2026-06-02T10:00:00.000Z', geheim: 'test' }, winkel);
   assert.equal(code.ok, false);
   if (!code.ok) assert.match(code.melding, /niet vrijgegeven/);
+});
+
+test('de contractmail noemt dezelfde versie, de link en de vervaldatum', async () => {
+  const versie = versieVan();
+  versie.bestuur = 'akkoord';
+  const link = tekenUrl(maakTekenToken());
+  const uit = voerFlowUit({ soort: 'verzend', proef: true, poging: 'mail' }, context({
+    versies: [versie],
+    modus: 'test',
+    tekenLink: link,
+    tekenVerloopt: '2026-11-30T00:13:00.000Z',
+  }));
+  assert.equal(uit.ok, true);
+  if (!uit.ok || !uit.mail) return;
+  assert.equal(uit.mail.onderwerp, CONTRACT_MAIL_ONDERWERP);
+  assert.match(uit.mail.tekst, /Beste José de Vries/);
+  assert.match(uit.mail.tekst, new RegExp(versie.contractnummer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(uit.mail.tekst, /Documentversie: 1/);
+  assert.match(uit.mail.tekst, /Verhuurvoorwaarden: 1\.0/);
+  assert.match(uit.mail.tekst, /30 november 2026/);
+  assert.equal(uit.mail.tekst.includes(link), true);
+  assert.equal(uit.mail.tekst.includes('https://kerkjepersingen.nl/privacyverklaring/'), true);
+  assert.match(uit.mail.tekst, /verhuurvoorwaarden/i);
+  assert.match(uit.mail.tekst, /nog niet automatisch definitief/);
+  assert.match(uit.mail.tekst, /geen gekwalificeerde/);
+  assert.equal(uit.mail.tekst.includes('{{'), false);
+  assert.equal(/<\/?[a-z]/i.test(uit.mail.tekst), false);
+  const html = uit.mail.html ?? '';
+  assert.equal(html.split('data-kerkje-mail').length - 1, 1);
+  assert.match(html, /Bekijk en onderteken uw huurovereenkomst/);
+  assert.match(html, /Werkt de knop niet/);
+  assert.equal(html.includes(link), true);
+  assert.match(html, /Bekijk onze privacyverklaring/);
+  assert.equal(html.includes('{{'), false);
+  const pdf = await maakContractPdf({
+    tekst: versie.tekst,
+    voorwaardenTekst: versie.voorwaardenTekst,
+    huisregelsTekst: versie.huisregelsTekst,
+    plattegrondTekst: versie.plattegrondTekst,
+    soort: 'bruiloft',
+  }, `${versie.contractnummer}.pdf`, versie.contractnummer);
+  assert.equal(pdf.ok, true);
+  if (!pdf.ok) return;
+  assert.equal(contractmailMagWeg({
+    tekst: uit.mail.tekst,
+    link,
+    bijlagen: [pdf.bijlage],
+    contractnummer: versie.contractnummer,
+  }), null);
+});
+
+test('een oude tekenlink ondertekent niet de nieuwere documentversie', async () => {
+  const tokenOud = maakTekenToken();
+  const tokenNieuw = maakTekenToken();
+  const basis = versieVan();
+  function dossierVoor(token: string, versie: number, kenmerk: string): TekenDossier {
+    return {
+      boekingId: '42',
+      versie,
+      contractnummer: basis.contractnummer,
+      tokenHash: hashTekenToken(token),
+      verlooptOp: '2026-06-20T00:00:00.000Z',
+      codeHash: null,
+      codeVerloopt: null,
+      pogingen: 0,
+      geverifieerdOp: null,
+      ondertekendOp: null,
+      naam: null,
+      email: 'jose@voorbeeld.nl',
+      vrijgegeven: true,
+      documentHash: null,
+      pdfPad: null,
+      bevestigingId: null,
+      huurderNaam: 'José de Vries',
+      pakket: {
+        tekst: `${basis.tekst}\n${kenmerk}`,
+        voorwaardenTekst: basis.voorwaardenTekst,
+        huisregelsTekst: basis.huisregelsTekst,
+        plattegrondTekst: basis.plattegrondTekst,
+        soort: 'bruiloft',
+      },
+    };
+  }
+  const oud = dossierVoor(tokenOud, 1, 'Kenmerk-versie-oud');
+  const nieuw = dossierVoor(tokenNieuw, 2, 'Kenmerk-versie-nieuw');
+  const winkel: TekenWinkel = {
+    async lees(hash) {
+      if (hash === oud.tokenHash) return oud;
+      if (hash === nieuw.tokenHash) return nieuw;
+      return null;
+    },
+    async bewaarCode() {},
+    async zetGeverifieerd() {},
+    async legOndertekening() { return 'nieuw'; },
+  };
+  const nu = '2026-06-02T10:00:00.000Z';
+  const gedownload = await voerTekenstap({ soort: 'download', token: tokenOud, nu }, winkel);
+  assert.equal(gedownload.ok, true);
+  if (!gedownload.ok || !gedownload.pdf) return;
+  const latin = Buffer.from(gedownload.pdf).toString('latin1');
+  assert.match(latin, /Kenmerk-versie-oud/);
+  assert.equal(latin.includes('Kenmerk-versie-nieuw'), false);
+  assert.equal(gedownload.dossier.versie, 1);
+  const andere = await voerTekenstap({ soort: 'download', token: tokenNieuw, nu }, winkel);
+  assert.equal(andere.ok, true);
+  if (!andere.ok || !andere.pdf) return;
+  assert.equal(Buffer.from(andere.pdf).toString('latin1').includes('Kenmerk-versie-oud'), false);
+  assert.equal(andere.dossier.versie, 2);
 });
 
 test('het contractpakket is niet geblokkeerd door de documentenflow-vlag', async () => {
