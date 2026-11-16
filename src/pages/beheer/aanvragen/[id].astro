@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
-import { beoordeelAanvraag, contractStaatVanVersie, magFaseTerug, wereldZonderVervallenContract, type FaseWereld } from '../../../platform/aanvraag-fase';
+import { bedragUitWeergave, beoordeelAanvraag, contractStaatVanVersie, magFaseTerug, wereldZonderVervallenContract, type FaseWereld } from '../../../platform/aanvraag-fase';
 import { periodeLabel } from '../../../platform/verhuur-overzicht';
 import { labelAangevraagdOp, labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { toonMedeExposanten } from '../../../platform/mede-exposanten';
@@ -344,6 +344,7 @@ const wereld: FaseWereld = {
     titel: item.interneTitel,
     huurder: item.huurder,
     aanbetalingBinnen: item.aanbetalingBinnen,
+    aanbetalingBedrag: bedragUitWeergave(item.aanbetaling),
     aanvraagId: item.aanvraagId,
   })),
   documenten: snapshot.documenten.map((item) => ({ boekingId: item.boekingId, soort: item.soort, naam: item.naam })),
@@ -567,6 +568,14 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           <h3>Boeking definitief</h3>
           <p>De boeking blijft in het verhuuroverzicht. De restbetaling loopt via de bestaande financiële administratie. Gereed betekent niet dat de hele huursom al binnen is.</p>
           {
+            opvolging && (
+              <p>
+                Definitieve bevestiging: {opvolging.regels.find((regel) => regel.label === 'Definitieve bevestiging')?.waarde ?? 'Nog niet verstuurd'}.
+                Die mail gaat alleen als je haar hieronder verstuurt.
+              </p>
+            )
+          }
+          {
             !beeld.checklist.compleet && (
               <p>Deze boeking was al definitief. Ontbrekende contract- of betaalgegevens maken haar niet onvolledig.</p>
             )
@@ -677,7 +686,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           {
             magTekenen && !beeld.checklist.ondertekend && (
               <form method="post" action={dossierPad} class="bh-form" enctype="multipart/form-data">
-                <p class="bh-muted">Het getekende contract is binnen. Dit legt dat vast. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+                <p class="bh-muted">Het getekende contract is binnen. Dit legt dat vast. Er gaat geen mail uit. Is de checklist daarna compleet, dan wordt de boeking definitief.</p>
                 <label for="getekend-pdf">Ondertekende PDF, als je die hebt</label>
                 <input id="getekend-pdf" name="bestand" type="file" accept="application/pdf,.pdf" />
                 <button class="bh-btn" type="submit" name="actie" value="ondertekening_ontvangen">Contract ondertekend</button>
@@ -687,7 +696,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           {
             magBetalen && !beeld.checklist.aanbetaling && (
               <form method="post" action={dossierPad}>
-                <p class="bh-muted">De aanbetaling staat op de rekening. De restbetaling blijft open. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+                <p class="bh-muted">De aanbetaling staat op de rekening. De restbetaling blijft open. Er gaat geen mail uit. Is de checklist daarna compleet, dan wordt de boeking definitief.</p>
                 <button class="bh-btn" type="submit" name="actie" value="aanbetaling_ontvangen">Aanbetaling ontvangen</button>
               </form>
             )

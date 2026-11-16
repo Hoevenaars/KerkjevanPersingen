@@ -1,7 +1,7 @@
 /**
  * Dossieracties met de ingelogde beheer-sessie.
  * Geen service-role, geen communicatiejob, geen mail, geen workflow.
- * Aanbetaling wijzigt hier geen status: finance is in deze fase niet leidend.
+ * Een losse aanbetaling wijzigt de status niet. Alleen een complete checklist doet dat.
  */
 
 import { magStatusZetten } from '../../platform/aanvraag.ts';
@@ -239,6 +239,42 @@ async function verleng(client: DossierSessie, id: number, actor: Actor): Promise
   return { ok: true, melding: `Optie verlengd tot ${optie.optieEinddatum}. Er is geen mail verstuurd.` };
 }
 
+async function schrijfDefinitief(
+  client: DossierSessie,
+  boeking: BoekingRij,
+  actor: Actor,
+  spoor: { actie: string; reden: string; dedup: string; melding: string },
+): Promise<DossierResultaat> {
+  const overlap = await overlapMetActieve(client, boeking.id, boeking.start_datum, boeking.eind_datum);
+  if ('fout' in overlap) return { ok: false, melding: overlap.fout };
+  if (overlap.nummers.length > 0) {
+    return {
+      ok: false,
+      melding: `Niet definitief gemaakt. De periode overlapt met ${overlap.nummers.join(', ')}. Migratieboekingen tellen niet mee en zijn niet gewijzigd.`,
+    };
+  }
+  const gezet = await zetStatus(client, boeking.id, { status: 'definitief', optie_einddatum: null });
+  if (gezet.fout) return { ok: false, melding: gezet.fout };
+  await audit(client, actor, {
+    actie: spoor.actie,
+    type: 'boeking',
+    id: String(boeking.id),
+    van: boeking.status,
+    naar: 'definitief',
+    reden: spoor.reden,
+    dedup: spoor.dedup,
+  });
+  const agendaFout = await agendaAlsBezet(client, {
+    id: boeking.id,
+    titel: boeking.interne_titel || 'Bezet',
+    start: boeking.start_datum,
+    eind: boeking.eind_datum,
+    exposant: boeking.huurder_naam_snapshot || '',
+  });
+  if (agendaFout) return { ok: true, melding: `${spoor.melding} De agenda is niet geblokkeerd: ${agendaFout}` };
+  return { ok: true, melding: spoor.melding };
+}
+
 async function definitief(client: DossierSessie, id: number, reden: string, actor: Actor): Promise<DossierResultaat> {
   if (!mag(actor, 'boekingen')) return { ok: false, melding: 'Geen recht om definitief te maken.' };
   if (!reden.trim()) return { ok: false, melding: 'Een reden is verplicht bij definitief zetten.' };
@@ -247,35 +283,32 @@ async function definitief(client: DossierSessie, id: number, reden: string, acto
   const poort = statusActieToegestaan(boeking.status, 'definitief');
   if (!poort.ok) return { ok: false, melding: poort.melding };
   if (poort.melding === 'al') return { ok: true, melding: 'Boeking is al definitief.' };
-  const overlap = await overlapMetActieve(client, id, boeking.start_datum, boeking.eind_datum);
-  if ('fout' in overlap) return { ok: false, melding: overlap.fout };
-  if (overlap.nummers.length > 0) {
-    return {
-      ok: false,
-      melding: `Niet definitief gemaakt. De periode overlapt met ${overlap.nummers.join(', ')}. Migratieboekingen tellen niet mee en zijn niet gewijzigd.`,
-    };
-  }
-  const gezet = await zetStatus(client, id, { status: 'definitief' });
-  if (gezet.fout) return { ok: false, melding: gezet.fout };
-  await audit(client, actor, {
+  return schrijfDefinitief(client, boeking, actor, {
     actie: 'override_definitief',
-    type: 'boeking',
-    id: String(id),
-    van: boeking.status,
-    naar: 'definitief',
     reden: reden.trim(),
     dedup: `boeking:${id}:handmatig_definitief`,
+    melding: 'Boeking is definitief. Aanbetaling is geen voorwaarde. Er is geen mail of workflow gestart.',
   });
-  const agendaFout = await agendaAlsBezet(client, {
-    id,
-    titel: boeking.interne_titel || 'Bezet',
-    start: boeking.start_datum,
-    eind: boeking.eind_datum,
-    exposant: boeking.huurder_naam_snapshot || '',
+}
+
+/** Checklist is al bewezen. Geen extra bevestiging en geen mail. */
+export async function legAutomatischDefinitief(
+  client: DossierSessie,
+  id: number,
+  actor: Actor,
+  reden: string,
+): Promise<DossierResultaat> {
+  const boeking = await leesBoeking(client, id);
+  if ('fout' in boeking) return { ok: false, melding: boeking.fout };
+  const poort = statusActieToegestaan(boeking.status, 'definitief');
+  if (!poort.ok) return { ok: false, melding: poort.melding };
+  if (poort.melding === 'al') return { ok: true, melding: 'Boeking is al definitief.' };
+  return schrijfDefinitief(client, boeking, actor, {
+    actie: 'automatisch_definitief',
+    reden,
+    dedup: `boeking:${id}:automatisch_definitief`,
+    melding: 'Boeking is definitief. Er is geen mail verstuurd.',
   });
-  const melding = 'Boeking is definitief. Aanbetaling is geen voorwaarde. Er is geen mail of workflow gestart.';
-  if (agendaFout) return { ok: true, melding: `${melding} De agenda is niet geblokkeerd: ${agendaFout}` };
-  return { ok: true, melding };
 }
 
 async function afronden(client: DossierSessie, id: number, reden: string, actor: Actor): Promise<DossierResultaat> {

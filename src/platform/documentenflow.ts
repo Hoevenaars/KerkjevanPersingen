@@ -842,16 +842,12 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
     };
   }
   if (actie.soort !== 'gereed') return weiger('Deze actie is niet beschikbaar.');
-  if (!magSchrijven(context.rechten, 'boekingen')) return weiger('Geen recht om de boeking definitief te maken.');
+  if (!magSchrijven(context.rechten, 'boekingen')) return weiger('Geen recht om de definitieve bevestiging te versturen.');
   if (context.modus !== 'aan') return weiger('De definitieve bevestiging gaat pas naar de huurder als de mailschakelaar op Aan staat. Er is niets gewijzigd.');
-  if (!context.instellingen.gereedRegel) return weiger('Er is nog geen vastgestelde regel voor Gereed. Er is niets gewijzigd.');
   if (huidig.ondertekening !== 'ontvangen') return weiger('Het ondertekende contract is nog niet ontvangen.');
   if (!bestuurAkkoord(huidig)) return weiger('Bestuursakkoord op deze versie ontbreekt.');
   if ((context.bron.aanbetalingCent ?? 0) > 0 && context.betaling.stand !== 'ontvangen') {
     return weiger('De aanbetaling is nog niet ontvangen. Een handtekening maakt de boeking niet definitief.');
-  }
-  if (context.instellingen.gereedRegel === 'ondertekend_en_aanbetaling' && context.betaling.stand !== 'ontvangen') {
-    return weiger('De vastgelegde betaling is nog niet ontvangen.');
   }
   const alDefinitief = ['definitief', 'afgerond', 'gearchiveerd', 'migratie_vastgelegd'].includes(context.bron.boekingStatus);
   const alBevestigd = alVerzonden(context.versies, 'bevestiging');
@@ -999,12 +995,15 @@ export function bouwOpvolging(input: {
         ? `Ondertekend${huidig.ondertekeningActor ? ` · ${huidig.ondertekeningActor}` : ''}${huidig.ondertekeningOp ? ` · ${huidig.ondertekeningOp.slice(0, 16).replace('T', ' ')}` : ''}`
         : 'Nog niet',
     },
-    { label: 'Aanbetaling ontvangen', waarde: input.betaling.stand === 'ontvangen' ? 'Ontvangen' : input.betaling.stand === 'open' ? 'Nog niet' : 'Niet vastgelegd' },
+    { label: 'Aanbetaling ontvangen', waarde: input.betaling.stand === 'ontvangen' ? 'Ontvangen' : (input.bron.aanbetalingCent ?? 0) <= 0 ? 'Niet vereist' : input.betaling.stand === 'open' ? 'Nog niet' : 'Niet vastgelegd' },
+    {
+      label: 'Definitieve bevestiging',
+      waarde: alVerzonden(input.versies, 'bevestiging') ? 'Verstuurd' : 'Nog niet verstuurd',
+    },
   ];
   const aanbetalingOpen = (input.bron.aanbetalingCent ?? 0) > 0 && input.betaling.stand !== 'ontvangen';
-  const gereedKlaar = Boolean(input.instellingen.gereedRegel && huidig && huidig.ondertekening === 'ontvangen' && akkoord
+  const gereedKlaar = Boolean(huidig && huidig.ondertekening === 'ontvangen' && akkoord
     && !aanbetalingOpen
-    && (input.instellingen.gereedRegel === 'ondertekend' || input.betaling.stand === 'ontvangen')
     && !alVerzonden(input.versies, 'bevestiging'));
   return {
     fout: input.fout,

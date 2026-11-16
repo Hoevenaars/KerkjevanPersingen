@@ -283,7 +283,7 @@ test('betaling toont alleen wat vastligt', () => {
   assert.equal(legeInstellingen().gereedRegel, '');
 });
 
-test('lege gereed-regel promoveert niet', () => {
+test('een ontbrekende gereed-regel blokkeert de definitieve bevestiging niet', () => {
   const versie = gemaakt();
   const getekend = { ...versie, bestuur: 'akkoord' as const, ondertekening: 'ontvangen' as const };
   const uit = voerFlowUit({ soort: 'gereed', poging: '1' }, context({
@@ -291,8 +291,10 @@ test('lege gereed-regel promoveert niet', () => {
     rechten: rechten({ boekingen: 'schrijven' }),
     betaling: { stand: 'ontvangen', toelichting: '' },
   }));
-  assert.equal(uit.ok, false);
-  assert.match(uit.ok ? '' : uit.melding, /geen vastgestelde regel/i);
+  assert.equal(uit.ok, true);
+  if (!uit.ok) return;
+  assert.equal(uit.mail?.soort, 'bevestiging');
+  assert.equal(uit.promoveer, true);
 });
 
 test('een late expositie biedt geen praktische mail of herinnering', () => {
