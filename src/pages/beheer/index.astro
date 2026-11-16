@@ -2,381 +2,109 @@
 export const prerender = false;
 
 import Beheer from '../../layouts/Beheer.astro';
-import {
-  AANVRAAG_LABEL,
-  BOEKING_LABEL,
-  AGENDA_LABEL,
-  SOORT_LABEL,
-  dashboardHref,
-  formatNl,
-} from '../../platform/demo-data';
-import { laadBeheerSnapshot, beheerSnapshotOpties, snapshotDashboard } from '../../platform/beheer-bron.ts';
-import { dashboardVoor } from '../../platform/dashboard.ts';
+import Startscherm from '../../components/beheer/Startscherm.astro';
+import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../platform/beheer-bron.ts';
+import { startscherm } from '../../platform/dashboard-start.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { magZien } from '../../platform/rechten.ts';
 import { verhuurOverzichtAan } from '../../platform/verhuur-vlag.ts';
-import { actiepuntenKomendeWeken } from '../../platform/actiepunten.ts';
-import { dossierHref, hoofdnavAan, metHerkomst } from '../../platform/beheer-hoofdnav.ts';
-import { vandaagOverzicht } from '../../platform/beheer-vandaag.ts';
-import OverzichtVandaag from '../../components/beheer/OverzichtVandaag.astro';
+import { dossierHref, metHerkomst } from '../../platform/beheer-hoofdnav.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
-const kaarten = dashboardVoor(rechten, snapshotDashboard(snapshot, vandaag));
 const zietAanvragen = magZien(rechten, 'aanvragen');
 const zietBoekingen = magZien(rechten, 'boekingen');
 const zietAgenda = magZien(rechten, 'agenda');
-const nieuwe = snapshot.aanvragen.filter((a) => a.status === 'nieuw' || a.status === 'in_behandeling');
-const opties = snapshot.boekingen.filter((b) => b.status === 'optie' || b.status === 'optie_verlopen');
-const maand = vandaag.slice(0, 7);
-const supabase = snapshot.bron === 'supabase';
-const actiepunten = actiepuntenKomendeWeken({
+const zietPlanning = magZien(rechten, 'planning');
+const agendaAan = verhuurOverzichtAan();
+
+function planningQuery(start: string, extra: Record<string, string>): string {
+  const params = new URLSearchParams(extra);
+  if (start.length >= 7) {
+    params.set('jaar', start.slice(0, 4));
+    params.set('maand', String(Number(start.slice(5, 7))));
+  }
+  return `/beheer/planning/?${params.toString()}`;
+}
+
+const scherm = startscherm({
   vandaag,
-  boekingen: snapshot.boekingen.map((boeking) => ({
-    id: boeking.id,
-    titel: boeking.interneTitel,
-    start: boeking.start,
-    eind: boeking.eind,
-    status: boeking.status,
-    soort: boeking.soort,
-    gastheerId: boeking.gastheerId,
-    optieEind: boeking.optieEind,
+  aanvragen: snapshot.aanvragen.map((item) => ({
+    id: item.id,
+    naam: item.naam,
+    start: item.start,
+    eind: item.eind,
+    status: item.status,
+    boekingId: item.boekingId,
+  })),
+  boekingen: snapshot.boekingen.map((item) => ({
+    id: item.id,
+    nummer: item.nummer,
+    titel: item.interneTitel,
+    huurder: item.huurder,
+    start: item.start,
+    eind: item.eind,
+    status: item.status,
+    soort: item.soort,
+    gastheerId: item.gastheerId,
+    optieEind: item.optieEind,
+    aanvraagId: item.aanvraagId,
+    aanbetalingBinnen: item.aanbetalingBinnen,
   })),
   activiteiten: snapshot.agenda.map((item) => ({
+    id: item.id,
     boekingId: item.boekingId,
     titel: item.titel,
     start: item.start,
     eind: item.eind,
-    gepubliceerd: item.status === 'online',
+    soort: item.soort,
     contentstatus: item.contentstatus,
+    inhoudStatus: item.inhoudStatus,
     levenscyclus: item.levenscyclus,
     trigger: item.trigger,
+    tabel: item.tabel,
   })),
-  incidenten: snapshot.incidenten,
+  intern: snapshot.intern,
+  documenten: snapshot.documenten.map((item) => ({
+    boekingId: item.boekingId,
+    soort: item.soort,
+    naam: item.naam,
+  })),
+  mails: snapshot.communicatie.map((item) => ({
+    boekingId: item.boekingId,
+    template: item.template,
+    status: item.status,
+  })),
+  faseBetalingen: (snapshot.betalingen ?? []).map((item) => ({
+    boekingId: item.boekingId,
+    soort: item.soort,
+    status: item.status,
+  })),
+  toewijzingen: (snapshot.toewijzingen ?? []).map((item) => ({
+    boekingId: item.boekingId,
+    relatieId: item.relatieId,
+    relatieNaam: item.relatieNaam,
+  })),
+  gastheren: snapshot.gastheren.map((item) => ({ id: item.id, naam: item.naam })),
+  ziet: {
+    aanvragen: zietAanvragen,
+    boekingen: zietBoekingen,
+    agenda: zietAgenda,
+    planning: zietPlanning,
+  },
+  href: {
+    aanvragen: '/beheer/aanvragen/',
+    opties: '/beheer/boekingen/?status=optie',
+    aanvraag: (id) => metHerkomst(`/beheer/aanvragen/${encodeURIComponent(id)}/`, 'overzicht'),
+    boeking: (id) => metHerkomst(dossierHref(id, agendaAan), 'overzicht'),
+    activiteit: (id) => metHerkomst(`/beheer/agenda/${encodeURIComponent(id)}/`, 'overzicht'),
+    planning: (naam, start) => planningQuery(start, { q: naam }),
+    planningZonder: (start) => planningQuery(start, { begeleider: 'nee' }),
+  },
 });
-const eenvoud = hoofdnavAan();
-const agendaAan = verhuurOverzichtAan();
-const overzicht = eenvoud
-  ? vandaagOverzicht({
-      vandaag,
-      aanvragen: snapshot.aanvragen.map((item) => ({
-        id: item.id,
-        naam: item.naam,
-        start: item.start,
-        status: item.status,
-      })),
-      boekingen: snapshot.boekingen.map((item) => ({
-        id: item.id,
-        titel: item.interneTitel,
-        huurder: item.huurder,
-        start: item.start,
-        eind: item.eind,
-        status: item.status,
-        soort: item.soort,
-        gastheerId: item.gastheerId,
-        aanbetalingBinnen: item.aanbetalingBinnen,
-      })),
-      activiteiten: snapshot.agenda.map((item) => ({
-        id: item.id,
-        titel: item.titel,
-        start: item.start,
-        eind: item.eind,
-        contentstatus: item.contentstatus ?? null,
-        levenscyclus: item.levenscyclus,
-        trigger: item.trigger,
-      })),
-      betalingen: snapshot.betalingen ?? [],
-      ziet: {
-        aanvragen: zietAanvragen,
-        boekingen: zietBoekingen,
-        agenda: zietAgenda,
-        finance: magZien(rechten, 'finance'),
-      },
-      href: {
-        aanvraag: (id) => metHerkomst(`/beheer/aanvragen/${encodeURIComponent(id)}/`, 'overzicht'),
-        boeking: (id) => metHerkomst(dossierHref(id, agendaAan), 'overzicht'),
-        activiteit: (id) => metHerkomst(`/beheer/agenda/${encodeURIComponent(id)}/`, 'overzicht'),
-        finance: '/beheer/finance/',
-        boekingen: agendaAan && zietBoekingen ? '/beheer/verhuur/' : '/beheer/boekingen/',
-        systeem: magZien(rechten, 'systeembeheer') ? '/beheer/instellingen/systeem/' : null,
-      },
-      verzendfouten: snapshot.technisch,
-    })
-  : null;
 ---
 
 <Beheer titel="Dashboard">
-  {
-    eenvoud && overzicht ? (
-      <OverzichtVandaag overzicht={overzicht} verhuurHref={agendaAan && zietBoekingen ? '/beheer/verhuur/' : null} />
-    ) : (
-      <>
-  <header class="bh-top">
-    <div>
-      <p class="bh-label">Dashboard</p>
-      <h1>Dashboard</h1>
-      <p class="bh-hint">
-        {
-          supabase
-            ? 'Projectie van de Supabase-dossiers. Dezelfde staat als de keten, niet een aparte dashboardwaarheid.'
-            : 'Aandachtspunten uit de voorbeelddata. Klik een kaart of een naam — niets raakt de live site.'
-        }
-      </p>
-    </div>
-  </header>
-
-  {
-    verhuurOverzichtAan() && zietBoekingen && (
-      <p class="bh-hint">
-        <a class="bh-btn" href="/beheer/verhuur/">Open de verhuuragenda</a>
-      </p>
-    )
-  }
-
-  <ul class="bh-kaarten">
-    {
-      kaarten.length === 0 ? (
-        <li>
-          <a href={zietAanvragen ? '/beheer/aanvragen/' : '/beheer/'}>
-            <strong>0</strong>
-            <span>Geen openstaande punten</span>
-          </a>
-        </li>
-      ) : (
-        kaarten.map((item) => (
-          <li>
-            <a href={dashboardHref(item.sleutel, maand)}>
-              <strong>{item.aantal}</strong>
-              <span>{item.label}</span>
-            </a>
-          </li>
-        ))
-      )
-    }
-  </ul>
-
-  <section class="bh-kaart">
-    <h2>Komende 8 weken</h2>
-    <p class="bh-muted">Aandachtspunten uit de geladen dossiers. Finance telt niet als blokkade. Er wordt geen mail verstuurd.</p>
-    {
-      actiepunten.length === 0 ? (
-        <p class="bh-leeg">Geen aandachtspunt in de komende 8 weken.</p>
-      ) : (
-        <table class="bh-tabel">
-          <thead>
-            <tr>
-              <th>Wanneer</th>
-              <th>Punt</th>
-              <th>Dossier</th>
-            </tr>
-          </thead>
-          <tbody>
-            {actiepunten.map((punt) => (
-              <tr>
-                <td>{formatNl(punt.wanneer)}</td>
-                <td>{punt.toelichting}</td>
-                <td><a href={punt.href}>{punt.titel}</a></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )
-    }
-  </section>
-
-  {
-    zietAanvragen && (
-  <section class="bh-kaart">
-    <h2>Aanvragen die actie vragen</h2>
-    {
-      nieuwe.length === 0 ? (
-        <p class="bh-leeg">Geen openstaande aanvragen.</p>
-      ) : (
-        <table class="bh-tabel">
-          <thead>
-            <tr>
-              <th>Naam</th>
-              <th>Soort</th>
-              <th>Datum</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nieuwe.map((a) => (
-              <tr>
-                <td>
-                  <a class="bh-detail-link" href={`/beheer/aanvragen/${encodeURIComponent(a.id)}/`}>{a.naam}</a>
-                </td>
-                <td>{SOORT_LABEL[a.soort] ?? a.soort}</td>
-                <td>{formatNl(a.start)}</td>
-                <td>
-                  <span class={`bh-badge bh-badge--${a.status}`}>{AANVRAAG_LABEL[a.status]}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )
-    }
-  </section>
-    )
-  }
-
-  {
-    zietBoekingen && (
-  <section class="bh-kaart">
-    <h2>Opties</h2>
-    {
-      opties.length === 0 ? (
-        <p class="bh-leeg">Geen lopende opties.</p>
-      ) : (
-        <table class="bh-tabel">
-          <thead>
-            <tr>
-              <th>Boeking</th>
-              <th>Huurder</th>
-              <th>Datum</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {opties.map((b) => (
-              <tr>
-                <td>
-                  <a class="bh-detail-link" href={`/beheer/boekingen/${encodeURIComponent(b.id)}/`}>{b.nummer}</a>
-                </td>
-                <td>{b.huurder}</td>
-                <td>{formatNl(b.start)}</td>
-                <td>
-                  <span class={`bh-badge bh-badge--${b.status}`}>{BOEKING_LABEL[b.status]}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )
-    }
-  </section>
-    )
-  }
-
-  {
-    zietAgenda && (
-  <section class="bh-kaart">
-    <h2>Agenda en intern</h2>
-    {
-      snapshot.agenda.length + snapshot.intern.length === 0 ? (
-        <p class="bh-leeg">Geen agenda-items.</p>
-      ) : (
-        <table class="bh-tabel">
-          <thead>
-            <tr>
-              <th>Wat</th>
-              <th>Datum</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {snapshot.agenda.map((p) => (
-              <tr>
-                <td>
-                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(p.id)}/`}>{p.titel}</a>
-                </td>
-                <td>{formatNl(p.start)}</td>
-                <td>
-                  <span class={`bh-badge bh-badge--${p.status}`}>{AGENDA_LABEL[p.status]}</span>
-                </td>
-              </tr>
-            ))}
-            {snapshot.intern.map((i) => (
-              <tr>
-                <td>
-                  <a class="bh-detail-link" href={`/beheer/agenda/${encodeURIComponent(i.id)}/`}>{i.titel}</a>
-                </td>
-                <td>{formatNl(i.start)}</td>
-                <td>
-                  <span class="bh-badge">{i.blokkeert ? 'Blokkeert verhuur' : 'Intern'}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )
-    }
-  </section>
-    )
-  }
-
-  {
-    supabase && snapshot.signalen && zietBoekingen && (
-      <>
-        <section class="bh-kaart">
-          <h2>Actie nodig</h2>
-          {snapshot.technisch ? (
-            <p class="bh-flash">Technisch signaal: {snapshot.technisch} verzending wacht op actie na de retrylimiet.</p>
-          ) : (
-            <p class="bh-muted">Geen open technische verzendfout.</p>
-          )}
-          {snapshot.signalen.filter((item) => item.uitkomst === 'actie_vereist').length === 0 ? (
-            <p class="bh-leeg">Geen dossier met open actie.</p>
-          ) : (
-            <ul>
-              {snapshot.signalen
-                .filter((item) => item.uitkomst === 'actie_vereist')
-                .map((signaal) => (
-                  <li>
-                    <a href={`/beheer/boekingen/${encodeURIComponent(signaal.boekingId)}/`}>{signaal.titel}</a>
-                    {signaal.issues[0]
-                      ? ` — ${signaal.issues[0].oorzaak}. ${signaal.issues[0].eigenaar}. ${signaal.issues[0].actie}`
-                      : ''}
-                  </li>
-                ))}
-            </ul>
-          )}
-        </section>
-        <section class="bh-kaart">
-          <h2>Op schema</h2>
-          {snapshot.signalen.filter((item) => item.uitkomst === 'gereed').length === 0 ? (
-            <p class="bh-leeg">Nog geen dossier dat gereed is.</p>
-          ) : (
-            <ul>
-              {snapshot.signalen
-                .filter((item) => item.uitkomst === 'gereed')
-                .map((signaal) => (
-                  <li>
-                    <a href={`/beheer/boekingen/${encodeURIComponent(signaal.boekingId)}/`}>{signaal.titel}</a>
-                    {' '}
-                    Gereed
-                  </li>
-                ))}
-            </ul>
-          )}
-        </section>
-        <section class="bh-kaart">
-          <h2>Acties per eigenaar</h2>
-          <p class="bh-muted">Afgeleid uit de readiness van dezelfde dossiers. Er is geen aparte takenlijst.</p>
-          {snapshot.signalen.flatMap((item) => item.issues).length === 0 ? (
-            <p class="bh-leeg">Geen open actie.</p>
-          ) : (
-            <ul>
-              {snapshot.signalen.flatMap((signaal) =>
-                signaal.issues.map((issue) => (
-                  <li>
-                    {issue.eigenaar}: {issue.actie}
-                    {issue.deadline ? ` (deadline ${formatNl(issue.deadline)})` : ''}
-                    {' — '}
-                    <a href={`/beheer/boekingen/${encodeURIComponent(signaal.boekingId)}/`}>{signaal.titel}</a>
-                  </li>
-                )),
-              )}
-            </ul>
-          )}
-        </section>
-      </>
-    )
-  }
-      </>
-    )
-  }
+  <Startscherm scherm={scherm} />
 </Beheer>

@@ -22,7 +22,7 @@ const basis = {
   relatie_rollen: [{ relatie_id: 1, rol: 'huurder' }],
   boekingen: [
     { id: 10, nummer: 'BKG-1', status: 'geannuleerd', verhuurtype_sleutel: null, interne_titel: '1/2 mei', start_datum: '2024-05-01', eind_datum: '2024-05-02', huurder_relatie_id: 1, gastheer_relatie_id: null, huurder_naam_snapshot: 'Huurder A', huurder_email_snapshot: 'a@example.test', tarief_bedrag: 100, aanbetaling_ontvangen: false, interne_notities: '' },
-    { id: 11, nummer: 'BKG-2', status: 'migratie_vastgelegd', verhuurtype_sleutel: 'bruiloft', interne_titel: '3 juli', start_datum: '2026-07-03', eind_datum: '2026-07-03', huurder_relatie_id: 1, gastheer_relatie_id: 2, huurder_naam_snapshot: 'Huurder A', huurder_email_snapshot: '', tarief_bedrag: 50, aanbetaling_ontvangen: false, interne_notities: '' },
+    { id: 11, nummer: 'BKG-2', status: 'migratie_vastgelegd', verhuurtype_sleutel: 'bruiloft', interne_titel: '3 juli', start_datum: '2026-07-03', eind_datum: '2026-07-03', huurder_relatie_id: 1, gastheer_relatie_id: 2, huurder_naam_snapshot: 'Huurder A', huurder_email_snapshot: '', tarief_bedrag: 50, aanbetaling_ontvangen: false, interne_notities: '', optie_einddatum: '2026-06-20T00:00:00Z' },
   ],
   betalingen: [{ id: 7, boeking_id: 11, soort: 'aanbetaling', bedrag: 25, status: 'ontvangen', vervaldatum: null, ontvangen_op: '2026-01-02T00:00:00Z' }],
   interne_activiteiten: [{ id: 3, titel: 'Winterstop', start_datum: '2026-01-01', eind_datum: '2026-01-07', blokkeert_verhuurkalender: true }],
@@ -69,6 +69,8 @@ test('supabase-leesmodel houdt relaties, annulering, datum en blokkade uit elkaa
   assert.equal(snapshot.boekingen[0].periode, 'verleden');
   assert.equal(snapshot.boekingen[0].eind, '2024-05-02');
   assert.equal(snapshot.boekingen[1].periode, 'verleden');
+  assert.equal(snapshot.boekingen[1].optieEind, '2026-06-20');
+  assert.equal(snapshot.boekingen[0].optieEind, undefined);
   assert.equal(snapshot.intern.length, 1);
   assert.equal(snapshot.intern[0].titel, 'Winterstop');
   assert.equal(snapshot.boekingen.some((boeking) => boeking.interneTitel === 'Winterstop'), false);
