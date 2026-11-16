@@ -118,6 +118,21 @@ describe('centrale Kerkje-mail', () => {
     });
   }
 
+  test('de definitieve reservering noemt het vervolg en heeft geen knop', () => {
+    const tpl = standaardTemplate('booking_confirmed');
+    assert.ok(tpl);
+    const brief = renderMailBericht(tpl, VOORBEELD_VARIABELEN);
+    assert.match(brief.text, /definitief bevestigd/);
+    assert.match(brief.text, /Activiteit: Pianoconcert/);
+    assert.match(brief.text, /Voorbereiding: Ruim voor uw activiteit/);
+    assert.match(brief.text, /Praktische afspraken:/);
+    assert.match(brief.text, /Laatste informatie:/);
+    assert.match(brief.text, /Heeft u tussentijds vragen/);
+    assert.equal(brief.html.includes('Bekijk uw reservering'), false);
+    assert.equal(brief.text.includes('{{'), false);
+    eenKaart(brief.html);
+  });
+
   test('een tweede omlijsting wordt geweigerd', () => {
     const eerste = kerkjeMail({ titel: 'Eerste', hoofdtekst: 'Inhoud' });
     assert.throws(() => kerkjeMail({ titel: 'Tweede', extraBlok: eerste.html }));
