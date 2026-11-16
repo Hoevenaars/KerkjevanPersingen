@@ -1,0 +1,36 @@
+---
+import type { StartAgendaItem } from '../../platform/dashboard-start.ts';
+
+interface Props {
+  item: StartAgendaItem;
+}
+
+const { item } = Astro.props;
+---
+
+<li class="bh-agenda-item">
+  <a class="bh-agenda-wanneer" href={item.href}>
+    <span>{item.wanneer}</span>
+    {item.tijd && <span class="bh-agenda-tijd">{item.tijd}</span>}
+  </a>
+  <div class="bh-agenda-kern">
+    <a class="bh-agenda-naam" href={item.href}>{item.naam}</a>
+    {item.soort && <span class="bh-soort">{item.soort}</span>}
+    {
+      item.zonderBegeleider ? (
+        <p class="bh-gast bh-gast-mist">Nog geen gastbegeleider ingepland</p>
+      ) : item.begeleiders.length > 0 && (
+        <p class="bh-gast">
+          {
+            item.begeleiders.map((gast, index) => (
+              <>
+                {index > 0 && <span class="bh-gast-komma">, </span>}
+                {gast.href ? <a href={gast.href}>{gast.naam}</a> : <span>{gast.naam}</span>}
+              </>
+            ))
+          }
+        </p>
+      )
+    }
+  </div>
+</li>

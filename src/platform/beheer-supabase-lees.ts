@@ -84,6 +84,11 @@ function tekst(waarde: unknown): string {
   return waarde == null ? '' : String(waarde);
 }
 
+function dagOfLeeg(waarde: unknown): string | undefined {
+  const dag = tekst(waarde).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(dag) ? dag : undefined;
+}
+
 function boolOf(waarde: unknown): boolean | null {
   if (waarde === true || waarde === false) return waarde;
   if (waarde === 'true') return true;
@@ -191,7 +196,7 @@ export async function leesSupabaseBeheer(
   const [relatieRijen, rolRijen, boekingRijen, betalingRijen, internRijen, toeRijen, vriendRijen, nieuwsRijen, documentRijen, templateRijen, instellingRijen, agendaRijen, aanvraagRijen, aanvraagAdresRijen, jobRijen, verzendRijen, tariefRijen, bronRijen, incidentRijen] = await Promise.all([
     leesRelaties(),
     lees(client, 'relatie_rollen', 'relatie_id,rol,actief'),
-    lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting'),
+    lees(client, 'boekingen', 'id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,huurder_naam_snapshot,huurder_email_snapshot,tarief_bedrag,aanbetaling_ontvangen,interne_notities,mede_exposanten,toelichting,optie_einddatum'),
     lees(client, 'betalingen', 'id,boeking_id,soort,bedrag,status,vervaldatum,ontvangen_op'),
     lees(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender,notities'),
     lees(client, 'gastbegeleider_toewijzingen', 'id,boeking_id,relatie_id,datum,type'),
@@ -285,6 +290,7 @@ export async function leesSupabaseBeheer(
       tarief,
       aanbetaling: '',
       aanbetalingBinnen: Boolean(rij.aanbetaling_ontvangen),
+      optieEind: dagOfLeeg(rij.optie_einddatum),
       publiek: false,
       notities: tekst(rij.interne_notities),
       relatieId,

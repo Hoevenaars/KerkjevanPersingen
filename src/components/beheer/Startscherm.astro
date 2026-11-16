@@ -1,0 +1,84 @@
+---
+import type { Startscherm } from '../../platform/dashboard-start.ts';
+import AgendaRegel from './AgendaRegel.astro';
+
+interface Props {
+  scherm: Startscherm;
+}
+
+const { scherm } = Astro.props;
+const extra = scherm.agendaExtra.length;
+---
+
+<div class="bh-start">
+  <header class="bh-top">
+    <h1>Dashboard</h1>
+  </header>
+
+  <ul class="bh-tellers">
+    {
+      scherm.tellers.map((teller) => (
+        <li>
+          {
+            teller.href ? (
+              <a href={teller.href}>
+                <strong>{teller.aantal}</strong>
+                <span>{teller.label}</span>
+              </a>
+            ) : (
+              <span class="bh-teller-stil">
+                <strong>{teller.aantal}</strong>
+                <span>{teller.label}</span>
+              </span>
+            )
+          }
+        </li>
+      ))
+    }
+  </ul>
+
+  <section class="bh-blok" aria-labelledby="acties-kop">
+    <h2 id="acties-kop">Acties</h2>
+    {
+      scherm.acties.length === 0 ? (
+        <p class="bh-leeg">Geen openstaande acties.</p>
+      ) : (
+        <ul class="bh-start-lijst">
+          {scherm.acties.map((actie) => (
+            <li>
+              <a href={actie.href}>
+                <span class="bh-actie-titel">{actie.titel}</span>
+                <span class="bh-actie-tekst">{actie.toelichting}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+
+  <section class="bh-blok" id="komende" aria-labelledby="agenda-kop">
+    <h2 id="agenda-kop">Komende twee weken</h2>
+    {
+      scherm.agendaTotaal === 0 ? (
+        <p class="bh-leeg">Geen activiteiten in de komende twee weken.</p>
+      ) : (
+        <>
+          <ul class="bh-agenda">
+            {scherm.agenda.map((item) => <AgendaRegel item={item} />)}
+          </ul>
+          {
+            extra > 0 && (
+              <details class="bh-meer">
+                <summary>Toon nog {extra} {extra === 1 ? 'activiteit' : 'activiteiten'}</summary>
+                <ul class="bh-agenda">
+                  {scherm.agendaExtra.map((item) => <AgendaRegel item={item} />)}
+                </ul>
+              </details>
+            )
+          }
+        </>
+      )
+    }
+  </section>
+</div>
