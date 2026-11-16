@@ -88,6 +88,20 @@ export function weekendVan(ymd: string): { zaterdag: string; zondag: string } {
   return { zaterdag, zondag: voegDagenToe(zaterdag, 1) };
 }
 
+const MAANDEN_NL = [
+  'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+  'juli', 'augustus', 'september', 'oktober', 'november', 'december',
+];
+
+/** Kalenderdag als ‘12 februari 2027’. Een andere tekst blijft staan. */
+export function kalenderdatumNl(ymd: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!match) return ymd;
+  const maand = MAANDEN_NL[Number(match[2]) - 1];
+  if (!maand) return ymd;
+  return `${Number(match[3])} ${maand} ${match[1]}`;
+}
+
 export function ymdInAmsterdam(datum: Date): string {
   return datum.toLocaleDateString('en-CA', { timeZone: TIJDZONE });
 }

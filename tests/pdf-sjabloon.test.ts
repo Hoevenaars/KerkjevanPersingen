@@ -11,7 +11,8 @@ import {
   voorbeeldContractSjabloon,
   vulPdfSjabloon,
 } from '../src/platform/documenten/pdf-sjabloon.ts';
-import { maakContractPdf } from '../src/platform/contract-pakket.ts';
+import { contractPakketTekst, maakContractPdf } from '../src/platform/contract-pakket.ts';
+import { contractAandachtspunten, personenWeergave } from '../src/platform/documentenflow.ts';
 import { HUISREGELS_V1, PLATTEGROND_V1, VOORWAARDEN_V1 } from '../src/platform/documenten/teksten-v1.ts';
 import {
   contractTekst,
@@ -43,7 +44,7 @@ function instellingen(): DocumentenflowInstellingen {
   };
 }
 
-function bron(): ContractBron {
+function bron(extra: Partial<ContractBron> = {}): ContractBron {
   return {
     boekingId: '42',
     soort: 'bruiloft',
@@ -72,6 +73,7 @@ function bron(): ContractBron {
     gastTelefoon: '',
     promotieAanwezig: false,
     boekingStatus: 'optie',
+    ...extra,
   };
 }
 
@@ -101,8 +103,12 @@ test('de contracttekst levert de mergevelden, inclusief euro en accent', () => {
   assert.ok(velden);
   assert.equal(velden?.contractnummer, 'KVP-20260909-42-v1');
   assert.equal(velden?.huurder, 'José de Vries');
-  assert.equal(velden?.periode_van, '2026-09-09');
+  assert.equal(velden?.periode_van, '9 september 2026');
   assert.equal(velden?.tijd_tot, '18:00');
+  assert.match(opgesteld.tekst ?? '', /9 september 2026/);
+  assert.equal((opgesteld.tekst ?? '').includes('____'), false);
+  assert.match(opgesteld.tekst ?? '', /40 personen/);
+  assert.match(opgesteld.tekst ?? '', /uitsluitend via de persoonlijke link/);
   assert.match(velden?.huurprijs ?? '', /550,00/);
   assert.equal(velden?.ondertekenaar, 'A. de Boer');
 });
@@ -205,6 +211,49 @@ test('lange waarden blijven binnen de A4-pagina en lopen over meerdere bladzijde
   assert.equal(pdfBevatTekst(pdf, 'WolfWolf'), true);
   assert.equal(pdfBevatTekst(pdf, 'Verhuurvoorwaarden'), true);
   assert.equal(pdfBevatTekst(pdf, 'Huisregels'), true);
+});
+
+test('het contractpakket blijft compact, zonder lege pagina of papieren handtekening', () => {
+  const opgesteld = contractTekst(bron({
+    activiteit: 'Kerklicht: Kaarslicht Concert',
+    personen: '90 Per Show',
+    periodeVan: '2027-02-12',
+    periodeTot: '2027-02-14',
+    huurprijsCent: 100,
+    aanbetalingCent: 100,
+    aanbetalingVerval: '2026-11-22',
+    restCent: 0,
+    restVerval: '',
+  }), afspraken, instellingen(), 'KVP-20270212-284-v4', 4, '2026-11-16');
+  assert.ok(opgesteld.tekst);
+  assert.match(opgesteld.tekst ?? '', /90 personen per voorstelling/);
+  assert.match(opgesteld.tekst ?? '', /elke dag van 12 februari 2027 t\/m 14 februari 2027/);
+  assert.match(opgesteld.tekst ?? '', /Boekingsnummer: KVP-20270212-284/);
+  assert.equal(personenWeergave('90 Per Show'), '90 personen per voorstelling');
+  const aandacht = contractAandachtspunten(bron({
+    activiteit: 'Kerklicht: Kaarslicht Concert',
+    huurprijsCent: 100,
+    aanbetalingCent: 100,
+  }));
+  assert.equal(aandacht.some((punt) => /entreegeld|tickets/i.test(punt)), true);
+  assert.equal(aandacht.some((punt) => /€ 1,00/.test(punt)), true);
+  assert.equal(aandacht.some((punt) => /niet aangepast/.test(punt)), true);
+  const pakket = contractPakketTekst({
+    tekst: opgesteld.tekst ?? '',
+    voorwaardenTekst: VOORWAARDEN_V1,
+    huisregelsTekst: HUISREGELS_V1,
+    plattegrondTekst: '',
+    soort: 'concert',
+  });
+  const info = pdfPastInA4(pakket);
+  assert.deepEqual(info.teBreed, []);
+  assert.ok(info.paginas >= 4 && info.paginas <= 5, `paginas ${info.paginas}: ${info.regels.join(',')}`);
+  assert.ok(info.regels.every((aantal) => aantal >= 8), info.regels.join(','));
+  const pdf = pdfBytes(pakket);
+  assert.equal(pdf.subarray(0, 16).some((byte) => byte >= 128), true);
+  assert.equal(Buffer.from(pdf).toString('latin1').includes('/URI (https://kerkjepersingen.nl/privacyverklaring/)'), true);
+  assert.equal(pdfBevatTekst(pdf, '90 personen per voorstelling'), true);
+  assert.equal(pdfBevatTekst(pdf, 'Handtekening'), false);
 });
 
 test('een lange waarde blijft leesbaar in een sjabloonveld', async () => {

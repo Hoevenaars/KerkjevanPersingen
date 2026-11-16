@@ -5,6 +5,7 @@
  */
 
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { formatDatum } from '../lib/datum.ts';
 import { contractPakketTekst, maakContractPdf, sha256Hex, type PakketBron } from './contract-pakket.ts';
 import { voegTekstAanPdf } from './documenten/pdf-sjabloon.ts';
 import { pdfBytes } from './documenten/pdf.ts';
@@ -94,20 +95,22 @@ export interface TekenBewijs {
 }
 
 export function bewijsTekst(bewijs: TekenBewijs): string {
+  const tijdstip = Number.isNaN(Date.parse(bewijs.op)) ? bewijs.op : formatDatum(bewijs.op);
   return [
     'Bewijs van elektronische ondertekening',
     'Stichting Het Kerkje van Persingen',
     '',
-    'Dit is een elektronische bevestiging in de online omgeving van het Kerkje van Persingen.',
-    'Dit is geen gekwalificeerde elektronische handtekening.',
+    'De huurder heeft deze documentversie ondertekend in de online omgeving van het Kerkje van Persingen.',
+    'De ondertekening geldt voor de volledige overeenkomst, de verhuurvoorwaarden en de huisregels.',
+    'Dit is een elektronische bevestiging en geen gekwalificeerde elektronische handtekening.',
+    'De reservering is door deze ondertekening niet automatisch definitief.',
     '',
-    `Contract: ${bewijs.contractnummer}`,
+    `Contractnummer: ${bewijs.contractnummer}`,
     `Documentversie: ${bewijs.versie}`,
-    `Hash van het contractpakket vóór dit bewijs: ${bewijs.documentHash}`,
     `Ondertekenaar: ${bewijs.naam}`,
     `Geverifieerd e-mailadres: ${bewijs.email}`,
-    `Tijdstip: ${bewijs.op}`,
-    'De ondertekenaar heeft de volledige naam bevestigd en expliciet akkoord gegeven met de contractuele bepalingen.',
+    `Ondertekend op: ${tijdstip}`,
+    `Hash van de concept-PDF: ${bewijs.documentHash}`,
   ].join('\n');
 }
 
@@ -232,7 +235,7 @@ export async function voerTekenstap(
   }
   const naam = stap.naam.replace(/\s+/g, ' ').trim();
   if (naam.length < 3) return { ok: false, melding: 'Vul uw volledige naam in.' };
-  if (!stap.akkoord) return { ok: false, melding: 'Vink aan dat u akkoord gaat met de contractuele bepalingen.' };
+  if (!stap.akkoord) return { ok: false, melding: 'Vink aan dat u akkoord gaat met de volledige overeenkomst, inclusief de bijlagen.' };
   const ongetekend = await pdfUitDossier(dossier, opties?.sjabloon ?? null);
   if (!ongetekend.ok) return ongetekend;
   const documentHash = sha256Hex(ongetekend.pdf);

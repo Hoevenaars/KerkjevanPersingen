@@ -84,7 +84,7 @@ export function normaliseerVeldnaam(naam: string): string {
 }
 
 export function veldenUitContracttekst(tekst: string): Record<string, string> | null {
-  const kop = tekst.match(/Contractnummer: (.+?) \| Documentversie: (.+?) \| Datum opgesteld: (\S+)/);
+  const kop = tekst.match(/Contractnummer: (.+?) \| Documentversie: (.+?) \| Datum opgesteld: ([^\n]+)/);
   if (!kop) return null;
   const velden: Record<string, string> = {};
   for (const [sleutel] of CONTRACT_MERGEVELDEN) velden[sleutel] = '';
@@ -102,6 +102,9 @@ export function veldenUitContracttekst(tekst: string): Record<string, string> | 
   if (periode.length === 2) {
     velden.periode_van = periode[0].trim();
     velden.periode_tot = periode[1].trim();
+  } else if (velden.periode) {
+    velden.periode_van = velden.periode.trim();
+    velden.periode_tot = velden.periode.trim();
   }
   const tijden = velden.gebruikstijden.split(' - ');
   if (tijden.length === 2) {

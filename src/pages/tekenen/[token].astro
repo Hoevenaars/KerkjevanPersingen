@@ -41,10 +41,43 @@ let netGeverifieerd = false;
 if (Astro.request.method === 'POST') {
   const formulier = await Astro.request.formData();
   const actie = String(formulier.get('actie') ?? '');
-  const stap = actie === 'code'
-    ? { soort: 'code' as const, token, nu, geheim }
-    : actie === 'controle'
-      ? { soort: 'controle' as const, token, nu, geheim, code: String(formulier.get('code') ?? '') }
+  function zetCookie(waarde: string) {
+    Astro.cookies.set(cookieNaam, waarde, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/tekenen/',
+      secure: Astro.url.protocol === 'https:',
+      maxAge: 30 * 60,
+    });
+  }
+  if (actie === 'code-en-teken') {
+    const controle = await behandelTekenpagina({
+      stap: { soort: 'controle', token, nu, geheim, code: String(formulier.get('code') ?? '') },
+    });
+    if (!controle.ok || !controle.cookie) {
+      fout = controle.ok ? 'De code klopt, maar ondertekenen is niet gestart.' : controle.melding;
+    } else {
+      zetCookie(controle.cookie);
+      netGeverifieerd = true;
+      const teken = await behandelTekenpagina({
+        stap: {
+          soort: 'onderteken',
+          token,
+          nu,
+          geheim,
+          naam: String(formulier.get('naam') ?? ''),
+          akkoord: String(formulier.get('akkoord') ?? '') === 'ja',
+          cookie: controle.cookie,
+          ipHash: ipHash(),
+          userAgent: Astro.request.headers.get('user-agent') ?? '',
+        },
+      });
+      if (!teken.ok) fout = teken.melding;
+      else melding = teken.melding;
+    }
+  } else {
+    const stap = actie === 'code'
+      ? { soort: 'code' as const, token, nu, geheim }
       : actie === 'onderteken'
         ? {
           soort: 'onderteken' as const,
@@ -58,22 +91,14 @@ if (Astro.request.method === 'POST') {
           userAgent: Astro.request.headers.get('user-agent') ?? '',
         }
         : null;
-  if (!stap) {
-    fout = 'Deze actie hoort niet bij het contract.';
-  } else {
-    const uit = await behandelTekenpagina({ stap });
-    if (!uit.ok) fout = uit.melding;
-    else {
-      melding = uit.melding;
-      if (actie === 'controle') netGeverifieerd = true;
-      if (uit.cookie) {
-        Astro.cookies.set(cookieNaam, uit.cookie, {
-          httpOnly: true,
-          sameSite: 'lax',
-          path: '/tekenen/',
-          secure: Astro.url.protocol === 'https:',
-          maxAge: 30 * 60,
-        });
+    if (!stap) {
+      fout = 'Deze actie hoort niet bij het contract.';
+    } else {
+      const uit = await behandelTekenpagina({ stap });
+      if (!uit.ok) fout = uit.melding;
+      else {
+        melding = uit.melding;
+        if (uit.cookie) zetCookie(uit.cookie);
       }
     }
   }
@@ -120,7 +145,7 @@ const ondertekend = Boolean(dossier.ondertekendOp);
       ondertekend ? (
         <p>Uw elektronische ondertekening is vastgelegd. Dit is geen gekwalificeerde elektronische handtekening. Het contract kan niet meer worden gewijzigd.</p>
       ) : (
-        <p>Lees de overeenkomst, de huisregels en de verhuurvoorwaarden. Daarna bevestigt u uw e-mailadres met een code en ondertekent u deze versie.</p>
+        <p>Lees de overeenkomst, de huisregels en de verhuurvoorwaarden. Vul daarna de code uit de e-mail in en onderteken deze versie.</p>
       )
     }
     {
@@ -132,6 +157,15 @@ const ondertekend = Boolean(dossier.ondertekendOp);
       <a class="knop knop-lijn" href="?bestand=pdf">Download contract als PDF</a>
       {!ondertekend && <a class="knop" href="#ondertekenen">Onderteken overeenkomst</a>}
     </div>
+    {
+      !ondertekend && (
+        <div class="onderbalk">
+          <a href="#voorwaarden">Voorwaarden</a>
+          <a href="#huisregels">Huisregels</a>
+          <a href="#ondertekenen">Onderteken</a>
+        </div>
+      )
+    }
     {
       metSjabloon ? (
         <section class="pdf-lees" id="contract">
@@ -159,12 +193,19 @@ const ondertekend = Boolean(dossier.ondertekendOp);
         )
       }
       {
-        !ondertekend && (
+        !ondertekend && !geverifieerd && (
           <form method="post">
-            <input type="hidden" name="actie" value="controle" />
+            <input type="hidden" name="actie" value="code-en-teken" />
             <label for="code">Code uit de e-mail</label>
             <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required />
-            <button type="submit">Bevestig de code</button>
+            <label for="naam">Volledige naam</label>
+            <input id="naam" name="naam" required maxlength="120" value={dossier.huurderNaam} />
+            <label class="vink">
+              <input type="checkbox" name="akkoord" value="ja" required />
+              Ik ga akkoord met de volledige overeenkomst van documentversie {dossier.versie}, inclusief de verhuurvoorwaarden en de huisregels.
+            </label>
+            <button type="submit">Bevestig code en onderteken</button>
+            <p class="noot">Dit is een elektronische bevestiging, geen gekwalificeerde elektronische handtekening. U ontvangt daarna de ondertekende PDF.</p>
           </form>
         )
       }
@@ -172,11 +213,11 @@ const ondertekend = Boolean(dossier.ondertekendOp);
         !ondertekend && geverifieerd && (
           <form method="post">
             <input type="hidden" name="actie" value="onderteken" />
-            <label for="naam">Volledige naam</label>
-            <input id="naam" name="naam" required maxlength="120" value={dossier.huurderNaam} />
+            <label for="naam-herhaal">Volledige naam</label>
+            <input id="naam-herhaal" name="naam" required maxlength="120" value={dossier.huurderNaam} />
             <label class="vink">
               <input type="checkbox" name="akkoord" value="ja" required />
-              Ik ga akkoord met de contractuele bepalingen in deze versie.
+              Ik ga akkoord met de volledige overeenkomst van documentversie {dossier.versie}, inclusief de verhuurvoorwaarden en de huisregels.
             </label>
             <button type="submit">Ondertekenen</button>
             <p class="noot">Dit is een elektronische bevestiging, geen gekwalificeerde elektronische handtekening.</p>
@@ -319,5 +360,38 @@ const ondertekend = Boolean(dossier.ondertekendOp);
   .noot {
     color: var(--ink-soft);
     font-size: 0.95rem;
+  }
+  .onderbalk {
+    display: none;
+  }
+  @media (max-width: 720px) {
+    .teken {
+      padding-bottom: 5.5rem;
+    }
+    .onderbalk {
+      display: flex;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 5;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom));
+      background: #fff;
+      border-top: 1px solid var(--sand);
+    }
+    .onderbalk a {
+      flex: 1;
+      min-height: 2.75rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .onderbalk a:last-child {
+      background: var(--brick);
+      color: #fff;
+    }
   }
 </style>
