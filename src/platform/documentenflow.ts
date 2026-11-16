@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { voegDagenToe } from './datum.ts';
+import { kalenderdatumNl, voegDagenToe } from './datum.ts';
 import { magSchrijven } from './rechten.ts';
 import type { GebruikerRechten } from './types.ts';
 import { contractMail, contractPakketTekst, PRIVACY_URL } from './contract-pakket.ts';
@@ -356,6 +356,43 @@ function schoon(waarde: string): string {
   return waarde.replace(/[{}]/g, '').trim();
 }
 
+/** Toont een aantal zoals ‘90 Per Show’ als een zin in het contract. De opgeslagen boeking blijft ongewijzigd. */
+export function personenWeergave(waarde: string): string {
+  const net = waarde.replace(/\s+/g, ' ').trim();
+  if (!net) return 'niet van toepassing';
+  const perShow = /^(\d+)\s*per\s+show$/i.exec(net);
+  if (perShow) return `${perShow[1]} personen per voorstelling`;
+  if (/^\d+$/.test(net)) return `${net} personen`;
+  return net;
+}
+
+function periodeWeergave(van: string, tot: string): string {
+  if (van === tot) return kalenderdatumNl(van);
+  return `${kalenderdatumNl(van)} t/m ${kalenderdatumNl(tot)}`;
+}
+
+function dagenVanTijden(van: string, tot: string): string {
+  if (van === tot) return `Deze tijden gelden op ${kalenderdatumNl(van)}.`;
+  return `Deze tijden gelden op elke dag van ${kalenderdatumNl(van)} t/m ${kalenderdatumNl(tot)}.`;
+}
+
+/**
+ * Aandachtspunten voor het bestuur. Ze blokkeren de flow niet en wijzigen
+ * voorwaarden, bedragen of de opgeslagen boeking niet.
+ */
+export function contractAandachtspunten(bron: ContractBron): string[] {
+  const punten: string[] = [];
+  const tekst = `${bron.activiteit} ${bron.toelichting} ${bron.soortLabel}`.toLowerCase();
+  if (/kerklicht|ticket|entree|toegangsbewijs|kaartverkoop/.test(tekst)) {
+    punten.push('De activiteit lijkt tickets of entreegeld te gebruiken. De verhuurvoorwaarden en de huisregels staan dat niet toe. Een uitzondering hoort als door het bestuur goedgekeurde afspraak in een nieuwe contractversie, niet als stille wijziging van de algemene voorwaarden.');
+  }
+  punten.push('De bijgevoegde verhuurvoorwaarden zeggen dat zij pas gelden na formele vaststelling en publicatie. Controleer of versie 1.0 die status heeft voordat deze versie wordt verzonden. De tekst van de voorwaarden is niet aangepast.');
+  if (bron.huurprijsCent === 100 || bron.aanbetalingCent === 100) {
+    punten.push('De huurprijs of de aanbetaling staat op € 1,00. Controleer of dat de afgesproken boekingsprijs is. Het bedrag is niet automatisch aangepast.');
+  }
+  return punten;
+}
+
 export function contractTekst(
   bron: ContractBron,
   afspraken: ContractAfspraken,
@@ -366,16 +403,18 @@ export function contractTekst(
 ): { tekst: string | null; ontbreekt: string[] } {
   const ontbreekt = ontbrekendeContractgegevens(bron, afspraken, instellingen);
   if (ontbreekt.length > 0) return { tekst: null, ontbreekt };
-  const aanRegel = bedragRegel(bron.aanbetalingCent, bron.aanbetalingVerval);
-  const restRegel = bedragRegel(bron.restCent, bron.restVerval);
+  const aanRegel = bedragRegel(bron.aanbetalingCent, kalenderdatumNl(bron.aanbetalingVerval));
+  const restRegel = bedragRegel(bron.restCent, kalenderdatumNl(bron.restVerval));
   const huis = [schoon(bron.huisnummer), schoon(bron.toevoeging)].filter(Boolean).join('');
   const adres = `${schoon(bron.straat)} ${huis}`.trim();
   const contact = schoon(afspraken.contactpersoon || bron.huurderNaam);
+  const boekingsnummer = contractnummer.replace(/-v\d+$/i, '');
   const tekst = [
     'Huurovereenkomst',
     'Verhuur van het Kerkje van Persingen',
     `VERSIE ${DOCUMENTVERSIE}`,
-    `Contractnummer: ${contractnummer} | Documentversie: ${versie} | Datum opgesteld: ${opgesteldOp}`,
+    `Contractnummer: ${contractnummer} | Documentversie: ${versie} | Datum opgesteld: ${kalenderdatumNl(opgesteldOp)}`,
+    ...(boekingsnummer === contractnummer ? [] : [`Boekingsnummer: ${boekingsnummer}`]),
     '',
     '1. Partijen',
     `Verhuurder: Stichting Het Kerkje van Persingen, gevestigd aan Persingensestraat 7, 6575 JA Persingen, ingeschreven bij de Kamer van Koophandel onder nummer 41058732, rechtsgeldig vertegenwoordigd door ${schoon(instellingen.ondertekenaarNaam)}, ${schoon(instellingen.ondertekenaarFunctie)}.`,
@@ -388,11 +427,12 @@ export function contractTekst(
     '2. Gehuurde ruimte en gebruik',
     `Soort activiteit: ${schoon(bron.soortLabel)}`,
     `Omschrijving: ${schoon(bron.activiteit)}`,
-    `Datum / periode: ${bron.periodeVan} t/m ${bron.periodeTot}`,
+    `Datum / periode: ${periodeWeergave(bron.periodeVan, bron.periodeTot)}`,
     `Gebruikstijden: ${schoon(afspraken.tijdVan)} - ${schoon(afspraken.tijdTot)}`,
+    `Toelichting tijden: ${dagenVanTijden(bron.periodeVan, bron.periodeTot)}`,
     `Opbouw / toegang: ${schoon(afspraken.opbouw)}`,
     `Afbouw / oplevering: ${schoon(afspraken.afbouw)}`,
-    `Aantal personen: ${schoon(bron.personen) || 'niet van toepassing'}`,
+    `Aantal personen: ${personenWeergave(bron.personen)}`,
     `Contactpersoon: ${contact}`,
     '',
     '3. Huurprijs en betaling',
@@ -404,23 +444,26 @@ export function contractTekst(
     `Betalingskenmerk: ${contractnummer}`,
     `Betaalgegevens: ${schoon(instellingen.tenaamstelling)}, ${instellingen.iban}`,
     'Een eventueel betaalverzoek of factuur wordt apart verstrekt. Deze huurovereenkomst is zelf geen factuur.',
+    'Het boekingsnummer blijft gelijk bij een nieuwe documentversie. Het betalingskenmerk hoort bij deze versie.',
     '',
     '4. Voorwaarden en zorgvuldig gebruik',
-    `Verhuurvoorwaarden: versie ${DOCUMENTVERSIE} / vastgesteld op ${instellingen.voorwaardenVastgesteldOp}`,
-    `Huisregels: versie ${DOCUMENTVERSIE} / vastgesteld op ${instellingen.huisregelsVastgesteldOp}`,
+    `Verhuurvoorwaarden: versie ${DOCUMENTVERSIE} / vastgesteld op ${kalenderdatumNl(instellingen.voorwaardenVastgesteldOp)}`,
+    `Huisregels: versie ${DOCUMENTVERSIE} / vastgesteld op ${kalenderdatumNl(instellingen.huisregelsVastgesteldOp)}`,
     '',
     '5. Bevestiging en wijzigingen',
     'Een aanvraag of voorlopig akkoord vormt nog geen definitieve reservering. De reservering wordt definitief zodra de verhuurder dit schriftelijk bevestigt, overeenkomstig de door het bestuur vastgestelde boekings- en betalingsafspraken.',
+    'Na verzending verandert deze tekst niet meer. Een wijziging vereist een nieuwe documentversie en, als de vorige versie al is ondertekend, een nieuwe ondertekening.',
     '',
     '6. Annulering en persoonsgegevens',
     `Op annulering zijn de bijgevoegde verhuurvoorwaarden van toepassing. Privacyverklaring: ${PRIVACY}`,
     '',
-    '7. Ondertekening',
-    'Partijen verklaren de inhoud van deze overeenkomst en de bijlagen te hebben ontvangen en hiermee akkoord te gaan.',
+    '7. Digitale ondertekening',
+    'De huurder ondertekent deze overeenkomst uitsluitend via de persoonlijke link in de begeleidende e-mail. Er hoeft niets te worden geprint of teruggestuurd.',
+    'Met die ondertekening verklaart de huurder de volledige overeenkomst, de verhuurvoorwaarden en de huisregels te hebben ontvangen en daarmee akkoord te gaan.',
     `Namens verhuurder: ${schoon(instellingen.ondertekenaarNaam)}`,
-    'Plaats: Persingen    Datum: ______________    Handtekening: ______________',
-    `Huurder: ${schoon(bron.huurderNaam)}`,
-    'Plaats: ______________    Datum: ______________    Handtekening: ______________',
+    `De functie van deze vertegenwoordiger is ${schoon(instellingen.ondertekenaarFunctie)}. In dit concept staat geen handtekening namens de verhuurder.`,
+    'Na ondertekening wordt een definitieve PDF met het elektronische ondertekenbewijs bewaard, naast dit concept.',
+    'Digitale ondertekening maakt de reservering niet vanzelf definitief. Daarvoor gelden de boekings- en betaalafspraken in deze overeenkomst.',
   ].join('\n');
   if (VERBODEN.test(tekst)) return { tekst: null, ontbreekt: ['De contracttekst bevat een niet toegestane passage.'] };
   return { tekst, ontbreekt: [] };
@@ -867,6 +910,7 @@ export interface ContractOpvolgingWeergave {
   versie: number | null;
   nummerVoorOndertekening: string;
   versieVoorOndertekening: string;
+  aandacht: string[];
 }
 
 export function bouwOpvolging(input: {
@@ -1005,6 +1049,7 @@ export function bouwOpvolging(input: {
     versie: huidig?.versie ?? null,
     nummerVoorOndertekening: huidig?.contractnummer ?? '',
     versieVoorOndertekening: huidig ? String(huidig.versie) : '',
+    aandacht: contractAandachtspunten(input.bron),
   };
 }
 

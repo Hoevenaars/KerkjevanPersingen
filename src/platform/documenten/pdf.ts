@@ -64,18 +64,21 @@ const SOFT = '0.290 0.290 0.267';
 const BRICK = '0.612 0.290 0.184';
 const SAND = '0.914 0.890 0.816';
 
-/** Helvetica-breedtes in duizendsten van de corpsgrootte. Onbekende tekens tellen ruim, zodat een regel niet buiten de marge valt. */
+/** Times-breedtes in duizendsten. Onbekende tekens tellen ruim, zodat een regel niet buiten de marge valt. */
 const GLYPH: Record<string, number> = {
-  ' ': 278, 'i': 222, 'l': 222, 'I': 278, 'j': 222, 'f': 278, 't': 278, 'r': 333,
-  '.': 278, ',': 278, ':': 278, ';': 278, "'": 222, '!': 278, '|': 260,
-  '(': 333, ')': 333, '-': 333, '/': 278, '[': 278, ']': 278,
-  'm': 833, 'w': 722, 'M': 833, 'W': 944,
-  'O': 778, 'Q': 778, 'G': 778, 'C': 722, 'D': 722, 'H': 722, 'N': 722, 'U': 722,
-  '@': 1015, '%': 889, '&': 667, '\u20ac': 556,
+  ' ': 250, 'i': 278, 'l': 278, 'I': 333, 'j': 278, 'f': 333, 't': 278, 'r': 333,
+  '.': 250, ',': 250, ':': 278, ';': 278, "'": 180, '!': 333, '|': 200,
+  '(': 333, ')': 333, '-': 333, '/': 278, '[': 333, ']': 333,
+  'm': 778, 'w': 722, 'M': 889, 'W': 944,
+  'O': 722, 'Q': 722, 'G': 722, 'C': 667, 'D': 722, 'H': 722, 'N': 722, 'U': 722,
+  '@': 921, '%': 833, '&': 778, '\u20ac': 500,
 };
 
 function glyphEenheid(teken: string): number {
-  return GLYPH[teken] ?? 620;
+  if (GLYPH[teken] != null) return GLYPH[teken];
+  if (/\d/.test(teken)) return 500;
+  if (/[A-Z]/.test(teken)) return 680;
+  return 460;
 }
 
 export function pdfRegelBreedte(tekst: string, grootte: number, vet = false): number {
@@ -131,7 +134,7 @@ function soortVan(regel: string, eersteVanDeel: boolean): RegelSoort {
   if (/_{4,}/.test(regel)) return 'handtekening';
   if (eersteVanDeel && regel.length <= 80 && !regel.includes(':')) return 'titel';
   if (/^\d+\.\s+\S/.test(regel) && regel.length <= 90) return 'kop';
-  if (/^VERSIE\b/.test(regel)) return 'meta';
+  if (/^VERSIE\b/.test(regel) || /\| Documentversie:/.test(regel)) return 'meta';
   if (!regel.includes(':') && /^(Huurovereenkomst|Verhuurvoorwaarden|Huisregels|Plattegrond|Bewijs van elektronische ondertekening)/.test(regel) && regel.length <= 80) {
     return 'titel';
   }
@@ -148,52 +151,64 @@ interface GetekendeRegel {
   x: number;
   max: number;
   kleur: string;
+  streep?: boolean;
+}
+
+interface ZetRegel {
+  tekst: string;
+  grootte: number;
+  vet: boolean;
+  x: number;
+  max: number;
+  kleur: string;
+  voor: number;
+  na: number;
+  streep?: boolean;
+  plakt: boolean;
+  titel: string;
 }
 
 function layoutPaginas(tekst: string): { regels: GetekendeRegel[]; titel: string }[] {
-  const paginas: { regels: GetekendeRegel[]; titel: string }[] = [];
-  let blad: GetekendeRegel[] = [];
+  const alles: ZetRegel[] = [];
   let titel = 'Huurovereenkomst';
-  let y = KOP_ONDER;
+  let openGroep = 0;
 
-  function nieuwBlad() {
-    if (blad.length) paginas.push({ regels: blad, titel });
-    blad = [];
-    y = KOP_ONDER;
-  }
-
-  function plaats(regel: string, grootte: number, vet: boolean, x: number, max: number, kleur: string, voor: number, leidend: number) {
-    if (blad.length > 0 && y - (voor + leidend) < VOET_BOVEN) nieuwBlad();
-    y -= voor;
-    blad.push({ tekst: regel, grootte, vet, y: y - grootte, x, max, kleur });
-    y -= leidend;
+  function duw(regels: Omit<ZetRegel, 'plakt' | 'titel'>[], plakVolgende = 0) {
+    regels.forEach((regel) => {
+      const plakt = openGroep > 0;
+      if (openGroep > 0) openGroep -= 1;
+      alles.push({ ...regel, plakt, titel });
+    });
+    if (plakVolgende > 0) openGroep += plakVolgende;
+    if (regels.length >= 2) alles[alles.length - 1].plakt = true;
   }
 
   tekst.split('\f').forEach((stuk, index) => {
-    if (index > 0) nieuwBlad();
+    if (index > 0 && alles.length > 0) {
+      duw([{ tekst: '', grootte: 0, vet: false, x: MARGE_X, max: TEKSTBREEDTE, kleur: SAND, voor: 8, na: 8, streep: true }]);
+    }
     let eerste = true;
     for (const bron of stuk.split('\n')) {
       const schoon = bron.trim();
-      if (!schoon) {
-        y -= 7;
-        if (y < VOET_BOVEN) nieuwBlad();
-        continue;
-      }
+      if (!schoon || /_{4,}/.test(schoon)) continue;
       const soort = soortVan(schoon, eerste);
       eerste = false;
       if (soort === 'titel') {
         titel = schoon;
-        const delen = breekRegel(schoon, 18, true);
-        delen.forEach((deel, deelIndex) => plaats(deel, 18, true, MARGE_X, TEKSTBREEDTE, PINE, deelIndex === 0 ? 4 : 0, 24));
+        const delen = breekRegel(schoon, 16, true).map((deel, deelIndex) => ({
+          tekst: deel, grootte: 16, vet: true, x: MARGE_X, max: TEKSTBREEDTE, kleur: PINE, voor: deelIndex === 0 ? 2 : 0, na: 20,
+        }));
+        duw(delen, 2);
         continue;
       }
       if (soort === 'kop') {
-        if (blad.length > 0 && y - 40 < VOET_BOVEN) nieuwBlad();
-        plaats(schoon, 13, true, MARGE_X, TEKSTBREEDTE, PINE, 12, 18);
+        duw([{ tekst: schoon, grootte: 12, vet: true, x: MARGE_X, max: TEKSTBREEDTE, kleur: PINE, voor: 11, na: 16 }], 2);
         continue;
       }
       if (soort === 'meta') {
-        plaats(schoon, 9, false, MARGE_X, TEKSTBREEDTE, SOFT, 0, 14);
+        duw(breekOpBreedte(schoon, 9, false, TEKSTBREEDTE).map((deel) => ({
+          tekst: deel, grootte: 9, vet: false, x: MARGE_X, max: TEKSTBREEDTE, kleur: SOFT, voor: 0, na: 13,
+        })));
         continue;
       }
       if (soort === 'feit') {
@@ -201,30 +216,74 @@ function layoutPaginas(tekst: string): { regels: GetekendeRegel[]; titel: string
         const label = schoon.slice(0, idx);
         const waarde = schoon.slice(idx + 2);
         const delen = breekOpBreedte(waarde, 11, false, WAARDE_BREEDTE);
-        delen.forEach((deel, deelIndex) => {
-          if (blad.length > 0 && y - 16 < VOET_BOVEN) nieuwBlad();
-          const basis = y - 12;
-          if (deelIndex === 0) blad.push({ tekst: label, grootte: 9, vet: true, y: basis, x: MARGE_X, max: LABEL_BREEDTE - 8, kleur: SOFT });
-          blad.push({ tekst: deel, grootte: 11, vet: false, y: basis, x: WAARDE_X, max: WAARDE_BREEDTE, kleur: INK });
-          y = basis - 6;
-        });
+        duw(delen.map((deel, deelIndex) => ({
+          tekst: deelIndex === 0 ? `${label}\u0001${deel}` : deel,
+          grootte: 11,
+          vet: false,
+          x: WAARDE_X,
+          max: WAARDE_BREEDTE,
+          kleur: INK,
+          voor: 1,
+          na: 15,
+        })));
         continue;
       }
-      if (soort === 'handtekening') {
-        const delen = schoon.split(/\s{2,}/).map((deel) => deel.replace(/_{4,}/g, '______________'));
-        for (const deel of delen) {
-          const stukken = breekOpBreedte(deel, 11, false, TEKSTBREEDTE);
-          for (const stukRegel of stukken) plaats(stukRegel, 11, false, MARGE_X, TEKSTBREEDTE, INK, 1, 16);
-        }
-        continue;
-      }
-      for (const deel of breekOpBreedte(schoon, 11, false, TEKSTBREEDTE)) {
-        plaats(deel, 11, false, MARGE_X, TEKSTBREEDTE, INK, 1, 15);
-      }
+      const regels = breekOpBreedte(schoon, 11, false, TEKSTBREEDTE);
+      duw(regels.map((deel, deelIndex) => ({
+        tekst: deel, grootte: 11, vet: false, x: MARGE_X, max: TEKSTBREEDTE, kleur: INK, voor: deelIndex === 0 ? 1 : 0, na: 14,
+      })));
     }
   });
-  if (blad.length || paginas.length === 0) paginas.push({ regels: blad, titel });
-  return paginas;
+
+  const paginas: { regels: GetekendeRegel[]; titel: string }[] = [];
+  let cursor = 0;
+  while (cursor < alles.length) {
+    while (cursor < alles.length && alles[cursor].streep) cursor += 1;
+    if (cursor >= alles.length) break;
+    let y = KOP_ONDER;
+    let passen = 0;
+    while (cursor + passen < alles.length) {
+      const regel = alles[cursor + passen];
+      if (passen > 0 && regel.streep && y - (regel.voor + regel.na) - 40 < VOET_BOVEN) break;
+      const stap = regel.voor + regel.na;
+      if (y - stap < VOET_BOVEN) break;
+      y -= stap;
+      passen += 1;
+    }
+    if (passen === 0) passen = 1;
+    const over = alles.length - cursor - passen;
+    if (over > 0 && over < 6 && passen > 8) passen -= 6 - over;
+    while (passen > 1 && alles[cursor + passen]?.plakt) passen -= 1;
+    if (passen < 1) passen = 1;
+    const stuk = alles.slice(cursor, cursor + passen).filter((regel, index, lijst) => {
+      if (!regel.streep) return true;
+      return index > 0 && index < lijst.length - 1;
+    });
+    y = KOP_ONDER;
+    const getekend: GetekendeRegel[] = [];
+    for (const regel of stuk) {
+      y -= regel.voor;
+      getekend.push({ ...regel, y: regel.streep ? y : y - regel.grootte });
+      y -= regel.na;
+    }
+    const kopOpBlad = stuk.find((regel) => regel.grootte >= 16 && regel.tekst);
+    if (getekend.length) paginas.push({ regels: getekend, titel: kopOpBlad?.titel || stuk[0]?.titel || titel });
+    cursor += passen;
+  }
+  if (paginas.length === 0) paginas.push({ regels: [], titel });
+  return paginas.map((pagina) => ({
+    titel: pagina.titel,
+    regels: pagina.regels.flatMap((regel) => {
+      const scheiding = regel.tekst.indexOf('\u0001');
+      if (scheiding < 0) return [regel];
+      const label = regel.tekst.slice(0, scheiding);
+      const waarde = regel.tekst.slice(scheiding + 1);
+      return [
+        { ...regel, tekst: label, grootte: 9, vet: true, x: MARGE_X, max: LABEL_BREEDTE - 8, kleur: SOFT },
+        { ...regel, tekst: waarde },
+      ];
+    }),
+  }));
 }
 
 function breekOpBreedte(tekst: string, grootte: number, vet: boolean, max: number): string[] {
@@ -249,16 +308,21 @@ function breekOpBreedte(tekst: string, grootte: number, vet: boolean, max: numbe
 }
 
 /** Elke getekende regel moet binnen zijn zetbreedte blijven. */
-export function pdfPastInA4(tekst: string): { paginas: number; teBreed: string[] } {
+export function pdfPastInA4(tekst: string): { paginas: number; teBreed: string[]; regels: number[] } {
   const paginas = layoutPaginas(tekst);
   const teBreed: string[] = [];
+  const regels: number[] = [];
   for (const blad of paginas) {
+    let teller = 0;
     for (const regel of blad.regels) {
+      if (regel.streep || !regel.tekst) continue;
+      teller += 1;
       if (pdfRegelBreedte(regel.tekst, regel.grootte, regel.vet) > regel.max + 1) teBreed.push(regel.tekst);
       if (regel.y < 28) teBreed.push(regel.tekst);
     }
+    regels.push(teller);
   }
-  return { paginas: paginas.length, teBreed };
+  return { paginas: paginas.length, teBreed, regels };
 }
 
 function latin1(tekst: string): Uint8Array {
@@ -325,8 +389,22 @@ export function pdfBevatTekst(bytes: Uint8Array, naald: string): boolean {
   return false;
 }
 
-function paginaStroom(blad: { regels: GetekendeRegel[]; titel: string }, nummer: number, totaal: number): string {
+function paginaLabel(nummer: number, totaal: number): string {
+  return `${nummer} van ${totaal}`;
+}
+
+function kortTotBreedte(tekst: string, grootte: number, max: number): string {
+  if (pdfRegelBreedte(tekst, grootte, false) <= max) return tekst;
+  let kort = tekst;
+  while (kort.length > 4 && pdfRegelBreedte(`${kort}...`, grootte, false) > max) kort = kort.slice(0, -1);
+  return `${kort}...`;
+}
+
+function paginaStroom(blad: { regels: GetekendeRegel[]; titel: string }, nummer: number, totaal: number, referentie: string): string {
   const kop = blad.titel.length > 42 ? `${blad.titel.slice(0, 39)}...` : blad.titel;
+  const label = paginaLabel(nummer, totaal);
+  const labelX = Math.round(PAGINA_B - MARGE_X - pdfRegelBreedte(label, 8, false));
+  const voet = kortTotBreedte(referentie || 'Stichting Het Kerkje van Persingen', 8, labelX - MARGE_X - 16);
   const regels = [
     'q',
     `${PINE} rg`,
@@ -359,6 +437,13 @@ function paginaStroom(blad: { regels: GetekendeRegel[]; titel: string }, nummer:
     }
   }
   for (const regel of blad.regels) {
+    if (regel.streep) {
+      sluitTekst();
+      regels.push('q', `${SAND} RG`, '0.4 w', `${MARGE_X} ${Math.round(regel.y)} m ${PAGINA_B - MARGE_X} ${Math.round(regel.y)} l S`, 'Q');
+      vorigeKleur = '';
+      continue;
+    }
+    if (!regel.tekst) continue;
     openTekst();
     if (regel.kleur !== vorigeKleur) {
       regels.push(`${regel.kleur} rg`);
@@ -379,17 +464,59 @@ function paginaStroom(blad: { regels: GetekendeRegel[]; titel: string }, nummer:
     `${SOFT} rg`,
     '/F1 8 Tf',
     '1 0 0 1 56 32 Tm',
-    '(Stichting Het Kerkje van Persingen) Tj',
-    `1 0 0 1 ${PAGINA_B - 110} 32 Tm`,
-    `(${nummer} / ${totaal}) Tj`,
+    `(${pdfString(voet)}) Tj`,
+    `1 0 0 1 ${labelX} 32 Tm`,
+    `(${pdfString(label)}) Tj`,
     'ET',
   );
   return regels.join('\n');
 }
 
+interface PdfVerwijzing {
+  x: number;
+  y: number;
+  breedte: number;
+  hoogte: number;
+  uri: string;
+}
+
+function verwijzingen(regel: GetekendeRegel): PdfVerwijzing[] {
+  if (regel.streep || !regel.tekst) return [];
+  const uit: PdfVerwijzing[] = [];
+  const patroon = /https:\/\/[^\s)]+/g;
+  let treffer: RegExpExecArray | null;
+  while ((treffer = patroon.exec(regel.tekst))) {
+    const uri = treffer[0].replace(/[.,;]+$/, '');
+    const voor = regel.tekst.slice(0, treffer.index);
+    uit.push({
+      x: regel.x + pdfRegelBreedte(voor, regel.grootte, regel.vet),
+      y: regel.y - 2,
+      breedte: Math.max(8, pdfRegelBreedte(uri, regel.grootte, regel.vet)),
+      hoogte: regel.grootte + 4,
+      uri,
+    });
+  }
+  return uit;
+}
+
+function verwijzingObject(link: PdfVerwijzing): string {
+  const x2 = Math.round(link.x + link.breedte);
+  const y1 = Math.round(link.y);
+  const y2 = Math.round(link.y + link.hoogte);
+  return `<< /Type /Annot /Subtype /Link /Rect [${Math.round(link.x)} ${y1} ${x2} ${y2}] /Border [0 0 0] /A << /S /URI /URI (${pdfString(link.uri)}) >> >>`;
+}
+
+function documentReferentie(tekst: string): string {
+  const kop = tekst.match(/Contractnummer:\s*([^|\n]+)/);
+  const versie = tekst.match(/Documentversie:\s*(\S+)/);
+  if (!kop) return 'Stichting Het Kerkje van Persingen';
+  return versie ? `${kop[1].trim()} · versie ${versie[1]}` : kop[1].trim();
+}
+
 /** Meerbladige A4-PDF. Een form-feed in de tekst begint een nieuwe bladzijde. De tekst blijft selecteerbaar. */
 export function pdfBytes(tekst: string): Uint8Array {
   const bladen = layoutPaginas(tekst);
+  const referentie = documentReferentie(tekst);
   const objecten = new Map<number, string>();
   objecten.set(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>');
   objecten.set(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>');
@@ -400,11 +527,21 @@ export function pdfBytes(tekst: string): Uint8Array {
     const inhoudId = volg + 1;
     volg += 2;
     kids.push(paginaId);
-    const stream = paginaStroom(blad, index + 1, bladen.length);
+    const stream = paginaStroom(blad, index + 1, bladen.length, referentie);
+    const annotIds: number[] = [];
+    for (const regel of blad.regels) {
+      for (const link of verwijzingen(regel)) {
+        const annotId = volg;
+        volg += 1;
+        annotIds.push(annotId);
+        objecten.set(annotId, verwijzingObject(link));
+      }
+    }
+    const annots = annotIds.length ? ` /Annots [${annotIds.map((id) => `${id} 0 R`).join(' ')}]` : '';
     objecten.set(inhoudId, `<< /Length ${latin1(stream).length} >>\nstream\n${stream}\nendstream`);
     objecten.set(
       paginaId,
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGINA_B} ${PAGINA_H}] /CropBox [0 0 ${PAGINA_B} ${PAGINA_H}] /Contents ${inhoudId} 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGINA_B} ${PAGINA_H}] /CropBox [0 0 ${PAGINA_B} ${PAGINA_H}] /Contents ${inhoudId} 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >>${annots} >>`,
     );
   });
   objecten.set(2, `<< /Type /Pages /Count ${kids.length} /Kids [${kids.map((id) => `${id} 0 R`).join(' ')}] >>`);

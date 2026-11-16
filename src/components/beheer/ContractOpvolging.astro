@@ -16,6 +16,17 @@ const proef = opvolging.modus !== 'aan';
 <section class="bh-kaart" id="contract-opvolging" aria-label="Contract en opvolging">
   <h2>Contract en opvolging</h2>
   {opvolging.fout && <p class="bh-flash">{opvolging.fout}</p>}
+  {
+    opvolging.aandacht.length > 0 && (
+      <div>
+        <h3>Aandacht voor het bestuur</h3>
+        <p class="bh-muted">Dit blokkeert verzenden niet. Voorwaarden en bedragen zijn niet automatisch aangepast.</p>
+        <ul>
+          {opvolging.aandacht.map((punt) => <li>{punt}</li>)}
+        </ul>
+      </div>
+    )
+  }
   <dl class="bh-dl">
     {
       opvolging.regels.map((regel) => (
