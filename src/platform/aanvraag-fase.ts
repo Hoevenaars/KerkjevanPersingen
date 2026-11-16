@@ -58,6 +58,8 @@ export interface FaseBoeking {
   titel: string;
   huurder: string;
   aanbetalingBinnen: boolean;
+  /** Euro. 0 betekent dat er geen aanbetaling vereist is. */
+  aanbetalingBedrag?: number | null;
   aanvraagId?: string;
 }
 
@@ -156,6 +158,13 @@ function periodeVan(start: string, eind: string): { start: string; eind: string 
 
 function overlapt(a: { start: string; eind: string }, b: { start: string; eind: string }): boolean {
   return periodesOverlappen(a, b);
+}
+
+export function bedragUitWeergave(waarde: string | null | undefined): number | null {
+  const schoon = String(waarde ?? '').replace(/[^\d,.-]/g, '').replace(',', '.');
+  if (!schoon || schoon === '-' || schoon === '.') return null;
+  const getal = Number(schoon);
+  return Number.isFinite(getal) ? getal : null;
 }
 
 export function isDefinitieveBoeking(status: string | undefined): boolean {
@@ -263,6 +272,9 @@ export function checklistVan(boeking: FaseBoeking | null, wereld: FaseWereld): C
     aanbetalingTekst = 'Ontvangen';
   } else if (openRegel) {
     aanbetalingTekst = 'Nog niet ontvangen';
+  } else if (boeking.aanbetalingBedrag != null && boeking.aanbetalingBedrag <= 0) {
+    aanbetaling = true;
+    aanbetalingTekst = 'Niet vereist';
   }
   return {
     verzonden,

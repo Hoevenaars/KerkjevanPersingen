@@ -213,6 +213,15 @@ test('contract, handtekening en aanbetaling bepalen de volgende actie', () => {
   assert.equal(regel.checklist.aanbetaling, true);
   assert.equal(regel.fase, 'gereed');
   assert.equal(regel.checklist.aanbetalingTekst, 'Ontvangen');
+
+  const zonderAanbetaling = beoordeelAanvraag(item, wereld({
+    aanvragen: [item],
+    boekingen: [{ ...boeking, aanbetalingBedrag: 0, aanbetalingBinnen: false }],
+    documenten: [{ boekingId: 'b-4', soort: 'getekend_contract', naam: 'getekend.pdf' }],
+  }));
+  assert.equal(zonderAanbetaling.checklist.aanbetalingTekst, 'Niet vereist');
+  assert.equal(zonderAanbetaling.checklist.compleet, true);
+  assert.equal(zonderAanbetaling.fase, 'gereed');
 });
 
 test('een nieuwe contractversie haalt de oude verzending uit de fase', () => {

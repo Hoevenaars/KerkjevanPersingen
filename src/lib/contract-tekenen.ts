@@ -17,6 +17,7 @@ import {
   type TekenWinkel,
 } from '../platform/contract-tekenen.ts';
 import { besluitVoor } from './automatisering-register.ts';
+import { promoveerIndienKlaar } from './operatie/definitief-auto.ts';
 import { getTestMailRecipient } from './testmail-adres.ts';
 
 type Rij = Record<string, unknown>;
@@ -126,6 +127,10 @@ export function supabaseTekenwinkel(env: Record<string, unknown> = process.env):
         mime_type: 'application/pdf',
         grootte_bytes: input.pdf.byteLength,
       });
+      await promoveerIndienKlaar(client as never, Number(huidig.data.boeking_id), {
+        naam: 'Ondertekening',
+        type: 'systeem',
+      }).catch(() => null);
       return huidig.data.ondertekend_op === input.op ? 'nieuw' : 'al';
     },
   };

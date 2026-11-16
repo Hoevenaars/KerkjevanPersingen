@@ -292,7 +292,7 @@ const groepen = [
     magDocumenten && (
       <section class="bh-kaart">
         <h2>Contract en opvolging</h2>
-        <p>De velden staan gevuld met wat al op de site staat: Nelleke van der Pol als contractbeheer, en het rekeningnummer van Steun ons. Pas een veld aan als de huur ergens anders hoort. Zonder gereed-regel wordt een boeking niet vanzelf definitief.</p>
+        <p>De velden staan gevuld met wat al op de site staat: Nelleke van der Pol als contractbeheer, en het rekeningnummer van Steun ons. Pas een veld aan als de huur ergens anders hoort. Een boeking wordt definitief zodra de checklist compleet is. Ontbreekt deze regel, dan blokkeert dat die overgang niet.</p>
         <form method="post" class="bh-form">
           <label for="df-bestuur">Bestuursakkoord voor nieuwe contracten</label>
           <select id="df-bestuur" name="bestuur">
@@ -301,7 +301,7 @@ const groepen = [
           </select>
           <label for="df-gereed">Wanneer een boeking definitief mag</label>
           <select id="df-gereed" name="gereed">
-            <option value="" selected={documentenInstellingen.gereedRegel === ''}>Nog niet vastgesteld</option>
+            <option value="" selected={documentenInstellingen.gereedRegel === ''}>Checklist, ook zonder opgeslagen regel</option>
             <option value="ondertekend" selected={documentenInstellingen.gereedRegel === 'ondertekend'}>Na ondertekening</option>
             <option value="ondertekend_en_aanbetaling" selected={documentenInstellingen.gereedRegel === 'ondertekend_en_aanbetaling'}>Na ondertekening en ontvangen aanbetaling</option>
           </select>

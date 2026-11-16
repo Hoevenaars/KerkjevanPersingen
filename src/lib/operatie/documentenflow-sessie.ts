@@ -24,6 +24,7 @@ import { SOORT_LABEL } from '../../platform/demo-data.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import type { Actor } from './kern.ts';
 import { voerDossierViaSessie, type DossierSessie } from './dossier-sessie.ts';
+import { promoveerIndienKlaar } from './definitief-auto.ts';
 import { noteerGetekendDocument } from './ontvangst.ts';
 
 type Fout = { message: string; code?: string } | null;
@@ -370,6 +371,9 @@ export async function pasDocumentenflowToe(input: {
   if (!plan.ok) return plan;
   const fout = await bewaarVersies(input.client, Number(input.boekingId), context.versies, plan.versies);
   if (fout) return { ok: false, melding: fout };
+  if (input.actie.soort === 'akkoord' || input.actie.soort === 'ondertekend' || input.actie.soort === 'gereed') {
+    await promoveerIndienKlaar(input.client, Number(input.boekingId), input.actor);
+  }
   if (plan.promoveer) {
     const gezet = await voerDossierViaSessie(input.client, {
       soort: 'handmatig_definitief',

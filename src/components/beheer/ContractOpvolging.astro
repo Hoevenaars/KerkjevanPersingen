@@ -42,7 +42,7 @@ const proef = opvolging.modus !== 'aan';
   {
     toonOntvangst && opvolging.kanOndertekenen && (
       <form method="post" action={actie} class="bh-form" enctype="multipart/form-data">
-        <p class="bh-muted">Het getekende contract is binnen. Dit legt dat vast. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+        <p class="bh-muted">Het getekende contract is binnen. Dit legt dat vast. Er gaat geen mail uit. Is de checklist daarna compleet, dan wordt de boeking definitief.</p>
         <label for="df-getekend-pdf">Ondertekende PDF, als je die hebt</label>
         <input id="df-getekend-pdf" name="bestand" type="file" accept="application/pdf,.pdf" />
         <button class="bh-btn" type="submit" name="actie" value="ondertekening_ontvangen">Contract ondertekend</button>
@@ -52,7 +52,7 @@ const proef = opvolging.modus !== 'aan';
   {
     toonOntvangst && opvolging.kanAanbetaling && (
       <form method="post" action={actie}>
-        <p class="bh-muted">De aanbetaling staat op de rekening. De restbetaling blijft open. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+        <p class="bh-muted">De aanbetaling staat op de rekening. De restbetaling blijft open. Er gaat geen mail uit. Is de checklist daarna compleet, dan wordt de boeking definitief.</p>
         <button class="bh-btn" type="submit" name="actie" value="aanbetaling_ontvangen">Aanbetaling ontvangen</button>
       </form>
     )
@@ -186,7 +186,7 @@ const proef = opvolging.modus !== 'aan';
       <form method="post" action={actie}>
         <input type="hidden" name="actie" value="df_gereed" />
         <input type="hidden" name="poging" value={crypto.randomUUID()} />
-        <button class="bh-btn" type="submit">Definitief volgens de vastgestelde regel</button>
+        <button class="bh-btn" type="submit">Verstuur definitieve bevestiging</button>
       </form>
     )
   }

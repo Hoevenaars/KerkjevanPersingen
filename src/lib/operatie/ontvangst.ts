@@ -1,12 +1,13 @@
 /**
  * Legt vast dat een contract is ondertekend of dat de aanbetaling binnen is.
- * De restbetaling blijft open. Er gaat geen mail uit en de boeking wordt
- * niet definitief.
+ * De restbetaling blijft open. Er gaat geen mail uit.
+ * Is de checklist daarna compleet, dan wordt de boeking definitief.
  */
 
 import { magContractBeheren } from '../../platform/documentenflow.ts';
 import { magSchrijven } from '../../platform/rechten.ts';
 import type { Actor } from './kern.ts';
+import { promoveerIndienKlaar } from './definitief-auto.ts';
 import { leesbareAuthFout, type DossierResultaat, type DossierSessie } from './dossier-sessie.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -178,11 +179,13 @@ export async function legOndertekeningVast(
     'ondertekening_ontvangen',
     'Ondertekend exemplaar vastgelegd. Er is geen mail verstuurd.',
   );
+  const promotie = await promoveerIndienKlaar(client, boekingId, actor);
+  const basis = alGetekend
+    ? 'Dit contract was al als ondertekend vastgelegd. Er is geen mail verstuurd.'
+    : 'Het contract is als ondertekend vastgelegd. Er is geen mail verstuurd.';
   return {
     ok: true,
-    melding: alGetekend
-      ? 'Dit contract was al als ondertekend vastgelegd. Er is geen mail verstuurd.'
-      : 'Het contract is als ondertekend vastgelegd. Er is geen mail verstuurd. De boeking is niet definitief gemaakt.',
+    melding: promotie.gepromoveerd ? `${basis} De boeking is definitief.` : basis,
   };
 }
 
@@ -260,11 +263,13 @@ export async function legAanbetalingVast(
     }
   }
 
+  const promotie = await promoveerIndienKlaar(client, boekingId, actor);
+  const basis = ontvangen.length > 0
+    ? 'De aanbetaling was al ontvangen. Er is geen mail verstuurd.'
+    : 'De aanbetaling is als ontvangen vastgelegd. De restbetaling blijft open. Er is geen mail verstuurd.';
   return {
     ok: true,
-    melding: ontvangen.length > 0
-      ? 'De aanbetaling was al ontvangen. Er is geen mail verstuurd.'
-      : 'De aanbetaling is als ontvangen vastgelegd. De restbetaling blijft open. Er is geen mail verstuurd en de boeking is niet definitief gemaakt.',
+    melding: promotie.gepromoveerd ? `${basis} De boeking is definitief.` : basis,
   };
 }
 
