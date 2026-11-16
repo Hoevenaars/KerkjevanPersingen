@@ -15,9 +15,20 @@ import {
   type FaseWereld,
 } from '../../platform/aanvraag-fase.ts';
 import { ymdInAmsterdam, periodesOverlappen } from '../../platform/datum.ts';
-import { boekingNummer, leesHandmatigeBoeking, type HandmatigeBoeking } from '../../platform/handmatige-boeking.ts';
+import {
+  adviesVoorPeriode,
+  boekingNummer,
+  interneAgendaTitel,
+  interneSoortNaam,
+  leesHandmatigeBoeking,
+  magAfwijken,
+  notitiesVoorIntern,
+  procesTekst,
+  type HandmatigeBoeking,
+} from '../../platform/handmatige-boeking.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
-import { magSchrijven } from '../../platform/rechten.ts';
+import { isBestuurder, magSchrijven } from '../../platform/rechten.ts';
+import { verstuurHandmatigeBevestiging } from './handmatige-bevestiging.ts';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import type { AanvraagStatus, GebruikerRechten } from '../../platform/types.ts';
 import type { Actor, Opdracht } from './kern.ts';
@@ -30,6 +41,8 @@ export interface DossierResultaat {
   ok: boolean;
   melding: string;
   boekingId?: string;
+  aanvraagId?: string;
+  activiteitId?: string;
 }
 
 interface BoekingRij {
@@ -403,7 +416,7 @@ async function wereldVoorGoedkeuren(client: DossierSessie): Promise<FaseWereld |
   const [boekingen, aanvragen, blokkades, activiteiten] = await Promise.all([
     leesLijst(client, 'boekingen', 'id,nummer,status,start_datum,eind_datum,interne_titel,huurder_naam_snapshot,aanvraag_id,aanbetaling_ontvangen'),
     leesLijst(client, 'aanvragen', 'id,status,naam,start_datum,eind_datum,boeking_id'),
-    leesLijst(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender'),
+    leesLijst(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender,notities'),
     leesLijst(client, 'activiteit_bron', 'id,titel,interne_titel,start_datum,eind_datum,zichtbaarheid,levenscyclus'),
   ]);
   if ('fout' in boekingen) return boekingen;
@@ -439,6 +452,7 @@ async function wereldVoorGoedkeuren(client: DossierSessie): Promise<FaseWereld |
       start: tekst(rij.start_datum),
       eind: tekst(rij.eind_datum),
       blokkeert: rij.blokkeert_verhuurkalender === true,
+      notities: tekst(rij.notities),
     })),
     activiteiten: activiteiten.data.map((rij): FaseActiviteit => ({
       id: tekst(rij.id),
@@ -546,41 +560,101 @@ async function maakHandmatigeBoeking(
   opdracht: Extract<Opdracht, { soort: 'handmatige_boeking' }>,
   actor: Actor,
 ): Promise<DossierResultaat> {
-  if (!mag(actor, 'boekingen')) return { ok: false, melding: 'Geen recht om een boeking aan te maken.' };
-  const gelezen = leesHandmatigeBoeking(opdracht);
+  if (!isBestuurder(rechtenVan(actor))) return { ok: false, melding: 'Alleen een bestuurder kan een handmatige boeking vastleggen.' };
+  const { soort: _soort, ...rest } = opdracht;
+  const gelezen = leesHandmatigeBoeking(rest);
   if (!gelezen.ok) return { ok: false, melding: gelezen.melding };
   const boeking = gelezen.boeking;
-  const overlap = await overlapMetActieve(client, 0, boeking.start, boeking.eind);
-  if ('fout' in overlap) return { ok: false, melding: overlap.fout };
-  if (overlap.nummers.length > 0) {
-    return { ok: false, melding: `Niet opgeslagen. De periode overlapt met ${overlap.nummers.join(', ')}.` };
+  if (boeking.soort === 'verhuur' && boeking.fase !== 'nieuw' && !mag(actor, 'boekingen')) {
+    return { ok: false, melding: 'Geen recht om een boeking aan te maken.' };
   }
+  const wereld = await wereldVoorGoedkeuren(client);
+  if ('fout' in wereld) return { ok: false, melding: wereld.fout };
+  const eigenTijd = boeking.soort === 'intern' && !boeking.heleDag ? `${boeking.tijdVan}-${boeking.tijdTot}` : null;
+  const advies = adviesVoorPeriode(wereld, boeking.start, boeking.eind, eigenTijd);
+  const afwijking = magAfwijken(advies, boeking);
+  if (!afwijking.ok) return { ok: false, melding: afwijking.melding };
+
+  if (boeking.soort === 'intern') return schrijfInterneActiviteit(client, boeking, actor, advies.uitkomst !== 'beschikbaar');
+
   const vandaag = ymdInAmsterdam(new Date());
   const optie = optieSnapshot(vandaag, STANDAARD_OPTIETERMIJN_DAGEN);
-  let insert = await schrijfBoeking(client, boeking, optie, boekingNummer(boeking.start));
-  if ('fout' in insert && insert.fout === 'nummer') {
-    insert = await schrijfBoeking(client, boeking, optie, boekingNummer(boeking.start));
+  const aanvraagStatus = boeking.fase === 'nieuw' ? 'nieuw' : 'in_behandeling';
+  const aanvraag = await schrijfAanvraag(client, boeking, aanvraagStatus);
+  if ('fout' in aanvraag) return { ok: false, melding: aanvraag.fout };
+
+  let boekingId: string | undefined;
+  if (boeking.fase !== 'nieuw') {
+    let insert = await schrijfBoeking(client, boeking, optie, boekingNummer(boeking.start), aanvraag.id, advies.uitkomst !== 'beschikbaar');
+    if ('fout' in insert && insert.fout === 'nummer') {
+      insert = await schrijfBoeking(client, boeking, optie, boekingNummer(boeking.start), aanvraag.id, advies.uitkomst !== 'beschikbaar');
+    }
+    if ('fout' in insert) {
+      return {
+        ok: false,
+        melding: insert.fout === 'nummer'
+          ? 'Dit boekingsnummer bestond al. Probeer opnieuw. Er is niets opgeslagen.'
+          : insert.fout,
+      };
+    }
+    boekingId = insert.id;
+    await client.from('aanvragen').update({ boeking_id: Number(insert.id) }).eq('id', Number(aanvraag.id));
   }
-  if ('fout' in insert) {
-    const melding = insert.fout === 'nummer'
-      ? 'Dit boekingsnummer bestond al. Probeer opnieuw. Er is niets opgeslagen.'
-      : insert.fout;
-    return { ok: false, melding };
-  }
+
+  const onderwerpType = boekingId ? 'boeking' : 'aanvraag';
+  const onderwerpId = boekingId ?? aanvraag.id;
   await audit(client, actor, {
     actie: 'handmatig_aangemaakt',
-    type: 'boeking',
-    id: insert.id,
-    naar: boeking.status,
-    reden: boeking.status === 'definitief' ? boeking.reden : 'Handmatig aangemaakt, zonder aanvraag.',
-    dedup: `boeking:${insert.id}:handmatig_aangemaakt`,
+    type: onderwerpType,
+    id: onderwerpId,
+    naar: boeking.definitief ? 'definitief' : boeking.fase,
+    reden: boeking.definitief ? boeking.uitzondering : 'Handmatig aangemaakt, zonder openbaar aanvraagformulier.',
+    dedup: `${onderwerpType}:${onderwerpId}:handmatig_aangemaakt`,
   });
-  let melding = boeking.status === 'definitief'
-    ? 'Boeking is definitief vastgelegd. Er is geen mail of workflow gestart.'
-    : 'Optie vastgelegd. Er is geen mail of workflow gestart.';
-  if (boeking.status === 'definitief') {
+  if (advies.uitkomst !== 'beschikbaar') {
+    const namen = [...advies.regels, ...advies.aanvragen].map((regel) => regel.naam).join(', ');
+    await audit(client, actor, {
+      actie: 'beschikbaarheid_afwijking',
+      type: onderwerpType,
+      id: onderwerpId,
+      van: advies.kop,
+      naar: namen,
+      reden: boeking.conflictReden,
+      dedup: `${onderwerpType}:${onderwerpId}:beschikbaarheid_afwijking`,
+    });
+  }
+  if (boeking.fase === 'gereed' && !boeking.definitief) {
+    await audit(client, actor, {
+      actie: 'fase_overgeslagen',
+      type: 'aanvraag',
+      id: aanvraag.id,
+      van: 'in_behandeling',
+      naar: 'gereed',
+      reden: `${boeking.uitzondering} ${procesTekst(boeking)}`.trim(),
+      dedup: `aanvraag:${aanvraag.id}:fase_overgeslagen`,
+    });
+  }
+  if (boeking.definitief && !(boeking.contractVerzonden && boeking.contractOndertekend && boeking.aanbetalingOntvangen)) {
+    await audit(client, actor, {
+      actie: 'stappen_overgeslagen',
+      type: 'boeking',
+      id: boekingId ?? aanvraag.id,
+      naar: 'definitief',
+      reden: `${boeking.uitzondering} ${procesTekst(boeking)}`.trim(),
+      dedup: `boeking:${boekingId}:stappen_overgeslagen`,
+    });
+  }
+
+  let melding = boeking.definitief
+    ? 'Boeking is definitief vastgelegd. Gereed in de aanvraaglijst volgt die boekingsstatus.'
+    : boeking.fase === 'gereed'
+      ? 'Vastgelegd als in behandeling. Gereed in de aanvraaglijst volgt de bestaande checklist, of een definitieve boeking. De uitzondering staat in de auditlog.'
+      : boeking.fase === 'in_behandeling'
+        ? 'Aanvraag in behandeling. De optie is vastgelegd en nog niet definitief.'
+        : 'Aanvraag vastgelegd als nieuw. Er is nog geen reservering die de kalender blokkeert.';
+  if (boeking.definitief && boekingId) {
     const agendaFout = await agendaAlsBezet(client, {
-      id: Number(insert.id),
+      id: Number(boekingId),
       titel: boeking.titel,
       start: boeking.start,
       eind: boeking.eind,
@@ -588,7 +662,73 @@ async function maakHandmatigeBoeking(
     });
     if (agendaFout) melding = `${melding} De agenda is niet geblokkeerd: ${agendaFout}`;
   }
-  return { ok: true, melding, boekingId: insert.id };
+  const mail = await verstuurHandmatigeBevestiging(client, boeking, { boekingId, aanvraagId: aanvraag.id });
+  return { ok: true, melding: `${melding} ${mail}`, boekingId, aanvraagId: aanvraag.id };
+}
+
+async function schrijfInterneActiviteit(
+  client: DossierSessie,
+  boeking: HandmatigeBoeking,
+  actor: Actor,
+  afwijking: boolean,
+): Promise<DossierResultaat> {
+  const soortNaam = boeking.interneSoort === 'overig' ? boeking.titel : interneSoortNaam(boeking.interneSoort);
+  const insert = await client.from('interne_activiteiten').insert({
+    titel: interneAgendaTitel(soortNaam),
+    start_datum: boeking.start,
+    eind_datum: boeking.eind,
+    blokkeert_verhuurkalender: true,
+    notities: notitiesVoorIntern(boeking),
+  }).select('id').maybeSingle();
+  if (insert.error) return { ok: false, melding: leesbareAuthFout(insert.error.message) };
+  const id = insert.data?.id;
+  if (id == null || id === '') return { ok: false, melding: 'De interne activiteit is niet opgeslagen.' };
+  const activiteitId = String(id);
+  await audit(client, actor, {
+    actie: 'handmatig_aangemaakt',
+    type: 'interne_activiteit',
+    id: activiteitId,
+    naar: 'gereed',
+    reden: 'Interne activiteit, zonder huurder, contract of betaling.',
+    dedup: `interne_activiteit:${activiteitId}:handmatig_aangemaakt`,
+  });
+  if (afwijking) {
+    await audit(client, actor, {
+      actie: 'beschikbaarheid_afwijking',
+      type: 'interne_activiteit',
+      id: activiteitId,
+      reden: boeking.conflictReden,
+      dedup: `interne_activiteit:${activiteitId}:beschikbaarheid_afwijking`,
+    });
+  }
+  return {
+    ok: true,
+    melding: 'Interne activiteit vastgelegd als gereed. Er is geen huurder, contract of betaling en er is geen bevestigingsmail verstuurd.',
+    activiteitId,
+  };
+}
+
+async function schrijfAanvraag(
+  client: DossierSessie,
+  boeking: HandmatigeBoeking,
+  status: 'nieuw' | 'in_behandeling',
+): Promise<{ id: string } | { fout: string }> {
+  const insert = await client.from('aanvragen').insert({
+    status,
+    naam: boeking.naam,
+    email: boeking.email,
+    telefoon: boeking.telefoon || null,
+    adres: boeking.adres || null,
+    verhuurtype_sleutel: boeking.verhuurtype,
+    start_datum: boeking.start,
+    eind_datum: boeking.eind,
+    toelichting: boeking.toelichting || null,
+    aantal_personen: boeking.personen || null,
+  }).select('id').maybeSingle();
+  if (insert.error) return { fout: leesbareAuthFout(insert.error.message) };
+  const id = insert.data?.id;
+  if (id == null || id === '') return { fout: 'De aanvraag is niet opgeslagen.' };
+  return { id: String(id) };
 }
 
 async function schrijfBoeking(
@@ -596,21 +736,26 @@ async function schrijfBoeking(
   boeking: HandmatigeBoeking,
   optie: { optieAangemaaktOp: string; optietermijnDagen: number; optieEinddatum: string },
   nummer: string,
+  aanvraagId: string,
+  overlapToegestaan: boolean,
 ): Promise<{ id: string } | { fout: string }> {
   const insert = await client.from('boekingen').insert({
     nummer,
-    status: boeking.status,
+    status: boeking.definitief ? 'definitief' : 'optie',
     verhuurtype_sleutel: boeking.verhuurtype,
     interne_titel: boeking.titel,
     start_datum: boeking.start,
     eind_datum: boeking.eind,
+    aanvraag_id: Number(aanvraagId),
     huurder_naam_snapshot: boeking.naam,
     huurder_email_snapshot: boeking.email,
     huurder_telefoon_snapshot: boeking.telefoon || null,
     huurder_adres_snapshot: boeking.adres || null,
     aantal_personen: boeking.personen || null,
     toelichting: boeking.toelichting || null,
-    interne_notities: boeking.status === 'definitief' ? boeking.reden : null,
+    interne_notities: boeking.uitzondering || null,
+    aanbetaling_ontvangen: boeking.aanbetalingOntvangen,
+    overlap_toegestaan: overlapToegestaan,
     optie_aangemaakt_op: optie.optieAangemaaktOp,
     optietermijn_dagen: optie.optietermijnDagen,
     optie_einddatum: optie.optieEinddatum,

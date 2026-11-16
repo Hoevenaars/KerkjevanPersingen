@@ -3,18 +3,35 @@ export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../../platform/beheer-bron.ts';
+import {
+  AANVRAAG_FASEN,
+  FASE_KEUZE_LABEL,
+  INTERNE_SOORTEN,
+  adviesVoorPeriode,
+  bevestigingVoor,
+  interneSoortNaam,
+  leesHandmatigeBoeking,
+  periodeVanBoeking,
+  type Beschikbaarheidsadvies,
+} from '../../../../platform/handmatige-boeking.ts';
+import { onderwerpUitTemplate } from '../../../../platform/mailtemplates/render.ts';
+import { standaardTemplate } from '../../../../platform/mailtemplates/catalog.ts';
 import { STANDAARD_VERHUURTYPEN } from '../../../../platform/types.ts';
-import { magSchrijven } from '../../../../platform/rechten.ts';
+import { isBestuurder } from '../../../../platform/rechten.ts';
+import { isYmd } from '../../../../platform/datum.ts';
 import { actorVanSessie } from '../../../../lib/operatie/runtime.ts';
 import { voerDossierViaSessie, type DossierSessie } from '../../../../lib/operatie/dossier-sessie.ts';
 import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
+import { verhuurOverzichtAan } from '../../../../platform/verhuur-vlag.ts';
+import type { FaseWereld } from '../../../../platform/aanvraag-fase.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
-const magBoeking = magSchrijven(rechten, 'boekingen');
+const bestuurder = isBestuurder(rechten);
 const demo = snapshot.bron === 'demo';
 
-const waarden = {
+const waarden: Record<string, string> = {
+  soort: 'verhuur',
   titel: '',
   naam: '',
   email: '',
@@ -23,45 +40,61 @@ const waarden = {
   verhuurtype: 'expositie',
   start: '',
   eind: '',
+  datum: '',
   personen: '',
   toelichting: '',
-  status: 'optie',
-  reden: '',
+  fase: 'nieuw',
+  definitief: '',
+  contract_verzonden: '',
+  contract_ondertekend: '',
+  aanbetaling: '',
+  uitzondering: '',
+  interne_omschrijving: '',
+  interne_soort: 'grote_schoonmaak',
+  hele_dag: 'ja',
+  tijd_van: '',
+  tijd_tot: '',
+  opmerkingen: '',
+  mail: 'nee',
+  bevestig_conflict: '',
+  conflict_reden: '',
 };
 
-let fout = Astro.url.searchParams.get('fout') ?? '';
-
-if (Astro.request.method === 'POST') {
-  const data = await Astro.request.formData();
-  for (const sleutel of Object.keys(waarden) as Array<keyof typeof waarden>) {
-    waarden[sleutel] = String(data.get(sleutel) ?? '');
+function leesBron(bron: { get(naam: string): string | null }): void {
+  for (const sleutel of Object.keys(waarden)) {
+    const waarde = bron.get(sleutel);
+    if (waarde != null) waarden[sleutel] = waarde;
   }
-  if (!magBoeking) {
-    fout = 'Geen recht om een boeking aan te maken.';
-  } else if (demo) {
+}
+
+leesBron(Astro.url.searchParams);
+let fout = Astro.url.searchParams.get('fout') ?? '';
+let gelukt = '';
+
+if (!bestuurder) Astro.response.status = 403;
+
+if (bestuurder && Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  for (const sleutel of Object.keys(waarden)) waarden[sleutel] = '';
+  waarden.soort = 'verhuur';
+  waarden.fase = 'nieuw';
+  waarden.hele_dag = 'ja';
+  waarden.mail = 'nee';
+  waarden.interne_soort = 'grote_schoonmaak';
+  for (const [sleutel, waarde] of data) {
+    if (typeof waarde === 'string' && sleutel in waarden) waarden[sleutel] = waarde;
+  }
+  if (demo) {
     fout = 'Voorbeelddata slaan niets op. Er is geen boeking aangemaakt en er is geen mail verstuurd.';
   } else {
     const sessie = sessieSupabaseUitAstro(Astro);
     if (!sessie) {
-      fout = 'Geen ingelogde sessie. Er is niets opgeslagen. De service-role is niet gebruikt.';
+      fout = 'Geen ingelogde sessie. Er is niets opgeslagen.';
     } else {
+      const { soort: soortBoeking, ...rest } = waarden;
       const uit = await voerDossierViaSessie(
         sessie as DossierSessie,
-        {
-          soort: 'handmatige_boeking',
-          naam: waarden.naam,
-          email: waarden.email,
-          telefoon: waarden.telefoon,
-          adres: waarden.adres,
-          verhuurtype: waarden.verhuurtype,
-          start: waarden.start,
-          eind: waarden.eind,
-          personen: waarden.personen,
-          toelichting: waarden.toelichting,
-          titel: waarden.titel,
-          status: waarden.status === 'definitief' ? 'definitief' : 'optie',
-          reden: waarden.reden,
-        },
+        { ...rest, soort: 'handmatige_boeking', soortBoeking },
         actorVanSessie(Astro.locals.beheer),
       );
       if (uit.ok && uit.boekingId) {
@@ -69,84 +102,340 @@ if (Astro.request.method === 'POST') {
         doel.searchParams.set('melding', uit.melding);
         return Astro.redirect(doel.toString());
       }
-      fout = uit.melding;
+      if (uit.ok && uit.aanvraagId && !uit.boekingId) {
+        const doel = new URL(`/beheer/aanvragen/${encodeURIComponent(uit.aanvraagId)}/`, Astro.url.origin);
+        doel.searchParams.set('melding', uit.melding);
+        return Astro.redirect(doel.toString());
+      }
+      if (uit.ok && uit.activiteitId) {
+        const datum = waarden.datum || waarden.start;
+        if (verhuurOverzichtAan()) {
+          const doel = new URL('/beheer/verhuur/', Astro.url.origin);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(datum)) {
+            doel.searchParams.set('jaar', datum.slice(0, 4));
+            doel.searchParams.set('maand', String(Number(datum.slice(5, 7))));
+          }
+          doel.searchParams.set('rij', `winter:${uit.activiteitId}`);
+          doel.searchParams.set('melding', uit.melding);
+          return Astro.redirect(doel.toString());
+        }
+        gelukt = uit.melding;
+      }
+      if (!uit.ok) fout = uit.melding;
     }
   }
 }
+
+const gelezen = leesHandmatigeBoeking({ soortBoeking: waarden.soort, ...waarden });
+const periode = gelezen.ok
+  ? periodeVanBoeking(gelezen.boeking)
+  : isYmd(waarden.soort === 'intern' ? waarden.datum : waarden.start)
+    ? {
+        start: waarden.soort === 'intern' ? waarden.datum : waarden.start,
+        eind: waarden.soort === 'intern' ? waarden.datum : (waarden.eind || waarden.start),
+      }
+    : null;
+const wereld = wereldUitSnapshot();
+const advies: Beschikbaarheidsadvies | null = periode && periode.eind >= periode.start
+  ? adviesVoorPeriode(
+      wereld,
+      periode.start,
+      periode.eind,
+      gelezen.ok && gelezen.boeking.soort === 'intern' && !gelezen.boeking.heleDag
+        ? `${gelezen.boeking.tijdVan}-${gelezen.boeking.tijdTot}`
+        : null,
+    )
+  : null;
+const bevestiging = gelezen.ok ? bevestigingVoor(gelezen.boeking) : null;
+const template = bevestiging ? standaardTemplate(bevestiging.templateId) : undefined;
+const onderwerp = template && gelezen.ok
+  ? onderwerpUitTemplate(template, {
+      voornaam: gelezen.boeking.naam.split(' ')[0] || gelezen.boeking.naam,
+      naam: gelezen.boeking.naam,
+      datum: gelezen.boeking.start,
+      activiteitstype: gelezen.boeking.verhuurtype,
+    })
+  : '';
+
+function wereldUitSnapshot(): FaseWereld {
+  return {
+    aanvragen: snapshot.aanvragen.map((item) => ({
+      id: item.id,
+      status: item.status,
+      naam: item.naam,
+      start: item.start,
+      eind: item.eind,
+      boekingId: item.boekingId,
+    })),
+    boekingen: snapshot.boekingen.map((item) => ({
+      id: item.id,
+      nummer: item.nummer,
+      status: item.status,
+      start: item.start,
+      eind: item.eind,
+      titel: item.interneTitel,
+      huurder: item.huurder,
+      aanbetalingBinnen: item.aanbetalingBinnen,
+      aanvraagId: item.aanvraagId,
+    })),
+    documenten: [],
+    mails: [],
+    betalingen: [],
+    blokkades: snapshot.intern.map((item) => ({
+      id: item.id,
+      titel: item.titel,
+      start: item.start,
+      eind: item.eind,
+      blokkeert: item.blokkeert,
+      notities: item.notities,
+    })),
+    activiteiten: snapshot.agenda
+      .filter((item) => item.tabel === 'activiteit_bron')
+      .map((item) => ({
+        id: item.activiteitId || item.id,
+        titel: item.titel,
+        start: item.start,
+        eind: item.eind,
+        zichtbaarheid: item.publicatiestatus ?? '',
+        levenscyclus: item.levenscyclus === 'geannuleerd' ? 'geannuleerd' : 'actief',
+      })),
+  };
+}
+
+function aan(sleutel: string): boolean {
+  return waarden[sleutel] === 'ja';
+}
 ---
 
-<Beheer titel="Nieuwe boeking">
-  <p class="bh-crumb"><a href="/beheer/boekingen/">Boekingen</a> / Nieuw</p>
+<Beheer titel="Handmatige boeking">
+  <p class="bh-crumb"><a href="/beheer/verhuur/">Verhuur</a> / Handmatige boeking</p>
   <header class="bh-top">
     <div>
-      <p class="bh-label">Boekingen</p>
-      <h1>Nieuwe boeking</h1>
+      <p class="bh-label">Verhuur</p>
+      <h1>Handmatige boeking</h1>
       <p class="bh-hint">
-        Voor een reservering die niet via het aanvraagformulier binnenkwam.
-        Een expositie is zaterdag en zondag. Overige verhuur is maandag t/m vrijdag.
-        De boeking blijft intern en er gaat geen mail uit.
+        Een reservering zonder het openbare aanvraagformulier. Het systeem adviseert over de periode.
+        Een bestaande boeking of aanvraag blijft staan.
       </p>
     </div>
   </header>
 
+  {!bestuurder && <p class="bh-flash bh-flash--fout">Alleen een bestuurder kan een handmatige boeking vastleggen.</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+  {gelukt && <p class="bh-flash" role="status">{gelukt}</p>}
 
-  <section class="bh-kaart">
-    <form method="post" class="bh-form">
-      <label for="titel">Interne titel</label>
-      <input id="titel" name="titel" value={waarden.titel} autocomplete="off" />
+  {bestuurder && (
+    <section class="bh-kaart">
+      <form method="post" class="bh-form" id="handmatige-boeking">
+        <fieldset class="bh-status">
+          <legend>Soort boeking</legend>
+          <label class="bh-check">
+            <input type="radio" name="soort" value="verhuur" checked={waarden.soort !== 'intern'} />
+            Reguliere verhuur
+          </label>
+          <label class="bh-check">
+            <input type="radio" name="soort" value="intern" checked={waarden.soort === 'intern'} />
+            Interne activiteit
+          </label>
+        </fieldset>
 
-      <label for="verhuurtype">Soort</label>
-      <select id="verhuurtype" name="verhuurtype">
-        {STANDAARD_VERHUURTYPEN.filter((type) => type.actief).map((type) => (
-          <option value={type.sleutel} selected={waarden.verhuurtype === type.sleutel}>{type.naam}</option>
-        ))}
-      </select>
+        <div data-voor="verhuur" hidden={waarden.soort === 'intern'}>
+          <label for="verhuurtype">Verhuurcategorie</label>
+          <select id="verhuurtype" name="verhuurtype">
+            {STANDAARD_VERHUURTYPEN.filter((type) => type.actief).map((type) => (
+              <option value={type.sleutel} selected={waarden.verhuurtype === type.sleutel}>{type.naam}</option>
+            ))}
+          </select>
 
-      <label for="start">Startdatum</label>
-      <input id="start" name="start" type="date" value={waarden.start} required />
+          <label for="titel">Interne titel</label>
+          <input id="titel" name="titel" value={waarden.titel} autocomplete="off" />
 
-      <label for="eind">Einddatum</label>
-      <input id="eind" name="eind" type="date" value={waarden.eind} required />
+          <label for="start">Startdatum</label>
+          <input id="start" name="start" type="date" value={waarden.start} data-advies />
 
-      <label for="naam">Naam huurder</label>
-      <input id="naam" name="naam" value={waarden.naam} required autocomplete="name" />
+          <label for="eind">Einddatum</label>
+          <input id="eind" name="eind" type="date" value={waarden.eind} data-advies />
+        </div>
 
-      <label for="email">E-mail</label>
-      <input id="email" name="email" type="email" value={waarden.email} required autocomplete="email" />
+        <div data-voor="intern" hidden={waarden.soort !== 'intern'}>
+          <label for="interne-titel">Titel / omschrijving</label>
+          <input id="interne-titel" name="interne_omschrijving" value={waarden.interne_omschrijving ?? waarden.titel} autocomplete="off" />
 
-      <label for="telefoon">Telefoon</label>
-      <input id="telefoon" name="telefoon" value={waarden.telefoon} autocomplete="tel" />
+          <label for="interne-soort">Soort interne activiteit</label>
+          <select id="interne-soort" name="interne_soort">
+            {INTERNE_SOORTEN.map((soort) => (
+              <option value={soort.sleutel} selected={waarden.interne_soort === soort.sleutel}>{soort.naam}</option>
+            ))}
+          </select>
+          <p class="bh-muted">Bij Overig is de titel de eigen omschrijving. In de verhuuragenda staat dit als Interne activiteit — {interneSoortNaam(waarden.interne_soort) || '…'}.</p>
 
-      <label for="adres">Adres</label>
-      <textarea id="adres" name="adres" class="kort" rows="2">{waarden.adres}</textarea>
+          <label for="datum">Datum</label>
+          <input id="datum" name="datum" type="date" value={waarden.datum} data-advies />
 
-      <label for="personen">Aantal personen</label>
-      <input id="personen" name="personen" value={waarden.personen} />
+          <fieldset class="bh-status">
+            <legend>Tijd</legend>
+            <label class="bh-check">
+              <input type="radio" name="hele_dag" value="ja" checked={waarden.hele_dag !== 'nee'} data-advies />
+              Gehele dag
+            </label>
+            <label class="bh-check">
+              <input type="radio" name="hele_dag" value="nee" checked={waarden.hele_dag === 'nee'} data-advies />
+              Begin- en eindtijd
+            </label>
+          </fieldset>
+          <div data-tijd hidden={waarden.hele_dag !== 'nee'}>
+            <label for="tijd-van">Begintijd</label>
+            <input id="tijd-van" name="tijd_van" type="time" value={waarden.tijd_van} data-advies />
+            <label for="tijd-tot">Eindtijd</label>
+            <input id="tijd-tot" name="tijd_tot" type="time" value={waarden.tijd_tot} data-advies />
+          </div>
 
-      <label for="toelichting">Toelichting</label>
-      <textarea id="toelichting" name="toelichting" class="kort" rows="3">{waarden.toelichting}</textarea>
+          <label for="opmerkingen">Interne opmerkingen</label>
+          <textarea id="opmerkingen" name="opmerkingen" class="kort" rows="3">{waarden.opmerkingen}</textarea>
+        </div>
 
-      <fieldset class="bh-status">
-        <legend>Status</legend>
-        <label class="bh-check">
-          <input type="radio" name="status" value="optie" checked={waarden.status !== 'definitief'} />
-          Optie
-        </label>
-        <label class="bh-check">
-          <input type="radio" name="status" value="definitief" checked={waarden.status === 'definitief'} />
-          Meteen definitief
-        </label>
-      </fieldset>
+        {advies && (
+          <div class={advies.uitkomst === 'beschikbaar' ? 'bh-flash' : advies.uitkomst === 'aanvraag' ? 'bh-banner' : 'bh-flash bh-flash--fout'} role="status">
+            <p><strong>Beschikbaarheidsadvies · {advies.kop}</strong></p>
+            <p>{advies.tekst}</p>
+            {advies.regels.length > 0 && (
+              <ul>
+                {advies.regels.map((regel) => (
+                  <li><a href={regel.href}>{regel.naam}</a> · {regel.periode} · {regel.tekst}</li>
+                ))}
+              </ul>
+            )}
+            {advies.aanvragen.length > 0 && (
+              <ul>
+                {advies.aanvragen.map((regel) => (
+                  <li><a href={regel.href}>{regel.naam}</a> · {regel.periode} · {regel.tekst}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
-      <label for="reden">Reden, verplicht bij definitief</label>
-      <textarea id="reden" name="reden" class="kort" rows="2">{waarden.reden}</textarea>
+        {advies && advies.uitkomst !== 'beschikbaar' && advies.uitkomst !== 'onvolledig' && (
+          <fieldset class="bh-status">
+            <legend>Afwijken van het advies</legend>
+            <label class="bh-check">
+              <input type="checkbox" name="bevestig_conflict" value="ja" checked={aan('bevestig_conflict')} />
+              Ik bevestig dat ik bewust afwijk. Bestaande reserveringen blijven staan.
+            </label>
+            <label for="conflict-reden">Reden, verplicht bij een conflict</label>
+            <textarea id="conflict-reden" name="conflict_reden" class="kort" rows="2">{waarden.conflict_reden}</textarea>
+          </fieldset>
+        )}
 
-      <div class="bh-acties">
-        <button class="bh-btn" type="submit" disabled={!magBoeking}>Boeking vastleggen</button>
-        <a class="bh-btn bh-btn--sec" href="/beheer/boekingen/">Annuleren</a>
-      </div>
-      {!magBoeking && <p class="bh-muted">Alleen iemand met schrijfrechten op boekingen kan dit opslaan.</p>}
-    </form>
-  </section>
+        <div data-voor="verhuur" hidden={waarden.soort === 'intern'}>
+          <label for="naam">Naam huurder</label>
+          <input id="naam" name="naam" value={waarden.naam} autocomplete="name" />
+
+          <label for="email">E-mail</label>
+          <input id="email" name="email" type="email" value={waarden.email} autocomplete="email" data-advies />
+
+          <label for="telefoon">Telefoon</label>
+          <input id="telefoon" name="telefoon" value={waarden.telefoon} autocomplete="tel" />
+
+          <label for="adres">Adres</label>
+          <textarea id="adres" name="adres" class="kort" rows="2">{waarden.adres}</textarea>
+
+          <label for="personen">Aantal personen</label>
+          <input id="personen" name="personen" value={waarden.personen} />
+
+          <label for="toelichting">Toelichting</label>
+          <textarea id="toelichting" name="toelichting" class="kort" rows="3">{waarden.toelichting}</textarea>
+
+          <fieldset class="bh-status">
+            <legend>Fase</legend>
+            {AANVRAAG_FASEN.map((fase) => (
+              <label class="bh-check">
+                <input type="radio" name="fase" value={fase} checked={waarden.fase === fase} />
+                {FASE_KEUZE_LABEL[fase]}
+              </label>
+            ))}
+          </fieldset>
+          <p class="bh-muted">Nieuw, in behandeling en gereed zijn dezelfde fasen als bij Aanvragen. Gereed is niet hetzelfde als een definitieve boeking.</p>
+
+          <fieldset class="bh-status">
+            <legend>Proces</legend>
+            <label class="bh-check"><input type="checkbox" name="contract_verzonden" value="ja" checked={aan('contract_verzonden')} /> Contract verzonden</label>
+            <label class="bh-check"><input type="checkbox" name="contract_ondertekend" value="ja" checked={aan('contract_ondertekend')} /> Contract ondertekend</label>
+            <label class="bh-check"><input type="checkbox" name="aanbetaling" value="ja" checked={aan('aanbetaling')} /> Aanbetaling ontvangen</label>
+            <label class="bh-check"><input type="checkbox" name="definitief" value="ja" checked={aan('definitief')} /> Definitieve boeking</label>
+          </fieldset>
+          <p class="bh-muted">Een stap overslaan kan alleen met een reden. Die komt in de auditlog. De aanvraaglijst blijft de bestaande checklist volgen zolang de boeking niet definitief is.</p>
+
+          <label for="uitzondering">Reden bij definitief of bij het overslaan van Gereed</label>
+          <textarea id="uitzondering" name="uitzondering" class="kort" rows="2">{waarden.uitzondering}</textarea>
+        </div>
+
+        <fieldset class="bh-status" data-voor="verhuur" hidden={waarden.soort === 'intern'}>
+          <legend>Bevestigingsmail verzenden?</legend>
+          <label class="bh-check">
+            <input type="radio" name="mail" value="nee" checked={waarden.mail !== 'ja'} />
+            Nee
+          </label>
+          <label class="bh-check">
+            <input type="radio" name="mail" value="ja" checked={waarden.mail === 'ja'} data-advies />
+            Ja
+          </label>
+        </fieldset>
+        {waarden.soort !== 'intern' && waarden.mail === 'ja' && (
+          <div class="bh-banner">
+            {bevestiging && gelezen.ok ? (
+              <>
+                <p>Ontvanger: {gelezen.boeking.email}</p>
+                <p>Bevestiging: {bevestiging.naam}</p>
+                <p>Onderwerp: {onderwerp}</p>
+                <p>{bevestiging.pastBij}</p>
+              </>
+            ) : (
+              <p>Vul eerst een geldig e-mailadres in. De mail gaat pas weg nadat de boeking is opgeslagen.</p>
+            )}
+          </div>
+        )}
+        {waarden.soort === 'intern' && <p class="bh-muted">Een interne activiteit zonder e-mailadres krijgt geen bevestigingsmail.</p>}
+
+        <div class="bh-acties">
+          <button class="bh-btn" type="submit">Opslaan</button>
+          <button class="bh-btn bh-btn--sec" type="submit" formmethod="get">Werk advies bij</button>
+          <a class="bh-btn bh-btn--sec" href="/beheer/verhuur/">Annuleren</a>
+        </div>
+      </form>
+    </section>
+  )}
 </Beheer>
+
+<script>
+  const form = document.getElementById('handmatige-boeking');
+  if (form instanceof HTMLFormElement) {
+    const sync = () => {
+      const intern = form.querySelector('input[name="soort"]:checked')?.value === 'intern';
+      form.querySelectorAll('[data-voor]').forEach((blok) => {
+        if (!(blok instanceof HTMLElement)) return;
+        const verberg = blok.dataset.voor === 'intern' ? !intern : intern;
+        blok.hidden = verberg;
+        blok.querySelectorAll('input, select, textarea, button').forEach((veld) => {
+          if (veld instanceof HTMLInputElement || veld instanceof HTMLSelectElement || veld instanceof HTMLTextAreaElement) {
+            veld.disabled = verberg;
+          }
+        });
+      });
+      const tijden = form.querySelector('[data-tijd]');
+      const heleDag = form.querySelector('input[name="hele_dag"]:checked')?.value !== 'nee';
+      if (tijden instanceof HTMLElement) tijden.hidden = heleDag;
+    };
+    form.addEventListener('change', (event) => {
+      sync();
+      const doel = event.target;
+      if (!(doel instanceof HTMLElement) || !doel.matches('[data-advies]')) return;
+      const params = new URLSearchParams();
+      for (const [sleutel, waarde] of new FormData(form)) {
+        if (typeof waarde === 'string' && waarde) params.set(sleutel, waarde);
+      }
+      window.location.search = params.toString();
+    });
+    sync();
+  }
+</script>

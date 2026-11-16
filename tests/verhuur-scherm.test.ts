@@ -477,6 +477,66 @@ describe('adres en filter', () => {
     if (!stuk.ok) assert.match(stuk.melding, /publiceert/);
   });
 
+  test('een interne activiteit blijft herkenbaar in de verhuuragenda', () => {
+    const overzicht = maakVerhuurOverzicht(invoer({
+      jaar: 2027,
+      maand: 6,
+      blokkades: [
+        {
+          id: 'schoon',
+          titel: 'Interne activiteit — Grote schoonmaak',
+          start: '2027-06-12',
+          eind: '2027-06-12',
+          blokkeert: true,
+          notities: 'Tijd: gehele dag',
+        },
+        {
+          id: 'winter',
+          titel: 'Winterstop',
+          start: '2027-01-02',
+          eind: '2027-01-03',
+          blokkeert: true,
+          notities: '',
+        },
+      ],
+    }));
+    const juni = bouwSchermRijen({
+      overzicht,
+      boekingen: [],
+      gastheren: [],
+      toewijzingen: [],
+      activiteiten: [],
+      zoek: '',
+      alleenAandacht: false,
+    }).rijen.find((rij) => rij.sleutel === 'winter:schoon');
+    assert.equal(juni?.huurder, 'Interne activiteit — Grote schoonmaak');
+    assert.equal(juni?.activiteit, 'Interne activiteit');
+    const jaar = maakVerhuurOverzicht(invoer({
+      jaar: 2027,
+      blokkades: [
+        {
+          id: 'winter',
+          titel: 'Winterstop',
+          start: '2027-01-02',
+          eind: '2027-01-03',
+          blokkeert: true,
+          notities: '',
+        },
+      ],
+    }));
+    const winter = bouwSchermRijen({
+      overzicht: jaar,
+      boekingen: [],
+      gastheren: [],
+      toewijzingen: [],
+      activiteiten: [],
+      zoek: '',
+      alleenAandacht: false,
+    }).rijen.find((rij) => rij.sleutel === 'winter:winter');
+    assert.equal(winter?.huurder, 'Winterstop');
+    assert.equal(winter?.activiteit, 'Winterstop of blokkade');
+  });
+
   test('een onveilig bestandspad wordt geen link', () => {
     assert.equal(veiligeBestandsUrl('javascript:alert(1)'), null);
     assert.equal(veiligeBestandsUrl('//evil.test/a.jpg'), null);

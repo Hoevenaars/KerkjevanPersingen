@@ -85,6 +85,7 @@ export interface FaseBlokkade {
   start: string;
   eind: string;
   blokkeert: boolean;
+  notities?: string;
 }
 
 export interface FaseActiviteit {

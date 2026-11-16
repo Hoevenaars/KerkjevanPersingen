@@ -638,8 +638,13 @@ function naarSchermRij(
     huurder = 'Vrij weekend';
     activiteitLabel = 'Geen reservering';
   } else if (rij.herkomst === 'winterstop') {
-    huurder = rij.activiteit || 'Winterstop';
-    activiteitLabel = 'Winterstop of blokkade';
+    if (rij.activiteit.startsWith('Interne activiteit')) {
+      huurder = rij.activiteit;
+      activiteitLabel = 'Interne activiteit';
+    } else {
+      huurder = rij.activiteit || 'Winterstop';
+      activiteitLabel = 'Winterstop of blokkade';
+    }
   } else if (rij.herkomst === 'kalender') {
     huurder = rij.activiteit || 'Bezet op de kalender';
     activiteitLabel = 'Geen gekoppelde boeking';

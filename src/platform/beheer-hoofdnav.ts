@@ -4,7 +4,7 @@
  * De vlag geeft geen extra schrijfrecht en verwijdert geen route.
  */
 
-import { magZien } from './rechten.ts';
+import { isBestuurder, magZien } from './rechten.ts';
 import type { GebruikerRechten } from './types.ts';
 
 export type HoofdSleutel = 'overzicht' | 'verhuur' | 'website' | 'contacten' | 'financien' | 'instellingen';
@@ -112,8 +112,8 @@ function verhuurSub(rechten: GebruikerRechten, opties: HoofdOpties): NavItem[] {
   if (magZien(rechten, 'aanvragen')) {
     items.push({ sleutel: 'aanvragen', href: '/beheer/aanvragen/', label: 'Aanvragen' });
   }
-  if (magZien(rechten, 'boekingen')) {
-    items.push({ sleutel: 'boekingen', href: '/beheer/boekingen/', label: 'Boekingen' });
+  if (isBestuurder(rechten)) {
+    items.push({ sleutel: 'boekingen', href: '/beheer/boekingen/nieuw/', label: 'Handmatige boeking' });
   }
   if (magZien(rechten, 'planning')) {
     items.push({ sleutel: 'planning', href: '/beheer/planning/', label: 'Gastbegeleiders' });
