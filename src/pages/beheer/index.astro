@@ -107,10 +107,20 @@ const scherm = startscherm({
     boekingen: zietBoekingen,
     agenda: zietAgenda,
     planning: zietPlanning,
+    nieuwsbrief: magZien(rechten, 'nieuwsbrief'),
   },
+  nieuwsbrieven: snapshot.nieuwsbrieven.map((item) => ({
+    id: item.id,
+    week: item.week,
+    verstuurd: item.verstuurd,
+    overgeslagen: item.overgeslagen,
+    // Goedkeuring volgt als de nieuwsbrief wordt uitgewerkt. Tot die tijd telt alleen de brief van deze week.
+    goedgekeurd: false,
+  })),
   href: {
     nieuw: '/beheer/aanvragen/?fase=nieuw',
     behandeling: '/beheer/aanvragen/?fase=in_behandeling',
+    nieuwsbrief: '/beheer/nieuwsbrief/',
     aanvraag: (id) => metHerkomst(`/beheer/aanvragen/${encodeURIComponent(id)}/`, 'overzicht'),
     boeking: (id) => metHerkomst(dossierHref(id, agendaAan), 'overzicht'),
     activiteit: (id) => metHerkomst(`/beheer/agenda/${encodeURIComponent(id)}/`, 'overzicht'),

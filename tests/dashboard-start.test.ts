@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { datumBlok, periodeKort, startscherm, type StartInvoer } from '../src/platform/dashboard-start.ts';
+import { datumBlok, periodeKort, startscherm, vriendenmailStand, type StartInvoer } from '../src/platform/dashboard-start.ts';
 
 const href: StartInvoer['href'] = {
   nieuw: '/beheer/aanvragen/?fase=nieuw',
@@ -48,7 +48,6 @@ test('een meerdaagse activiteit is één agendaregel met een datumblok', () => {
       soort: 'expositie',
     }],
   }));
-  assert.equal(scherm.tellers[2]?.aantal, 1);
   assert.equal(scherm.agenda.length, 1);
   assert.equal(scherm.agenda[0]?.tijd, '14:00–17:00');
   assert.equal(scherm.agenda[0]?.soort, 'Expositie');
@@ -176,7 +175,6 @@ test('de agenda toont elke activiteit in de veertien dagen', () => {
     boekingen,
   }));
   assert.equal(scherm.agenda.length, 6);
-  assert.equal(scherm.tellers[2]?.aantal, 6);
   assert.equal(scherm.agenda[0]?.naam, 'Activiteit 0');
   assert.equal(scherm.agenda[5]?.naam, 'Activiteit 5');
 });
@@ -245,6 +243,32 @@ test('wie aanvragen niet mag zien, ziet geen lijst en geen huur zonder boekingsr
   assert.equal(scherm.nieuw.rijen.length, 0);
   assert.deepEqual(scherm.agenda.map((item) => item.naam), ['Sluiting']);
   assert.equal(scherm.agenda[0]?.soort, 'Blokkade');
+});
+
+test('vriendenmail is gereed als de brief van deze week ontbreekt of is goedgekeurd', () => {
+  assert.equal(vriendenmailStand([], '2026-11-16'), 'Gereed');
+  assert.equal(vriendenmailStand([
+    { id: 'oud', week: '2026-09-21', verstuurd: false, overgeslagen: false, goedgekeurd: false },
+  ], '2026-11-16'), 'Gereed');
+  assert.equal(vriendenmailStand([
+    { id: 'nu', week: '2026-11-16', verstuurd: false, overgeslagen: false, goedgekeurd: true },
+  ], '2026-11-16'), 'Gereed');
+  assert.equal(vriendenmailStand([
+    { id: 'nu', week: '2026-11-16', verstuurd: false, overgeslagen: false, goedgekeurd: false },
+  ], '2026-11-16'), 'Te controleren');
+  const scherm = startscherm(invoer({
+    nieuwsbrieven: [{ id: 'nu', week: '2026-11-16', verstuurd: false, overgeslagen: false, goedgekeurd: true }],
+    href: { ...href, nieuwsbrief: '/beheer/nieuwsbrief/' },
+  }));
+  assert.equal(scherm.tellers[2]?.label, 'Vrienden mail');
+  assert.equal(scherm.tellers[2]?.waarde, 'Gereed');
+  assert.equal(scherm.tellers[2]?.href, '/beheer/nieuwsbrief/');
+  const zonder = startscherm(invoer({
+    ziet: { aanvragen: true, boekingen: true, agenda: true, planning: true, nieuwsbrief: false },
+    nieuwsbrieven: [{ id: 'nu', week: '2026-11-16', verstuurd: false, overgeslagen: false, goedgekeurd: false }],
+  }));
+  assert.equal(zonder.tellers[2]?.href, null);
+  assert.equal(zonder.tellers[2]?.waarde, '—');
 });
 
 test('het dashboard toont geen betalingsblokken', () => {

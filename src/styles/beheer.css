@@ -2093,6 +2093,11 @@ a.bh-teller:hover {
   color: var(--pine);
 }
 
+.bh-teller-woord {
+  font-size: var(--t-lg);
+  line-height: 1.2;
+}
+
 .bh-teller-tekst span {
   font-size: var(--t-sm);
   font-weight: 600;
