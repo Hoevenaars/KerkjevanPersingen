@@ -133,6 +133,15 @@ const ondertekend = Boolean(dossier.ondertekendOp);
       {!ondertekend && <a class="knop" href="#ondertekenen">Onderteken overeenkomst</a>}
     </div>
     {
+      !ondertekend && (
+        <div class="onderbalk">
+          <a href="#voorwaarden">Voorwaarden</a>
+          <a href="#huisregels">Huisregels</a>
+          <a href="#ondertekenen">Onderteken</a>
+        </div>
+      )
+    }
+    {
       metSjabloon ? (
         <section class="pdf-lees" id="contract">
           <h2>Het contract</h2>
@@ -176,7 +185,7 @@ const ondertekend = Boolean(dossier.ondertekendOp);
             <input id="naam" name="naam" required maxlength="120" value={dossier.huurderNaam} />
             <label class="vink">
               <input type="checkbox" name="akkoord" value="ja" required />
-              Ik ga akkoord met de contractuele bepalingen in deze versie.
+              Ik ga akkoord met de volledige overeenkomst van documentversie {dossier.versie}, inclusief de verhuurvoorwaarden en de huisregels.
             </label>
             <button type="submit">Ondertekenen</button>
             <p class="noot">Dit is een elektronische bevestiging, geen gekwalificeerde elektronische handtekening.</p>
@@ -319,5 +328,38 @@ const ondertekend = Boolean(dossier.ondertekendOp);
   .noot {
     color: var(--ink-soft);
     font-size: 0.95rem;
+  }
+  .onderbalk {
+    display: none;
+  }
+  @media (max-width: 720px) {
+    .teken {
+      padding-bottom: 5.5rem;
+    }
+    .onderbalk {
+      display: flex;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 5;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom));
+      background: #fff;
+      border-top: 1px solid var(--sand);
+    }
+    .onderbalk a {
+      flex: 1;
+      min-height: 2.75rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .onderbalk a:last-child {
+      background: var(--brick);
+      color: #fff;
+    }
   }
 </style>

@@ -35,7 +35,16 @@ function deelId(titel: string, index: number): string {
   return `deel-${index + 1}`;
 }
 
-function blokVan(regel: string): ContractBlok {
+function linkify(veilig: string): string {
+  return veilig.replace(/https:\/\/[^\s<]+/g, (url) => {
+    const schoon = url.replace(/[),.;]+$/, '');
+    const rest = url.slice(schoon.length);
+    return `<a href="${schoon}">${schoon}</a>${rest}`;
+  });
+}
+
+function blokVan(regel: string): ContractBlok | null {
+  if (/_{4,}/.test(regel)) return null;
   if (/^VERSIE\b/.test(regel)) return { soort: 'meta', tekst: regel };
   if (/^\d+\.\s+\S/.test(regel) && regel.length <= 90) return { soort: 'kop', tekst: regel };
   const idx = regel.indexOf(': ');
@@ -54,16 +63,17 @@ export function leesContractPakket(tekst: string): ContractDeel[] {
     const titel = regels[0];
     let id = deelId(titel, index);
     if (delen.some((deel) => deel.id === id)) id = `${id}-${index + 1}`;
-    delen.push({ id, titel, blokken: regels.slice(1).map(blokVan) });
+    const blokken = regels.slice(1).map(blokVan).filter((blok): blok is ContractBlok => blok != null);
+    delen.push({ id, titel, blokken });
   });
   return delen;
 }
 
 function blokHtml(blok: ContractBlok): string {
   if (blok.soort === 'kop') return `<h3>${esc(blok.tekst)}</h3>`;
-  if (blok.soort === 'meta') return `<p class="meta-regel">${esc(blok.tekst)}</p>`;
-  if (blok.soort === 'feit') return `<p class="feit"><span>${esc(blok.label ?? '')}</span>${esc(blok.waarde ?? '')}</p>`;
-  return `<p>${esc(blok.tekst)}</p>`;
+  if (blok.soort === 'meta') return `<p class="meta-regel">${linkify(esc(blok.tekst))}</p>`;
+  if (blok.soort === 'feit') return `<p class="feit"><span>${esc(blok.label ?? '')}</span>${linkify(esc(blok.waarde ?? ''))}</p>`;
+  return `<p>${linkify(esc(blok.tekst))}</p>`;
 }
 
 export function contractNavHtml(delen: readonly ContractDeel[]): string {

@@ -7,6 +7,7 @@ import { CONTRACTBEHEER_EMAIL, VAN_ADRES } from './mail-adressen.ts';
 import { verstuurGecontroleerd } from './mail-transport.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
 import { contractPakketTekst, PRIVACY_URL } from '../platform/contract-pakket.ts';
+import { kerkjeMail } from './kerkje-mail.ts';
 import { leesContractSjabloon } from './contract-sjabloon-opslag.ts';
 import {
   voerTekenstap,
@@ -134,6 +135,7 @@ async function mailMetPdf(input: {
   naar: string;
   onderwerp: string;
   tekst: string;
+  html?: string;
   sleutel: string;
   richting: 'intern' | 'aanvrager';
   pdf?: Uint8Array;
@@ -149,6 +151,7 @@ async function mailMetPdf(input: {
       naar: input.naar,
       onderwerp: input.onderwerp,
       tekst: input.tekst,
+      html: input.html,
       richting: input.richting,
       modus: besluit.modus,
       bijlagen: input.pdf && input.naam ? [{ bestandsnaam: input.naam, inhoud: input.pdf }] : undefined,
@@ -189,18 +192,24 @@ export async function behandelTekenpagina(input: {
   }
   if (uit.mail === 'bevestiging' && uit.pdf) {
     const naam = `${uit.dossier.contractnummer}-getekend.pdf`;
-    const tekst = [
-      `Beste ${uit.dossier.naam || uit.dossier.huurderNaam},`,
-      '',
-      'Uw elektronische ondertekening is vastgelegd. De definitieve PDF zit bij deze mail.',
-      'Dit is geen gekwalificeerde elektronische handtekening.',
-      `Privacyverklaring: ${PRIVACY_URL}`,
-      'De reservering wordt definitief volgens de betaalafspraken in het contract.',
-    ].join('\n');
+    const aanhefNaam = uit.dossier.naam || uit.dossier.huurderNaam;
+    const brief = kerkjeMail({
+      titel: 'Uw ondertekende huurovereenkomst',
+      aanhef: `Beste ${aanhefNaam},`,
+      hoofdtekst: [
+        'Uw elektronische ondertekening is vastgelegd. De definitieve PDF zit bij deze mail.',
+        'Dit is een elektronische bevestiging en geen gekwalificeerde elektronische handtekening.',
+        'Het concept en de ondertekende PDF blijven in het verhuurdossier bewaard.',
+        'De reservering wordt definitief volgens de betaalafspraken in het contract.',
+        `Privacyverklaring: ${PRIVACY_URL}`,
+      ].join('\n\n'),
+      ondertekening: 'Team Kerkje van Persingen',
+    });
     const id = await mailMetPdf({
       naar: uit.dossier.email,
       onderwerp: `Ondertekend contract ${uit.dossier.contractnummer}`,
-      tekst,
+      tekst: brief.text,
+      html: brief.html,
       sleutel: 'handmatige_template',
       richting: 'aanvrager',
       pdf: uit.pdf,
