@@ -48,9 +48,27 @@ De nameservers van kerkjepersingen.nl wijzen naar Vercel. **Records die je bij m
 aanpast hebben geen werking.** Alle DNS-wijzigingen gaan via
 Vercel → Domains → kerkjepersingen.nl → DNS Records.
 
-**Wil de stichting later e-mail op dit domein:** vraag bij mijndomein de MX- en SPF-records
-van hun mailpakket op en voeg die handmatig toe in Vercel DNS. Zonder die stap komt er geen
-mail aan. Dit is de meest waarschijnlijke toekomstige valkuil.
+**Openstaande taak — postbussen bij TransIP nog koppelen.** Twee mailboxen staan
+klaar bij TransIP en zijn nog nergens aangesloten. De site blijft de huidige
+adressen gebruiken.
+
+| Nieuwe postbus | Vervangt later |
+| --- | --- |
+| `bestuur@kerkjepersingen.nl` | het adres waar bestuursnotificaties nu naartoe gaan |
+| `contractbeheer@kerkjepersingen.nl` | `contractbeheer.kvp@gmail.com` |
+
+In de code is dat nu één Gmail-adres: Reply-To, de terugval voor aanvragen
+(`CONTACT_FALLBACK_EMAIL`), de coördinator op het contract en het adres in de
+privacyverklaring. Bestuurs- en contractmail gaan dus nog naar dezelfde postbus,
+tenzij `CONTACT_FALLBACK_EMAIL` of `ontvangst_adres` iets anders zegt.
+Persoonlijke BCC (`nhoevenaars@gmail.com`, `kerkjevanpersingenhm@gmail.com`)
+hoort niet bij deze wissel.
+
+Ontvangen op `@kerkjepersingen.nl` werkt pas als de MX- en SPF-records van
+TransIP in Vercel DNS staan. Records die alleen bij TransIP of mijndomein
+staan, hebben geen werking zolang de nameservers naar Vercel wijzen. Verzenden
+blijft via Resend op `send.kerkjepersingen.nl`. Koppel de adressen in de code
+pas nadat een testmail op beide postbussen aankomt.
 
 **Terugvalscenario:** de stichting kan bij mijndomein de nameservers terugzetten naar
 `nsn1.mijndomein.nl` en `nsn2.mijndomein.nl`. De site is dan onbereikbaar tot er nieuwe

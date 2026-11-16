@@ -66,6 +66,11 @@ Reply-To bij een nieuwe aanvraag naar contractbeheer: het e-mailadres van de aan
 Reply-To bij mail aan aanvrager, huurder, gastheer of reservelijst: `contractbeheer.kvp@gmail.com`.
 Reply-To wijst nooit naar `noreply@send.kerkjepersingen.nl`.
 
+**Nog te doen:** de TransIP-postbussen `bestuur@kerkjepersingen.nl` en
+`contractbeheer@kerkjepersingen.nl` vervangen deze adressen pas nadat hun
+MX- en SPF-records in Vercel DNS staan en een testmail aankomt. Tot die tijd
+blijft deze paragraaf gelden. Zie README, “Openstaande taak — postbussen bij TransIP”.
+
 ## Formulier
 
 `src/lib/validatie.ts`: expositie-weekend is een **waarschuwing**, geen

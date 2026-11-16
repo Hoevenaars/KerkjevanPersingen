@@ -7,6 +7,11 @@ import { MAILTEMPLATE_META } from '../platform/mailtemplates/meta.ts';
 
 export const NOREPLY_ADRES = 'noreply@send.kerkjepersingen.nl';
 export const VAN_ADRES = `Het Kerkje van Persingen <${NOREPLY_ADRES}>`;
+/**
+ * Blijft `contractbeheer.kvp@gmail.com` tot de TransIP-postbussen gekoppeld zijn.
+ * Daarna: contractbeheer@kerkjepersingen.nl hier, bestuur@kerkjepersingen.nl
+ * voor bestuursnotificaties. Eerst MX/SPF in Vercel DNS. Zie README.
+ */
 export const CONTRACTBEHEER_EMAIL = 'contractbeheer.kvp@gmail.com';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
