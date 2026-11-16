@@ -108,17 +108,12 @@ export default {
     "onderwerp": "Uw reservering is definitief",
     "aanhef": "Beste {{voornaam}},",
     "introductie": "",
-    "hoofdtekst": "Wij hebben uw betaling ontvangen. Uw reservering van het Kerkje van Persingen is daarmee definitief.\n\n**{{activiteitstype}}**  \n{{datum}}  \n{{tijd}}\n\nU hoeft op dit moment niets te doen.\n\nVoor uw activiteit nemen wij vanzelf weer contact met u op.\n\nRuim voor de activiteit vragen wij de benodigde informatie op voor onze website en communicatie.\n\nDaarna ontvangt u van ons de praktische informatie en kort voor de activiteit de laatste informatie voor de dag zelf.\n\nZo weet u steeds op tijd wat er van u wordt verwacht.",
+    "hoofdtekst": "Goed nieuws! Uw reservering voor het Kerkje van Persingen is definitief bevestigd. Wij kijken ernaar uit u bij ons te mogen ontvangen.\n\nUw reservering\n\nActiviteit: {{activiteitstype}}\nDatum: {{datum}}\nTijd: {{tijd}}\n\nHoe gaat het nu verder?\n\nVoorlopig hoeft u niets te doen. Wij nemen op de juiste momenten contact met u op.\n\n- Voorbereiding: Ruim voor uw activiteit vragen wij eventuele informatie op voor onze website en communicatie.\n- Praktische afspraken: U ontvangt tijdig alle informatie over het gebruik van het kerkje.\n- Laatste informatie: Kort voor uw activiteit nemen wij de laatste bijzonderheden met u door.\n\nZo kunt u zich volledig richten op de voorbereiding van uw activiteit. Wij zorgen dat u tijdig weet wat er nodig is.\n\nHeeft u tussentijds vragen? Neem gerust contact met ons op.",
     "slottekst": "",
     "ondertekening": "Stichting Het Kerkje van Persingen",
-    "callToActionTekst": "Bekijk uw reservering",
+    "callToActionTekst": "",
     "secundaireTekst": "",
-    "knoppen": [
-      {
-        "label": "Bekijk uw reservering",
-        "actie": "link"
-      }
-    ],
+    "knoppen": [],
     "triggerBeschrijving": "",
     "configType": ""
   },
