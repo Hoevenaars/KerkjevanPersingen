@@ -15,8 +15,8 @@ export const GET: APIRoute = async ({ request }) => {
 
   try {
     const week = new URL(request.url).searchParams.get('week');
-    await verstuurPreview(PREVIEW_ADRES, datumVoorPreview(week));
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    const voorbeeld = await verstuurPreview(PREVIEW_ADRES, datumVoorPreview(week));
+    return new Response(JSON.stringify({ ok: true, ...voorbeeld }), { status: 200 });
   } catch (err) {
     console.error('Fout bij nieuwsbrief-preview:', err);
     return new Response(JSON.stringify({ error: String(err) }), { status: 500 });

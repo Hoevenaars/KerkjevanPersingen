@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { cronOnbevoegd, verstuurWekelijkseNieuwsbrief } from '../../../lib/nieuwsbrief';
+import { besluitVoor } from '../../../lib/automatisering-register';
 
 export const prerender = false;
 
@@ -9,6 +10,10 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   try {
+    const besluit = await besluitVoor('nieuwsbrief');
+    if (besluit.modus !== 'aan') {
+      return new Response(JSON.stringify({ verstuurd: 0, gepland: 0, overgeslagen: `niet verzonden: ${besluit.reden}` }), { status: 200 });
+    }
     const resultaat = await verstuurWekelijkseNieuwsbrief();
     return new Response(JSON.stringify(resultaat), { status: 200 });
   } catch (err) {

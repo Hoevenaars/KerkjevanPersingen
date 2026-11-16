@@ -2,7 +2,8 @@
  * Supabase-uitvoering van de dossierdienst.
  */
 
-import { automatiseringVoorTemplate, MailGeblokkeerd } from '../../platform/automatisering.ts';
+import { automatiseringVoorTemplate, magAutomatiseringUitvoeren, MailGeblokkeerd } from '../../platform/automatisering.ts';
+import { komendeBerichten, redenBuitenWorkflow, type GeplandBericht, type KomendeBoeking } from '../../platform/mail-poort.ts';
 import { verstuurGecontroleerd } from '../mail-transport.ts';
 import { grensVoorActivatie } from '../../platform/activatiegrens.ts';
 import type { Activiteit } from '../content.ts';
@@ -73,7 +74,7 @@ async function laadWereld(): Promise<Wereld> {
   const [relaties, aanvragen, boekingen, publiek, taken, jobs, tokens, betalingen, incidenten, audits] = await Promise.all([
     client.from('relaties').select('id,naam,email,telefoon,adres'),
     client.from('aanvragen').select('id,status,naam,email,telefoon,adres,verhuurtype_sleutel,start_datum,eind_datum,toelichting,website,aantal_personen,relatie_id,boeking_id,beoordeling_deadline,informatievraag'),
-    client.from('boekingen').select('id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,aanvraag_id,huurder_naam_snapshot,huurder_email_snapshot,huurder_telefoon_snapshot,huurder_adres_snapshot,aanbetaling_bedrag,aanbetaling_ontvangen,optie_aangemaakt_op,optie_einddatum'),
+    client.from('boekingen').select('id,nummer,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_relatie_id,gastheer_relatie_id,aanvraag_id,huurder_naam_snapshot,huurder_email_snapshot,huurder_telefoon_snapshot,huurder_adres_snapshot,aanbetaling_bedrag,aanbetaling_ontvangen,optie_aangemaakt_op,optie_einddatum,aantal_personen'),
     (client.from('publieke_activiteiten') as unknown as {
       select: (kolommen: string) => PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
     }).select('id,boeking_id,titel,slug,omschrijving,korte_omschrijving,volledige_omschrijving,start_datum,eind_datum,publicatie_trigger,zichtbaarheid,gepubliceerd,inhoud_status,contentstatus,levenscyclus,praktische_informatie,inhoud_versie,foto_pad,beoordeling_toelichting,exposanten'),
@@ -133,7 +134,16 @@ async function laadWereld(): Promise<Wereld> {
     aanbetalingOntvangen: Boolean(rij.aanbetaling_ontvangen),
     optieAangemaaktOp: tekst(rij.optie_aangemaakt_op) || null,
     optieEind: tekst(rij.optie_einddatum) || null,
+    personen: tekst(rij.aantal_personen),
   }));
+  const tijden = await leesContracttijden(client);
+  for (const boeking of wereld.boekingen) {
+    const tijd = tijden.get(boeking.id);
+    if (!tijd) continue;
+    boeking.tijdVan = tijd.tijdVan;
+    boeking.tijdTot = tijd.tijdTot;
+    boeking.toegangVanaf = tijd.toegangVanaf;
+  }
   wereld.publiek = (publiek.data ?? []).map((rij) => ({
     id: tekst(rij.id),
     boekingId: tekst(rij.boeking_id),
@@ -233,6 +243,91 @@ async function laadWereld(): Promise<Wereld> {
   return wereld;
 }
 
+function tijdLijkend(waarde: string): boolean {
+  return waarde.length > 0 && waarde.length <= 40 && /\d/.test(waarde);
+}
+
+async function leesContracttijden(client: unknown): Promise<Map<string, { tijdVan: string; tijdTot: string; toegangVanaf: string }>> {
+  const uit = new Map<string, { tijdVan: string; tijdTot: string; toegangVanaf: string }>();
+  const db = client as {
+    from?: (tabel: string) => {
+      select: (kolommen: string) => {
+        order: (kolom: string, opties: { ascending: boolean }) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+      };
+    };
+  };
+  if (!db.from) return uit;
+  const antwoord = await db.from('contractversies').select('boeking_id,versie,afspraken').order('versie', { ascending: false });
+  if (antwoord.error || !antwoord.data) return uit;
+  for (const rij of antwoord.data) {
+    const id = String(rij.boeking_id ?? '');
+    if (!id || uit.has(id)) continue;
+    const afspraken = rij.afspraken && typeof rij.afspraken === 'object' ? rij.afspraken as Record<string, unknown> : {};
+    const tijdVan = String(afspraken.tijdVan ?? afspraken.tijd_van ?? '').trim();
+    const tijdTot = String(afspraken.tijdTot ?? afspraken.tijd_tot ?? '').trim();
+    const direct = String(afspraken.toegangVanaf ?? afspraken.toegang_vanaf ?? '').trim();
+    const opbouw = String(afspraken.opbouw ?? '').trim();
+    uit.set(id, { tijdVan, tijdTot, toegangVanaf: direct || (tijdLijkend(opbouw) ? opbouw : '') });
+  }
+  return uit;
+}
+
+export async function leesGeplandeAutomatisering(env: Record<string, unknown> = process.env): Promise<{ rijen: GeplandBericht[]; migratie: number; fout: string }> {
+  try {
+    if (!operationeelSupabase(env)) return { rijen: [], migratie: 0, fout: '' };
+    const wereld = await laadWereld();
+    const { laadAutomatiseringsregister } = await import('../automatisering-register.ts');
+    const { STANDAARD_MAILTEMPLATES } = await import('../../platform/mailtemplates/catalog.ts');
+    const { publicatieTriggerVoor } = await import('../../platform/continuiteit.ts');
+    const register = await laadAutomatiseringsregister(env);
+    const vandaag = ymdInAmsterdam(new Date());
+    const boekingen: KomendeBoeking[] = wereld.boekingen.map((boeking) => {
+      const publiek = wereld.publiek.find((item) => item.boekingId === boeking.id);
+      const gastheer = wereld.relaties.find((item) => item.id === boeking.gastheerId);
+      return {
+        boekingId: boeking.id,
+        status: boeking.status,
+        naam: boeking.naam,
+        email: boeking.email,
+        telefoon: boeking.telefoon,
+        titel: boeking.titel || publiek?.titel || '',
+        soort: boeking.verhuurtype,
+        start: boeking.start,
+        eind: boeking.eind,
+        gastheerNaam: gastheer?.naam || '',
+        gastheerTelefoon: gastheer?.telefoon || '',
+        gastheerEmail: gastheer?.email || '',
+        tijdVan: boeking.tijdVan || '',
+        tijdTot: boeking.tijdTot || '',
+        toegangVanaf: boeking.toegangVanaf || '',
+        praktisch: publiek?.praktisch || '',
+        personen: boeking.personen || '',
+        bedrag: boeking.aanbetalingBedrag,
+        aanbetalingOntvangen: boeking.aanbetalingOntvangen,
+        optieAangemaaktOp: boeking.optieAangemaaktOp,
+        optieEind: boeking.optieEind,
+        inhoudStatus: publiek?.inhoudStatus ?? 'niet_gestart',
+        publicatieTrigger: publiek?.trigger ?? publicatieTriggerVoor(boeking.verhuurtype),
+        gastheerAanwezig: Boolean(boeking.gastheerId),
+        verzonden: wereld.jobs.filter((job) => job.boekingId === boeking.id && job.status === 'verzonden').map((job) => job.templateSleutel),
+        geannuleerd: boeking.status === 'geannuleerd' || Boolean(publiek?.geannuleerd),
+      };
+    });
+    return {
+      rijen: komendeBerichten({
+        boekingen,
+        register,
+        templates: wereld.mailtemplates?.length ? wereld.mailtemplates : STANDAARD_MAILTEMPLATES,
+        vandaag,
+      }),
+      migratie: wereld.boekingen.filter((boeking) => redenBuitenWorkflow(boeking.status)).length,
+      fout: '',
+    };
+  } catch (error) {
+    return { rijen: [], migratie: 0, fout: error instanceof Error ? error.message : 'Het overzicht kon niet worden geladen.' };
+  }
+}
+
 function mailTransport(env: Record<string, unknown>) {
   return {
     async verstuur(input: {
@@ -245,11 +340,15 @@ function mailTransport(env: Record<string, unknown>) {
       aanvragerEmail?: string;
       aanvragerNaam?: string;
       richting?: 'intern' | 'aanvrager';
+      idempotentieSleutel?: string;
     }) {
       const automatisering = input.templateSleutel ? automatiseringVoorTemplate(input.templateSleutel) : null;
+      const sleutel = automatisering ?? 'workflow';
+      const { besluitVoor } = await import('../automatisering-register.ts');
+      const besluit = await besluitVoor(sleutel, undefined, env);
       const uit = await verstuurGecontroleerd(
         {
-          sleutel: automatisering ?? 'workflow',
+          sleutel,
           naar: input.naar,
           onderwerp: input.onderwerp,
           tekst: input.tekst,
@@ -259,17 +358,28 @@ function mailTransport(env: Record<string, unknown>) {
           aanvragerNaam: input.aanvragerNaam,
           templateId: input.templateSleutel,
           richting: input.richting,
+          idempotentieSleutel: input.idempotentieSleutel
+            ? besluit.modus === 'test' ? `test:${input.idempotentieSleutel}` : input.idempotentieSleutel
+            : undefined,
         },
         { env },
       );
       if (!uit.providerAangeroepen) throw new MailGeblokkeerd(uit.melding || uit.besluit.reden);
+      return { test: uit.besluit.modus === 'test', providerBerichtId: uit.providerBerichtId ?? null };
     },
   };
 }
 
 export async function voerOperationeel(
   opdracht: Opdracht,
-  opties: { env?: Record<string, unknown>; actor: Actor; basisUrl: string; nu?: Date; actiefVanaf?: string | null },
+  opties: {
+    env?: Record<string, unknown>;
+    actor: Actor;
+    basisUrl: string;
+    nu?: Date;
+    actiefVanaf?: string | null;
+    sjabloonOpen?: (templateId: string) => boolean;
+  },
 ): Promise<{ ok: boolean; melding: string; links?: { doel: string; url: string }[] }> {
   const env = opties.env ?? process.env;
   const wereld = await laadWereld();
@@ -280,6 +390,7 @@ export async function voerOperationeel(
     basisUrl: opties.basisUrl,
     internEmail: String(env.CONTACT_FALLBACK_EMAIL ?? env.MAIL_STAGING_OVERRIDE ?? ''),
     actiefVanaf: opties.actiefVanaf,
+    sjabloonOpen: opties.sjabloonOpen,
   }, mailTransport(env));
   if (!uit.resultaat.ok || uit.mutaties.length === 0) return uit.resultaat;
   const client = maakBeheerAdminClient(env);
@@ -319,9 +430,11 @@ export async function draaiWorkflow(env: Record<string, unknown> = process.env, 
   if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: database niet gekoppeld.' };
   const { besluitVoor } = await import('../automatisering-register.ts');
   const besluit = await besluitVoor('workflow', undefined, env);
-  if (besluit.modus === 'uit' || besluit.modus === 'dry-run' || !besluit.provider) {
+  if (besluit.modus !== 'aan') {
     return { ok: true, melding: `Workflowmail geblokkeerd: ${besluit.reden}` };
   }
+  const { laadAutomatiseringsregister } = await import('../automatisering-register.ts');
+  const register = await laadAutomatiseringsregister(env);
   const vandaag = ymdInAmsterdam(new Date());
   const grens = grensVoorActivatie(await leesActiefVanaf('workflow', env), vandaag);
   return voerOperationeel({ soort: 'scheduler' }, {
@@ -329,6 +442,10 @@ export async function draaiWorkflow(env: Record<string, unknown> = process.env, 
     actor: { type: 'systeem', naam: 'planner' },
     basisUrl,
     actiefVanaf: grens,
+    sjabloonOpen: (templateId) => {
+      const sleutel = automatiseringVoorTemplate(templateId);
+      return Boolean(sleutel) && magAutomatiseringUitvoeren(sleutel as string, register).modus === 'aan';
+    },
   });
 }
 

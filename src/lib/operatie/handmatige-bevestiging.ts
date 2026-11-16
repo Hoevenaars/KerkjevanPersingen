@@ -41,13 +41,18 @@ export async function verstuurHandmatigeBevestiging(
     onderwerp: bevestiging.naam,
     pogingen: 0,
   }).select('id').maybeSingle();
+  let jobId = claim.data?.id;
   if (claim.error?.code === '23505') {
-    return 'De bevestigingsmail was al verzonden en is niet opnieuw verstuurd.';
-  }
-  if (claim.error || claim.data?.id == null) {
+    const opnieuw = await client.from('communicatie_jobs').select('id,status').eq('dedup_sleutel', dedup).maybeSingle();
+    const statusOpnieuw = String(opnieuw.data?.status ?? '');
+    if (statusOpnieuw === 'verzonden' || statusOpnieuw === 'wachtrij' || opnieuw.data?.id == null) {
+      return 'De bevestigingsmail was al verzonden en is niet opnieuw verstuurd.';
+    }
+    jobId = opnieuw.data.id;
+    await zetJob(client, jobId, { status: 'wachtrij', foutmelding: '' });
+  } else if (claim.error || jobId == null) {
     return 'De boeking is opgeslagen. De bevestiging is niet verzonden.';
   }
-  const jobId = claim.data?.id;
 
   const guard = bewaakUitgaandeMail(env, boeking.email);
   if (!guard.toegestaan || !guard.naar) {
@@ -72,6 +77,7 @@ export async function verstuurHandmatigeBevestiging(
   const tekst = gerenderd && bevestiging.templateId === 'booking_confirmed' ? gerenderd.text : template ? plainTekstUitTemplate(template, vars) : bevestiging.pastBij;
   const html = gerenderd?.html;
   const register = await registerVoorExplicieteKeuze(bevestiging.automatieSleutel, env);
+  const proefVooraf = magAutomatiseringUitvoeren(bevestiging.automatieSleutel, register).modus === 'test';
   try {
     const uit = await verstuurGecontroleerd(
       {
@@ -85,7 +91,7 @@ export async function verstuurHandmatigeBevestiging(
         aanvragerNaam: boeking.naam,
         richting: 'aanvrager',
         replyTo: CONTRACTBEHEER_EMAIL,
-        idempotentieSleutel: dedup,
+        idempotentieSleutel: proefVooraf ? `test:${dedup}` : dedup,
       },
       { register, env },
     );
@@ -93,7 +99,33 @@ export async function verstuurHandmatigeBevestiging(
       await zetJob(client, jobId, { status: 'fout', foutmelding: uit.melding ?? uit.besluit.reden });
       return `De boeking is opgeslagen. De bevestiging is niet verzonden: ${uit.melding || uit.besluit.reden}.`;
     }
-    await zetJob(client, jobId, { status: 'verzonden', onderwerp: uit.besluit ? `${guard.onderwerpPrefix}${onderwerp}` : onderwerp, foutmelding: '' });
+    const proef = uit.besluit.modus === 'test';
+    if (proef) {
+      await zetJob(client, jobId, {
+        status: 'concept',
+        modus: 'concept',
+        foutmelding: 'Proefverzending geaccepteerd door de provider. Dit telt niet als verzending naar de huurder.',
+      });
+      await legVerzendingVast({
+        aanvraagId: koppeling.aanvraagId ?? null,
+        boekingId: koppeling.boekingId ?? null,
+        templateSleutel: bevestiging.templateId,
+        onderwerp: `${guard.onderwerpPrefix}${onderwerp}`,
+        bedoeldeOntvanger: boeking.email,
+        werkelijkeOntvanger: uit.werkelijkeOntvanger || '',
+        afzender: VAN_ADRES,
+        replyTo: CONTRACTBEHEER_EMAIL,
+        richting: 'uitgaand',
+        status: 'verzonden',
+        providerBerichtId: uit.providerBerichtId,
+        foutmelding: 'Geaccepteerd door de e-mailprovider. Aflevering is niet bevestigd.',
+        test: true,
+        dedupSleutel: `test:${dedup}`,
+        handmatig: true,
+      }, env, client as never);
+      return `Proef verzonden naar ${uit.werkelijkeOntvanger}. De huurder heeft niets ontvangen.`;
+    }
+    await zetJob(client, jobId, { status: 'verzonden', onderwerp: `${guard.onderwerpPrefix}${onderwerp}`, foutmelding: '' });
     await legVerzendingVast({
       aanvraagId: koppeling.aanvraagId ?? null,
       boekingId: koppeling.boekingId ?? null,

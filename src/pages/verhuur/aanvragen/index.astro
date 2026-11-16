@@ -35,6 +35,7 @@ import {
   vernieuwAanvraagFotoUpload,
   type FotoInvoer,
 } from '../../../lib/aanvraag-foto-opslag';
+import { verstuurAanvraagbevestiging } from '../../../lib/aanvraag-bevestiging';
 import { verstuurInterneAanvraagMails } from '../../../lib/aanvraag-notificatie';
 
 export const prerender = false;
@@ -180,12 +181,14 @@ if (Astro.request.method === 'POST') {
           wisFotoRetry();
           waarden.fotoNamen = Array.from({ length: open.aantal }, () => 'foto');
           await verstuurInterneAanvraagMails(waarden, open.aanvraagId);
+          await verstuurAanvraagbevestiging(waarden, open.aanvraagId);
           return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
         } else {
           const namen = await bewaarOfHerstel(open.aanvraagId, token, gelezen.fotos);
           if (namen) {
             waarden.fotoNamen = Array.from({ length: open.aantal + namen.length }, () => 'foto');
             await verstuurInterneAanvraagMails(waarden, open.aanvraagId);
+            await verstuurAanvraagbevestiging(waarden, open.aanvraagId);
             return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
           }
         }
@@ -244,6 +247,7 @@ if (Astro.request.method === 'POST') {
             /* Aanvraag staat. Geen mail tot de foto’s gelukt zijn of de bezoeker ze weglaat. */
           } else {
             await verstuurInterneAanvraagMails(waarden, uitkomst.id);
+            await verstuurAanvraagbevestiging(waarden, uitkomst.id);
             return Astro.redirect('/verhuur/aanvragen/bedankt/', 303);
           }
         } else {

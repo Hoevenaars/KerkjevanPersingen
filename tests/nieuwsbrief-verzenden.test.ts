@@ -97,10 +97,10 @@ test('test stuurt één mail naar het testadres en telt de week niet als verstuu
   assert.equal(bron.weken[0].verstuurd, false);
 });
 
-test('preview gaat naar het preview-adres en laat de week open', async () => {
+test('preview is een dry-run en laat de week open', async () => {
   const bron = bronMetNieuws();
   const verzonden: MailBericht[] = [];
-  await verstuurPreview('nhoevenaars@gmail.com', DATUM, {
+  const uit = await verstuurPreview('nhoevenaars@gmail.com', DATUM, {
     register: register('actief'),
     vrienden: geheugenVrienden([VRIEND]),
     bron,
@@ -110,10 +110,11 @@ test('preview gaat naar het preview-adres en laat de week open', async () => {
       },
     },
   });
-  assert.equal(verzonden.length, 1);
-  assert.equal(verzonden[0].naar, 'nhoevenaars@gmail.com');
-  assert.match(verzonden[0].tekst, /De klok is gerepareerd/);
-  assert.match(verzonden[0].tekst, /token=preview/);
+  assert.equal(verzonden.length, 0);
+  assert.equal(uit.verstuurd, 0);
+  assert.equal(uit.overgeslagen, 'dry-run, geen mail');
+  assert.match(uit.tekst, /De klok is gerepareerd/);
+  assert.match(uit.tekst, /token=preview/);
   assert.equal(bron.verzendingen.length, 0);
   assert.equal(bron.weken[0].verstuurd, false);
 });

@@ -7,10 +7,8 @@ import {
   auditregel,
   isStatus,
   gekoppeldeFlow,
-  kanExternVersturen,
-  magAutomatiseringUitvoeren,
   planStatuswijziging,
-  functioneleStatus,
+  technischeGereedheid,
   statusLabel,
   type Automatisering,
 } from '../../../../platform/automatisering.ts';
@@ -24,6 +22,7 @@ import type { MailTemplateDef } from '../../../../platform/mailtemplates/types.t
 import { GEEN_TESTMAILADRES, normaliseerTestmailadres, TESTMAIL_SLEUTEL } from '../../../../platform/testmail.ts';
 import { controleerInstellingen, instellingRijen, leesInstellingen, legeInstellingen } from '../../../../platform/documentenflow.ts';
 import { magSchrijven } from '../../../../platform/rechten.ts';
+import { leesGeplandeAutomatisering } from '../../../../lib/operatie/runtime.ts';
 
 type Rij = {
   sleutel: string;
@@ -250,6 +249,16 @@ if (magDocumenten && db) {
   }
 }
 
+const gepland = await leesGeplandeAutomatisering().catch(() => ({ rijen: [], migratie: 0, fout: 'Het overzicht kon niet worden geladen.' }));
+const voorbeeldSleutel = String(Astro.url.searchParams.get('voorbeeld') ?? '');
+const gekozen = gepland.rijen.find((rij) => `${rij.boekingId}:${rij.templateId}` === voorbeeldSleutel) ?? null;
+
+function laatsteEcht(item: Automatisering): string {
+  if (!item.laatsteRun) return 'Nog geen echte verzending';
+  if ((item.laatsteResultaat ?? '').toLowerCase().includes('test')) return 'Nog geen echte verzending';
+  return item.laatsteRun.slice(0, 16).replace('T', ' ');
+}
+
 const groepen = [
   ['transactioneel', 'Transactioneel'],
   ['automatisering', 'Automatiseringen'],
@@ -262,7 +271,7 @@ const groepen = [
     <div>
       <h1>Automatiseringen</h1>
       <p class="bh-hint">
-        Schakelaar is de opgeslagen stand Aan, Test of Uit. Functioneel is wat er nu echt gebeurt. Alleen een nieuwe verhuuraanvraag naar het bestuur is actief. Een schakelaar op Aan zonder caller verstuurt niets.
+        Aan betekent dat verzenden mag. Gereed betekent dat de mail technisch klopt. Die twee staan los van elkaar. Een preview verstuurt niets.
       </p>
     </div>
   </header>
@@ -341,69 +350,79 @@ const groepen = [
     )
   }
 
-  {
-    groepen.map(([categorie, titel]) => (
-      <section class="bh-kaart">
-        <h2>{titel}</h2>
+  <section class="bh-kaart">
+    <h2>Komende automatische berichten</h2>
+    <p>Alleen wat de planner zou kunnen versturen. Uit betekent dat het bericht niet weggaat. Een geblokkeerd bericht mist nog gegevens.</p>
+    {gepland.fout ? <p class="bh-flash" role="alert">{gepland.fout}</p> : null}
+    {gepland.migratie > 0 ? <p class="bh-muted">{gepland.migratie} historische migratieboekingen vallen buiten deze planner. Daar gaat geen automatische mail overheen.</p> : null}
+    {
+      gepland.rijen.length === 0 ? <p class="bh-muted">Geen komende berichten gevonden.</p> : (
         <table class="bh-tabel">
           <thead>
             <tr>
-              <th>Naam</th>
-              <th>Schakelaar</th>
-              <th>Functioneel</th>
-              <th>Trigger</th>
-              <th>Flow</th>
-              <th>Provider</th>
-              <th>Extern</th>
-              <th>Laatste run</th>
+              <th>Wanneer</th>
+              <th>Automatisering</th>
+              <th>Ontvanger</th>
+              <th>Status</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {lijst.filter((item) => item.categorie === categorie).map((item) => {
-              const functie = functioneleStatus(item);
-              return (
+            {gepland.rijen.map((rij) => (
               <tr>
-                <td>
-                  <strong>{item.naam}</strong>
-                  <div class="bh-muted">{item.sleutel}</div>
-                  <div class="bh-muted">{item.omschrijving}</div>
-                </td>
-                <td>{statusLabel(item.status)}</td>
-                <td>
-                  <span class={`bh-badge bh-badge--fn-${functie.status}`}>{functie.label}</span>
-                  <div class="bh-muted">{functie.toelichting}</div>
-                </td>
-                <td>
-                  {item.actieveTrigger ? 'Ja' : 'Nee'}
-                  <div class="bh-muted">{item.actieveTrigger ? item.trigger : 'Geen actieve trigger'}</div>
-                </td>
-                <td>{gekoppeldeFlow(item.sleutel)}</td>
-                <td>
-                  {item.actieveTrigger && magAutomatiseringUitvoeren(item.sleutel, lijst).provider ? 'Ja' : 'Nee'}
-                  {!item.actieveTrigger ? <div class="bh-muted">Geen caller</div> : null}
-                </td>
-                <td>{kanExternVersturen(item, lijst) ? 'Ja' : 'Nee'}</td>
-                <td>
-                  {item.laatsteRun ? item.laatsteRun.slice(0, 16).replace('T', ' ') : '—'}
-                  {item.laatsteResultaat ? <div class="bh-muted">{item.laatsteResultaat}</div> : null}
-                </td>
-                <td>
-                  <form method="post" class="bh-acties">
-                    <input type="hidden" name="sleutel" value={item.sleutel} />
-                    <select name="status" aria-label={`Schakelaar van ${item.naam}`}>
-                      <option value="actief" selected={item.status === 'actief'}>Aan</option>
-                      <option value="test" selected={item.status === 'test'}>Test</option>
-                      <option value="uit" selected={item.status === 'uit'}>Uit</option>
-                    </select>
-                    <button class="bh-btn" type="submit">Instellen</button>
-                  </form>
-                </td>
+                <td>{rij.wanneerLabel}</td>
+                <td>{rij.automatisering}</td>
+                <td>{rij.ontvanger}</td>
+                <td><span class={`bh-badge bh-badge--${rij.status === 'Gereed' ? 'gereed' : rij.status === 'Uit' ? 'geblokkeerd' : 'aandacht'}`}>{rij.status}</span></td>
+                <td><a href={`?voorbeeld=${encodeURIComponent(`${rij.boekingId}:${rij.templateId}`)}`}>Preview</a></td>
               </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
+      )
+    }
+    {
+      gekozen && (
+        <div class="bh-auto-item">
+          <p><strong>{gekozen.onderwerp || gekozen.automatisering}</strong></p>
+          <p class="bh-muted">{gekozen.reden} Er is niets verzonden.</p>
+          {gekozen.tekst ? <pre class="bh-muted">{gekozen.tekst}</pre> : null}
+          {gekozen.html ? <div class="bh-mailvoorbeeld" set:html={gekozen.html} /> : null}
+        </div>
+      )
+    }
+  </section>
+
+  {
+    groepen.map(([categorie, titel]) => (
+      <section class="bh-kaart">
+        <h2>{titel}</h2>
+        <div class="bh-auto-lijst">
+          {lijst.filter((item) => item.categorie === categorie).map((item) => {
+            const gereed = technischeGereedheid(item);
+            const volgende = gepland.rijen.find((rij) => rij.sleutel === item.sleutel);
+            return (
+              <article class="bh-auto-item">
+                <div class="bh-auto-kop">
+                  <strong>{item.naam}</strong>
+                  <span>{statusLabel(item.status)} · <span class={`bh-badge bh-badge--${gereed.status}`}>{gereed.label}</span></span>
+                </div>
+                <p>{gereed.toelichting}</p>
+                <p class="bh-muted">Voor {item.ontvangerstype}. Aanleiding: {item.sleutel === 'reservelijst_mail' ? 'geen automatische mail bij het toevoegen' : item.actieveTrigger ? item.trigger : 'geen gekoppelde actie'}. {gekoppeldeFlow(item.sleutel)}.</p>
+                <p class="bh-muted">Laatste echte verzending: {laatsteEcht(item)}.{volgende && item.status === 'actief' ? ` Eerstvolgende: ${volgende.wanneerLabel}.` : ''}</p>
+                <form method="post" class="bh-acties">
+                  <input type="hidden" name="sleutel" value={item.sleutel} />
+                  <select name="status" aria-label={`Schakelaar van ${item.naam}`}>
+                    <option value="actief" selected={item.status === 'actief'}>Aan</option>
+                    <option value="test" selected={item.status === 'test'}>Test</option>
+                    <option value="uit" selected={item.status === 'uit'}>Uit</option>
+                  </select>
+                  <button class="bh-btn" type="submit">Instellen</button>
+                </form>
+              </article>
+            );
+          })}
+        </div>
       </section>
     ))
   }

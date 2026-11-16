@@ -488,7 +488,7 @@ export default {
     "slottekst": "",
     "ondertekening": "Stichting Het Kerkje van Persingen",
     "callToActionTekst": "Alles is goed verlopen",
-    "secundaireTekst": "Bijzonderheid melden · Met vriendelijke groet, · Stichting Het Kerkje van Persingen",
+    "secundaireTekst": "Bijzonderheid melden",
     "knoppen": [
       {
         "label": "Alles is goed verlopen",
@@ -496,14 +496,6 @@ export default {
       },
       {
         "label": "Bijzonderheid melden",
-        "actie": "link"
-      },
-      {
-        "label": "Met vriendelijke groet,",
-        "actie": "link"
-      },
-      {
-        "label": "Stichting Het Kerkje van Persingen",
         "actie": "link"
       }
     ],

@@ -673,6 +673,47 @@ html:has(.bh-app) {
   color: var(--brick-dark);
 }
 
+.bh-badge--gereed {
+  background: #dce6d0;
+  color: var(--pine);
+}
+
+.bh-badge--aandacht {
+  background: #efe6c9;
+  color: #6a5a20;
+}
+
+.bh-badge--geblokkeerd {
+  background: #f3d9cf;
+  color: var(--brick-dark);
+}
+
+.bh-auto-lijst {
+  display: grid;
+}
+
+.bh-auto-item {
+  display: grid;
+  gap: 6px;
+  padding-top: 14px;
+  border-top: 1px solid #e4dccb;
+}
+
+.bh-auto-kop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.bh-mailvoorbeeld {
+  overflow: auto;
+  max-width: 100%;
+  background: #faf8f3;
+  border: 1px solid #e4dccb;
+}
+
 .bh-acties {
   display: flex;
   flex-wrap: wrap;
