@@ -7,9 +7,10 @@ interface Props {
   betalingToelichting: string;
   toonMaken?: boolean;
   nieuweVersieHref?: string;
+  toonOntvangst?: boolean;
 }
 
-const { opvolging, actie, betalingToelichting, toonMaken = true, nieuweVersieHref = '' } = Astro.props;
+const { opvolging, actie, betalingToelichting, toonMaken = true, nieuweVersieHref = '', toonOntvangst = true } = Astro.props;
 const proef = opvolging.modus !== 'aan';
 ---
 
@@ -38,6 +39,24 @@ const proef = opvolging.modus !== 'aan';
     }
   </dl>
   {betalingToelichting && <p class="bh-muted">{betalingToelichting}</p>}
+  {
+    toonOntvangst && opvolging.kanOndertekenen && (
+      <form method="post" action={actie} class="bh-form" enctype="multipart/form-data">
+        <p class="bh-muted">Het getekende contract is binnen. Dit legt dat vast. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+        <label for="df-getekend-pdf">Ondertekende PDF, als je die hebt</label>
+        <input id="df-getekend-pdf" name="bestand" type="file" accept="application/pdf,.pdf" />
+        <button class="bh-btn" type="submit" name="actie" value="ondertekening_ontvangen">Contract ondertekend</button>
+      </form>
+    )
+  }
+  {
+    toonOntvangst && opvolging.kanAanbetaling && (
+      <form method="post" action={actie}>
+        <p class="bh-muted">De aanbetaling staat op de rekening. De restbetaling blijft open. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+        <button class="bh-btn" type="submit" name="actie" value="aanbetaling_ontvangen">Aanbetaling ontvangen</button>
+      </form>
+    )
+  }
   {opvolging.versie != null && opvolging.versie > 1 && <p>Eerdere versies gelden niet meer. Alleen deze versie kan worden goedgekeurd en verzonden.</p>}
   {
     nieuweVersieHref && (

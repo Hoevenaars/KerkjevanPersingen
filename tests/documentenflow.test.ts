@@ -260,6 +260,13 @@ test('betaling toont alleen wat vastligt', () => {
     vlag: false,
     regels: [{ soort: 'aanbetaling', bedrag: 100, status: 'open', vervaldatum: '2026-07-01' }],
   }).stand, 'open');
+  assert.equal(betalingStand({
+    vlag: false,
+    regels: [
+      { soort: 'aanbetaling', bedrag: 100, status: 'ontvangen', vervaldatum: '2026-07-01' },
+      { soort: 'restant', bedrag: 390, status: 'open', vervaldatum: '2026-08-01' },
+    ],
+  }).stand, 'ontvangen');
   const weergave = bouwOpvolging({
     rechten: rechten({ aanvragen: 'schrijven' }),
     bron: bron(),

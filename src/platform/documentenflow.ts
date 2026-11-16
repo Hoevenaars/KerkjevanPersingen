@@ -300,20 +300,22 @@ export function geldUitAdministratie(input: {
 }
 
 export function betalingStand(input: { vlag: boolean; regels: readonly GeldRegel[] }): BetalingStand {
-  const actief = input.regels.filter((regel) => regel.status !== 'geannuleerd' && (regel.soort === 'aanbetaling' || regel.soort === 'restant'));
-  if (actief.length === 0 && !input.vlag) {
-    return { stand: 'niet_vastgelegd', toelichting: 'Er is nog geen gecontroleerde betaling vastgelegd.' };
+  const aanbetalingen = input.regels.filter((regel) => regel.soort === 'aanbetaling' && regel.status !== 'geannuleerd');
+  const ontvangen = aanbetalingen.filter((regel) => regel.status === 'ontvangen');
+  const open = aanbetalingen.filter((regel) => regel.status === 'open');
+  if (ontvangen.length > 0 && open.length > 0) {
+    return { stand: 'open', toelichting: 'De aanbetaling staat zowel open als ontvangen. Controleer de betaalregels.' };
   }
-  if (actief.some((regel) => regel.status === 'open')) {
-    return { stand: 'open', toelichting: 'Een vastgelegde betaalregel staat nog open.' };
+  if (ontvangen.length > 0) {
+    return { stand: 'ontvangen', toelichting: 'De aanbetaling is ontvangen. Een open restbetaling blijft apart staan.' };
   }
-  if (actief.length > 0 && actief.every((regel) => regel.status === 'ontvangen')) {
-    return { stand: 'ontvangen', toelichting: 'De vastgelegde betaalregels zijn ontvangen.' };
-  }
-  if (input.vlag) {
+  if (aanbetalingen.length === 0 && input.vlag) {
     return { stand: 'ontvangen', toelichting: 'De aanbetaling is door een beheerder vastgelegd. Een restbetaling is niet vastgelegd.' };
   }
-  return { stand: 'niet_vastgelegd', toelichting: 'De betaalregels zijn niet als ontvangen of open vastgelegd.' };
+  if (open.length > 0) {
+    return { stand: 'open', toelichting: 'De aanbetaling staat nog open.' };
+  }
+  return { stand: 'niet_vastgelegd', toelichting: 'Er is nog geen gecontroleerde aanbetaling vastgelegd.' };
 }
 
 function bedragRegel(cent: number | null, verval: string): { bedrag: string; verval: string } {
@@ -896,6 +898,7 @@ export interface ContractOpvolgingWeergave {
   kanGoedkeuren: boolean;
   kanTerug: boolean;
   kanOndertekenen: boolean;
+  kanAanbetaling: boolean;
   kanVinken: boolean;
   kanPraktisch: boolean;
   kanPromotie: boolean;
@@ -1018,6 +1021,9 @@ export function bouwOpvolging(input: {
     kanAkkoord: bestuur && Boolean(huidig?.bestuurVerplicht) && past && huidig?.bestuur !== 'akkoord',
     kanTerug: bestuur && huidig?.bestuur === 'wacht',
     kanOndertekenen: beheer && Boolean(huidig) && huidig?.ondertekening !== 'ontvangen',
+    kanAanbetaling: (beheer || magSchrijven(input.rechten, 'finance'))
+      && input.betaling.stand !== 'ontvangen'
+      && !/zowel open als ontvangen/.test(input.betaling.toelichting),
     kanVinken: beheer || magSchrijven(input.rechten, 'planning'),
     kanPraktisch: beheer && praktisch === 'concept' && !('ontbreekt' in brief) && input.modus !== 'uit',
     kanPromotie: beheer && promotie === 'concept' && input.modus !== 'uit',

@@ -48,6 +48,7 @@ import { verstuurGecontroleerd } from '../../../lib/mail-transport.ts';
 import { legVerzendingVast } from '../../../lib/communicatie-log.ts';
 import { VAN_ADRES } from '../../../lib/mail-adressen.ts';
 import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astro';
+import { verwerkOntvangst } from '../../../lib/operatie/ontvangst.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -62,6 +63,21 @@ let wizardPost: ContractWizardVelden | null = null;
 if (Astro.request.method === 'POST') {
   const formulier = await Astro.request.formData();
   const actie = String(formulier.get('actie') ?? '');
+  if (aanvraag && (actie === 'ondertekening_ontvangen' || actie === 'aanbetaling_ontvangen')) {
+    const bestand = formulier.get('bestand');
+    const uit = await verwerkOntvangst(actie, {
+      client: snapshot.bron === 'supabase' && mailSessie ? mailSessie as never : null,
+      actor: actorVanSessie(Astro.locals.beheer),
+      boekingId: aanvraag.boekingId,
+      bestand: bestand instanceof File && bestand.size > 0
+        ? { naam: bestand.name, bytes: new Uint8Array(await bestand.arrayBuffer()) }
+        : null,
+      schrijven: Boolean(Astro.locals.beheer) && !Astro.locals.beheer.viewAs && !snapshot.alleenLezen,
+    });
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    if (uit) doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    return Astro.redirect(doel.toString());
+  }
   if (aanvraag && actie.startsWith('df_')) {
     const bestand = formulier.get('bestand');
     const bijlage = bestand instanceof File && bestand.size > 0
@@ -505,6 +521,12 @@ const nieuweVersieLink = (() => {
   return `${dossierPad}?${params.toString()}#contract-wizard`;
 })();
 const kanGoedkeuren = beeld.geschikt && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
+const magVastleggen = !Astro.locals.beheer?.viewAs
+  && !snapshot.alleenLezen
+  && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed')
+  && Boolean(beeld.boeking);
+const magTekenen = magVastleggen && magContractBeheren(rechtenNu);
+const magBetalen = magVastleggen && (magContractBeheren(rechtenNu) || magSchrijven(rechtenNu, 'finance'));
 const toonBeoordeling = beeld.fase === 'nieuw';
 const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed';
 ---
@@ -653,8 +675,21 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             )
           }
           {
-            beeld.fase === 'in_behandeling' && beeld.checklist.ondertekend && !beeld.checklist.aanbetaling && beeld.boeking && (
-              <p>De aanbetaling blijft in de bestaande administratie. <a href={`/beheer/boekingen/${encodeURIComponent(beeld.boeking.id)}/`}>Open de boeking</a>.</p>
+            magTekenen && !beeld.checklist.ondertekend && (
+              <form method="post" action={dossierPad} class="bh-form" enctype="multipart/form-data">
+                <p class="bh-muted">Het getekende contract is binnen. Dit legt dat vast. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+                <label for="getekend-pdf">Ondertekende PDF, als je die hebt</label>
+                <input id="getekend-pdf" name="bestand" type="file" accept="application/pdf,.pdf" />
+                <button class="bh-btn" type="submit" name="actie" value="ondertekening_ontvangen">Contract ondertekend</button>
+              </form>
+            )
+          }
+          {
+            magBetalen && !beeld.checklist.aanbetaling && (
+              <form method="post" action={dossierPad}>
+                <p class="bh-muted">De aanbetaling staat op de rekening. De restbetaling blijft open. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+                <button class="bh-btn" type="submit" name="actie" value="aanbetaling_ontvangen">Aanbetaling ontvangen</button>
+              </form>
             )
           }
         </>
@@ -795,6 +830,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
       actie={dossierPad}
       betalingToelichting={opvolgingBetaling}
       toonMaken={flowAan}
+      toonOntvangst={false}
       nieuweVersieHref={contractDefinitief && magNieuweVersie && !wizardOpen ? nieuweVersieLink : ''}
     />
   )}

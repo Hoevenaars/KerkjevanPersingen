@@ -26,6 +26,7 @@ import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
 import { besluitVoor } from '../../../lib/automatisering-register.ts';
 import { bewaarDefinitiefContract, leesContractWizardStand } from '../../../lib/operatie/contract-wizard-sessie.ts';
 import {
+  betalingStand,
   bouwOpvolging,
   flowActieUit,
   leesInstellingen,
@@ -46,6 +47,8 @@ import { getTestMailRecipient } from '../../../lib/testmail-adres.ts';
 import { lijstIntake } from '../../../lib/intake-opslag.ts';
 import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
 import { labelGastheer } from '../../../platform/aanvraag-weergave.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
+import { verwerkOntvangst } from '../../../lib/operatie/ontvangst.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -77,6 +80,22 @@ if (Astro.request.method === 'POST') {
   const formulier = await Astro.request.formData();
   const actie = String(formulier.get('actie') ?? '');
   const tab = String(formulier.get('tab') ?? '');
+  if (boeking && (actie === 'ondertekening_ontvangen' || actie === 'aanbetaling_ontvangen')) {
+    const bestand = formulier.get('bestand');
+    const uit = await verwerkOntvangst(actie, {
+      client: snapshot.bron === 'supabase' && mailSessie ? mailSessie as never : null,
+      actor: actorVanSessie(Astro.locals.beheer),
+      boekingId: boeking.id,
+      bestand: bestand instanceof File && bestand.size > 0
+        ? { naam: bestand.name, bytes: new Uint8Array(await bestand.arrayBuffer()) }
+        : null,
+      schrijven: Boolean(Astro.locals.beheer) && !Astro.locals.beheer.viewAs && !snapshot.alleenLezen,
+    });
+    return Astro.redirect(boekingPad({
+      tab: Astro.url.searchParams.get('tab') ?? '',
+      [uit?.ok ? 'melding' : 'fout']: uit?.melding ?? 'Er is niets vastgelegd.',
+    }));
+  }
   if (boeking && actie.startsWith('df_')) {
     const bestand = formulier.get('bestand');
     const bijlage = bestand instanceof File && bestand.size > 0
@@ -415,6 +434,24 @@ const wizardOpen = kanContract && (
   (!contractDefinitief && (wizardPost != null || contractParam === 'genereren' || contractParam === '1'))
   || (contractDefinitief && (wizardPost != null || contractParam === 'nieuw'))
 );
+const betaalregelsBoeking = (snapshot.betalingen ?? []).filter((item) => item.boekingId === boeking.id);
+const aanbetalingNu = betalingStand({
+  vlag: boeking.aanbetalingBinnen,
+  regels: betaalregelsBoeking.map((item) => ({
+    soort: item.soort,
+    bedrag: item.bedrag,
+    status: item.status,
+    vervaldatum: item.vervaldatum,
+  })),
+});
+const contractGetekend = docs.some((document) => {
+  const soort = document.soort.toLowerCase();
+  if (soort === 'overig' || soort === 'factuur') return false;
+  return soort === 'getekend_contract' || /getekend/.test(`${soort} ${document.naam.toLowerCase()}`);
+});
+const magVastleggenBoeking = !Astro.locals.beheer?.viewAs && !snapshot.alleenLezen;
+const magTekenenBoeking = magVastleggenBoeking && magContractBeheren(rechtenNu);
+const magBetalenBoeking = magVastleggenBoeking && (magContractBeheren(rechtenNu) || magSchrijven(rechtenNu, 'finance'));
 const contractLink = `${basis}?tab=documenten&contract=genereren`;
 const nieuweVersieLink = `${basis}?tab=documenten&contract=nieuw#contract-wizard`;
 let opvolging = null;
@@ -544,6 +581,24 @@ function tabHref(tabNaam: string): string {
               </>
             )}
           </dl>
+          {
+            magTekenenBoeking && !contractGetekend && (
+              <form method="post" class="bh-form" enctype="multipart/form-data">
+                <p class="bh-muted">Het getekende contract is binnen. Dit legt dat vast. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+                <label for="boeking-getekend-pdf">Ondertekende PDF, als je die hebt</label>
+                <input id="boeking-getekend-pdf" name="bestand" type="file" accept="application/pdf,.pdf" />
+                <button class="bh-btn" type="submit" name="actie" value="ondertekening_ontvangen">Contract ondertekend</button>
+              </form>
+            )
+          }
+          {
+            magBetalenBoeking && aanbetalingNu.stand !== 'ontvangen' && !/zowel open als ontvangen/.test(aanbetalingNu.toelichting) && (
+              <form method="post">
+                <p class="bh-muted">De aanbetaling staat op de rekening. De restbetaling blijft open. Er gaat geen mail uit en de boeking wordt niet definitief.</p>
+                <button class="bh-btn" type="submit" name="actie" value="aanbetaling_ontvangen">Aanbetaling ontvangen</button>
+              </form>
+            )
+          }
           {toonGastheer && !snapshot.alleenLezen && (
             <form method="post" class="bh-form">
               <label for="gastheer">{hostLabel}</label>
