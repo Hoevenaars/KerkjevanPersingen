@@ -4,7 +4,7 @@
  */
 
 import { BEHEER_MODULES, type ModuleSleutel } from './modules.ts';
-import { magSchrijven, magZien } from './rechten.ts';
+import { isBestuurder, magSchrijven, magZien } from './rechten.ts';
 import type { GebruikerRechten } from './types.ts';
 
 export type BeheerPadSoort = ModuleSleutel | 'auth' | 'onbekend';
@@ -110,6 +110,13 @@ export function toegangVoorBeheerPad(opties: {
   rechten: GebruikerRechten;
   viewAsActief: boolean;
 }): BeheerToegang {
+  if (normaliseerPad(opties.pathname) === '/beheer/boekingen/nieuw') {
+    if (!opties.ingelogd) return 'login';
+    if (!opties.actief) return 'disabled';
+    if (!isBestuurder(opties.rechten)) return 'verborgen';
+    if (isMutatieMethode(opties.methode) && opties.viewAsActief) return 'preview';
+    return 'ok';
+  }
   if (isContactenPad(opties.pathname)) {
     if (!opties.ingelogd) return 'login';
     if (!opties.actief) return 'disabled';

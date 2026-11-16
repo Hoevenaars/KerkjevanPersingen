@@ -79,6 +79,14 @@ export function magGebruikersBeheren(rechten: GebruikerRechten): boolean {
 }
 
 /**
+ * Bestaande bestuurspoort. Dezelfde schrijfrecht op instellingen als
+ * bestuursakkoord in de documentenflow. Een super-admin valt hieronder.
+ */
+export function isBestuurder(rechten: GebruikerRechten): boolean {
+  return magSchrijven(rechten, 'instellingen');
+}
+
+/**
  * Super Admin-rechten mogen niet door een andere gebruiker worden beperkt.
  * Alleen een Super Admin zelf (of een technische seed) mag dit veld wijzigen.
  */

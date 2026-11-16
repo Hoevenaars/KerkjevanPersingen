@@ -58,9 +58,9 @@ describe('zes hoofdonderdelen', () => {
     assert.equal(items.find((item) => item.sleutel === 'verhuur')?.href, '/beheer/verhuur/');
   });
 
-  test('zonder verhuuragenda wijst Verhuur naar de bestaande boekingen', () => {
+  test('zonder verhuuragenda wijst Verhuur naar handmatige boeking', () => {
     const items = hoofditems(admin, zonderAgenda);
-    assert.equal(items.find((item) => item.sleutel === 'verhuur')?.href, '/beheer/boekingen/');
+    assert.equal(items.find((item) => item.sleutel === 'verhuur')?.href, '/beheer/boekingen/nieuw/');
     assert.equal(items.find((item) => item.sleutel === 'website')?.href, '/beheer/website/agenda/');
     assert.equal(subitems('verhuur', admin, zonderAgenda).some((item) => item.href === '/beheer/verhuur/'), false);
     assert.deepEqual(subitems('website', admin, agendaOpties).map((item) => item.label), [
@@ -85,7 +85,57 @@ describe('zes hoofdonderdelen', () => {
     const items = hoofditems(paul, agendaOpties);
     assert.deepEqual(items.map((item) => item.sleutel), ['verhuur', 'financien']);
     assert.equal(subitems('verhuur', paul, agendaOpties).some((item) => item.sleutel === 'aanvragen'), false);
+    assert.equal(subitems('verhuur', paul, agendaOpties).some((item) => item.label === 'Handmatige boeking'), false);
+    assert.equal(subitems('verhuur', paul, agendaOpties).some((item) => item.label === 'Verhuuragenda'), true);
     assert.equal(subitems('financien', paul, agendaOpties).length, 0);
+  });
+
+  test('handmatige boeking staat alleen bij een bestuurder', () => {
+    const sub = subitems('verhuur', admin, agendaOpties);
+    assert.deepEqual(sub.map((item) => item.label), [
+      'Verhuuragenda',
+      'Aanvragen',
+      'Handmatige boeking',
+      'Gastbegeleiders',
+    ]);
+    assert.equal(sub.find((item) => item.label === 'Handmatige boeking')?.href, '/beheer/boekingen/nieuw/');
+    const bestuur: GebruikerRechten = {
+      isSuperAdmin: false,
+      perModule: { instellingen: 'schrijven', boekingen: 'lezen' },
+    };
+    assert.equal(
+      toegangVoorBeheerPad({
+        pathname: '/beheer/boekingen/nieuw/',
+        methode: 'POST',
+        ingelogd: true,
+        actief: true,
+        rechten: bestuur,
+        viewAsActief: false,
+      }),
+      'ok',
+    );
+    assert.equal(
+      toegangVoorBeheerPad({
+        pathname: '/beheer/boekingen/nieuw/',
+        methode: 'GET',
+        ingelogd: true,
+        actief: true,
+        rechten: paul,
+        viewAsActief: false,
+      }),
+      'verborgen',
+    );
+    assert.equal(
+      toegangVoorBeheerPad({
+        pathname: '/beheer/boekingen/',
+        methode: 'GET',
+        ingelogd: true,
+        actief: true,
+        rechten: paul,
+        viewAsActief: false,
+      }),
+      'ok',
+    );
   });
 
   test('alleen het overzicht voor wie verder niets mag zien', () => {

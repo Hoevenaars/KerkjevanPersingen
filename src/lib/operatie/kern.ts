@@ -22,7 +22,20 @@ import {
   type Readiness,
 } from '../../platform/continuiteit.ts';
 import { ymdInAmsterdam, voegDagenToe, periodesOverlappen } from '../../platform/datum.ts';
-import { boekingNummer, leesHandmatigeBoeking } from '../../platform/handmatige-boeking.ts';
+import {
+  adviesVoorPeriode,
+  bevestigingVoor,
+  boekingNummer,
+  interneAgendaTitel,
+  interneSoortNaam,
+  leesHandmatigeBoeking,
+  magAfwijken,
+  mailDedup,
+  notitiesVoorIntern,
+  procesTekst,
+  type HandmatigeBoeking,
+} from '../../platform/handmatige-boeking.ts';
+import { isBestuurder } from '../../platform/rechten.ts';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
 import { MailGeblokkeerd } from '../../platform/automatisering.ts';
@@ -180,10 +193,20 @@ export interface AuditRij {
   reden: string;
 }
 
+export interface InterneRij {
+  id: string;
+  titel: string;
+  start: string;
+  eind: string;
+  blokkeert: boolean;
+  notities: string;
+}
+
 export interface Wereld {
   relaties: RelatieRij[];
   aanvragen: AanvraagRij[];
   boekingen: BoekingRij[];
+  interne: InterneRij[];
   publiek: PubliekRij[];
   taken: TaakRij[];
   jobs: JobRij[];
@@ -266,6 +289,7 @@ export function legeWereld(): Wereld {
     relaties: [],
     aanvragen: [],
     boekingen: [],
+    interne: [],
     publiek: [],
     taken: [],
     jobs: [],
@@ -364,6 +388,18 @@ export function pasToe(wereld: Wereld, mutaties: readonly Mutatie[]): Wereld {
         aanbetalingOntvangen: velden.aanbetaling_ontvangen === true || velden.aanbetaling_ontvangen === 'true',
         optieAangemaaktOp: tekst('optie_aangemaakt_op') || null,
         optieEind: tekst('optie_einddatum') || null,
+      });
+    } else if (mutatie.soort === 'insert_intern') {
+      const id = String(++volgende.seq);
+      if (mutatie.ref) refs.set(mutatie.ref, id);
+      volgende.interne ??= [];
+      volgende.interne.push({
+        id,
+        titel: tekst('titel'),
+        start: tekst('start_datum'),
+        eind: tekst('eind_datum'),
+        blokkeert: velden.blokkeert_verhuurkalender !== false && velden.blokkeert_verhuurkalender !== 'false',
+        notities: tekst('notities'),
       });
     } else if (mutatie.soort === 'update_boeking') {
       const id = mutatie.id ?? (mutatie.ref ? refs.get(mutatie.ref) : undefined);
@@ -801,20 +837,36 @@ export type Opdracht =
   | { soort: 'incident_sluiten'; incidentId: string }
   | { soort: 'sluit'; boekingId: string; reden?: string }
   | { soort: 'handmatig_definitief'; boekingId: string; reden: string }
-  | {
+      | {
       soort: 'handmatige_boeking';
-      naam: string;
-      email: string;
+      soortBoeking?: string;
+      naam?: string;
+      email?: string;
       telefoon?: string;
       adres?: string;
-      verhuurtype: string;
-      start: string;
-      eind: string;
+      verhuurtype?: string;
+      start?: string;
+      eind?: string;
+      datum?: string;
       personen?: string;
       toelichting?: string;
       titel?: string;
-      status?: 'optie' | 'definitief';
+      fase?: string;
+      definitief?: string;
+      contract_verzonden?: string;
+      contract_ondertekend?: string;
+      aanbetaling?: string;
+      uitzondering?: string;
       reden?: string;
+      interne_soort?: string;
+      interne_omschrijving?: string;
+      hele_dag?: string;
+      tijd_van?: string;
+      tijd_tot?: string;
+      opmerkingen?: string;
+      mail?: string;
+      bevestig_conflict?: string;
+      conflict_reden?: string;
     }
   | { soort: 'annuleer'; boekingId: string; reden?: string }
   | { soort: 'verleng'; boekingId: string }
@@ -1387,51 +1439,7 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
   }
 
   if (opdracht.soort === 'handmatige_boeking') {
-    if (!actorMag(ctx.actor, 'boekingen')) return mislukt('Geen recht om een boeking aan te maken.');
-    const gelezen = leesHandmatigeBoeking(opdracht);
-    if (!gelezen.ok) return mislukt(gelezen.melding);
-    const invoer = gelezen.boeking;
-    if (!periodeVrij(wereld, invoer.start, invoer.eind)) return mislukt('De periode is al bezet.');
-    const optie = optieSnapshot(vandaag, STANDAARD_OPTIETERMIJN_DAGEN);
-    const mutaties: Mutatie[] = [
-      {
-        soort: 'insert_boeking',
-        ref: 'boek',
-        velden: {
-          nummer: boekingNummer(invoer.start, 'HAND'),
-          status: invoer.status,
-          verhuurtype_sleutel: invoer.verhuurtype,
-          interne_titel: invoer.titel,
-          start_datum: invoer.start,
-          eind_datum: invoer.eind,
-          huurder_naam_snapshot: invoer.naam,
-          huurder_email_snapshot: invoer.email,
-          huurder_telefoon_snapshot: invoer.telefoon,
-          huurder_adres_snapshot: invoer.adres,
-          aantal_personen: invoer.personen,
-          toelichting: invoer.toelichting,
-          optie_aangemaakt_op: optie.optieAangemaaktOp,
-          optietermijn_dagen: optie.optietermijnDagen,
-          optie_einddatum: optie.optieEinddatum,
-        },
-      },
-    ];
-    const geprojecteerd = pasToe(wereld, mutaties);
-    const boeking = geprojecteerd.boekingen.at(-1);
-    if (!boeking) return mislukt('De boeking kon niet worden opgebouwd.');
-    mutaties.push(audit({
-      dedup: `boeking:${boeking.id}:handmatig_aangemaakt`,
-      actie: 'handmatig_aangemaakt',
-      type: 'boeking',
-      id: boeking.id,
-      naar: invoer.status,
-      reden: invoer.status === 'definitief' ? invoer.reden : 'Handmatig aangemaakt, zonder aanvraag.',
-      actor: ctx.actor,
-    }));
-    const melding = invoer.status === 'definitief'
-      ? 'Boeking is definitief vastgelegd. Er is geen mail of workflow gestart.'
-      : 'Optie vastgelegd. Er is geen mail of workflow gestart.';
-    return gelukt(melding, { boekingId: boeking.id }, mutaties);
+    return planHandmatigeBoeking(wereld, opdracht, ctx, vandaag);
   }
 
   if (opdracht.soort === 'scheduler') {
@@ -1440,6 +1448,257 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
   }
 
   return mislukt('Onbekende opdracht.');
+}
+
+function actorIsBestuurder(actor: Actor): boolean {
+  if (actor.type !== 'gebruiker' || !actor.rechten) return false;
+  return isBestuurder(actor.rechten);
+}
+
+function faseWereldUit(wereld: Wereld) {
+  return {
+    aanvragen: wereld.aanvragen.map((item) => ({
+      id: item.id,
+      status: item.status,
+      naam: item.naam,
+      start: item.start,
+      eind: item.eind,
+      boekingId: item.boekingId ?? undefined,
+    })),
+    boekingen: wereld.boekingen.map((item) => ({
+      id: item.id,
+      nummer: item.nummer,
+      status: item.status,
+      start: item.start,
+      eind: item.eind,
+      titel: item.titel,
+      huurder: item.naam,
+      aanbetalingBinnen: item.aanbetalingOntvangen,
+      aanvraagId: item.aanvraagId ?? undefined,
+    })),
+    documenten: [],
+    mails: [],
+    betalingen: [],
+    blokkades: (wereld.interne ?? []).filter((item) => item.blokkeert).map((item) => ({
+      id: item.id,
+      titel: item.titel,
+      start: item.start,
+      eind: item.eind,
+      blokkeert: true,
+      notities: item.notities,
+    })),
+    activiteiten: [],
+  };
+}
+
+function planHandmatigeBoeking(
+  wereld: Wereld,
+  opdracht: Extract<Opdracht, { soort: 'handmatige_boeking' }>,
+  ctx: DienstContext,
+  vandaag: string,
+): Plan {
+  if (!actorIsBestuurder(ctx.actor)) return mislukt('Alleen een bestuurder kan een handmatige boeking vastleggen.');
+  const { soort: _soort, ...rest } = opdracht;
+  const gelezen = leesHandmatigeBoeking(rest);
+  if (!gelezen.ok) return mislukt(gelezen.melding);
+  const invoer = gelezen.boeking;
+  if (invoer.soort === 'verhuur' && invoer.fase !== 'nieuw' && !actorMag(ctx.actor, 'boekingen')) {
+    return mislukt('Geen recht om een boeking aan te maken.');
+  }
+  const eigenTijd = invoer.soort === 'intern' && !invoer.heleDag ? `${invoer.tijdVan}-${invoer.tijdTot}` : null;
+  const advies = adviesVoorPeriode(faseWereldUit(wereld), invoer.start, invoer.eind, eigenTijd);
+  const afwijking = magAfwijken(advies, invoer);
+  if (!afwijking.ok) return mislukt(afwijking.melding);
+
+  const optie = optieSnapshot(vandaag, STANDAARD_OPTIETERMIJN_DAGEN);
+  const mutaties: Mutatie[] = [];
+  if (invoer.soort === 'intern') {
+    const soortNaam = invoer.interneSoort === 'overig' ? invoer.titel : interneSoortNaam(invoer.interneSoort);
+    mutaties.push({
+      soort: 'insert_intern',
+      ref: 'intern',
+      velden: {
+        titel: interneAgendaTitel(soortNaam),
+        start_datum: invoer.start,
+        eind_datum: invoer.eind,
+        blokkeert_verhuurkalender: true,
+        notities: notitiesVoorIntern(invoer),
+      },
+    });
+  } else if (invoer.fase === 'nieuw') {
+    mutaties.push(aanvraagMutatie(invoer, 'nieuw'));
+  } else {
+    mutaties.push(aanvraagMutatie(invoer, 'in_behandeling'));
+    mutaties.push(boekingMutatie(invoer, optie, advies.uitkomst !== 'beschikbaar'));
+    mutaties.push({ soort: 'update_aanvraag', ref: 'aan', boeking_ref: 'boek', velden: {} });
+  }
+
+  const geprojecteerd = pasToe(wereld, mutaties);
+  const boeking = invoer.soort === 'verhuur' && invoer.fase !== 'nieuw' ? geprojecteerd.boekingen.at(-1) : undefined;
+  const aanvraag = invoer.soort === 'verhuur' ? geprojecteerd.aanvragen.at(-1) : undefined;
+  const intern = invoer.soort === 'intern' ? geprojecteerd.interne.at(-1) : undefined;
+  if (invoer.soort === 'intern' && !intern) return mislukt('De interne activiteit kon niet worden opgebouwd.');
+  if (invoer.soort === 'verhuur' && !aanvraag) return mislukt('De aanvraag kon niet worden opgebouwd.');
+  if (invoer.soort === 'verhuur' && invoer.fase !== 'nieuw' && !boeking) return mislukt('De boeking kon niet worden opgebouwd.');
+
+  const onderwerpId = boeking?.id ?? aanvraag?.id ?? intern?.id ?? '';
+  const onderwerpType = boeking ? 'boeking' : intern ? 'interne_activiteit' : 'aanvraag';
+  mutaties.push(audit({
+    dedup: `${onderwerpType}:${onderwerpId}:handmatig_aangemaakt`,
+    actie: 'handmatig_aangemaakt',
+    type: onderwerpType,
+    id: onderwerpId,
+    naar: invoer.soort === 'intern' ? 'gereed' : invoer.definitief ? 'definitief' : invoer.fase,
+    reden: invoer.soort === 'intern'
+      ? 'Interne activiteit, zonder huurder, contract of betaling.'
+      : invoer.definitief
+        ? invoer.uitzondering
+        : 'Handmatig aangemaakt, zonder openbaar aanvraagformulier.',
+    actor: ctx.actor,
+  }));
+  if (advies.uitkomst !== 'beschikbaar') {
+    const namen = [...advies.regels, ...advies.aanvragen].map((regel) => regel.naam).join(', ');
+    mutaties.push(audit({
+      dedup: `${onderwerpType}:${onderwerpId}:beschikbaarheid_afwijking`,
+      actie: 'beschikbaarheid_afwijking',
+      type: onderwerpType,
+      id: onderwerpId,
+      van: advies.kop,
+      naar: namen,
+      reden: invoer.conflictReden,
+      actor: ctx.actor,
+    }));
+  }
+  if (invoer.soort === 'verhuur' && invoer.fase === 'gereed' && !invoer.definitief) {
+    mutaties.push(audit({
+      dedup: `aanvraag:${aanvraag?.id}:fase_overgeslagen`,
+      actie: 'fase_overgeslagen',
+      type: 'aanvraag',
+      id: aanvraag?.id ?? '',
+      van: 'in_behandeling',
+      naar: 'gereed',
+      reden: `${invoer.uitzondering} ${procesTekst(invoer)}`.trim(),
+      actor: ctx.actor,
+    }));
+  }
+  if (invoer.soort === 'verhuur' && invoer.definitief && !(invoer.contractVerzonden && invoer.contractOndertekend && invoer.aanbetalingOntvangen)) {
+    mutaties.push(audit({
+      dedup: `boeking:${boeking?.id}:stappen_overgeslagen`,
+      actie: 'stappen_overgeslagen',
+      type: 'boeking',
+      id: boeking?.id ?? '',
+      naar: 'definitief',
+      reden: `${invoer.uitzondering} ${procesTekst(invoer)}`.trim(),
+      actor: ctx.actor,
+    }));
+  }
+
+  const mail = mailVoorPlan(wereld, ctx, invoer);
+  const faseTekst = invoer.soort === 'intern'
+    ? 'Interne activiteit vastgelegd als gereed. Er is geen huurder, contract of betaling.'
+    : invoer.definitief
+      ? 'Boeking is definitief vastgelegd. Gereed in de aanvraaglijst volgt die boekingsstatus.'
+      : invoer.fase === 'gereed'
+        ? 'Vastgelegd als in behandeling. Gereed in de aanvraaglijst volgt de bestaande checklist, of een definitieve boeking. De uitzondering staat in de auditlog.'
+        : invoer.fase === 'in_behandeling'
+          ? 'Aanvraag in behandeling. De optie is vastgelegd en nog niet definitief.'
+          : 'Aanvraag vastgelegd als nieuw. Er is nog geen reservering die de kalender blokkeert.';
+  return gelukt(
+    `${faseTekst} ${mail.tekst}`.trim(),
+    { boekingId: boeking?.id, aanvraagId: aanvraag?.id },
+    mutaties,
+    mail.teVersturen,
+  );
+}
+
+function aanvraagMutatie(invoer: HandmatigeBoeking, status: 'nieuw' | 'in_behandeling'): Mutatie {
+  return {
+    soort: 'insert_aanvraag',
+    ref: 'aan',
+    velden: {
+      status,
+      naam: invoer.naam,
+      email: invoer.email,
+      telefoon: invoer.telefoon,
+      adres: invoer.adres,
+      verhuurtype_sleutel: invoer.verhuurtype,
+      start_datum: invoer.start,
+      eind_datum: invoer.eind,
+      toelichting: invoer.toelichting,
+      aantal_personen: invoer.personen,
+    },
+  };
+}
+
+function boekingMutatie(
+  invoer: HandmatigeBoeking,
+  optie: { optieAangemaaktOp: string; optietermijnDagen: number; optieEinddatum: string },
+  overlapToegestaan: boolean,
+): Mutatie {
+  return {
+    soort: 'insert_boeking',
+    ref: 'boek',
+    aanvraag_ref: 'aan',
+    velden: {
+      nummer: boekingNummer(invoer.start, 'HAND'),
+      status: invoer.definitief ? 'definitief' : 'optie',
+      verhuurtype_sleutel: invoer.verhuurtype,
+      interne_titel: invoer.titel,
+      start_datum: invoer.start,
+      eind_datum: invoer.eind,
+      huurder_naam_snapshot: invoer.naam,
+      huurder_email_snapshot: invoer.email,
+      huurder_telefoon_snapshot: invoer.telefoon,
+      huurder_adres_snapshot: invoer.adres,
+      aantal_personen: invoer.personen,
+      toelichting: invoer.toelichting,
+      interne_notities: invoer.definitief || invoer.uitzondering ? invoer.uitzondering : '',
+      aanbetaling_ontvangen: invoer.aanbetalingOntvangen,
+      overlap_toegestaan: overlapToegestaan,
+      optie_aangemaakt_op: optie.optieAangemaaktOp,
+      optietermijn_dagen: optie.optietermijnDagen,
+      optie_einddatum: optie.optieEinddatum,
+    },
+  };
+}
+
+function mailVoorPlan(
+  wereld: Wereld,
+  ctx: DienstContext,
+  invoer: HandmatigeBoeking,
+): { tekst: string; teVersturen: VerzendOpdracht[] } {
+  const bevestiging = bevestigingVoor(invoer);
+  if (!bevestiging) return { tekst: 'Er is geen bevestigingsmail verstuurd.', teVersturen: [] };
+  const dedup = mailDedup(invoer, bevestiging.templateId);
+  const al = wereld.jobs.some((job) => job.dedup === dedup && (job.status === 'verzonden' || job.status === 'wachtrij'));
+  if (al) return { tekst: 'De bevestigingsmail was al verzonden en is niet opnieuw verstuurd.', teVersturen: [] };
+  const template = templateVoor(wereld, bevestiging.templateId);
+  const vars = {
+    voornaam: invoer.naam.split(' ')[0] || invoer.naam,
+    naam: invoer.naam,
+    datum: invoer.start,
+    activiteitstype: invoer.verhuurtype,
+    tijd: invoer.heleDag ? '' : `${invoer.tijdVan}–${invoer.tijdTot}`,
+  };
+  const onderwerp = template ? onderwerpUitTemplate(template, vars) : bevestiging.naam;
+  const tekst = template ? plainTekstUitTemplate(template, vars) : bevestiging.pastBij;
+  const html = template
+    ? renderMailHtml(template, vars, { voorbeeldUrl: ctx.basisUrl, templateId: template.id })
+    : kerkjeMail({ titel: onderwerp, hoofdtekst: bevestiging.pastBij }).html;
+  const kop = verzendKop(bevestiging.templateId, undefined, { email: invoer.email, naam: invoer.naam });
+  return {
+    tekst: `Bevestiging "${bevestiging.naam}" naar ${invoer.email}.`,
+    teVersturen: [{
+      dedup,
+      naar: invoer.email,
+      onderwerp,
+      tekst,
+      html,
+      pogingen: 0,
+      jobRef: `job:${dedup}`,
+      ...kop,
+    }],
+  };
 }
 
 function aanvragerBijBoeking(wereld: Wereld, boeking: BoekingRij): { email: string; naam: string } {
