@@ -9,6 +9,19 @@ import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { magZien } from '../../platform/rechten.ts';
 import { verhuurOverzichtAan } from '../../platform/verhuur-vlag.ts';
 import { dossierHref, metHerkomst } from '../../platform/beheer-hoofdnav.ts';
+import { TIJDZONE } from '../../platform/types.ts';
+
+function groetVoor(nu: Date): string {
+  const uur = Number(new Intl.DateTimeFormat('nl-NL', {
+    timeZone: TIJDZONE,
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).format(nu));
+  if (uur < 6) return 'Goedenacht,';
+  if (uur < 12) return 'Goedemorgen,';
+  if (uur < 18) return 'Goedemiddag,';
+  return 'Goedenavond,';
+}
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
@@ -36,6 +49,8 @@ const scherm = startscherm({
     start: item.start,
     eind: item.eind,
     status: item.status,
+    soort: item.soort,
+    binnengekomen: item.binnengekomen,
     boekingId: item.boekingId,
   })),
   boekingen: snapshot.boekingen.map((item) => ({
@@ -94,17 +109,17 @@ const scherm = startscherm({
     planning: zietPlanning,
   },
   href: {
-    aanvragen: '/beheer/aanvragen/',
-    opties: '/beheer/boekingen/?status=optie',
+    nieuw: '/beheer/aanvragen/?fase=nieuw',
+    behandeling: '/beheer/aanvragen/?fase=in_behandeling',
     aanvraag: (id) => metHerkomst(`/beheer/aanvragen/${encodeURIComponent(id)}/`, 'overzicht'),
     boeking: (id) => metHerkomst(dossierHref(id, agendaAan), 'overzicht'),
     activiteit: (id) => metHerkomst(`/beheer/agenda/${encodeURIComponent(id)}/`, 'overzicht'),
     planning: (naam, start) => planningQuery(start, { q: naam }),
-    planningZonder: (start) => planningQuery(start, { begeleider: 'nee' }),
   },
 });
+const groet = groetVoor(new Date());
 ---
 
 <Beheer titel="Dashboard">
-  <Startscherm scherm={scherm} />
+  <Startscherm scherm={scherm} groet={groet} />
 </Beheer>

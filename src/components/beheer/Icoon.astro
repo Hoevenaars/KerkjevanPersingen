@@ -1,0 +1,33 @@
+---
+interface Props {
+  naam: 'post' | 'blad' | 'kalender';
+}
+
+const { naam } = Astro.props;
+---
+
+<svg class="bh-icoon" viewBox="0 0 24 24" aria-hidden="true">
+  {
+    naam === 'post' && (
+      <path d="M4 6.5h16v11H4z" />
+      <path d="M4 7l8 6 8-6" />
+    )
+  }
+  {
+    naam === 'blad' && (
+      <>
+        <path d="M7 4.5h7l4 4V19.5H7z" />
+        <path d="M14 4.5V9h4.5" />
+        <path d="M9.5 13h5M9.5 16h5" />
+      </>
+    )
+  }
+  {
+    naam === 'kalender' && (
+      <>
+        <path d="M5 5.5h14v14H5z" />
+        <path d="M5 9.5h14M8 3.5v4M16 3.5v4" />
+      </>
+    )
+  }
+</svg>

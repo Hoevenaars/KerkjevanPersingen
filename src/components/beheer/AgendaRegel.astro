@@ -3,34 +3,29 @@ import type { StartAgendaItem } from '../../platform/dashboard-start.ts';
 
 interface Props {
   item: StartAgendaItem;
+  gasten: string;
 }
 
-const { item } = Astro.props;
+const { item, gasten } = Astro.props;
 ---
 
-<li class="bh-agenda-item">
-  <a class="bh-agenda-wanneer" href={item.href}>
-    <span>{item.wanneer}</span>
-    {item.tijd && <span class="bh-agenda-tijd">{item.tijd}</span>}
+<li>
+  <a class="bh-agendarij" href={item.href}>
+    <span class="bh-datumblok">
+      <span>{item.datum.week}</span>
+      <strong>{item.datum.dagen}</strong>
+      <span>{item.datum.maand}</span>
+    </span>
+    <span class="bh-agendatekst">
+      <strong>{item.naam}</strong>
+      {(item.soort || item.tijd) && (
+        <span class="bh-agenda-soort">
+          {item.soort}
+          {item.tijd && <span>{item.tijd}</span>}
+        </span>
+      )}
+      {gasten && <span class:list={['bh-gast', { 'bh-gast-mist': item.zonderBegeleider }]}>{gasten}</span>}
+    </span>
+    <span class="bh-chevron" aria-hidden="true" />
   </a>
-  <div class="bh-agenda-kern">
-    <a class="bh-agenda-naam" href={item.href}>{item.naam}</a>
-    {item.soort && <span class="bh-soort">{item.soort}</span>}
-    {
-      item.zonderBegeleider ? (
-        <p class="bh-gast bh-gast-mist">Nog geen gastbegeleider ingepland</p>
-      ) : item.begeleiders.length > 0 && (
-        <p class="bh-gast">
-          {
-            item.begeleiders.map((gast, index) => (
-              <>
-                {index > 0 && <span class="bh-gast-komma">, </span>}
-                {gast.href ? <a href={gast.href}>{gast.naam}</a> : <span>{gast.naam}</span>}
-              </>
-            ))
-          }
-        </p>
-      )
-    }
-  </div>
 </li>
