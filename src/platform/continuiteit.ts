@@ -103,12 +103,13 @@ function stap(
 
 /** Alle structureel geldige stappen, ook die nog in de toekomst liggen. */
 export function communicatieStappen(ctx: CommunicatieContext): CommunicatieStap[] {
+  if (ctx.status === 'migratie_aanvraag' || ctx.status === 'migratie_vastgelegd') return [];
   const actief = ctx.status === 'definitief' || ctx.status === 'optie' || ctx.status === 'optie_verlopen';
   if (!actief) return [];
   const stappen: CommunicatieStap[] = [];
   const definitief = ctx.status === 'definitief';
 
-  if (!ctx.aanbetalingOntvangen && ctx.aanbetalingVerplicht && ctx.status !== 'definitief') {
+  if (!ctx.aanbetalingOntvangen && ctx.aanbetalingVerplicht) {
     const deadline = betaalDeadlineVan(ctx);
     const start = ctx.optieAangemaaktOp;
     if (start) {

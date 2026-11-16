@@ -123,9 +123,9 @@ export async function verstuurInformatievraag(
   const vraag = String(huidig.data.informatievraag ?? '').trim();
   if (!vraag) return { ok: false, melding: 'Er is nog geen vraag opgeslagen.' };
   const dedup = `info:${aanvraagId}:${hashVraag(vraag)}`;
-  const bestaand = await client.from('communicatie_verzendingen').select('id,status').eq('dedup_sleutel', dedup).maybeSingle();
+  const bestaand = await client.from('communicatie_verzendingen').select('id,status,test').eq('dedup_sleutel', dedup).maybeSingle();
   if (bestaand.error) return { ok: false, melding: 'Verzending geblokkeerd: de historie kon niet worden gecontroleerd.' };
-  if (bestaand.data?.status === 'verzonden') return { ok: true, melding: 'Deze vraag is al verzonden.' };
+  if (bestaand.data?.status === 'verzonden' && bestaand.data?.test !== true) return { ok: true, melding: 'Deze vraag is al verzonden.' };
   const brief = briefMeerInformatie(String(huidig.data.naam ?? ''), vraag);
   let uit;
   try {
@@ -169,8 +169,9 @@ export async function verstuurInformatievraag(
     richting: 'uitgaand',
     status: 'verzonden',
     providerBerichtId: uit.providerBerichtId,
+    foutmelding: 'Geaccepteerd door de e-mailprovider. Aflevering is niet bevestigd.',
     test: uit.besluit.modus === 'test',
-    dedupSleutel: dedup,
+    dedupSleutel: uit.besluit.modus === 'test' ? `test:${dedup}` : dedup,
     handmatig: true,
   });
   return {

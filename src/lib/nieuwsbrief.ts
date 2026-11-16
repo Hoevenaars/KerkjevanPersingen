@@ -33,36 +33,26 @@ export interface NieuwsbriefLoopOpties {
   testadres?: string | null;
 }
 
-export async function verstuurPreview(previewAdres: string, datum = new Date(), opties: NieuwsbriefLoopOpties = {}): Promise<void> {
-  const { besluitVoor } = await import('./automatisering-register.ts');
-  const besluit = await besluitVoor('nieuwsbrief', opties.register);
-  if (!besluit.provider) return;
+/** Donderdagpreview: alleen de brief opbouwen. Geen provider en geen verzendregistratie. */
+export async function verstuurPreview(
+  _previewAdres: string,
+  datum = new Date(),
+  opties: NieuwsbriefLoopOpties = {},
+): Promise<{ verstuurd: 0; onderwerp: string; tekst: string; overgeslagen: string }> {
   const voorbereid = await bereidNieuwsbrief({
     datum,
     vrienden: opties.vrienden ?? supabaseVrienden(),
     bron: opties.bron ?? supabaseNieuwsbrief(),
   });
-  if (!voorbereid.voorbeeld || !voorbereid.week || voorbereid.stoppen) return;
-  const { verstuurGecontroleerd } = await import('./mail-transport.ts');
-  const { getTestMailRecipient } = await import('./testmail-adres.ts');
-  const testadres = opties.testadres !== undefined
-    ? opties.testadres
-    : besluit.modus === 'test'
-      ? await getTestMailRecipient()
-      : null;
-  await verstuurGecontroleerd(
-    {
-      sleutel: 'nieuwsbrief',
-      naar: previewAdres,
-      onderwerp: voorbereid.voorbeeld.subject,
-      tekst: voorbereid.voorbeeld.text,
-      html: voorbereid.voorbeeld.html,
-      replyTo: voorbereid.voorbeeld.replyTo,
-      modus: besluit.modus,
-      idempotentieSleutel: `nieuwsbrief:${voorbereid.week.id}:preview`,
-    },
-    { modus: besluit.modus, testadres, transport: opties.transport, register: opties.register },
-  );
+  if (voorbereid.stoppen || !voorbereid.voorbeeld) {
+    return { verstuurd: 0, onderwerp: '', tekst: '', overgeslagen: voorbereid.stoppen ?? 'geen voorbeeld' };
+  }
+  return {
+    verstuurd: 0,
+    onderwerp: voorbereid.voorbeeld.subject,
+    tekst: voorbereid.voorbeeld.text,
+    overgeslagen: 'dry-run, geen mail',
+  };
 }
 
 export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOpties = {}): Promise<{ verstuurd: number; gepland: number; overgeslagen: string }> {

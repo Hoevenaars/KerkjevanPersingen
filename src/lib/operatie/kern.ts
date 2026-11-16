@@ -44,6 +44,7 @@ import { bewaakUitgaandeMail } from '../../platform/mailguard.ts';
 import { hashToegangstoken, nieuwToegangstoken, tokenIsVerlopen } from '../../platform/magictoken.ts';
 import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
 import { metReservering } from '../../platform/mailtemplates/definitief-mail.ts';
+import { samenstellenWorkflowmail, type MailBron } from '../../platform/mail-poort.ts';
 import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailBericht } from '../../platform/mailtemplates/render.ts';
 import { kerkjeMail } from '../kerkje-mail.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
@@ -105,6 +106,10 @@ export interface BoekingRij {
   aanbetalingOntvangen: boolean;
   optieAangemaaktOp: string | null;
   optieEind: string | null;
+  personen?: string;
+  tijdVan?: string;
+  tijdTot?: string;
+  toegangVanaf?: string;
 }
 
 export interface PubliekRij {
@@ -261,6 +266,11 @@ export interface Resultaat {
   alVerwerkt?: boolean;
 }
 
+export interface MailTransportUitkomst {
+  test?: boolean;
+  providerBerichtId?: string | null;
+}
+
 export interface MailTransport {
   verstuur(input: {
     naar: string;
@@ -272,7 +282,8 @@ export interface MailTransport {
     aanvragerEmail?: string;
     aanvragerNaam?: string;
     richting?: 'intern' | 'aanvrager';
-  }): Promise<void>;
+    idempotentieSleutel?: string;
+  }): Promise<void | MailTransportUitkomst>;
 }
 
 export interface DienstContext {
@@ -283,6 +294,8 @@ export interface DienstContext {
   internEmail: string;
   /** Triggers vóór deze dag starten niet. Leeg: geen extra grens. */
   actiefVanaf?: string | null;
+  /** Alleen gezet door de workflowcron. Een uitgeschakelde kindschakelaar wordt dan overgeslagen. */
+  sjabloonOpen?: (templateId: string) => boolean;
 }
 
 export function legeWereld(): Wereld {
@@ -617,8 +630,8 @@ function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string, actief
     verhuurtype: boeking.verhuurtype,
     publicatieTrigger: trigger,
     inhoudStatus: publiek?.inhoudStatus ?? (contentVereist(trigger) ? 'niet_gestart' : 'niet_vereist'),
-    aanbetalingOntvangen: boeking.aanbetalingOntvangen,
-    aanbetalingVerplicht: true,
+    aanbetalingOntvangen: boeking.aanbetalingOntvangen && !wereld.betalingen.some((item) => item.boekingId === boeking.id && item.soort === 'aanbetaling' && item.bedrag > 0 && item.status !== 'ontvangen' && item.status !== 'betaald'),
+    aanbetalingVerplicht: boeking.aanbetalingBedrag > 0 || wereld.betalingen.some((item) => item.boekingId === boeking.id && item.soort === 'aanbetaling' && item.bedrag > 0 && item.status !== 'ontvangen' && item.status !== 'betaald'),
     optieAangemaaktOp: boeking.optieAangemaaktOp,
     betaaldeadline: boeking.optieEind,
     gastheerAanwezig: Boolean(boeking.gastheerId),
@@ -639,26 +652,41 @@ function templateVoor(wereld: Wereld, id: string): import('../../platform/mailte
   return standaardTemplate(id);
 }
 
-function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingRij, link?: string): { onderwerp: string; tekst: string; html: string } {
-  const template = templateVoor(wereld, stapItem.templateId);
-  const basis = {
-    voornaam: boeking.naam.split(' ')[0] || boeking.naam,
-    naam: boeking.naam,
-    activiteitstype: boeking.verhuurtype,
-    activiteitnaam: boeking.titel,
-    datum: boeking.start,
-    bedrag: String(boeking.aanbetalingBedrag),
+function bronVanBoeking(wereld: Wereld, boeking: BoekingRij, voorGastheer: boolean): MailBron {
+  const gastheer = wereld.relaties.find((relatie) => relatie.id === boeking.gastheerId);
+  const publiek = wereld.publiek.find((item) => item.boekingId === boeking.id);
+  return {
+    naam: voorGastheer ? gastheer?.naam || '' : boeking.naam,
+    email: voorGastheer ? gastheer?.email || '' : boeking.email,
+    telefoon: boeking.telefoon,
+    titel: boeking.titel || publiek?.titel || '',
+    soort: boeking.verhuurtype,
+    start: boeking.start,
+    eind: boeking.eind,
+    gastheerNaam: gastheer?.naam || '',
+    gastheerTelefoon: gastheer?.telefoon || '',
+    tijdVan: boeking.tijdVan,
+    tijdTot: boeking.tijdTot,
+    toegangVanaf: boeking.toegangVanaf,
+    praktisch: publiek?.praktisch || '',
+    personen: boeking.personen,
+    bedrag: boeking.aanbetalingBedrag > 0 ? String(boeking.aanbetalingBedrag) : '',
+    betaaldeadline: boeking.optieEind ?? '',
   };
-  const vars = stapItem.templateId === 'booking_confirmed'
-    ? metReservering(basis, { start: boeking.start, eind: boeking.eind, titel: boeking.titel, soort: boeking.verhuurtype })
-    : basis;
-  const onderwerp = template ? onderwerpUitTemplate(template, vars) : stapItem.templateId;
-  const gerenderd = template ? renderMailBericht(template, vars, { voorbeeldUrl: link || 'https://kerkjepersingen.nl/', templateId: template.id }) : null;
-  const tekst = `${gerenderd && stapItem.templateId === 'booking_confirmed' ? gerenderd.text : template ? plainTekstUitTemplate(template, vars) : stapItem.conditie}${link ? `\n\n${link}` : ''}`;
-  const html = gerenderd
-    ? gerenderd.html
-    : kerkjeMail({ titel: onderwerp, hoofdtekst: stapItem.conditie }).html;
-  return { onderwerp, tekst, html };
+}
+
+function mailTekst(wereld: Wereld, stapItem: CommunicatieStap, boeking: BoekingRij, link?: string): { onderwerp: string; tekst: string; html: string; blokkade: string | null } {
+  const template = templateVoor(wereld, stapItem.templateId);
+  if (!template) {
+    return { onderwerp: stapItem.templateId, tekst: '', html: '', blokkade: 'Niet verzonden. De mailtemplate ontbreekt.' };
+  }
+  const uit = samenstellenWorkflowmail(template, bronVanBoeking(wereld, boeking, stapItem.ontvangerRol === 'gastheer'), {
+    voorbeeldUrl: link || 'https://kerkjepersingen.nl/',
+    templateId: template.id,
+  });
+  if (!uit.ok) return { onderwerp: template.onderwerp, tekst: '', html: '', blokkade: uit.toelichting };
+  const tekst = `${uit.tekst}${link ? `\n\n${link}` : ''}`;
+  return { onderwerp: uit.onderwerp, tekst, html: uit.html, blokkade: null };
 }
 
 function ontvangerVoor(stapItem: CommunicatieStap, wereld: Wereld, boeking: BoekingRij, internEmail: string): string {
@@ -696,6 +724,7 @@ function communicatieMutaties(
     }
 
     for (const stapItem of actueleVerzendingen(comm)) {
+      if (ctx.sjabloonOpen && !ctx.sjabloonOpen(stapItem.templateId)) continue;
       const dedup = jobDedupSleutel(boeking.id, stapItem.templateId);
       const bestaand = wereld.jobs.find((job) => job.dedup === dedup);
       if (bestaand && (bestaand.status === 'verzonden' || bestaand.status === 'fout' || bestaand.status === 'geannuleerd')) {
@@ -720,6 +749,26 @@ function communicatieMutaties(
       }
       const bericht = mailTekst(wereld, stapItem, boeking, link);
       const naar = ontvangerVoor(stapItem, wereld, boeking, ctx.internEmail);
+      if (bericht.blokkade || (stapItem.modus === 'automatisch' && !naar.includes('@'))) {
+        mutaties.push({
+          soort: 'upsert_job',
+          ref: `job:${dedup}`,
+          velden: {
+            boeking_id: boeking.id,
+            relatie_id: boeking.relatieId ?? '',
+            template_sleutel: stapItem.templateId,
+            dedup_sleutel: dedup,
+            status: 'geblokkeerd',
+            modus: stapItem.modus,
+            gepland_op: ctx.nu.toISOString(),
+            ontvanger_email: naar,
+            onderwerp: bericht.onderwerp,
+            pogingen: bestaand?.pogingen ?? 0,
+            foutmelding: bericht.blokkade || 'Niet verzonden. Het e-mailadres ontbreekt.',
+          },
+        });
+        continue;
+      }
       const status = stapItem.modus === 'automatisch' ? 'gepland' : 'concept';
       mutaties.push({
         soort: 'upsert_job',
@@ -1818,7 +1867,7 @@ export async function voerOpdrachtUit(
         continue;
       }
       try {
-        await transport.verstuur({
+        const antwoord = await transport.verstuur({
           naar: guard.naar,
           onderwerp: `${guard.onderwerpPrefix}${mail.onderwerp}`,
           tekst: mail.tekst,
@@ -1828,7 +1877,40 @@ export async function voerOpdrachtUit(
           aanvragerEmail: mail.aanvragerEmail,
           aanvragerNaam: mail.aanvragerNaam,
           richting: mail.richting,
+          idempotentieSleutel: mail.dedup,
         });
+        const test = Boolean(antwoord && typeof antwoord === 'object' && antwoord.test);
+        if (test) {
+          mutaties.push({
+            soort: 'upsert_job',
+            ref: mail.jobRef,
+            velden: {
+              dedup_sleutel: mail.dedup,
+              template_sleutel: mail.dedup.split(':').at(-1) ?? '',
+              status: 'concept',
+              modus: 'concept',
+              gepland_op: ctx.nu.toISOString(),
+              ontvanger_email: mail.naar,
+              onderwerp: mail.onderwerp,
+              pogingen: mail.pogingen,
+              foutmelding: 'Proefverzending geaccepteerd door de provider. Dit telt niet als verzending naar de ontvanger.',
+            },
+          });
+          mutaties.push({
+            soort: 'insert_audit',
+            velden: {
+              dedup_sleutel: `mail-test:${mail.dedup}`,
+              actie: 'testverzending',
+              onderwerp_type: 'communicatie',
+              onderwerp_id: mail.dedup,
+              naar: guard.naar,
+              reden: 'Geaccepteerd door de e-mailprovider. Aflevering is niet bevestigd. Telt niet als productieverzending.',
+              actor_type: 'systeem',
+              actor_naam: 'mail',
+            },
+          });
+          continue;
+        }
         mutaties.push({
           soort: 'upsert_job',
           ref: mail.jobRef,
@@ -1852,6 +1934,9 @@ export async function voerOpdrachtUit(
             onderwerp_type: 'communicatie',
             onderwerp_id: mail.dedup,
             naar: guard.reden,
+            reden: antwoord && typeof antwoord === 'object' && antwoord.providerBerichtId
+              ? `Geaccepteerd door de e-mailprovider (${antwoord.providerBerichtId}). Aflevering is niet bevestigd.`
+              : 'Geaccepteerd door de e-mailprovider. Aflevering is niet bevestigd.',
             actor_type: 'systeem',
             actor_naam: 'mail',
           },

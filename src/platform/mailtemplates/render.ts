@@ -146,6 +146,11 @@ export function renderMailHtml(
   return renderMailBericht(inhoud, vars, opties).html;
 }
 
+function isGroetknop(label: string): boolean {
+  const tekst = label.trim().replace(/,$/, '');
+  return /^met vriendelijke groet$/i.test(tekst) || /^stichting het kerkje van persingen$/i.test(tekst);
+}
+
 function ctaVoor(
   inhoud: MailTemplateInhoud,
   vars: MailVariabelenMap,
@@ -154,13 +159,14 @@ function ctaVoor(
   const knoppen: KerkjeMailCta[] = [];
   const primair = inhoud.callToActionTekst?.trim();
   const fallback = opties.voorbeeldUrl || 'https://kerkjepersingen.nl/';
-  if (primair) {
+  if (primair && !isGroetknop(primair)) {
     knoppen.push({
       label: vervangVariabelen(primair, vars),
       href: opties.actieUrls?.primary ?? fallback,
     });
   }
   for (const kn of inhoud.knoppen ?? []) {
+    if (isGroetknop(kn.label)) continue;
     if (primair && kn.label === primair) continue;
     let href = opties.actieUrls?.[kn.actie] ?? fallback;
     const soort = ACTIE_KNOP_NAAR_SOORT[kn.actie];

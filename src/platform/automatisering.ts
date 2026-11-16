@@ -455,6 +455,70 @@ export function magAutomatiseringUitvoeren(
   return { uitvoeren: false, provider: false, reden: 'onbekende status', status: 'onbekend', modus: 'uit' };
 }
 
+export type TechnischeGereedheid = 'gereed' | 'aandacht' | 'geblokkeerd';
+
+export function technischeGereedheid(item: Automatisering): { status: TechnischeGereedheid; label: string; toelichting: string } {
+  switch (item.sleutel) {
+    case 'contact_bestuur':
+      return {
+        status: 'geblokkeerd',
+        label: 'Geblokkeerd',
+        toelichting: 'De contactpagina heeft geen formulier. Deze schakelaar verstuurt daarom geen bericht.',
+      };
+    case 'betaalherinnering':
+      return {
+        status: 'aandacht',
+        label: 'Aandacht nodig',
+        toelichting: 'Openstaande aanbetalingen worden herkend, ook bij een definitieve boeking. Er gaat niets uit zolang deze schakelaar uit staat.',
+      };
+    case 'social_media_content':
+      return {
+        status: 'aandacht',
+        label: 'Aandacht nodig',
+        toelichting: 'Er is nog geen ontvangeradres. Zonder adres wordt er niets verstuurd en verschijnt er geen mislukte verzending.',
+      };
+    case 'aanvraag_bevestiging':
+      return {
+        status: 'aandacht',
+        label: 'Aandacht nodig',
+        toelichting: 'Gekoppeld aan het verhuurformulier, los van de bestuursmail. Het formulier verstuurt pas als deze schakelaar op Aan staat.',
+      };
+    case 'nieuwsbrief':
+      return {
+        status: 'gereed',
+        label: 'Gereed',
+        toelichting: 'De donderdag-preview is een dry-run. De vrijdagverzending volgt alleen deze schakelaar.',
+      };
+    case 'workflow':
+      return {
+        status: 'aandacht',
+        label: 'Aandacht nodig',
+        toelichting: 'De planner blijft uit tot een beheerder die aanzet. Dan draaien alleen de afzonderlijke schakelaars die op Aan staan.',
+      };
+    case 'reservelijst_mail':
+      return {
+        status: 'gereed',
+        label: 'Gereed',
+        toelichting: 'Iemand op de reservelijst zetten verstuurt geen e-mail. Er is geen automatische verzending.',
+      };
+    case 'nazorg':
+      return {
+        status: 'gereed',
+        label: 'Gereed',
+        toelichting: 'De reviewmail gaat naar de huurder, één dag na de einddatum, en maar één keer. De schakelaar blijft uit tot een beheerder die aanzet.',
+      };
+    default:
+      if (!item.actieveTrigger) {
+        return { status: 'geblokkeerd', label: 'Geblokkeerd', toelichting: 'Er is geen actieve aanleiding.' };
+      }
+      return {
+        status: 'gereed',
+        label: 'Gereed',
+        toelichting: 'Verplichte gegevens worden gecontroleerd. Uit en Test versturen niets automatisch naar de ontvanger.',
+      };
+  }
+}
+
 export function statusLabel(status: AutomatiseringStatus): string {
   if (status === 'actief') return 'Aan';
   if (status === 'test') return 'Test';
