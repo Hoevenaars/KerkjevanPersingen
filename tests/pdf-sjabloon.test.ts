@@ -201,6 +201,7 @@ test('lange waarden blijven binnen de A4-pagina en lopen over meerdere bladzijde
   assert.ok(info.paginas >= 3);
   const pdf = pdfBytes(lang);
   assert.equal(Buffer.from(pdf.subarray(0, 5)).toString('latin1'), '%PDF-');
+  assert.equal(pdf.subarray(0, 16).some((byte) => byte >= 128), true);
   assert.equal(pdfBevatTekst(pdf, 'WolfWolf'), true);
   assert.equal(pdfBevatTekst(pdf, 'Verhuurvoorwaarden'), true);
   assert.equal(pdfBevatTekst(pdf, 'Huisregels'), true);

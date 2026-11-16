@@ -411,7 +411,9 @@ export function pdfBytes(tekst: string): Uint8Array {
   objecten.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
 
   const maxId = Math.max(...objecten.keys());
-  const kop = latin1('%PDF-1.4\n');
+  // Vier bytes boven 127 direct na de kop. Zonder die regel behandelt
+  // de iPhone het bestand als tekst en weigert Mail het te openen.
+  const kop = latin1('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
   const delen: Uint8Array[] = [kop];
   const offsets = new Array<number>(maxId + 1).fill(0);
   let cursor = kop.length;
@@ -423,7 +425,7 @@ export function pdfBytes(tekst: string): Uint8Array {
   }
   let xref = `xref\n0 ${maxId + 1}\n0000000000 65535 f \n`;
   for (let id = 1; id <= maxId; id += 1) xref += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`;
-  xref += `trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${cursor}\n%%EOF`;
+  xref += `trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${cursor}\n%%EOF\n`;
   delen.push(latin1(xref));
   const totaal = delen.reduce((som, deel) => som + deel.length, 0);
   const uit = new Uint8Array(totaal);
