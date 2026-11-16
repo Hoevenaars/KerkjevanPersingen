@@ -11,6 +11,7 @@ import { isExpositieType, titelVoorInvoer, titelVoorOpslag } from '../../platfor
 import { exposantenUitFormulier, parseExposanten, serializeExposanten } from '../../platform/exposanten';
 
 const token = Astro.url.searchParams.get('token') ?? '';
+const beeld = Astro.url.searchParams.get('beeld') === '1';
 const actief = operationeelSupabase();
 let melding = '';
 let fout = '';
@@ -35,6 +36,7 @@ if (Astro.request.method === 'POST' && actief) {
   const exposanten = isExpositie ? serializeExposanten(exposantenUitFormulier(data.getAll('exposant'))) : undefined;
   const hoofd = data.get('hoofdafbeelding');
   const extras = data.getAll('extra').filter((item): item is File => item instanceof File && item.size > 0);
+  const beeldVerplicht = String(data.get('beeld') ?? '') === '1' || Astro.url.searchParams.get('beeld') === '1';
   const bestanden = [
     ...(hoofd instanceof File && hoofd.size > 0 ? [{ file: hoofd, alsHoofd: true }] : []),
     ...extras.map((file) => ({ file, alsHoofd: false })),
@@ -48,7 +50,9 @@ if (Astro.request.method === 'POST' && actief) {
     extraFotos: extras.length,
   });
   const bestandFout = bestanden.map((item) => valideerIntakeBestand(item.file)).find((item) => !item.ok);
-  if (bestandFout && !bestandFout.ok) {
+  if (beeldVerplicht && !bestanden.some((item) => item.alsHoofd)) {
+    fout = 'De afbeelding ontbreekt nog. Kies een JPG, PNG of WebP.';
+  } else if (bestandFout && !bestandFout.ok) {
     fout = bestandFout.reden;
   } else if (!controle.ok) {
     fout = controle.reden;
@@ -124,6 +128,8 @@ const langeVeld = context?.ok ? context.lange : '';
       ) : (
         <form method="post">
           <input type="hidden" name="token" value={token} />
+          {beeld && <input type="hidden" name="beeld" value="1" />}
+          {beeld && <p>Je tekst is ontvangen. Voeg hier de afbeelding toe die daarbij hoort.</p>}
           {expositie ? (
             <>
               <label for="titel">Titel van de expositie</label>
@@ -156,7 +162,7 @@ const langeVeld = context?.ok ? context.lange : '';
               <label for="hoofdafbeelding">Hoofdafbeelding of flyer</label>
             </>
           )}
-          <input id="hoofdafbeelding" name="hoofdafbeelding" type="file" accept="image/jpeg,image/png,image/webp" />
+          <input id="hoofdafbeelding" name="hoofdafbeelding" type="file" accept="image/jpeg,image/png,image/webp" required={beeld} />
           <label for="extra">Extra foto's</label>
           <input id="extra" name="extra" type="file" accept="image/jpeg,image/png,image/webp" multiple />
           <p>Je kunt deze activiteit niet zelf publiceren en je ziet geen andere dossiers.</p>
