@@ -15,8 +15,12 @@ import {
   maakDossierWeergave,
   mobielStatus,
   staatKleur,
+  gastheerStandVan,
+  gastheerTekst,
   stukkenStand,
   stukkenTekst,
+  websiteStand,
+  websiteTekst,
   veiligeBestandsUrl,
   veiligeVerhuurTerug,
   verhuurQuery,
@@ -86,9 +90,9 @@ describe('stukken', () => {
         bezet: true,
         soort: 'concert',
         heeftGastheer: false,
-        aanbetaling: 'onbekend',
         rest: 'onbekend',
         stukken: 'onbekend',
+        website: 'onbekend',
       }),
       { nodig: false, taken: [] },
     );
@@ -97,24 +101,51 @@ describe('stukken', () => {
       bezet: true,
       soort: 'expositie',
       heeftGastheer: false,
-      aanbetaling: 'afgerond',
       rest: 'openstaand',
       stukken: 'te_beoordelen',
+      website: 'nog_niet',
     });
     assert.equal(open.nodig, true);
-    assert.equal(open.taken.length, 3);
+    assert.equal(open.taken.length, 4);
+    assert.equal(open.taken.some((taak) => /aanbetaling/i.test(taak)), false);
     assert.equal(
       aandachtVan({
         herkomst: 'vrij',
         bezet: false,
         soort: '',
         heeftGastheer: false,
-        aanbetaling: 'openstaand',
         rest: 'openstaand',
         stukken: 'te_beoordelen',
+        website: 'nog_niet',
       }).nodig,
       false,
     );
+  });
+});
+
+describe('website en gastheer', () => {
+  test('publiek staat op de site, een bruiloft en bezet blijven niet openbaar, zonder activiteit onbekend', () => {
+    assert.equal(websiteStand({ soort: 'expositie', publicatiestatus: 'publiek', heeftActiviteit: true }), 'op_de_site');
+    assert.equal(websiteTekst('op_de_site'), 'Op de site');
+    assert.equal(staatKleur('op_de_site'), 'ok');
+    assert.equal(websiteStand({ soort: 'expositie', publicatiestatus: 'bezet', heeftActiviteit: true }), 'niet_openbaar');
+    assert.equal(websiteStand({ soort: 'bruiloft', heeftActiviteit: false }), 'niet_openbaar');
+    assert.equal(websiteStand({ soort: 'expositie', trigger: 'niet_publiceren', heeftActiviteit: true }), 'niet_openbaar');
+    assert.equal(websiteStand({ soort: 'expositie', heeftActiviteit: false }), 'onbekend');
+    assert.equal(websiteStand({ soort: 'expositie', heeftActiviteit: true }), 'nog_niet');
+    assert.equal(websiteTekst('nog_niet'), 'Nog niet');
+    assert.equal(staatKleur('nog_niet'), 'pending');
+    assert.equal(websiteStand({ soort: 'expositie', geannuleerd: true, publicatiestatus: 'publiek', heeftActiviteit: true }), 'niet_openbaar');
+  });
+
+  test('een gekoppelde gastheer toont de naam, een expositie zonder gastheer vraagt een keuze', () => {
+    assert.equal(gastheerStandVan({ soort: 'expositie', heeftGastheer: true }), 'gekoppeld');
+    assert.equal(gastheerTekst('gekoppeld', 'Hans'), 'Hans');
+    assert.equal(staatKleur('gekoppeld'), 'ok');
+    assert.equal(gastheerStandVan({ soort: 'expositie', heeftGastheer: false }), 'ontbreekt');
+    assert.equal(gastheerTekst('ontbreekt', ''), 'Nog kiezen');
+    assert.equal(gastheerStandVan({ soort: 'concert', heeftGastheer: false }), 'niet_nodig');
+    assert.equal(gastheerTekst('niet_nodig', ''), 'Niet nodig');
   });
 });
 
@@ -257,8 +288,10 @@ describe('agendaweergave', () => {
     assert.match(scherm.rijen[0].activiteit, /Expositie/);
     assert.match(scherm.rijen[0].activiteit, /Mede-exposant/);
     assert.equal(scherm.rijen[0].stukkenTekst, 'Te beoordelen');
+    assert.equal(scherm.rijen[0].websiteTekst, 'Nog niet');
     assert.equal(scherm.rijen[0].restTekst, 'Open');
-    assert.equal(scherm.rijen[0].contractTekst, 'Onbekend');
+    assert.equal(scherm.rijen[0].gastheerTekst, 'Nog kiezen');
+    assert.equal(scherm.rijen[0].taken.some((taak) => /aanbetaling/i.test(taak)), false);
     assert.equal(scherm.rijen[0].aandacht, true);
     assert.equal(scherm.aandachtAantal >= 1, true);
     assert.equal(overzicht.aanvragen.length, 1);
@@ -334,6 +367,8 @@ describe('agendaweergave', () => {
       betaalregelsZichtbaar: true,
       intake: [{ naam: 'foto.jpg', url: 'https://example.test/bestand' }],
     });
+    assert.equal(rij.websiteTekst, 'Nog niet');
+    assert.equal(rij.gastheerTekst, 'Hans, Nelleke');
     assert.equal(dossier.gastheerNaam, 'Hans');
     assert.deepEqual(dossier.historie, ['Nelleke']);
     assert.match(dossier.stukTekst, /Schilderijen/);

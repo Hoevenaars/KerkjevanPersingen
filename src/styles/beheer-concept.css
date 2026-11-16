@@ -350,7 +350,7 @@ html:has(.kc) {
 .kc-koprij,
 .kc-rij {
   display: grid;
-  grid-template-columns: 135px minmax(220px, 2.2fr) minmax(118px, 1fr) minmax(140px, 1.15fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(120px, 0.9fr) 36px;
+  grid-template-columns: 135px minmax(220px, 2.2fr) minmax(140px, 1.15fr) minmax(130px, 1fr) minmax(110px, 1fr) minmax(140px, 1.1fr) 36px;
   align-items: center;
   gap: 14px;
 }
@@ -786,7 +786,6 @@ html:has(.kc) {
 .kc-paginas a { color: var(--pine); font-weight: 650; }
 
 @media (max-width: 1100px) {
-  .kc-gastheer-kolom { display: none; }
   .kc-koprij,
   .kc-rij {
     grid-template-columns: 120px minmax(180px, 2fr) repeat(4, minmax(108px, 1fr)) 28px;

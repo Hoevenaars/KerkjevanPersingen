@@ -310,11 +310,10 @@ function sorteerLabel(kolom: typeof filter.sort): string {
       <div class="kc-koprij">
         <a href={sorteerHref('weekend')} aria-sort={filter.sort === 'weekend' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Weekend{sorteerLabel('weekend')}</a>
         <a href={sorteerHref('huurder')} aria-sort={filter.sort === 'huurder' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Huurder / activiteit{sorteerLabel('huurder')}</a>
-        <a href={sorteerHref('contract')} aria-sort={filter.sort === 'contract' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Contract{sorteerLabel('contract')}</a>
         <a href={sorteerHref('stukken')} aria-sort={filter.sort === 'stukken' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Content{sorteerLabel('stukken')}</a>
-        <a href={sorteerHref('aanbetaling')} aria-sort={filter.sort === 'aanbetaling' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Aanbetaling{sorteerLabel('aanbetaling')}</a>
+        <a href={sorteerHref('website')} aria-sort={filter.sort === 'website' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Website{sorteerLabel('website')}</a>
         <a href={sorteerHref('rest')} aria-sort={filter.sort === 'rest' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Restant{sorteerLabel('rest')}</a>
-        <a class="kc-gastheer-kolom" href={sorteerHref('gastheer')} aria-sort={filter.sort === 'gastheer' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Gastheer{sorteerLabel('gastheer')}</a>
+        <a href={sorteerHref('gastheer')} aria-sort={filter.sort === 'gastheer' ? (filter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>Gastheer{sorteerLabel('gastheer')}</a>
         <span></span>
       </div>
       {
@@ -345,18 +344,17 @@ function sorteerLabel(kolom: typeof filter.sort): string {
                   <small class="kc-mobiel">{mobielStatus(rij)}</small>
                 </span>
                 <span class="kc-kolom">
-                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.contract)} tekst={rij.contractTekst} /> : '—'}
-                </span>
-                <span class="kc-kolom">
                   {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.stukken)} tekst={rij.stukkenTekst} /> : '—'}
                 </span>
                 <span class="kc-kolom">
-                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.aanbetaling)} tekst={rij.aanbetalingTekst} /> : '—'}
+                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.website)} tekst={rij.websiteTekst} /> : '—'}
                 </span>
                 <span class="kc-kolom">
                   {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.rest)} tekst={rij.restTekst} /> : '—'}
                 </span>
-                <span class="kc-kolom kc-gastheer-kolom">{rij.herkomst === 'boeking' ? (rij.gastheer || 'Nog kiezen') : '—'}</span>
+                <span class="kc-kolom">
+                  {rij.herkomst === 'boeking' ? <StatusMarkering kleur={staatKleur(rij.gastheerStand)} tekst={rij.gastheerTekst} /> : '—'}
+                </span>
                 <span class="kc-pijl" aria-hidden="true">›</span>
               </a>
             );
