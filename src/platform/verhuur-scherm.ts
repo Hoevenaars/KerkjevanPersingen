@@ -1,6 +1,8 @@
 /**
  * Weergave van de verhuuragenda en het dossier.
  * Leest het bestaande overzicht. Schrijft niets.
+ * Een boeking staat hier pas na een getekend contract en een ontvangen aanbetaling.
+ * De agenda toont daarom content, website, restant en gastheer.
  * Een ontbrekend bewijs blijft Onbekend en telt niet als open taak.
  * Een stukbeoordeling bewaart versie, reden en beoordelaar en publiceert niets.
  */
@@ -34,6 +36,11 @@ import {
 
 export type StukkenStand = 'compleet' | 'te_beoordelen' | 'niet_aangeleverd' | 'onbekend' | 'niet_zichtbaar';
 
+/** Zelfde poort als de beheeragenda: publiek betekent op de website. */
+export type WebsiteStand = 'op_de_site' | 'nog_niet' | 'niet_openbaar' | 'onbekend' | 'niet_zichtbaar';
+
+export type GastheerStand = 'gekoppeld' | 'ontbreekt' | 'niet_nodig' | 'niet_zichtbaar';
+
 export type StaatKleur = 'ok' | 'pending' | 'unknown' | 'no';
 
 export type { StukBeoordeling, StukPaneel };
@@ -42,6 +49,9 @@ export interface SchermActiviteit {
   boekingId?: string;
   contentstatus?: string | null;
   inhoudStatus?: string | null;
+  publicatiestatus?: 'publiek' | 'bezet' | 'verborgen' | null;
+  trigger?: string | null;
+  levenscyclus?: 'actief' | 'geannuleerd';
   titel?: string;
   omschrijving?: string;
   korteOmschrijving?: string;
@@ -102,7 +112,7 @@ export interface SchermRelatie {
   adres: string;
 }
 
-export const SCHERM_SORTERING = ['weekend', 'huurder', 'contract', 'stukken', 'aanbetaling', 'rest', 'gastheer'] as const;
+export const SCHERM_SORTERING = ['weekend', 'huurder', 'stukken', 'website', 'rest', 'gastheer'] as const;
 
 export type SchermSortering = (typeof SCHERM_SORTERING)[number];
 
@@ -137,11 +147,15 @@ export interface SchermRij {
   contractTekst: string;
   stukken: StukkenStand;
   stukkenTekst: string;
+  website: WebsiteStand;
+  websiteTekst: string;
   aanbetaling: Bol;
   aanbetalingTekst: string;
   rest: Bol;
   restTekst: string;
   gastheer: string;
+  gastheerStand: GastheerStand;
+  gastheerTekst: string;
   aandacht: boolean;
   taken: string[];
   bijzonderheden: string;
@@ -212,9 +226,57 @@ export function stukkenTekst(stand: StukkenStand): string {
   return 'Onbekend';
 }
 
-export function staatKleur(waarde: Bol | StukkenStand): StaatKleur {
-  if (waarde === 'afgerond' || waarde === 'compleet') return 'ok';
-  if (waarde === 'openstaand' || waarde === 'te_beoordelen' || waarde === 'niet_aangeleverd' || waarde === 'tegenstrijdig') {
+/**
+ * Websitebol in de verhuuragenda.
+ * Publiek is op de site. Bezet, verborgen, niet publiceren en een bruiloft
+ * zijn bewust niet openbaar. Zonder activiteit blijft de stand Onbekend.
+ */
+export function websiteStand(input: {
+  soort: string;
+  publicatiestatus?: 'publiek' | 'bezet' | 'verborgen' | null;
+  trigger?: string | null;
+  geannuleerd?: boolean;
+  heeftActiviteit: boolean;
+}): WebsiteStand {
+  if (input.geannuleerd) return 'niet_openbaar';
+  if (input.publicatiestatus === 'publiek') return 'op_de_site';
+  if (input.publicatiestatus === 'bezet' || input.publicatiestatus === 'verborgen') return 'niet_openbaar';
+  if (input.trigger === 'niet_publiceren' || input.soort === 'bruiloft') return 'niet_openbaar';
+  if (!input.heeftActiviteit) return 'onbekend';
+  return 'nog_niet';
+}
+
+export function websiteTekst(stand: WebsiteStand): string {
+  if (stand === 'op_de_site') return 'Op de site';
+  if (stand === 'nog_niet') return 'Nog niet';
+  if (stand === 'niet_openbaar') return 'Niet openbaar';
+  if (stand === 'niet_zichtbaar') return 'Afgeschermd';
+  return 'Onbekend';
+}
+
+export function gastheerStandVan(input: { soort: string; heeftGastheer: boolean }): GastheerStand {
+  if (input.heeftGastheer) return 'gekoppeld';
+  if (gastbegeleiderOntbreekt(input)) return 'ontbreekt';
+  return 'niet_nodig';
+}
+
+export function gastheerTekst(stand: GastheerStand, naam: string): string {
+  if (stand === 'gekoppeld') return naam.trim() || 'Gekoppeld';
+  if (stand === 'ontbreekt') return 'Nog kiezen';
+  if (stand === 'niet_nodig') return 'Niet nodig';
+  return '—';
+}
+
+export function staatKleur(waarde: Bol | StukkenStand | WebsiteStand | GastheerStand): StaatKleur {
+  if (waarde === 'afgerond' || waarde === 'compleet' || waarde === 'op_de_site' || waarde === 'gekoppeld') return 'ok';
+  if (
+    waarde === 'openstaand' ||
+    waarde === 'te_beoordelen' ||
+    waarde === 'niet_aangeleverd' ||
+    waarde === 'tegenstrijdig' ||
+    waarde === 'nog_niet' ||
+    waarde === 'ontbreekt'
+  ) {
     return 'pending';
   }
   return 'unknown';
@@ -354,18 +416,17 @@ export function aandachtVan(input: {
   bezet: boolean;
   soort: string;
   heeftGastheer: boolean;
-  aanbetaling: Bol;
   rest: Bol;
   stukken: StukkenStand;
+  website: WebsiteStand;
 }): { nodig: boolean; taken: string[] } {
   if (input.herkomst !== 'boeking') return { nodig: false, taken: [] };
   const taken: string[] = [];
-  if (input.aanbetaling === 'openstaand') taken.push('Aanbetaling staat open.');
-  if (input.aanbetaling === 'tegenstrijdig') taken.push('Aanbetaling is tegenstrijdig.');
   if (input.rest === 'openstaand') taken.push('Restbetaling staat open.');
   if (input.rest === 'tegenstrijdig') taken.push('Restbetaling is tegenstrijdig.');
   if (input.stukken === 'te_beoordelen') taken.push('Aangeleverde content wacht op beoordeling.');
   if (input.stukken === 'niet_aangeleverd') taken.push('Content is nog niet aangeleverd.');
+  if (input.website === 'nog_niet') taken.push('De activiteit staat nog niet op de website.');
   if (input.bezet && gastbegeleiderOntbreekt({ soort: input.soort, heeftKoppeling: input.heeftGastheer })) {
     taken.push('Er is nog geen gastheer.');
   }
@@ -582,13 +643,13 @@ function vergelijkSchermRij(a: SchermRij, b: SchermRij, sort: SchermSortering): 
     return a.huurder.localeCompare(b.huurder, 'nl', { sensitivity: 'base' })
       || a.activiteit.localeCompare(b.activiteit, 'nl', { sensitivity: 'base' });
   }
-  if (sort === 'contract') return rangBol(a.contract) - rangBol(b.contract) || a.contractTekst.localeCompare(b.contractTekst, 'nl');
   if (sort === 'stukken') return rangStukken(a.stukken) - rangStukken(b.stukken) || a.stukkenTekst.localeCompare(b.stukkenTekst, 'nl');
-  if (sort === 'aanbetaling') return rangBol(a.aanbetaling) - rangBol(b.aanbetaling) || a.aanbetalingTekst.localeCompare(b.aanbetalingTekst, 'nl');
+  if (sort === 'website') return rangWebsite(a.website) - rangWebsite(b.website) || a.websiteTekst.localeCompare(b.websiteTekst, 'nl');
   if (sort === 'rest') return rangBol(a.rest) - rangBol(b.rest) || a.restTekst.localeCompare(b.restTekst, 'nl');
-  const gastheerA = a.herkomst === 'boeking' ? (a.gastheer || 'Nog kiezen') : '';
-  const gastheerB = b.herkomst === 'boeking' ? (b.gastheer || 'Nog kiezen') : '';
-  return gastheerA.localeCompare(gastheerB, 'nl', { sensitivity: 'base' });
+  const gastheerA = a.herkomst === 'boeking' ? a.gastheerTekst : '';
+  const gastheerB = b.herkomst === 'boeking' ? b.gastheerTekst : '';
+  return rangGastheer(a.gastheerStand) - rangGastheer(b.gastheerStand)
+    || gastheerA.localeCompare(gastheerB, 'nl', { sensitivity: 'base' });
 }
 
 function rangBol(waarde: Bol): number {
@@ -607,6 +668,21 @@ function rangStukken(waarde: StukkenStand): number {
   return 4;
 }
 
+function rangWebsite(waarde: WebsiteStand): number {
+  if (waarde === 'nog_niet') return 0;
+  if (waarde === 'onbekend') return 1;
+  if (waarde === 'niet_openbaar') return 2;
+  if (waarde === 'op_de_site') return 3;
+  return 4;
+}
+
+function rangGastheer(waarde: GastheerStand): number {
+  if (waarde === 'ontbreekt') return 0;
+  if (waarde === 'gekoppeld') return 1;
+  if (waarde === 'niet_nodig') return 2;
+  return 3;
+}
+
 function naarSchermRij(
   rij: VerhuurRij,
   boekingVan: ReadonlyMap<string, SchermBoeking>,
@@ -621,14 +697,26 @@ function naarSchermRij(
   const stukken = rij.herkomst === 'boeking'
     ? stukkenStand({ contentstatus: activiteit?.contentstatus, inhoudStatus: activiteit?.inhoudStatus })
     : 'niet_zichtbaar';
+  const website = rij.herkomst === 'boeking'
+    ? websiteStand({
+        soort: boeking?.soort ?? '',
+        publicatiestatus: activiteit?.publicatiestatus,
+        trigger: activiteit?.trigger,
+        geannuleerd: activiteit?.levenscyclus === 'geannuleerd',
+        heeftActiviteit: activiteit != null,
+      })
+    : 'niet_zichtbaar';
+  const hostStand = rij.herkomst === 'boeking'
+    ? gastheerStandVan({ soort: boeking?.soort ?? '', heeftGastheer: namen.length > 0 })
+    : 'niet_zichtbaar';
   const aandacht = aandachtVan({
     herkomst: rij.herkomst,
     bezet: rij.bezet,
     soort: boeking?.soort ?? '',
     heeftGastheer: namen.length > 0,
-    aanbetaling: rij.aanbetaling,
     rest: rij.rest,
     stukken,
+    website,
   });
   const zichtbaar = rij.herkomst === 'boeking';
   const archief = zichtbaar && ARCHIEFSTATUS.has(boeking?.status ?? '') ? (boeking?.status ?? '') : '';
@@ -674,11 +762,15 @@ function naarSchermRij(
     contractTekst: zichtbaar ? bolTekst(rij.contract, 'contract') : '—',
     stukken,
     stukkenTekst: zichtbaar ? stukkenTekst(stukken) : '—',
+    website,
+    websiteTekst: zichtbaar ? websiteTekst(website) : '—',
     aanbetaling: rij.aanbetaling,
     aanbetalingTekst: zichtbaar ? bolTekst(rij.aanbetaling, 'betaling') : '—',
     rest: rij.rest,
     restTekst: zichtbaar ? bolTekst(rij.rest, 'betaling') : '—',
     gastheer: zichtbaar ? namen.join(', ') : '',
+    gastheerStand: hostStand,
+    gastheerTekst: zichtbaar ? gastheerTekst(hostStand, namen.join(', ')) : '—',
     aandacht: aandacht.nodig,
     taken: aandacht.taken,
     bijzonderheden: rij.bijzonderheden,
