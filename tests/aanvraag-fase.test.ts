@@ -344,8 +344,17 @@ test('elke bestaande status blijft in precies één filter', () => {
   }
 });
 
+test('zonder filter start de lijst op Nieuw', () => {
+  const start = leesAanvraagFilter({ get: () => null });
+  assert.equal(start.modus, 'fase');
+  assert.equal(start.fase, 'nieuw');
+  assert.equal(pastInFilter('nieuw', start, 'nieuw'), true);
+  assert.equal(pastInFilter('in_behandeling', start, 'in_behandeling'), false);
+  assert.equal(pastInFilter('gereed', start, 'goedgekeurd'), false);
+});
+
 test('de open lijst verbergt definitief afgehandelde aanvragen', () => {
-  const open = leesAanvraagFilter({ get: () => null });
+  const open = leesAanvraagFilter({ get: (naam) => (naam === 'fase' ? 'alle' : null) });
   assert.equal(open.fase, 'alle');
   assert.equal(pastInFilter('nieuw', open, 'nieuw'), true);
   assert.equal(pastInFilter('in_behandeling', open, 'wacht_op_aanvrager'), true);

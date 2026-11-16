@@ -95,7 +95,7 @@ function query(wijziging: { fase?: FaseFilter | null; sort?: string | null; dir?
     volgende.set('status', filter.technisch);
   } else {
     const fase = wijziging.fase === undefined ? (filter.modus === 'fase' ? filter.fase : null) : wijziging.fase;
-    if (fase && fase !== 'alle') volgende.set('fase', fase);
+    if (fase && fase !== 'nieuw') volgende.set('fase', fase);
   }
   const sortWaarde = wijziging.sort === undefined ? sort : wijziging.sort;
   const dirWaarde = wijziging.dir === undefined ? (sort ? dir : null) : wijziging.dir;
@@ -139,7 +139,7 @@ function periodeVan(start: string, eind: string): string {
     <div>
       <p class="bh-label">Aanvragen</p>
       <h1>Aanvragen</h1>
-      <p class="bh-hint">Klik een aanvraag om het dossier te openen. Open toont alleen wat nog moet gebeuren. Een definitieve boeking, een afwijzing of een gesloten aanvraag staat daar niet bij.</p>
+      <p class="bh-hint">Klik een aanvraag om het dossier te openen. De lijst start op Nieuw. Open toont alleen wat nog moet gebeuren. Een definitieve boeking, een afwijzing of een gesloten aanvraag staat daar niet bij.</p>
     </div>
   </header>
 
@@ -149,7 +149,7 @@ function periodeVan(start: string, eind: string): string {
   {
     filter.modus === 'technisch' && filter.technisch && (
       <p class="bh-flash" role="status">
-        Oude filter: {AANVRAAG_LABEL[filter.technisch]}. <a href="/beheer/aanvragen/">Toon de open aanvragen</a>
+        Oude filter: {AANVRAAG_LABEL[filter.technisch]}. <a href="/beheer/aanvragen/?fase=alle">Toon de open aanvragen</a>
       </p>
     )
   }

@@ -119,7 +119,7 @@ export function vandaagOverzicht(input: VandaagInvoer): VandaagOverzicht {
     uit.aanvragen = kort(aanvragen, {
       titel: 'Nog {n} aanvragen',
       toelichting: 'De volledige lijst staat bij Aanvragen.',
-      href: '/beheer/aanvragen/',
+      href: '/beheer/aanvragen/?fase=alle',
       wanneer: '',
     });
   }
