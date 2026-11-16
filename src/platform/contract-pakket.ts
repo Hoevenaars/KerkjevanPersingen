@@ -4,6 +4,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { formatDatum } from '../lib/datum.ts';
+import { kerkjeMail } from '../lib/kerkje-mail.ts';
 import { pdfBevatTekst, pdfBytes } from './documenten/pdf.ts';
 import { DOCUMENTVERSIE } from './documenten/teksten-v1.ts';
 import { veldenUitContracttekst, vulPdfSjabloon } from './documenten/pdf-sjabloon.ts';
@@ -39,32 +41,123 @@ export function contractPakketTekst(bron: PakketBron): string {
   return delen.filter(Boolean).join('\n\f\n');
 }
 
-export function contractMailTekst(input: {
+export const CONTRACT_MAIL_ONDERWERP = 'Uw huurovereenkomst | Kerkje van Persingen';
+const CONTRACT_KNOP = 'Bekijk en onderteken uw huurovereenkomst';
+
+export interface ContractMailInput {
   naam: string;
   contractnummer: string;
   versie: number;
   voorwaardenVersie?: string;
   link: string | null;
-}): string {
-  const voornaam = input.naam.trim().split(/\s+/)[0] || 'huurder';
+  verlooptOp?: string | null;
+}
+
+function mailEscape(waarde: string): string {
+  return waarde
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function vervalTekst(iso: string | null | undefined): string | null {
+  if (!iso || Number.isNaN(Date.parse(iso))) return null;
+  return formatDatum(iso, true);
+}
+
+function feitRij(label: string, waarde: string): string {
+  return `<tr>
+    <td style="padding:8px 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.4;color:#4A4A44;">${mailEscape(label)}</td>
+  </tr>
+  <tr>
+    <td style="padding:0 16px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.4;color:#1A1A1A;word-break:break-word;">${mailEscape(waarde)}</td>
+  </tr>`;
+}
+
+/** Onderwerp, platte tekst en HTML van de contractmail. Dezelfde feiten in beide. */
+export function contractMail(input: ContractMailInput): { onderwerp: string; tekst: string; html: string } {
+  const huurder = input.naam.replace(/\s+/g, ' ').trim() || 'huurder';
   const versieVoorwaarden = input.voorwaardenVersie || DOCUMENTVERSIE;
-  const regels = [
-    `Beste ${voornaam},`,
+  const documentversie = String(input.versie);
+  const verval = vervalTekst(input.verlooptOp);
+  const link = input.link?.trim() || '';
+  const geldig = verval
+    ? `Uw persoonlijke ondertekenlink is geldig tot ${verval}.`
+    : 'Uw persoonlijke ondertekenlink is tijdelijk geldig.';
+  const tekenen = link
+    ? [
+      'Digitaal ondertekenen',
+      'U hoeft niets te printen of terug te sturen. Via onderstaande persoonlijke link kunt u de overeenkomst bekijken en direct digitaal ondertekenen.',
+      '',
+      CONTRACT_KNOP,
+      link,
+      '',
+      `De digitale overeenkomst is identiek aan de PDF in de bijlage. ${geldig}`,
+    ]
+    : [];
+  const hoofdtekst = [
+    'Bij deze e-mail ontvangt u uw huurovereenkomst en de bijbehorende verhuurvoorwaarden als PDF. U kunt alles rustig doorlezen en vervolgens eenvoudig digitaal ondertekenen.',
     '',
-    `Bij deze mail zit het volledige contractpakket als PDF: huurovereenkomst ${input.contractnummer}, documentversie ${input.versie}.`,
-    `In die PDF staan de overeenkomst en de verhuurvoorwaarden versie ${versieVoorwaarden}.`,
-    `Privacyverklaring: ${PRIVACY_URL}`,
-  ];
-  if (input.link) {
-    regels.push(
-      `Dezelfde versie bekijkt en ondertekent u via deze persoonlijke link: ${input.link}`,
-      'De link verloopt. Ondertekenen is een elektronische bevestiging en geen gekwalificeerde elektronische handtekening.',
-    );
-  }
-  regels.push(
-    'Dit bericht maakt de reservering nog niet definitief. Dat gebeurt volgens de betaalafspraken in het contract, inclusief een eventuele aanbetaling.',
-  );
-  return regels.join('\n');
+    'Uw huurovereenkomst',
+    `Contractnummer: ${input.contractnummer}`,
+    `Documentversie: ${documentversie}`,
+    `Verhuurvoorwaarden: ${versieVoorwaarden}`,
+    '',
+    ...tekenen,
+    '',
+    'Wanneer is uw reservering definitief?',
+    'Na ondertekening is uw reservering nog niet automatisch definitief. Hiervoor gelden de betaalafspraken uit uw huurovereenkomst, waaronder een eventuele aanbetaling.',
+    '',
+    'Heeft u vragen over de overeenkomst? Neem gerust contact met ons op. Wij helpen u graag verder.',
+    '',
+    'We kijken ernaar uit u te verwelkomen in het Kerkje van Persingen!',
+    '',
+    'Uw digitale ondertekening geldt als elektronische bevestiging en is geen gekwalificeerde elektronische handtekening.',
+    '',
+    `Bekijk onze privacyverklaring: ${PRIVACY_URL}`,
+  ].join('\n');
+  const knop = link
+    ? `<p style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.4;color:#4A5235;">Digitaal ondertekenen</p>
+<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#4A4A44;">U hoeft niets te printen of terug te sturen. Via onderstaande persoonlijke link kunt u de overeenkomst bekijken en direct digitaal ondertekenen.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 12px;border-collapse:collapse;">
+  <tr>
+    <td bgcolor="#9C4A2F" style="background:#9C4A2F;">
+      <a href="${mailEscape(link)}" style="display:inline-block;padding:14px 22px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.3;font-weight:600;color:#ffffff;text-decoration:none;">${CONTRACT_KNOP}</a>
+    </td>
+  </tr>
+</table>
+<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#4A4A44;">Werkt de knop niet? Kopieer deze link in uw browser:<br /><a href="${mailEscape(link)}" style="color:#4A5235;word-break:break-all;">${mailEscape(link)}</a></p>
+<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#4A4A44;">De digitale overeenkomst is identiek aan de PDF in de bijlage. ${mailEscape(geldig)}</p>`
+    : '';
+  const hoofdHtml = `<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#4A4A44;">Bij deze e-mail ontvangt u uw huurovereenkomst en de bijbehorende verhuurvoorwaarden als PDF. U kunt alles rustig doorlezen en vervolgens eenvoudig digitaal ondertekenen.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#F1EBDD;">
+  <tr><td style="padding:14px 16px 6px;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.4;color:#4A5235;">Uw huurovereenkomst</td></tr>
+  ${feitRij('Contractnummer', input.contractnummer)}
+  ${feitRij('Documentversie', documentversie)}
+  ${feitRij('Verhuurvoorwaarden', versieVoorwaarden)}
+  <tr><td style="height:8px;font-size:0;line-height:0;">&nbsp;</td></tr>
+</table>
+${knop}
+<p style="margin:8px 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.4;color:#4A5235;">Wanneer is uw reservering definitief?</p>
+<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#4A4A44;">Na ondertekening is uw reservering nog niet automatisch definitief. Hiervoor gelden de betaalafspraken uit uw huurovereenkomst, waaronder een eventuele aanbetaling.</p>
+<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#4A4A44;">Heeft u vragen over de overeenkomst? Neem gerust contact met ons op. Wij helpen u graag verder.</p>
+<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#4A4A44;">We kijken ernaar uit u te verwelkomen in het Kerkje van Persingen!</p>
+<p style="margin:8px 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#4A4A44;">Uw digitale ondertekening geldt als elektronische bevestiging en is geen gekwalificeerde elektronische handtekening.</p>
+<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;"><a href="${PRIVACY_URL}" style="color:#4A5235;">Bekijk onze privacyverklaring</a></p>`;
+  const brief = kerkjeMail({
+    titel: 'Uw huurovereenkomst',
+    aanhef: `Beste ${huurder},`,
+    introductie: 'Hartelijk dank voor uw interesse in het huren van het Kerkje van Persingen!',
+    hoofdtekst,
+    hoofdHtml,
+    ondertekening: 'Team Kerkje van Persingen',
+  });
+  return { onderwerp: CONTRACT_MAIL_ONDERWERP, tekst: brief.text, html: brief.html };
+}
+
+export function contractMailTekst(input: ContractMailInput): string {
+  return contractMail(input).tekst;
 }
 
 export function tekenUrl(token: string, basis = TEKEN_BASIS): string {

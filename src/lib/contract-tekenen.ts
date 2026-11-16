@@ -171,7 +171,9 @@ export async function behandelTekenpagina(input: {
   const sjabloon = await leesContractSjabloon(env);
   if (sjabloon.fout) return { ok: false, melding: sjabloon.fout };
   const uit = await voerTekenstap(input.stap, winkel, { sjabloon: sjabloon.bytes });
-  if (!uit.ok || !uit.mail) return uit;
+  if (!uit.ok) return uit;
+  const antwoord = { ...uit, metSjabloon: Boolean(sjabloon.bytes && sjabloon.bytes.byteLength > 0) };
+  if (!antwoord.mail) return antwoord;
   if (uit.mail === 'code' && uit.code) {
     const id = await mailMetPdf({
       naar: uit.dossier.email,
@@ -222,10 +224,10 @@ export async function behandelTekenpagina(input: {
       env,
     }).catch(() => null);
     if (!id) {
-      return { ...uit, melding: 'Het contract is ondertekend. De bevestigingsmail is niet geaccepteerd door de mailprovider.' };
+      return { ...antwoord, melding: 'Het contract is ondertekend. De bevestigingsmail is niet geaccepteerd door de mailprovider.' };
     }
   }
-  return uit;
+  return antwoord;
 }
 
 export function pakketVanDossier(dossier: TekenDossier): string {

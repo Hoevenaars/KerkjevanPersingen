@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 import test from 'node:test';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
-import { pdfBevatTekst, pdfBytes } from '../src/platform/documenten/pdf.ts';
+import { pdfBevatTekst, pdfBytes, pdfPastInA4 } from '../src/platform/documenten/pdf.ts';
 import {
   VOORWAARDEN_MARKER,
   leesSjabloonVelden,
@@ -186,6 +186,58 @@ test('een expositie krijgt de plattegrond achter het sjabloon', async () => {
   assert.equal(pdf.ok, true);
   if (!pdf.ok) return;
   assert.equal(pdfBevatTekst(pdf.bijlage.inhoud, 'Plattegrond expositieruimte'), true);
+});
+
+test('lange waarden blijven binnen de A4-pagina en lopen over meerdere bladzijden', () => {
+  const lang = [
+    'Huurovereenkomst',
+    `Huurder: ${'Wolf'.repeat(40)} van der ${'M'.repeat(90)}`,
+    `Omschrijving: ${'Een zeer uitgebreide omschrijving van de bijeenkomst. '.repeat(40)}`,
+    `\f\n${VOORWAARDEN_V1}`,
+    `\f\n${HUISREGELS_V1}`,
+  ].join('\n');
+  const info = pdfPastInA4(lang);
+  assert.deepEqual(info.teBreed, []);
+  assert.ok(info.paginas >= 3);
+  const pdf = pdfBytes(lang);
+  assert.equal(Buffer.from(pdf.subarray(0, 5)).toString('latin1'), '%PDF-');
+  assert.equal(pdf.subarray(0, 16).some((byte) => byte >= 128), true);
+  assert.equal(pdfBevatTekst(pdf, 'WolfWolf'), true);
+  assert.equal(pdfBevatTekst(pdf, 'Verhuurvoorwaarden'), true);
+  assert.equal(pdfBevatTekst(pdf, 'Huisregels'), true);
+});
+
+test('een lange waarde blijft leesbaar in een sjabloonveld', async () => {
+  const naam = 'José María Catharina van der Hoeven-Persingen';
+  const token = `START${'x'.repeat(70)}EINDE`;
+  const doc = await PDFDocument.create();
+  const pagina = doc.addPage([595, 842]);
+  const form = doc.getForm();
+  form.createTextField('huurder').addToPage(pagina, { x: 50, y: 700, width: 240, height: 22 });
+  form.createTextField('contractnummer').addToPage(pagina, { x: 50, y: 660, width: 240, height: 22 });
+  form.createTextField('activiteit').addToPage(pagina, { x: 50, y: 560, width: 140, height: 70 });
+  const sjabloon = new Uint8Array(await doc.save({ useObjectStreams: false }));
+  const opgesteld = contractTekst(bron(), afspraken, instellingen(), 'KVP-lang', 1, '2026-06-02');
+  const velden = veldenUitContracttekst(opgesteld.tekst ?? '');
+  assert.ok(velden);
+  velden.huurder = naam;
+  velden.activiteit = token;
+  const gevuld = await vulPdfSjabloon({
+    sjabloon,
+    velden,
+    bijlage: {
+      voorwaardenTekst: VOORWAARDEN_V1,
+      huisregelsTekst: HUISREGELS_V1,
+      plattegrondTekst: '',
+      soort: 'bruiloft',
+    },
+  });
+  assert.equal(gevuld.ok, true);
+  if (!gevuld.ok) return;
+  assert.equal(pdfBevatTekst(gevuld.pdf, naam), true);
+  assert.equal(pdfBevatTekst(gevuld.pdf, 'START'), true);
+  assert.equal(pdfBevatTekst(gevuld.pdf, 'EINDE'), true);
+  assert.equal(pdfBevatTekst(gevuld.pdf, 'Verhuurvoorwaarden'), true);
 });
 
 test('het voorbeeldsjabloon bevat de veldnamen', async () => {

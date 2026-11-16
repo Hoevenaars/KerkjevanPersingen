@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { voegDagenToe } from './datum.ts';
 import { magSchrijven } from './rechten.ts';
 import type { GebruikerRechten } from './types.ts';
-import { contractMailTekst, contractPakketTekst, PRIVACY_URL } from './contract-pakket.ts';
+import { contractMail, contractPakketTekst, PRIVACY_URL } from './contract-pakket.ts';
 import {
   DOCUMENTVERSIE,
   HUISREGELS_V1,
@@ -134,6 +134,7 @@ export interface FlowMail {
   bedoelde: string;
   onderwerp: string;
   tekst: string;
+  html?: string;
   bijlagen: { bestandsnaam: string; tekst: string; bytes?: Uint8Array }[];
   teltAlsVerzonden: boolean;
   versie: number;
@@ -164,6 +165,7 @@ export interface FlowContext {
   modus: 'uit' | 'test' | 'aan';
   testadres: string | null;
   tekenLink?: string | null;
+  tekenVerloopt?: string | null;
 }
 
 export type FlowUitkomst =
@@ -696,6 +698,13 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
       plattegrondTekst: huidig.plattegrondTekst,
       soort: context.bron.soort,
     });
+    const brief = contractMail({
+      naam: context.bron.huurderNaam,
+      contractnummer: huidig.contractnummer,
+      versie: huidig.versie,
+      link: context.tekenLink ?? null,
+      verlooptOp: context.tekenVerloopt ?? null,
+    });
     return {
       ok: true,
       melding: doel.telt ? 'Het contract kan worden verzonden.' : 'De proefmail kan naar het testadres.',
@@ -706,13 +715,9 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
         idempotentie,
         naar: doel.naar,
         bedoelde: context.bron.email,
-        onderwerp: `Huurovereenkomst ${huidig.contractnummer}`,
-        tekst: contractMailTekst({
-          naam: context.bron.huurderNaam,
-          contractnummer: huidig.contractnummer,
-          versie: huidig.versie,
-          link: context.tekenLink ?? null,
-        }),
+        onderwerp: brief.onderwerp,
+        tekst: brief.tekst,
+        html: brief.html,
         bijlagen: [{ bestandsnaam: `${huidig.contractnummer}.pdf`, tekst: bijlage }],
         teltAlsVerzonden: doel.telt,
         versie: huidig.versie,

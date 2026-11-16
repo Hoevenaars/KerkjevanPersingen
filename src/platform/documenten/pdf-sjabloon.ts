@@ -130,26 +130,54 @@ function tekenVelden(doc: PDFDocument, form: ReturnType<PDFDocument['getForm']>,
   }
 }
 
+function verpakVak(letter: PDFFont, tekst: string, grootte: number, max: number): string[] {
+  const regels: string[] = [];
+  let regel = '';
+  const stukken: string[] = [];
+  for (const woord of tekst.split(/\s+/)) {
+    if (!woord) continue;
+    if (letter.widthOfTextAtSize(woord, grootte) <= max) {
+      stukken.push(woord);
+      continue;
+    }
+    let deel = '';
+    for (const teken of woord) {
+      const kandidaat = deel + teken;
+      if (deel && letter.widthOfTextAtSize(kandidaat, grootte) > max) {
+        stukken.push(deel);
+        deel = teken;
+      } else {
+        deel = kandidaat;
+      }
+    }
+    if (deel) stukken.push(deel);
+  }
+  for (const stuk of stukken) {
+    const kandidaat = regel ? `${regel} ${stuk}` : stuk;
+    if (regel && letter.widthOfTextAtSize(kandidaat, grootte) > max) {
+      regels.push(regel);
+      regel = stuk;
+    } else {
+      regel = kandidaat;
+    }
+  }
+  if (regel) regels.push(regel);
+  return regels;
+}
+
 function tekenInVak(
   pagina: PDFPage,
   letter: PDFFont,
   tekst: string,
   vak: { x: number; y: number; width: number; height: number },
 ): void {
-  const grootte = Math.min(11, Math.max(8, vak.height - 6));
-  const max = Math.max(20, vak.width - 4);
-  const regels: string[] = [];
-  let regel = '';
-  for (const woord of tekst.split(/\s+/)) {
-    const kandidaat = regel ? `${regel} ${woord}` : woord;
-    if (letter.widthOfTextAtSize(kandidaat, grootte) > max && regel) {
-      regels.push(regel);
-      regel = woord;
-    } else {
-      regel = kandidaat;
-    }
+  const max = Math.max(12, vak.width - 4);
+  let grootte = Math.min(11, Math.max(8, vak.height - 6));
+  let regels = verpakVak(letter, tekst, grootte, max);
+  while (regels.length * (grootte + 1) > vak.height - 2 && grootte > 6) {
+    grootte = Math.round((grootte - 0.5) * 10) / 10;
+    regels = verpakVak(letter, tekst, grootte, max);
   }
-  if (regel) regels.push(regel);
   let y = vak.y + vak.height - grootte - 1;
   for (const stuk of regels) {
     if (y < vak.y) break;
