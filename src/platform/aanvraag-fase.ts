@@ -191,7 +191,8 @@ export function leesAanvraagFilter(params: { get(naam: string): string | null })
     };
   }
   const fase = params.get('fase');
-  if (!fase || fase === 'alle') return { modus: 'fase', fase: 'alle', technisch: null, melding: '' };
+  if (!fase) return { modus: 'fase', fase: 'nieuw', technisch: null, melding: '' };
+  if (fase === 'alle') return { modus: 'fase', fase: 'alle', technisch: null, melding: '' };
   if ((FASE_FILTERS as readonly string[]).includes(fase)) {
     return { modus: 'fase', fase: fase as FaseFilter, technisch: null, melding: '' };
   }
