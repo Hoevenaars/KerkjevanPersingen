@@ -1,8 +1,7 @@
 /**
  * Planningmail voor gastbegeleiders.
  * Samenstellen, voorbeeld en het besluit om te versturen doen geen provider-call.
- * Een meerdaagse boeking rekent op twee gastbegeleiders, een eendaagse op één.
- * Dat volgt de mail, niet de knop op het bord: één naam op een weekend blijft open.
+ * Eén gastbegeleider vult een dienst, ook bij een weekend. Zonder naam blijft de dienst open.
  */
 
 import { createHash } from 'node:crypto';
@@ -11,8 +10,7 @@ import { dagenVerschil, isYmd, kalenderdatumNl, periodesOverlappen, voegDagenToe
 import { hoortOpGastbegeleiderbord, leesbareTitel } from './verhuur-classificatie.ts';
 
 export const PLANNING_MAIL_SLEUTEL = 'planning_mail';
-export const GASTBEGELEIDERS_PER_EENDAGSE_DIENST = 1;
-export const GASTBEGELEIDERS_PER_MEERDAAGSE_DIENST = 2;
+export const GASTBEGELEIDERS_PER_DIENST = 1;
 export const PLANNING_MAIL_MAX_DAGEN = 366;
 
 const WEEKDAGEN = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'] as const;
@@ -193,10 +191,8 @@ export function openstaandeTekst(ingevuld: number, verwacht: number): string | n
   return `Nog ${tekort} gastbegeleiders nodig`;
 }
 
-export function verwachtAantal(start: string, eind: string): number {
-  return dagenVerschil(start, eind) >= 1
-    ? GASTBEGELEIDERS_PER_MEERDAAGSE_DIENST
-    : GASTBEGELEIDERS_PER_EENDAGSE_DIENST;
+export function verwachtAantal(_start: string, _eind: string): number {
+  return GASTBEGELEIDERS_PER_DIENST;
 }
 
 export function datumMetWeekdag(ymd: string): string {
