@@ -19,6 +19,7 @@ import type { Json } from '../database.types.ts';
 import { contentStatusVanInhoud, directeFotoUrl, hoortOpPubliekeAgenda, maandenVanTrigger, triggerIsBekend } from '../agenda-zichtbaarheid.ts';
 import { beheerRedirect } from '../beheer-http.ts';
 import { leesbareAuthFout, voerDossierViaSessie, type DossierSessie } from './dossier-sessie.ts';
+import { koppelGastherenViaSessie, leesBegeleiderKeuzes, type GastheerSessie } from './gastheer-koppelen.ts';
 import {
   legeWereld,
   readinessVanBoeking,
@@ -712,6 +713,16 @@ export async function postAlsSupabase(input: {
   try {
     const data = input.formulier ?? await input.request.formData();
     const actie = String(data.get('actie') ?? '');
+    const keuzes = actie === 'bewaar' ? leesBegeleiderKeuzes(data) : [];
+    if (keuzes.length > 0) {
+      if (!isDossierSessie(input.sessie)) {
+        doel.searchParams.set('fout', 'Geen ingelogde sessie. Er is niets gewijzigd. De service-role is niet gebruikt.');
+        return beheerRedirect(doel);
+      }
+      const uit = await koppelGastherenViaSessie(input.sessie as GastheerSessie, keuzes, input.actor);
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+      return beheerRedirect(doel);
+    }
     if (NIET_BESCHIKBAAR.has(actie)) {
       doel.searchParams.set('fout', 'Nog niet beschikbaar. Er is niets opgeslagen en er is geen mail verstuurd.');
       return beheerRedirect(doel);

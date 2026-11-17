@@ -161,7 +161,7 @@ test('expositie heet Expositiebegeleider en een ander type Gastheer', () => {
   assert.equal(gastbegeleiderOntbreekt({ soort: 'concert', heeftKoppeling: false }), false);
   assert.equal(hoortOpGastbegeleiderbord('migratie_vastgelegd'), true);
   const planning = readFileSync(new URL('../src/pages/beheer/planning/index.astro', import.meta.url), 'utf8');
-  assert.match(planning, /name="gastheerId"/);
+  assert.match(planning, /name=\{`begeleider:\$\{b\.id\}`\}/);
   assert.match(planning, /hoortOpGastbegeleiderbord/);
   assert.doesNotMatch(planning, /gastbegeleiderRelevant/);
 });

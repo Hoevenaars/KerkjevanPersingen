@@ -21,11 +21,13 @@ export function filterGastheren<T extends { actief: boolean }>(lijst: readonly T
  * Nieuwe koppelingen bieden alleen actieve gastheren.
  * De al gekoppelde gastheer blijft in de lijst, ook als die niet actief is.
  */
-export function gastherenVoorKoppeling<T extends { id: string; actief: boolean }>(
+export function gastherenVoorKoppeling<T extends { id: string; naam?: string; actief: boolean }>(
   lijst: readonly T[],
   huidigeId?: string | null,
 ): T[] {
-  return lijst.filter((gastheer) => gastheer.actief || (huidigeId != null && gastheer.id === huidigeId));
+  return lijst
+    .filter((gastheer) => gastheer.actief || (huidigeId != null && gastheer.id === huidigeId))
+    .sort((a, b) => (a.naam ?? '').localeCompare(b.naam ?? '', 'nl', { sensitivity: 'base' }) || a.id.localeCompare(b.id));
 }
 
 export const GASTHEER_VERWIJDER_GEKOPPELD =
