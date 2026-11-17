@@ -1,0 +1,286 @@
+---
+import { verzendmoment, type PlanningMailHistorie, type PlanningOntvanger } from '../../platform/planning-mail.ts';
+
+interface Props {
+  stap: 'kies' | 'bevestig' | 'resultaat' | 'historie';
+  terugHref: string;
+  startHref: string;
+  voorbeeldHref: string;
+  behouden: { naam: string; waarde: string }[];
+  van: string;
+  tot: string;
+  periodeFout: string | null;
+  gepland: number;
+  openstaand: number;
+  ontvangers: PlanningOntvanger[];
+  zonderEmail: { id: string; naam: string }[];
+  voorbeeldOpties: PlanningOntvanger[];
+  voorbeeldEmail: string;
+  voorbeeldHtml: string;
+  toonVoorbeeld: boolean;
+  magVersturen: boolean;
+  blokkade: string;
+  waarschuwing: string;
+  bevestigHref: string;
+  token: string;
+  dubbel: boolean;
+  dubbelMoment: string;
+  historie: PlanningMailHistorie[];
+  historieHref: (id: string) => string;
+  resultaat: PlanningMailHistorie | null;
+}
+
+const {
+  stap,
+  terugHref,
+  startHref,
+  voorbeeldHref,
+  behouden,
+  van,
+  tot,
+  periodeFout,
+  gepland,
+  openstaand,
+  ontvangers,
+  zonderEmail,
+  voorbeeldOpties,
+  voorbeeldEmail,
+  voorbeeldHtml,
+  toonVoorbeeld,
+  magVersturen,
+  blokkade,
+  waarschuwing,
+  bevestigHref,
+  token,
+  dubbel,
+  dubbelMoment,
+  historie,
+  historieHref,
+  resultaat,
+} = Astro.props;
+
+function statusTekst(status: PlanningMailHistorie['status']): string {
+  if (status === 'verzonden') return 'Verzonden';
+  if (status === 'deels') return 'Gedeeltelijk verzonden';
+  if (status === 'bezig') return 'Bezig';
+  return 'Niet verzonden';
+}
+
+function ontvangerStatus(status: string): string {
+  if (status === 'verzonden') return 'Verzonden';
+  if (status === 'fout') return 'Mislukt';
+  return 'Wacht';
+}
+---
+
+<section class="pm" aria-labelledby="pm-titel">
+  <p class="pm-terug"><a href={terugHref}>Terug naar de lijst</a></p>
+  <h2 id="pm-titel">Planning mailen</h2>
+  <ol class="pm-stappen">
+    <li>Kies de periode</li>
+    <li>Bekijk het voorbeeld</li>
+    <li>Verstuur de planning</li>
+  </ol>
+  <p class="pm-letop">Er wordt niets verstuurd door een periode te kiezen, het voorbeeld te openen of de planning op te slaan.</p>
+
+  {stap === 'historie' && (
+    <p class="pm-actie"><a class="pm-knop pm-knop--primair" href={startHref}>Planning mailen</a></p>
+  )}
+
+  {resultaat && (
+    <div class="pm-resultaat">
+      <h3>Resultaat</h3>
+      <p>{statusTekst(resultaat.status)}. {resultaat.gelukt} van {resultaat.aantal} verzonden. Gestart door {resultaat.gestartDoorNaam}{resultaat.verzondenOp ? ` op ${verzendmoment(resultaat.verzondenOp)}` : ''}.</p>
+      <p>Periode: {resultaat.snapshot.periodeTekst || `${resultaat.van} t/m ${resultaat.tot}`}.</p>
+      {resultaat.toelichting && <p>{resultaat.toelichting}</p>}
+      <ul class="pm-lijst">
+        {resultaat.ontvangers.map((ontvanger) => (
+          <li>
+            <strong>{ontvanger.naam}</strong><br />
+            {ontvanger.email}<br />
+            {ontvangerStatus(ontvanger.status)}
+            {ontvanger.foutmelding ? ` — ${ontvanger.foutmelding}` : ''}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+
+  {stap !== 'historie' && (
+    <form class="pm-form" method="get" action="/beheer/planning/">
+      <input type="hidden" name="mail" value={stap === 'bevestig' ? 'bevestig' : '1'} />
+      {behouden.map((veld) => <input type="hidden" name={veld.naam} value={veld.waarde} />)}
+      <div class="pm-veld">
+        <label for="mailVan">Begindatum</label>
+        <input id="mailVan" name="mailVan" type="date" value={van} required />
+      </div>
+      <div class="pm-veld">
+        <label for="mailTot">Einddatum</label>
+        <input id="mailTot" name="mailTot" type="date" value={tot} required />
+      </div>
+      {voorbeeldOpties.length > 1 && (
+        <div class="pm-veld pm-veld--breed">
+          <label for="mailVoor">Voorbeeld voor</label>
+          <select id="mailVoor" name="mailVoor">
+            {voorbeeldOpties.map((ontvanger) => (
+              <option value={ontvanger.email} selected={ontvanger.email === voorbeeldEmail}>{ontvanger.naam}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      <button class="pm-knop" type="submit">Toon voorbeeld</button>
+    </form>
+  )}
+
+  {periodeFout && <p class="pm-fout" role="alert">{periodeFout}</p>}
+  {waarschuwing && <p class="pm-fout">{waarschuwing}</p>}
+
+  {toonVoorbeeld && !periodeFout && (
+    <>
+      <dl class="pm-telling">
+        <div>
+          <dt>Geplande diensten</dt>
+          <dd>{gepland}</dd>
+        </div>
+        <div>
+          <dt>Nog openstaand</dt>
+          <dd>{openstaand}</dd>
+        </div>
+        <div>
+          <dt>Ontvangen de mail</dt>
+          <dd>{ontvangers.length}</dd>
+        </div>
+      </dl>
+      <p class="pm-uitleg">Een weekend of andere meerdaagse boeking rekent op twee gastbegeleiders. Met één naam staat er: Nog 1 gastbegeleider nodig. Een eendaagse boeking is vol zodra er één naam staat.</p>
+
+      <h3>Ontvangers</h3>
+      {ontvangers.length === 0 ? (
+        <p>Er is geen actieve gastbegeleider met een e-mailadres.</p>
+      ) : (
+        <ul class="pm-lijst">
+          {ontvangers.map((ontvanger) => (
+            <li><strong>{ontvanger.naam}</strong><br />{ontvanger.email}</li>
+          ))}
+        </ul>
+      )}
+      {zonderEmail.length > 0 && (
+        <p>Deze actieve gastbegeleiders hebben geen e-mailadres en ontvangen de mail niet: {zonderEmail.map((persoon) => persoon.naam).join(', ')}.</p>
+      )}
+
+      {voorbeeldHtml && (
+        <>
+          <h3>Voorbeeld van de e-mail</h3>
+          <p>Dit is de mail zoals één gastbegeleider die ontvangt. Er is nog niets verstuurd.</p>
+          <iframe class="pm-voorbeeld" title="Voorbeeld van de e-mail" sandbox="" srcdoc={voorbeeldHtml}></iframe>
+        </>
+      )}
+
+      {stap === 'kies' && magVersturen && (
+        <p class="pm-actie"><a class="pm-knop pm-knop--primair" href={bevestigHref}>Planning verzenden</a></p>
+      )}
+      {(stap === 'kies' || stap === 'bevestig') && !magVersturen && blokkade && <p class="pm-fout">{blokkade}</p>}
+
+      {stap === 'bevestig' && magVersturen && (
+        <form class="pm-bevestig" method="post" action="/beheer/planning/">
+          <input type="hidden" name="actie" value="planning-verzend" />
+          <input type="hidden" name="bevestig" value="ja" />
+          <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="mailVan" value={van} />
+          <input type="hidden" name="mailTot" value={tot} />
+          {behouden.map((veld) => <input type="hidden" name={veld.naam} value={veld.waarde} />)}
+          <h3>Bevestig de verzending</h3>
+          <p>De e-mail gaat nu naar {ontvangers.length} {ontvangers.length === 1 ? 'gastbegeleider' : 'gastbegeleiders'}. Dit kunt u daarna niet terugnemen.</p>
+          {dubbel && (
+            <label class="pm-vink">
+              <input type="checkbox" name="opnieuw" value="ja" />
+              <span>Deze zelfde planning is al verstuurd{dubbelMoment ? ` op ${dubbelMoment}` : ''}. Ik wil die bewust nog een keer sturen.</span>
+            </label>
+          )}
+          <div class="pm-actie">
+            <button class="pm-knop pm-knop--primair" type="submit">Ja, verstuur de planning</button>
+            <a class="pm-knop" href={voorbeeldHref}>Nee, terug naar het voorbeeld</a>
+          </div>
+        </form>
+      )}
+    </>
+  )}
+
+  <h3>Eerder verzonden</h3>
+  {historie.length === 0 ? (
+    <p>Er is nog geen planningmail verstuurd.</p>
+  ) : (
+    <ul class="pm-lijst">
+      {historie.map((item) => (
+        <li>
+          <a href={historieHref(item.id)}>
+            <strong>{verzendmoment(item.verzondenOp || item.aangemaaktOp)}</strong><br />
+            {item.snapshot.periodeTekst || `${item.van} t/m ${item.tot}`}<br />
+            {item.gestartDoorNaam} · {statusTekst(item.status)} · {item.gelukt} van {item.aantal}
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</section>
+
+<style>
+  .pm {
+    margin: 0 0 2rem;
+    padding: 1.25rem;
+    background: #fffdf9;
+    border: 1px solid #d9cfbc;
+    border-radius: 12px;
+    font-size: 1.125rem;
+    line-height: 1.5;
+  }
+  .pm h2, .pm h3 { font-family: var(--font-display); color: var(--pine); margin: 0 0 0.75rem; }
+  .pm h2 { font-size: 1.75rem; }
+  .pm h3 { font-size: 1.35rem; margin-top: 1.5rem; }
+  .pm p { margin: 0 0 0.8rem; }
+  .pm-terug { margin-bottom: 0.5rem; }
+  .pm-stappen { margin: 0 0 0.8rem; padding-left: 1.3rem; }
+  .pm-letop { color: var(--ink-soft); }
+  .pm-form, .pm-actie { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-end; margin: 1rem 0; }
+  .pm-veld { display: flex; flex-direction: column; gap: 0.35rem; min-width: 12rem; }
+  .pm-veld--breed { min-width: 16rem; flex: 1; }
+  .pm-veld label, .pm-vink { font-weight: 650; }
+  .pm-veld input, .pm-veld select {
+    min-height: 52px;
+    font: inherit;
+    padding: 0 0.75rem;
+    border: 1px solid #bfb6a7;
+    border-radius: 7px;
+    background: #fff;
+  }
+  .pm-knop {
+    min-height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1.1rem;
+    border-radius: 7px;
+    border: 1px solid var(--pine);
+    background: #fff;
+    color: var(--pine);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .pm-knop--primair { background: var(--brick); border-color: var(--brick); color: #fff; }
+  .pm-telling { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; margin: 1rem 0; }
+  .pm-telling div { background: var(--cream); padding: 0.8rem; border-radius: 8px; }
+  .pm-telling dt { font-size: 1rem; }
+  .pm-telling dd { margin: 0.2rem 0 0; font-size: 1.8rem; font-weight: 700; color: var(--pine); }
+  .pm-lijst { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.7rem; }
+  .pm-lijst li { padding-bottom: 0.7rem; border-bottom: 1px solid #e4dccb; }
+  .pm-voorbeeld { width: 100%; min-height: 720px; border: 1px solid #d9cfbc; border-radius: 8px; background: #fff; }
+  .pm-fout { color: var(--brick-dark, #7a341f); font-weight: 700; }
+  .pm-vink { display: flex; gap: 0.7rem; align-items: flex-start; margin: 0.5rem 0 1rem; }
+  .pm-vink input { width: 1.4rem; height: 1.4rem; margin-top: 0.2rem; }
+  .pm-bevestig { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #d9cfbc; }
+  @media (max-width: 700px) {
+    .pm-telling { grid-template-columns: 1fr; }
+    .pm-knop, .pm-actie .pm-knop { width: 100%; }
+  }
+</style>

@@ -39,7 +39,7 @@ test('contact, nieuwe aanvraag en de nieuwsbrief mogen een provider', async () =
   assert.equal(magAutomatiseringUitvoeren('aanvraag_bestuur').provider, true);
   assert.equal(magAutomatiseringUitvoeren('nieuwsbrief').provider, true);
   const actief = STANDAARD_AUTOMATISERINGEN.filter((item) => item.status === 'actief').map((item) => item.sleutel);
-  assert.deepEqual(actief.sort(), ['aanvraag_bestuur', 'contact_bestuur', 'nieuwsbrief']);
+  assert.deepEqual(actief.sort(), ['aanvraag_bestuur', 'contact_bestuur', 'nieuwsbrief', 'planning_mail']);
 
   let aangeroepen = 0;
   const uit = await verstuurGecontroleerd(
