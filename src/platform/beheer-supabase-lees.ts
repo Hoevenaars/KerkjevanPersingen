@@ -182,6 +182,17 @@ export async function leesSupabaseBeheer(
   client: SupabaseLeesClient,
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
+  async function leesNieuwsbrieven(): Promise<Record<string, unknown>[]> {
+    const met = 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd,aangemaakt_op';
+    try {
+      return await lees(client, 'nieuwsbrieven', met);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('aangemaakt_op')) throw error;
+      return lees(client, 'nieuwsbrieven', 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd');
+    }
+  }
+
   async function leesRelaties(): Promise<Record<string, unknown>[]> {
     const metSinds = 'id,naam,organisatie,email,telefoon,adres,notities,op_reservelijst,reservelijst_sinds';
     try {
@@ -201,7 +212,7 @@ export async function leesSupabaseBeheer(
     lees(client, 'interne_activiteiten', 'id,titel,start_datum,eind_datum,blokkeert_verhuurkalender,notities'),
     lees(client, 'gastbegeleider_toewijzingen', 'id,boeking_id,relatie_id,datum,type'),
     lees(client, 'vrienden', 'id,naam,email,telefoon,geboortedatum,actief,frequentie'),
-    lees(client, 'nieuwsbrieven', 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd'),
+    leesNieuwsbrieven(),
     lees(client, 'documenten', 'id,boeking_id,bestandsnaam,type,geupload_op,storage_pad,mime_type'),
     lees(client, 'communicatie_templates', 'id,sleutel,naam,verhuurtype_sleutel,trigger_soort,termijn_waarde,termijn_eenheid,verzendwijze,ontvanger_rol'),
     lees(client, 'instellingen', 'sleutel,waarde'),
@@ -446,6 +457,7 @@ export async function leesSupabaseBeheer(
       donatieUpdate: tekst(rij.donatie_update),
       overgeslagen: Boolean(rij.overgeslagen),
       verstuurd: Boolean(rij.verstuurd),
+      aangemaaktOp: tekst(rij.aangemaakt_op).slice(0, 10),
     })),
     templates,
     instellingen: instellingenUit(instellingRijen),
