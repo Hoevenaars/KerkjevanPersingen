@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../src/platform/status-overgang.ts';
-import { classificeerVerhuurtype, gastbegeleiderOntbreekt, gastbegeleiderRelevant, hoortOpGastbegeleiderbord, leesBegeleiderKeuze, leesGastbegeleiderZoek, leesbareTitel, pastBegeleiderKeuze, pastGastbegeleiderZoek } from '../src/platform/verhuur-classificatie.ts';
+import { classificeerVerhuurtype, deelGastbegeleiderPlanning, gastbegeleiderOntbreekt, gastbegeleiderRelevant, gastheerIdsVanPersoon, hoortOpGastbegeleiderbord, leesBegeleiderKeuze, leesGastbegeleiderZoek, leesbareTitel, pastBegeleiderKeuze, pastGastbegeleiderZoek } from '../src/platform/verhuur-classificatie.ts';
 import { voerDossierViaSessie, type DossierSessie } from '../src/lib/operatie/dossier-sessie.ts';
 import type { Actor } from '../src/lib/operatie/kern.ts';
 import { stelPlanning, type PlanningInvoer } from '../src/platform/planning.ts';
@@ -70,6 +70,35 @@ test('het gastbegeleiderbord toont elke boeking behalve geannuleerd, afgewezen e
   assert.equal(hoortOpGastbegeleiderbord('geannuleerd'), false);
   assert.equal(hoortOpGastbegeleiderbord('afgewezen'), false);
   assert.equal(hoortOpGastbegeleiderbord('gearchiveerd'), false);
+});
+
+test('planning toont alleen eigen diensten en open exposities', () => {
+  const gastheren = [
+    { id: 'g-1', naam: 'Henk Vos', email: 'henk@voorbeeld.nl' },
+    { id: 'g-2', naam: 'Ineke de Wit', email: 'ineke@voorbeeld.nl' },
+    { id: 'g-3', naam: 'Henk Vos', email: 'ander@voorbeeld.nl' },
+  ];
+  assert.deepEqual(gastheerIdsVanPersoon(gastheren, { email: 'Henk@voorbeeld.nl', naam: 'Iemand' }), ['g-1']);
+  assert.deepEqual(gastheerIdsVanPersoon(gastheren, { email: '', naam: 'Ineke de Wit' }), ['g-2']);
+  assert.deepEqual(gastheerIdsVanPersoon(gastheren, { email: '', naam: 'Henk Vos' }), []);
+  const boekingen = [
+    { id: 'mij', start: '2026-12-05', eind: '2026-12-06', titel: 'Mijn expositie', huurder: 'Ada', soort: 'expositie', status: 'definitief', gastheerId: 'g-1' },
+    { id: 'open', start: '2026-11-21', eind: '2026-11-22', titel: 'November 21/22', huurder: 'Bo', soort: 'expositie', status: 'optie' },
+    { id: 'ander', start: '2026-12-12', eind: '2026-12-13', titel: 'Van Ineke', huurder: 'Cis', soort: 'expositie', status: 'definitief', gastheerId: 'g-2' },
+    { id: 'bruiloft', start: '2026-12-19', eind: '2026-12-19', titel: 'Bruiloft', huurder: 'Kim', soort: 'bruiloft', status: 'definitief' },
+    { id: 'geweest', start: '2026-09-01', eind: '2026-09-02', titel: 'Al geweest', huurder: 'Bo', soort: 'expositie', status: 'definitief' },
+    { id: 'weg', start: '2026-12-24', eind: '2026-12-25', titel: 'Afgelast', huurder: 'Bo', soort: 'expositie', status: 'geannuleerd' },
+    { id: 'hulp', start: '2027-01-09', eind: '2027-01-10', titel: 'Assist', huurder: 'Do', soort: 'concert', status: 'definitief' },
+  ];
+  const delen = deelGastbegeleiderPlanning({
+    boekingen,
+    vandaag: '2026-11-17',
+    eigenIds: ['g-1'],
+    toewijzingen: [{ boekingId: 'hulp', relatieId: 'g-1' }],
+  });
+  assert.deepEqual(delen.eigen.map((item) => item.id), ['mij', 'hulp']);
+  assert.deepEqual(delen.open.map((item) => item.id), ['open']);
+  assert.equal(leesbareTitel(delen.open[0].titel, delen.open[0].huurder), 'Bo');
 });
 
 test('filter zonder type raakt alleen lege types', () => {

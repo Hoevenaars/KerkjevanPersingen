@@ -2,23 +2,20 @@
 export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
-import { demoNaActie, formatMaandNl, formatNl, gastheerVan } from '../../../platform/demo-data';
+import { demoNaActie, formatNl } from '../../../platform/demo-data';
 import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
-import { gastbegeleidersPerBoeking, metTerug } from '../../../platform/planning.ts';
+import { metTerug } from '../../../platform/planning.ts';
 import {
-  hoortOpGastbegeleiderbord,
-  leesBegeleiderKeuze,
-  leesGastbegeleiderZoek,
+  deelGastbegeleiderPlanning,
+  gastheerIdsVanPersoon,
   leesbareTitel,
-  pastBegeleiderKeuze,
-  pastGastbegeleiderZoek,
+  type PlanningBoeking,
 } from '../../../platform/verhuur-classificatie.ts';
-import { leesSchermFilter } from '../../../platform/verhuur-scherm.ts';
-import { vensterVan } from '../../../platform/verhuur-overzicht.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
 
 if (Astro.request.method === 'POST') {
   const operationeel = await postAlsSupabase({
@@ -37,162 +34,124 @@ const flash = Astro.url.searchParams.get('demo') === '1';
 const melding = Astro.url.searchParams.get('melding');
 const fout = Astro.url.searchParams.get('fout');
 const vandaag = ymdInAmsterdam(new Date());
-const filter = leesSchermFilter(Astro.url.searchParams, vandaag);
 const bronParam = Astro.url.searchParams.get('bron') ?? '';
-const zoek = leesGastbegeleiderZoek(Astro.url.searchParams.get('q'));
-const begeleiderKeuze = leesBegeleiderKeuze(Astro.url.searchParams.getAll('begeleider'));
-const lijstQuery = new URLSearchParams();
-lijstQuery.set('jaar', String(filter.jaar));
-lijstQuery.set('maand', filter.maand == null ? 'alle' : String(filter.maand));
-if (zoek) lijstQuery.set('q', zoek);
-if (begeleiderKeuze !== 'alle') lijstQuery.set('begeleider', begeleiderKeuze);
-if (bronParam) lijstQuery.set('bron', bronParam);
-const lijstPad = `/beheer/planning/?${lijstQuery.toString()}`;
-const gastNamen = gastbegeleidersPerBoeking(
-  snapshot.toewijzingen ?? [],
-  snapshot.boekingen.flatMap((boeking) => {
-    const gekoppeld = gastheerVan(boeking.gastheerId, snapshot.gastheren);
-    return gekoppeld ? [{ boekingId: boeking.id, naam: gekoppeld.naam }] : [];
-  }),
-);
-const gekoppeldeBoekingen = new Set((snapshot.toewijzingen ?? []).map((item) => item.boekingId));
-const venster = vensterVan(filter.jaar, filter.maand);
-const jaren = new Set<number>([filter.jaar, 2026, 2027, 2028, 2029]);
-for (const boeking of snapshot.boekingen) {
-  if (boeking.start) jaren.add(Number(boeking.start.slice(0, 4)));
-}
-const jaarKeuze = [...jaren].filter((jaar) => Number.isInteger(jaar) && jaar > 1900).sort((a, b) => a - b);
-const maanden = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((nummer) => {
-  const sleutel = `${filter.jaar}-${String(nummer).padStart(2, '0')}`;
-  return { waarde: String(nummer), label: formatMaandNl(sleutel).replace(` ${filter.jaar}`, '') };
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const magIndelen = magSchrijven(rechten, 'planning') || magSchrijven(rechten, 'boekingen');
+const persoon = Astro.locals.beheer?.gebruiker;
+const eigenIds = gastheerIdsVanPersoon(snapshot.gastheren, {
+  email: persoon?.email ?? '',
+  naam: persoon?.naam ?? '',
 });
-function heeftKoppeling(boekingId: string, gastheerId?: string): boolean {
-  if (gastheerId) return true;
-  if (gekoppeldeBoekingen.has(boekingId)) return true;
-  return Boolean(gastNamen.get(boekingId));
+const delen = deelGastbegeleiderPlanning({
+  boekingen: snapshot.boekingen.map((boeking) => ({
+    id: boeking.id,
+    start: boeking.start,
+    eind: boeking.eind,
+    titel: boeking.interneTitel,
+    huurder: boeking.huurder,
+    soort: boeking.soort,
+    status: boeking.status,
+    gastheerId: boeking.gastheerId,
+  })),
+  vandaag,
+  eigenIds,
+  toewijzingen: (snapshot.toewijzingen ?? []).map((item) => ({
+    boekingId: item.boekingId,
+    relatieId: item.relatieId,
+  })),
+});
+const lijstPad = bronParam ? `/beheer/planning/?bron=${encodeURIComponent(bronParam)}` : '/beheer/planning/';
+
+function periode(boeking: PlanningBoeking): string {
+  if (boeking.eind && boeking.eind !== boeking.start) return `${formatNl(boeking.start)} – ${formatNl(boeking.eind)}`;
+  return formatNl(boeking.start);
 }
-function inVenster(start: string, eind: string): boolean {
-  return eind >= venster.start && start <= venster.eind;
-}
-const exposities = snapshot.boekingen
-  .filter((b) => hoortOpGastbegeleiderbord(b.status) && inVenster(b.start, b.eind))
-  .filter((b) => pastBegeleiderKeuze(heeftKoppeling(b.id, b.gastheerId), begeleiderKeuze))
-  .filter((b) => pastGastbegeleiderZoek(zoek, [
-    leesbareTitel(b.interneTitel, b.huurder),
-    b.interneTitel,
-    b.huurder,
-    gastNamen.get(b.id) ?? '',
-    formatNl(b.start),
-    b.eind === b.start ? '' : formatNl(b.eind),
-  ]))
-  .sort((a, b) => a.start.localeCompare(b.start) || a.interneTitel.localeCompare(b.interneTitel));
-const lijstLeeg = zoek || begeleiderKeuze !== 'alle'
-  ? 'Geen boekingen voor deze zoekopdracht of dit filter.'
-  : 'Geen boekingen in deze periode.';
 ---
 
-<Beheer titel="Gastbegeleiders">
+<Beheer titel="Planning">
   <header class="bh-top">
-    <h1>Gastbegeleiders</h1>
+    <h1>Planning</h1>
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
   {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
-  <form class="kc-filters" method="get" action="/beheer/planning/">
-    {bronParam && <input type="hidden" name="bron" value={bronParam} />}
-    <div class="kc-veld">
-      <label for="jaar">Jaar</label>
-      <select id="jaar" name="jaar" onchange="this.form.requestSubmit()">
-        {jaarKeuze.map((jaar) => (
-          <option value={jaar} selected={jaar === filter.jaar}>{jaar}</option>
-        ))}
-      </select>
-    </div>
-    <div class="kc-veld">
-      <label for="maand">Maand</label>
-      <select id="maand" name="maand" onchange="this.form.requestSubmit()">
-        <option value="alle" selected={filter.maand == null}>Heel het jaar</option>
-        {maanden.map((maand) => (
-          <option value={maand.waarde} selected={String(filter.maand ?? '') === maand.waarde}>{maand.label}</option>
-        ))}
-      </select>
-    </div>
-    <div class="kc-veld kc-veld--zoek">
-      <label for="query">Zoek exposant of begeleider</label>
-      <input id="query" class="kc-zoek" name="q" type="search" placeholder="Bijvoorbeeld: Marieke Jansen" value={zoek} />
-    </div>
-    <details class="kc-filter" open={begeleiderKeuze !== 'alle'}>
-      <summary>Filter{begeleiderKeuze === 'alle' ? '' : ' (1)'}</summary>
-      <div class="kc-filter-paneel">
-        <label class="kc-vink">
-          <input type="radio" name="begeleider" value="alle" checked={begeleiderKeuze === 'alle'} onchange="this.form.requestSubmit()" />
-          Alle boekingen
-        </label>
-        <label class="kc-vink">
-          <input type="radio" name="begeleider" value="ja" checked={begeleiderKeuze === 'ja'} onchange="this.form.requestSubmit()" />
-          Begeleider ingepland
-        </label>
-        <label class="kc-vink">
-          <input type="radio" name="begeleider" value="nee" checked={begeleiderKeuze === 'nee'} onchange="this.form.requestSubmit()" />
-          Geen begeleider
-        </label>
-      </div>
-    </details>
-    <button class="kc-knop" type="submit">Toon</button>
-  </form>
+  <section class="bh-kaart">
+    <h2>Eigen planning</h2>
+    {
+      delen.eigen.length === 0 ? (
+        <p class="bh-leeg">Geen diensten op jouw naam.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Activiteit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {delen.eigen.map((boeking) => (
+              <tr>
+                <td>{periode(boeking)}</td>
+                <td>
+                  <a href={metTerug(`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`, lijstPad)}>
+                    {leesbareTitel(boeking.titel, boeking.huurder)}
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </section>
 
-  {exposities.length === 0 ? (
-    <p class="bh-leeg">{lijstLeeg}</p>
-  ) : (
-  <table class="bh-tabel">
-    <thead>
-      <tr>
-        <th>Boeking</th>
-        <th>Datum</th>
-        <th>Exposant</th>
-        <th>Expositiebegeleider</th>
-      </tr>
-    </thead>
-    <tbody>
-      {
-        exposities.map((b) => (
-          <tr>
-            <td>
-              <a href={metTerug(`/beheer/boekingen/${encodeURIComponent(b.id)}/`, lijstPad)}>{leesbareTitel(b.interneTitel, b.huurder)}</a>
-            </td>
-            <td>
-              {formatNl(b.start)}
-              {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
-            </td>
-            <td>{b.huurder}</td>
-            <td>
-              {!heeftKoppeling(b.id, b.gastheerId) && (
-                <span class="bh-badge">ontbreekt</span>
-              )}
-              <form method="post" class="bh-form bh-form-rij">
-                <input type="hidden" name="boekingId" value={b.id} />
-                <label class="visually-hidden" for={`g-${b.id}`}>
-                  Expositiebegeleider voor {b.interneTitel}
-                </label>
-                <select id={`g-${b.id}`} name="gastheerId">
-                  <option value="">Nog niet ingepland</option>
-                  {gastherenVoorKoppeling(snapshot.gastheren, b.gastheerId).map((g) => (
-                    <option value={g.id} selected={g.id === b.gastheerId}>
-                      {g.actief ? g.naam : `${g.naam} (niet actief)`}
-                    </option>
-                  ))}
-                </select>
-                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
-                  Bewaar
-                </button>
-              </form>
-            </td>
-          </tr>
-        ))
-      }
-    </tbody>
-  </table>
-  )}
+  <section class="bh-kaart">
+    <h2>Open diensten</h2>
+    {
+      delen.open.length === 0 ? (
+        <p class="bh-leeg">Geen open diensten.</p>
+      ) : (
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Activiteit</th>
+              {magIndelen && <th>Indelen</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {delen.open.map((boeking) => (
+              <tr>
+                <td>{periode(boeking)}</td>
+                <td>
+                  <a href={metTerug(`/beheer/boekingen/${encodeURIComponent(boeking.id)}/`, lijstPad)}>
+                    {leesbareTitel(boeking.titel, boeking.huurder)}
+                  </a>
+                </td>
+                {magIndelen && (
+                  <td>
+                    <form method="post" class="bh-form bh-form-rij">
+                      <input type="hidden" name="boekingId" value={boeking.id} />
+                      <label class="visually-hidden" for={`g-${boeking.id}`}>
+                        Begeleider voor {leesbareTitel(boeking.titel, boeking.huurder)}
+                      </label>
+                      <select id={`g-${boeking.id}`} name="gastheerId" required>
+                        <option value="">Kies een begeleider</option>
+                        {gastherenVoorKoppeling(snapshot.gastheren).map((gast) => (
+                          <option value={gast.id}>{gast.naam}</option>
+                        ))}
+                      </select>
+                      <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">Bewaar</button>
+                    </form>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </section>
 </Beheer>
