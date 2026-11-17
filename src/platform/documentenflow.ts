@@ -509,7 +509,12 @@ export function versiePastBijGegevens(
   bron: ContractBron,
   instellingen: DocumentenflowInstellingen,
 ): boolean {
-  return versie.vingerafdruk === vingerafdruk(bron, versie.afspraken, instellingen);
+  const afdruk = (soort: string) => vingerafdruk({ ...bron, soort }, versie.afspraken, instellingen);
+  if (versie.vingerafdruk === afdruk(bron.soort)) return true;
+  // Oudere wizardversies zijn opgeslagen zonder verhuursoort op de boeking.
+  // Het dossier leest die soort daarna van de aanvraag. Alleen dat verschil
+  // maakt de versie niet verouderd en haalt Verzenden niet weg.
+  return Boolean(bron.soort.trim()) && versie.vingerafdruk === afdruk('');
 }
 
 export function contractnummerVoor(boekingId: string, periodeVan: string, versie: number): string {
