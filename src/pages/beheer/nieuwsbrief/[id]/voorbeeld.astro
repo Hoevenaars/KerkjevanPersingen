@@ -1,0 +1,37 @@
+---
+export const prerender = false;
+
+import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties } from '../../../../platform/beheer-bron.ts';
+import { bronnenVoorWeek, nieuwsbriefVoorbeeldHtml, type VoorbeeldBron } from '../../../../lib/nieuwsbrief-voorbeeld.ts';
+import type { NieuwsbriefInhoud } from '../../../../lib/nieuwsbrief-html.ts';
+
+const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+const id = beheerId(Astro.params.id);
+const brief = snapshot.nieuwsbrieven.find((item) => item.id === id);
+
+if (!brief) {
+  return new Response('Niet gevonden', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex, nofollow' } });
+}
+
+const params = Astro.url.searchParams;
+const kortNieuws = params.has('kort') ? (params.get('kort') ?? '') : brief.kortNieuws;
+const donatieAan = params.get('donatieAan') === '1';
+const donatie = params.has('donatie') ? (params.get('donatie') ?? '') : brief.donatieUpdate;
+const extraTitel = params.get('extraTitel') ?? '';
+const extraTekst = params.get('extraTekst') ?? '';
+const inhoud: NieuwsbriefInhoud = {
+  kortNieuws: kortNieuws || undefined,
+  donatieUpdate: donatieAan ? donatie || undefined : undefined,
+  extraBlokken: extraTitel.trim() || extraTekst.trim() ? [{ titel: extraTitel, tekst: extraTekst }] : undefined,
+};
+const bronnen: VoorbeeldBron[] = bronnenVoorWeek(snapshot);
+const { html } = nieuwsbriefVoorbeeldHtml({ weekMaandag: brief.week, inhoud, bronnen });
+
+return new Response(html, {
+  headers: {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'X-Robots-Tag': 'noindex, nofollow',
+  },
+});
+---

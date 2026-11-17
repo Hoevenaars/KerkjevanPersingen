@@ -30,13 +30,14 @@ const brieven = [...snapshot.nieuwsbrieven].sort((a, b) => b.week.localeCompare(
         <th>Week</th>
         <th>Kort nieuws</th>
         <th>Status</th>
+        <th>Preview</th>
       </tr>
     </thead>
     <tbody>
       {
         brieven.length === 0 ? (
           <tr>
-            <td colspan="3" class="bh-leeg">Geen nieuwsbriefweken.</td>
+            <td colspan="4" class="bh-leeg">Geen nieuwsbriefweken.</td>
           </tr>
         ) : (
           brieven.map((n) => {
@@ -51,6 +52,9 @@ const brieven = [...snapshot.nieuwsbrieven].sort((a, b) => b.week.localeCompare(
                 <span class={`bh-badge ${n.verstuurd ? 'bh-badge--definitief' : n.overgeslagen ? 'bh-badge--verborgen' : 'bh-badge--optie'}`}>
                   {status}
                 </span>
+              </td>
+              <td>
+                <a href={`/beheer/nieuwsbrief/${encodeURIComponent(n.id)}/voorbeeld/`}>Preview</a>
               </td>
             </tr>
             );
