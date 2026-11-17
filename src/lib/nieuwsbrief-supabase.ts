@@ -7,7 +7,7 @@ import type { Activiteit, AgendaOverzicht } from './content.ts';
 import { maandagVanWeekIso } from './week.ts';
 import { mailMeta } from './nieuwsbrief-frequentie.ts';
 import { nieuwsbriefEnvelop, NIEUWSBRIEF_REPLY_TO } from './nieuwsbrief-html.ts';
-import { kiesActiviteitenVoorMail } from './nieuwsbrief-agenda.ts';
+import { activiteitenDitWeekend, kiesActiviteitenVoorMail } from './nieuwsbrief-agenda.ts';
 import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import type { Vriend, VriendenBron } from './vrienden-supabase.ts';
 import { getVriendenVoorVerzending } from './vrienden-supabase.ts';
@@ -59,6 +59,7 @@ export type NieuwsbriefStop =
   | 'al verstuurd deze week'
   | 'geen concept'
   | 'doorlooptijd nog niet gehaald'
+  | 'geen activiteit deze week'
   | null;
 
 export interface NieuwsbriefBron {
@@ -106,6 +107,8 @@ export async function bereidNieuwsbrief(opties: {
   maakIndienOntbreekt?: boolean;
   /** Verzenden eist dat het concept de doorlooptijd van vier weken heeft gehad. */
   eisDoorlooptijd?: boolean;
+  /** Verzenden eist een publieke activiteit in het weekend van deze week. */
+  eisActiviteit?: boolean;
 }): Promise<VoorbereideNieuwsbrief> {
   const datum = opties.datum ?? new Date();
   const sleutel = opties.templateSleutel ?? 'nieuwsbrief_week';
@@ -123,13 +126,17 @@ export async function bereidNieuwsbrief(opties: {
     return { stoppen: 'doorlooptijd nog niet gehaald', week, template: null, brieven: [], voorbeeld: null };
   }
 
+  const agenda = await opties.bron.agenda();
+  if (opties.eisActiviteit && activiteitenDitWeekend(agenda.activiteiten, week.week).length === 0) {
+    return { stoppen: 'geen activiteit deze week', week, template: null, brieven: [], voorbeeld: null };
+  }
+
   const ontvangers = await getVriendenVoorVerzending(datum, opties.vrienden);
   const gekozen = (await opties.bron.template(sleutel)) ?? {
     sleutel,
     onderwerp: mailMeta('wekelijks', datum).onderwerp,
     bron: 'ingebouwd' as const,
   };
-  const agenda = await opties.bron.agenda();
   const brieven: KlaargezetteBrief[] = [];
   for (const vriend of ontvangers) {
     const brief = briefVoor(week, vriend, agenda.activiteiten, agenda.overzicht, datum);
@@ -159,6 +166,9 @@ export async function draaiNieuwsbriefDryRun(opties: {
   vrienden: VriendenBron;
   bron: NieuwsbriefBron;
   templateSleutel?: string;
+  maakIndienOntbreekt?: boolean;
+  eisDoorlooptijd?: boolean;
+  eisActiviteit?: boolean;
 }): Promise<DroogResultaat> {
   const voorbereid = await bereidNieuwsbrief(opties);
   if (voorbereid.stoppen || !voorbereid.week || !voorbereid.template) {
@@ -370,13 +380,15 @@ export function supabaseNieuwsbrief(): NieuwsbriefBron {
   };
 }
 
-export function geheugenNieuwsbrief(start?: { template?: NieuwsbriefTemplate }): NieuwsbriefBron & { verzendingen: Verzending[]; weken: NieuwsbriefWeek[] } {
+export function geheugenNieuwsbrief(start?: { template?: NieuwsbriefTemplate }): NieuwsbriefBron & { verzendingen: Verzending[]; weken: NieuwsbriefWeek[]; activiteiten: Activiteit[] } {
   const weken: NieuwsbriefWeek[] = [];
   const verzendingen: Verzending[] = [];
+  const activiteiten: Activiteit[] = [];
   let volg = 0;
   return {
     weken,
     verzendingen,
+    activiteiten,
     async week(maandag) {
       return weken.find((item) => item.week === maandag) ?? null;
     },
@@ -400,7 +412,7 @@ export function geheugenNieuwsbrief(start?: { template?: NieuwsbriefTemplate }):
       verzendingen.push(verzending);
     },
     async agenda() {
-      return { activiteiten: [], overzicht: { vandaag: null, volgende: null, daarna: null } };
+      return { activiteiten, overzicht: { vandaag: activiteiten[0] ?? null, volgende: null, daarna: null } };
     },
     async alLiveVerzonden(nieuwsbriefId) {
       return new Set(

@@ -50,16 +50,21 @@ function naarActiviteitBlok(activiteit: Activiteit, kop: string): NieuwsbriefAct
   };
 }
 
-/** Het weekendblok van één nieuwsbriefweek, dezelfde opmaak als de verstuurde mail. */
-export function blokkenVoorWeek(activiteiten: readonly Activiteit[], weekMaandag: string): NieuwsbriefActiviteitBlok[] {
+/** Publieke activiteiten die het weekend van deze nieuwsbriefweek raken. */
+export function activiteitenDitWeekend(activiteiten: readonly Activiteit[], weekMaandag: string): Activiteit[] {
   const vrijdag = new Date(`${weekMaandag}T12:00:00Z`);
   vrijdag.setUTCDate(vrijdag.getUTCDate() + 4);
   const weekend = komendWeekend(vrijdag);
-  const raakt = activiteiten.filter((item) =>
+  return activiteiten.filter((item) =>
     item.zichtbaarheid === 'publiek'
     && !item.geannuleerd
     && activiteitRaaktWeekend(item.start, item.eind, weekend),
   );
+}
+
+/** Het weekendblok van één nieuwsbriefweek, dezelfde opmaak als de verstuurde mail. */
+export function blokkenVoorWeek(activiteiten: readonly Activiteit[], weekMaandag: string): NieuwsbriefActiviteitBlok[] {
+  const raakt = activiteitenDitWeekend(activiteiten, weekMaandag);
   const gekozen = raakt.find((item) => !isWinterstop(item.soort)) ?? raakt[0];
   if (!gekozen) return [];
   return [naarActiviteitBlok(gekozen, kopAgendaBlok(true))];

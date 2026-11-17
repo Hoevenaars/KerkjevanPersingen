@@ -63,7 +63,14 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
   }
   const vrienden = opties.vrienden ?? supabaseVrienden();
   const bron = opties.bron ?? supabaseNieuwsbrief();
-  const voorbereiden = { datum: opties.datum, vrienden, bron, maakIndienOntbreekt: false as const, eisDoorlooptijd: true as const };
+  const voorbereiden = {
+    datum: opties.datum,
+    vrienden,
+    bron,
+    maakIndienOntbreekt: false as const,
+    eisDoorlooptijd: true as const,
+    eisActiviteit: true as const,
+  };
   if (besluit.modus === 'dry-run') {
     const uit = await draaiNieuwsbriefDryRun(voorbereiden);
     return { verstuurd: 0, gepland: uit.gepland, overgeslagen: uit.template ? 'dry-run' : uit.overgeslagen };
