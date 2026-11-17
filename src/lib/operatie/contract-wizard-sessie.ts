@@ -192,9 +192,17 @@ export async function bewaarDefinitiefContract(
   const stand = await leesContractWizardStand(client, input.boekingId);
   if ('fout' in stand) return { ok: false, melding: stand.fout };
   if ('mist' in stand) return { ok: false, melding: 'De contracttabel ontbreekt. Er is niets opgeslagen.' };
-  const boeking = await client.from('boekingen').select('verhuurtype_sleutel').eq('id', input.boekingId).maybeSingle();
+  const boeking = await client.from('boekingen').select('verhuurtype_sleutel,aanvraag_id').eq('id', input.boekingId).maybeSingle();
   if (boeking.error) return { ok: false, melding: leesbareAuthFout(boeking.error.message) };
-  const soort = String(boeking.data?.verhuurtype_sleutel ?? '').trim();
+  let soort = String(boeking.data?.verhuurtype_sleutel ?? '').trim();
+  if (!soort) {
+    const aanvraagId = input.aanvraagId ?? (boeking.data?.aanvraag_id == null ? null : Number(boeking.data.aanvraag_id));
+    if (aanvraagId != null && Number.isInteger(aanvraagId)) {
+      const aanvraag = await client.from('aanvragen').select('verhuurtype_sleutel').eq('id', aanvraagId).maybeSingle();
+      if (aanvraag.error) return { ok: false, melding: leesbareAuthFout(aanvraag.error.message) };
+      soort = String(aanvraag.data?.verhuurtype_sleutel ?? '').trim();
+    }
+  }
   const versie = stand.versie + 1;
   const gemaakt = maakDefinitiefContract(input.velden, String(input.boekingId), versie, ymdInAmsterdam(new Date()), soort);
   if ('fout' in gemaakt) return { ok: false, melding: gemaakt.fout };

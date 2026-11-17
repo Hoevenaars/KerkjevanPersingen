@@ -230,6 +230,28 @@ test('definitief maken schrijft het contract en laat de status staan', async () 
   assert.equal(tabellen.aanvragen[0].status, 'goedgekeurd');
 });
 
+test('een boeking zonder soort krijgt de soort van de aanvraag in de vingerafdruk', async () => {
+  const { client, schrijfsels } = sessieMet({
+    contractversies: [],
+    boekingen: [{ id: 44, status: 'optie', verhuurtype_sleutel: null, aanvraag_id: 104 }],
+    aanvragen: [{ id: 104, verhuurtype_sleutel: 'expositie' }],
+    instellingen: [],
+    betalingen: [],
+  });
+  const uit = await bewaarDefinitiefContract(client, {
+    boekingId: 44,
+    aanvraagId: 104,
+    velden: compleet(),
+    actor: beheerder,
+  });
+  assert.equal(uit.ok, true);
+  const versie = schrijfsels.find((item) => item.tabel === 'contractversies');
+  const verwacht = maakDefinitiefContract(compleet(), '44', 1, String(versie?.waarden.opgesteld_op), 'expositie');
+  assert.ok(versie?.waarden.vingerafdruk);
+  assert.ok(!('fout' in verwacht));
+  if (!('fout' in verwacht)) assert.equal(versie?.waarden.vingerafdruk, verwacht.vingerafdruk);
+});
+
 test('een nieuwe versie blijft te openen en de vingerafdruk volgt soort en betaaldatum', () => {
   assert.equal(toonContractWizard(true, true, false), false);
   assert.equal(toonContractWizard(true, true, true), true);

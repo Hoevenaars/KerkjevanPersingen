@@ -423,3 +423,35 @@ test('een ingetrokken contractversie gaat niet opnieuw de deur uit', () => {
   assert.equal(weergave.kanVerzenden, false);
   assert.match(weergave.redenen.join(' '), /ingetrokken/);
 });
+
+test('een versie zonder verhuursoort blijft goed te keuren als de soort alleen op de aanvraag staat', () => {
+  const zonderSoort = bron({ soort: '' });
+  const versie = gemaakt({ bron: zonderSoort });
+  const metSoort = bron({ soort: 'expositie' });
+  const weergave = bouwOpvolging({
+    rechten: rechten({ aanvragen: 'schrijven', instellingen: 'schrijven' }),
+    bron: metSoort,
+    instellingen: instellingen(),
+    versies: [versie],
+    betaling: { stand: 'niet_vastgelegd', toelichting: '' },
+    vandaag: '2026-06-02',
+    bekijkHref: '/beheer/aanvragen/a/',
+    fout: '',
+    modus: 'aan',
+  });
+  assert.equal(weergave.redenen.some((reden) => /gewijzigd/.test(reden)), false);
+  assert.equal(weergave.kanGoedkeuren, true);
+  const anderePrijs = bouwOpvolging({
+    rechten: rechten({ aanvragen: 'schrijven', instellingen: 'schrijven' }),
+    bron: bron({ soort: 'expositie', huurprijsCent: 100, restCent: 0 }),
+    instellingen: instellingen(),
+    versies: [versie],
+    betaling: { stand: 'niet_vastgelegd', toelichting: '' },
+    vandaag: '2026-06-02',
+    bekijkHref: '/beheer/aanvragen/a/',
+    fout: '',
+    modus: 'aan',
+  });
+  assert.equal(anderePrijs.kanGoedkeuren, false);
+  assert.match(anderePrijs.redenen.join(' '), /gewijzigd/);
+});
