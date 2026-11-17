@@ -103,11 +103,13 @@ test('de persoonlijke planning staat bovenaan en een lege indeling zegt dat', ()
   assert.ok(marieke);
   const brief = renderPlanningMail(mail, marieke);
   const eigen = brief.tekst.indexOf('Uw diensten');
-  const volledig = brief.tekst.indexOf('De volledige planning');
   const open = brief.tekst.indexOf('Openstaande diensten');
-  assert.ok(eigen < volledig && volledig < open);
-  assert.match(brief.tekst.slice(eigen, volledig), /Voorjaarsexpositie/);
-  assert.equal(brief.tekst.slice(eigen, volledig).includes('Concert'), false);
+  assert.equal(brief.tekst.includes('De volledige planning'), false);
+  assert.equal(brief.html.includes('De volledige planning'), false);
+  assert.ok(eigen >= 0 && eigen < open);
+  assert.match(brief.tekst.slice(eigen, open), /Voorjaarsexpositie/);
+  assert.equal(brief.tekst.includes('Concert'), false);
+  assert.match(brief.tekst.slice(open), /Zomerexpositie/);
   assert.match(brief.html, /U bent in deze periode niet ingedeeld|Voorjaarsexpositie/);
   const els = renderPlanningMail(mail, { relatieIds: ['onbekend'], naam: 'Els', email: 'els@example.nl' });
   assert.match(els.tekst, /U bent in deze periode niet ingedeeld/);
