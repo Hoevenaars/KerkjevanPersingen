@@ -7,6 +7,7 @@ import {
   conceptStatusLabel,
   kortNieuwsVoorConcept,
   nieuwsbrievenOpDatum,
+  verzendMoment,
   type ConceptBron,
 } from '../src/lib/nieuwsbrief-concepten.ts';
 import { WINTERSTOP_TEKST } from '../src/lib/winterstop.ts';
@@ -85,6 +86,12 @@ test('kort nieuws komt uit het programma van die week', () => {
   assert.match(kortNieuwsVoorConcept('2026-11-30', PROGRAMMA), /^Fusion\. Marion Groenenberg/);
   assert.equal(kortNieuwsVoorConcept('2026-12-14', PROGRAMMA), WINTERSTOP_TEKST);
   assert.equal(kortNieuwsVoorConcept('2026-10-05', PROGRAMMA), '');
+});
+
+test('de lijst noemt de eerstvolgende vrijdag en het verzenduur', () => {
+  assert.deepEqual(verzendMoment('2026-11-17'), { vrijdag: '2026-11-20', uur: '10:30' });
+  assert.deepEqual(verzendMoment('2026-07-01'), { vrijdag: '2026-07-03', uur: '11:30' });
+  assert.equal(verzendMoment('2026-11-21').vrijdag, '2026-11-27');
 });
 
 test('de lijst toont de eerstvolgende week bovenaan en verstopt verstuurde weken', () => {
@@ -180,6 +187,19 @@ test('verzenden slaat een te jong concept over en maakt er geen aan', async () =
   });
   assert.equal(ontbreekt.overgeslagen, 'geen concept');
   assert.equal(leeg.weken.length, 0);
+
+  const open = bron.weken.find((week) => week.week === '2026-12-14');
+  assert.ok(open);
+  const niet = await verstuurWekelijkseNieuwsbrief({
+    register,
+    datum: new Date('2026-12-18T08:00:00Z'),
+    vrienden: geheugenVrienden([VRIEND]),
+    bron,
+    transport: { async verstuur() { throw new Error('niet versturen'); } },
+  });
+  assert.equal(niet.verstuurd, 0);
+  assert.equal(niet.overgeslagen, 'nog niet goedgekeurd');
+  open.goedgekeurd = true;
 
   const stil = await verstuurWekelijkseNieuwsbrief({
     register,

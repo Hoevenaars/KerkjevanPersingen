@@ -23,6 +23,20 @@ export function vrijdagVanWeek(maandag: string): string {
   return voegDagenToe(maandag, 4);
 }
 
+/** Eerstvolgende verzendvrijdag, met het vaste cronuur in Nederlandse tijd. */
+export function verzendMoment(vandaag: string): { vrijdag: string; uur: string } {
+  const maandag = maandagVanWeekIso(new Date(`${vandaag}T12:00:00Z`));
+  let vrijdag = vrijdagVanWeek(maandag);
+  if (vrijdag < vandaag) vrijdag = voegDagenToe(vrijdag, 7);
+  const uur = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Amsterdam',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(`${vrijdag}T09:30:00Z`));
+  return { vrijdag, uur };
+}
+
 /**
  * Onverstuurde weken, met de eerstvolgende bovenaan.
  * Verstuurde weken vallen weg. Voorbije weken staan onder de komende.
@@ -62,11 +76,13 @@ export function conceptStatusLabel(input: {
   week: string;
   verstuurd: boolean;
   overgeslagen: boolean;
+  goedgekeurd?: boolean;
   aangemaaktOp?: string;
   vandaag: string;
 }): string {
   if (input.verstuurd) return 'Verstuurd';
   if (input.overgeslagen) return 'Overgeslagen';
+  if (input.goedgekeurd) return 'Goedgekeurd';
   if (vrijdagVanWeek(input.week) < input.vandaag) return 'Concept';
   if (!input.aangemaaktOp) return 'Concept';
   return conceptIsOpTijd(input.aangemaaktOp, input.week)

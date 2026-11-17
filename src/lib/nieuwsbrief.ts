@@ -70,6 +70,7 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
     maakIndienOntbreekt: false as const,
     eisDoorlooptijd: true as const,
     eisActiviteit: true as const,
+    eisGoedgekeurd: true as const,
   };
   if (besluit.modus === 'dry-run') {
     const uit = await draaiNieuwsbriefDryRun(voorbereiden);

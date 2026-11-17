@@ -30,6 +30,7 @@ export interface NieuwsbriefWeek {
   donatieUpdate?: string;
   geannuleerd: boolean;
   verstuurd: boolean;
+  goedgekeurd?: boolean;
   /** Datum waarop het concept is geopend, YYYY-MM-DD of ISO. */
   aangemaaktOp?: string;
 }
@@ -60,6 +61,7 @@ export type NieuwsbriefStop =
   | 'geen concept'
   | 'doorlooptijd nog niet gehaald'
   | 'geen activiteit deze week'
+  | 'nog niet goedgekeurd'
   | null;
 
 export interface NieuwsbriefBron {
@@ -109,6 +111,8 @@ export async function bereidNieuwsbrief(opties: {
   eisDoorlooptijd?: boolean;
   /** Verzenden eist een publieke activiteit in het weekend van deze week. */
   eisActiviteit?: boolean;
+  /** Verzenden eist een goedkeuring uit beheer. */
+  eisGoedgekeurd?: boolean;
 }): Promise<VoorbereideNieuwsbrief> {
   const datum = opties.datum ?? new Date();
   const sleutel = opties.templateSleutel ?? 'nieuwsbrief_week';
@@ -124,6 +128,9 @@ export async function bereidNieuwsbrief(opties: {
   }
   if (opties.eisDoorlooptijd && !conceptIsOpTijd(week.aangemaaktOp, week.week)) {
     return { stoppen: 'doorlooptijd nog niet gehaald', week, template: null, brieven: [], voorbeeld: null };
+  }
+  if (opties.eisGoedgekeurd && !week.goedgekeurd) {
+    return { stoppen: 'nog niet goedgekeurd', week, template: null, brieven: [], voorbeeld: null };
   }
 
   const agenda = await opties.bron.agenda();
@@ -169,6 +176,7 @@ export async function draaiNieuwsbriefDryRun(opties: {
   maakIndienOntbreekt?: boolean;
   eisDoorlooptijd?: boolean;
   eisActiviteit?: boolean;
+  eisGoedgekeurd?: boolean;
 }): Promise<DroogResultaat> {
   const voorbereid = await bereidNieuwsbrief(opties);
   if (voorbereid.stoppen || !voorbereid.week || !voorbereid.template) {
@@ -234,6 +242,7 @@ function weekUitRij(data: {
   donatie_update?: string | null;
   overgeslagen: boolean;
   verstuurd: boolean;
+  goedgekeurd?: boolean | null;
   aangemaakt_op?: string | null;
 }): NieuwsbriefWeek {
   return {
@@ -245,6 +254,7 @@ function weekUitRij(data: {
     donatieUpdate: data.donatie_update ?? undefined,
     geannuleerd: data.overgeslagen,
     verstuurd: data.verstuurd,
+    goedgekeurd: Boolean(data.goedgekeurd),
     aangemaaktOp: data.aangemaakt_op ?? undefined,
   };
 }
@@ -314,7 +324,7 @@ export function supabaseNieuwsbrief(): NieuwsbriefBron {
   if (!client) throw new Error('Supabase service-role ontbreekt. De nieuwsbrief kan niet worden gelezen.');
   return {
     async week(maandag) {
-      const { data, error } = await client.from('nieuwsbrieven').select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd,aangemaakt_op').eq('week_maandag', maandag).maybeSingle();
+      const { data, error } = await client.from('nieuwsbrieven').select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd,goedgekeurd,aangemaakt_op').eq('week_maandag', maandag).maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) return null;
       return weekUitRij(data);
@@ -327,7 +337,7 @@ export function supabaseNieuwsbrief(): NieuwsbriefBron {
       };
       if (extra?.kortNieuws) rij.kort_nieuws = extra.kortNieuws;
       if (extra?.aangemaaktOp) rij.aangemaakt_op = `${extra.aangemaaktOp.slice(0, 10)}T12:00:00.000Z`;
-      const { data, error } = await client.from('nieuwsbrieven').insert(rij).select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd,aangemaakt_op').single();
+      const { data, error } = await client.from('nieuwsbrieven').insert(rij).select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd,goedgekeurd,aangemaakt_op').single();
       if (error) throw new Error(error.message);
       return weekUitRij(data);
     },

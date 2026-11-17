@@ -30,6 +30,7 @@ function bronMetNieuws() {
     kortNieuws: 'De klok is gerepareerd.',
     geannuleerd: false,
     verstuurd: false,
+    goedgekeurd: true,
     aangemaaktOp: '2026-08-01',
   });
   bron.activiteiten.push({

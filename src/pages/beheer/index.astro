@@ -114,8 +114,7 @@ const scherm = startscherm({
     week: item.week,
     verstuurd: item.verstuurd,
     overgeslagen: item.overgeslagen,
-    // Goedkeuring volgt als de nieuwsbrief wordt uitgewerkt. Tot die tijd telt alleen de brief van deze week.
-    goedgekeurd: false,
+    goedgekeurd: item.goedgekeurd === true,
   })),
   href: {
     nieuw: '/beheer/aanvragen/?fase=nieuw',

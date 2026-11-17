@@ -4,12 +4,14 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import { formatNl } from '../../../platform/demo-data';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
-import { conceptStatusLabel, nieuwsbrievenOpDatum } from '../../../lib/nieuwsbrief-concepten.ts';
+import { conceptStatusLabel, nieuwsbrievenOpDatum, verzendMoment } from '../../../lib/nieuwsbrief-concepten.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
 const brieven = nieuwsbrievenOpDatum(snapshot.nieuwsbrieven, vandaag);
+const moment = verzendMoment(vandaag);
+const verzendDatum = formatNl(moment.vrijdag);
 ---
 
 <Beheer titel="Nieuwsbrief">
@@ -17,9 +19,7 @@ const brieven = nieuwsbrievenOpDatum(snapshot.nieuwsbrieven, vandaag);
     <div>
       <h1>Nieuwsbrief</h1>
       <p class="bh-hint">
-        Weken uit {snapshot.bron === 'supabase' ? 'Supabase' : 'de voorbeelddata'}. Dit scherm verstuurt
-        niets. De eerstvolgende week staat bovenaan. Verstuurde weken staan hier niet.
-        De vrijdagcron verstuurt een concept pas na vier weken doorlooptijd, en alleen als er dat weekend een activiteit is.
+        Controle voor {verzendDatum}. Verzenden op {verzendDatum} om {moment.uur}. Je kunt meerdere weken vooruit goedkeuren.
       </p>
     </div>
   </header>
