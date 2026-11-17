@@ -85,12 +85,12 @@ test('de mail toont alleen de gekozen periode, met open en ingevulde diensten', 
   const mail = bundel();
   assert.deepEqual(mail.diensten.map((dienst) => dienst.id), ['weekend', 'dag', 'leeg']);
   assert.equal(mail.gepland, 3);
-  assert.equal(mail.openstaand, 2);
+  assert.equal(mail.openstaand, 1);
   const weekend = mail.diensten[0];
   assert.equal(weekend.activiteit, 'Voorjaarsexpositie');
   assert.equal(weekend.tijd, '11:00–17:00');
   assert.deepEqual(weekend.namen, ['Marieke Jansen']);
-  assert.equal(weekend.openTekst, 'Nog 1 gastbegeleider nodig');
+  assert.equal(weekend.openTekst, null);
   assert.equal(mail.diensten[1].openTekst, null);
   assert.equal(mail.diensten[2].openTekst, 'Nog niet ingevuld');
   assert.deepEqual(mail.ontvangers.map((ontvanger) => ontvanger.email), ['hans@example.nl', 'marieke@example.nl']);
@@ -112,7 +112,7 @@ test('de persoonlijke planning staat bovenaan en een lege indeling zegt dat', ()
   const els = renderPlanningMail(mail, { relatieIds: ['onbekend'], naam: 'Els', email: 'els@example.nl' });
   assert.match(els.tekst, /U bent in deze periode niet ingedeeld/);
   assert.match(els.tekst, /Nog niet ingevuld/);
-  assert.match(els.tekst, /Nog 1 gastbegeleider nodig/);
+  assert.equal(els.tekst.includes('Nog 1 gastbegeleider nodig'), false);
   assert.equal(brief.html.includes('<th'), false);
   assert.equal(brief.html.includes('font-size:12px'), false);
   assert.equal(brief.html.includes('font-size:13px'), false);
