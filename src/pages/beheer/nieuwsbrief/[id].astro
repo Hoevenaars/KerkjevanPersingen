@@ -4,7 +4,7 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import { formatNl } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
-import { bouwNieuwsbriefHtml, SFEER_URL } from '../../../lib/nieuwsbrief-html';
+import { bronnenVoorWeek, nieuwsbriefVoorbeeldHtml } from '../../../lib/nieuwsbrief-voorbeeld.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -36,31 +36,16 @@ const extraBlokken =
     ? [{ titel: extraTitel, tekst: extraTekst }]
     : undefined;
 
-const html = bouwNieuwsbriefHtml(
-  {
+const voorbeeld = nieuwsbriefVoorbeeldHtml({
+  weekMaandag: brief.week,
+  inhoud: {
     kortNieuws: kortNieuws || undefined,
     donatieUpdate: donatieAan ? donatieTekst || undefined : undefined,
     extraBlokken,
   },
-  snapshot.agenda.filter((p) => p.omschrijving).map((p) => ({
-    titel: p.titel,
-    datumTekst: formatNl(p.start),
-    omschrijving: p.omschrijving,
-    fotoUrl: SFEER_URL,
-    fotoAlt: p.titel,
-    agendaUrl: 'https://kerkjepersingen.nl/agenda/',
-    kop: 'Komende activiteiten',
-    isExpositie: true,
-  })),
-  'https://kerkjepersingen.nl/vrienden/afmelden',
-  {
-    kop: 'Nieuwsbrief',
-    intro: 'Voorbeeldpreview — deze mail gaat nergens heen.',
-    onderwerp: `Voorbeeld · week ${formatNl(brief.week)}`,
-    agendaKop: 'Komende activiteiten',
-    legeAgendaTekst: 'Deze week geen activiteiten in deze bron.',
-  },
-);
+  bronnen: bronnenVoorWeek(snapshot),
+});
+const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbeeld/${Astro.url.search}`;
 ---
 
 <Beheer titel={`Nieuwsbrief ${formatNl(brief.week)}`}>
@@ -68,26 +53,34 @@ const html = bouwNieuwsbriefHtml(
   <header class="bh-top">
     <div>
       <h1>Week van {formatNl(brief.week)}</h1>
-      <p class="bh-hint">Voorbeeld op dit scherm. Bewaren vanaf hier kan nog niet. De vrijdagcron verstuurt deze week pas als het concept vier weken van tevoren klaarstond.</p>
+      <p class="bh-hint">Het voorbeeld is de brief van deze week. Niets wordt opgeslagen of verstuurd. De vrijdagcron verstuurt deze week pas als het concept vier weken van tevoren klaarstond.</p>
     </div>
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
-  <div class="bh-split">
-    <section class="bh-kaart">
+  <section class="bh-kaart">
+    <div class="bh-top">
+      <h2>Preview</h2>
+      <p class="bh-hint">{voorbeeld.onderwerp}</p>
+      <a href={voorbeeldUrl}>Open de preview</a>
+    </div>
+    <iframe class="bh-preview-frame" title={`Preview nieuwsbrief ${formatNl(brief.week)}`} src={voorbeeldUrl}></iframe>
+  </section>
+
+  <section class="bh-kaart">
       <h2>Inhoud</h2>
-      <form method="post" class="bh-form">
+      <form method="get" class="bh-form">
         <label for="kort">Kort nieuws</label>
-        <textarea id="kort" name="kortNieuws">{kortNieuws}</textarea>
+        <textarea id="kort" name="kort">{kortNieuws}</textarea>
 
         <label class="bh-check" for="donatieAan">
           <input id="donatieAan" name="donatieAan" type="checkbox" value="1" checked={donatieAan} />
           <span>Donatie-update in deze mail (niet standaard)</span>
         </label>
         <label for="donatie">Donatie-update</label>
-        <textarea id="donatie" name="donatieUpdate" class="kort">{donatieTekst}</textarea>
+        <textarea id="donatie" name="donatie" class="kort">{donatieTekst}</textarea>
         <p class="bh-muted">Alleen in de preview en de mail als het vinkje aan staat.</p>
 
         <label for="extraTitel">Extra blok (optioneel)</label>
@@ -96,14 +89,8 @@ const html = bouwNieuwsbriefHtml(
         <textarea id="extraTekst" name="extraTekst" class="kort">{extraTekst}</textarea>
 
         <div class="bh-acties">
-          <button class="bh-btn bh-btn--sec" type="button" disabled>Nieuwsbrief bewaren — nog niet beschikbaar</button>
-          <button class="bh-btn" type="button" disabled>Nieuwsbrief verzenden — nog niet beschikbaar</button>
+          <button class="bh-btn" type="submit">Toon in de preview</button>
         </div>
       </form>
-    </section>
-    <section class="bh-kaart">
-      <h2>Preview</h2>
-      <iframe class="bh-preview-frame" title="Voorbeeld nieuwsbrief" srcdoc={html}></iframe>
-    </section>
-  </div>
+  </section>
 </Beheer>

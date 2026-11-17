@@ -1030,7 +1030,7 @@ html:has(.bh-app) {
 
 .bh-preview-frame {
   width: 100%;
-  min-height: 420px;
+  height: 920px;
   border: 0;
   background: var(--white);
 }
