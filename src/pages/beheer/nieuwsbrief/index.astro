@@ -6,12 +6,15 @@ import { formatNl } from '../../../platform/demo-data';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { conceptStatusLabel, nieuwsbrievenOpDatum, verzendMoment } from '../../../lib/nieuwsbrief-concepten.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
 const brieven = nieuwsbrievenOpDatum(snapshot.nieuwsbrieven, vandaag);
 const moment = verzendMoment(vandaag);
 const verzendDatum = formatNl(moment.vrijdag);
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const kanGoedkeuren = !Astro.locals.beheer?.viewAs && magSchrijven(rechten, 'nieuwsbrief');
 ---
 
 <Beheer titel="Nieuwsbrief">
@@ -55,6 +58,13 @@ const verzendDatum = formatNl(moment.vrijdag);
               </td>
               <td>
                 <a href={`/beheer/nieuwsbrief/${encodeURIComponent(n.id)}/voorbeeld/`}>Preview</a>
+                {kanGoedkeuren && !n.goedgekeurd && !n.overgeslagen && (
+                  <form method="post" action={`/beheer/nieuwsbrief/${encodeURIComponent(n.id)}/`}>
+                    <input type="hidden" name="actie" value="goedkeuren" />
+                    <input type="hidden" name="terug" value="lijst" />
+                    <button class="bh-btn" type="submit">Goedkeuren</button>
+                  </form>
+                )}
               </td>
             </tr>
             );

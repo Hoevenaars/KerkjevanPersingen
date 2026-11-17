@@ -1,9 +1,12 @@
 ---
 export const prerender = false;
 
+import Beheer from '../../../../layouts/Beheer.astro';
+import { formatNl } from '../../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties } from '../../../../platform/beheer-bron.ts';
 import { bronnenVoorWeek, nieuwsbriefVoorbeeldHtml, type VoorbeeldBron } from '../../../../lib/nieuwsbrief-voorbeeld.ts';
 import type { NieuwsbriefInhoud } from '../../../../lib/nieuwsbrief-html.ts';
+import { magSchrijven } from '../../../../platform/rechten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -14,24 +17,56 @@ if (!brief) {
 }
 
 const params = Astro.url.searchParams;
-const kortNieuws = params.has('kort') ? (params.get('kort') ?? '') : brief.kortNieuws;
-const donatieAan = params.get('donatieAan') === '1';
-const donatie = params.has('donatie') ? (params.get('donatie') ?? '') : brief.donatieUpdate;
 const extraTitel = params.get('extraTitel') ?? '';
 const extraTekst = params.get('extraTekst') ?? '';
 const inhoud: NieuwsbriefInhoud = {
-  kortNieuws: kortNieuws || undefined,
-  donatieUpdate: donatieAan ? donatie || undefined : undefined,
   extraBlokken: extraTitel.trim() || extraTekst.trim() ? [{ titel: extraTitel, tekst: extraTekst }] : undefined,
 };
 const bronnen: VoorbeeldBron[] = bronnenVoorWeek(snapshot);
-const { html } = nieuwsbriefVoorbeeldHtml({ weekMaandag: brief.week, inhoud, bronnen });
+const { html, onderwerp } = nieuwsbriefVoorbeeldHtml({ weekMaandag: brief.week, inhoud, bronnen });
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const kanGoedkeuren = !brief.verstuurd
+  && !brief.goedgekeurd
+  && !Astro.locals.beheer?.viewAs
+  && magSchrijven(rechten, 'nieuwsbrief');
+const melding = params.get('melding');
+const fout = params.get('fout');
 
-return new Response(html, {
-  headers: {
-    'content-type': 'text/html; charset=utf-8',
-    'cache-control': 'no-store',
-    'X-Robots-Tag': 'noindex, nofollow',
-  },
-});
+if (params.get('brief') === '1') {
+  return new Response(html, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+    },
+  });
+}
+
+const briefParams = new URLSearchParams(Astro.url.search);
+briefParams.set('brief', '1');
+const briefUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbeeld/?${briefParams.toString()}`;
 ---
+
+<Beheer titel={`Preview ${formatNl(brief.week)}`}>
+  <p class="bh-crumb"><a href="/beheer/nieuwsbrief/">Nieuwsbrief</a> / <a href={`/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/`}>{formatNl(brief.week)}</a> / Preview</p>
+  {melding && <p class="bh-flash">{melding}</p>}
+  {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+  <section class="bh-kaart">
+    <div class="bh-top">
+      {brief.goedgekeurd ? (
+        <p class="bh-hint">Goedgekeurd</p>
+      ) : kanGoedkeuren ? (
+        <form method="post" action={`/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/`}>
+          <input type="hidden" name="actie" value="goedkeuren" />
+          <input type="hidden" name="terug" value="preview" />
+          <button class="bh-btn" type="submit">Goedkeuren</button>
+        </form>
+      ) : (
+        <p class="bh-hint">Nog niet goedgekeurd</p>
+      )}
+      <h1>Preview</h1>
+      <p class="bh-hint">{onderwerp}</p>
+    </div>
+    <iframe class="bh-preview-frame" title={`Preview nieuwsbrief ${formatNl(brief.week)}`} src={briefUrl}></iframe>
+  </section>
+</Beheer>

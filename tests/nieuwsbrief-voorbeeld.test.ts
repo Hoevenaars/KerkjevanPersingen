@@ -34,7 +34,7 @@ test('de preview van een expositieweek toont die expositie en het korte nieuws',
     inhoud: { kortNieuws: 'Gedroomde realiteit. Wybe de Greef.' },
     bronnen: BRONNEN,
   });
-  assert.equal(uit.onderwerp, 'Deze week in Persingen');
+  assert.equal(uit.onderwerp, 'Een groet uit Persingen');
   assert.match(uit.html, /Gedroomde realiteit/);
   assert.match(uit.html, /Wybe de Greef/);
   assert.match(uit.html, /token=preview/);
