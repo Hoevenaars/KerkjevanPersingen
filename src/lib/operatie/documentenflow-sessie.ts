@@ -271,7 +271,8 @@ async function bewaarVersies(client: DossierSessie, boekingId: number, vorige: r
     if (oud.tekst !== versie.tekst || oud.voorwaardenTekst !== versie.voorwaardenTekst || oud.huisregelsTekst !== versie.huisregelsTekst) {
       return 'Een vastgelegde contractversie zou veranderen. Er is niets opgeslagen.';
     }
-    const update = await client.from('contractversies').update({
+    if (versieStatusGelijk(oud, versie)) continue;
+    const query = client.from('contractversies').update({
       bestuur: versie.bestuur,
       bestuur_actor: versie.bestuurActor,
       bestuur_op: versie.bestuurOp,
@@ -282,11 +283,30 @@ async function bewaarVersies(client: DossierSessie, boekingId: number, vorige: r
       ondertekening_nummer: versie.ondertekeningNummer,
       ondertekening_versie: versie.ondertekeningVersie,
       checks: versie.checks,
-    }).eq('boeking_id', boekingId).eq('versie', versie.versie);
-    const antwoord = await (update as unknown as Promise<Antwoord>);
-    if (antwoord.error) return antwoord.error.message;
+    }).eq('boeking_id', boekingId).eq('versie', versie.versie).select('versie');
+    const antwoord = await (query as unknown as Promise<Antwoord>);
+    if (antwoord.error) {
+      if (/permission denied for schema app/i.test(antwoord.error.message)) {
+        return 'Het akkoord is niet opgeslagen. De rechtencontrole is niet bereikbaar. Er is niets gewijzigd.';
+      }
+      return antwoord.error.message;
+    }
+    if (!antwoord.data?.length) return 'De wijziging is niet opgeslagen. Er is niets gewijzigd.';
   }
   return null;
+}
+
+function versieStatusGelijk(oud: ContractVersie, versie: ContractVersie): boolean {
+  return oud.bestuur === versie.bestuur
+    && oud.bestuurActor === versie.bestuurActor
+    && oud.bestuurOp === versie.bestuurOp
+    && oud.bestuurToelichting === versie.bestuurToelichting
+    && oud.ondertekening === versie.ondertekening
+    && oud.ondertekeningActor === versie.ondertekeningActor
+    && oud.ondertekeningOp === versie.ondertekeningOp
+    && oud.ondertekeningNummer === versie.ondertekeningNummer
+    && oud.ondertekeningVersie === versie.ondertekeningVersie
+    && JSON.stringify(oud.checks) === JSON.stringify(versie.checks);
 }
 
 async function bewaarTekenlink(

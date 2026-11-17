@@ -423,3 +423,148 @@ test('een ingetrokken contractversie gaat niet opnieuw de deur uit', () => {
   assert.equal(weergave.kanVerzenden, false);
   assert.match(weergave.redenen.join(' '), /ingetrokken/);
 });
+
+test('goedkeuren schrijft alleen de huidige versie en een lege update telt niet', async () => {
+  const basis = gemaakt();
+  const ouder: ContractVersie = { ...basis, versie: 1, contractnummer: 'KVP-oud' };
+  const huidig: ContractVersie = { ...basis, versie: 2, contractnummer: 'KVP-huidig' };
+  const instelling = instellingen();
+  const bronRij = bron();
+  const tabellen: Record<string, Record<string, unknown>[]> = {
+    boekingen: [{
+      id: 42,
+      status: 'definitief',
+      verhuurtype_sleutel: bronRij.soort,
+      interne_titel: bronRij.activiteit,
+      start_datum: bronRij.periodeVan,
+      eind_datum: bronRij.periodeTot,
+      huurder_naam_snapshot: bronRij.huurderNaam,
+      huurder_email_snapshot: bronRij.email,
+      huurder_telefoon_snapshot: bronRij.telefoon,
+      tarief_bedrag: 550,
+      aanbetaling_bedrag: 100,
+      aanbetaling_ontvangen: false,
+      gastheer_relatie_id: null,
+      aantal_personen: bronRij.personen,
+      toelichting: '',
+      aangemaakt_op: '2026-06-01',
+      aanvraag_id: 7,
+    }],
+    aanvragen: [{
+      id: 7,
+      naam: bronRij.huurderNaam,
+      email: bronRij.email,
+      telefoon: bronRij.telefoon,
+      straat: bronRij.straat,
+      huisnummer: bronRij.huisnummer,
+      huisnummer_toevoeging: bronRij.toevoeging,
+      postcode: bronRij.postcode,
+      woonplaats: bronRij.woonplaats,
+      verhuurtype_sleutel: bronRij.soort,
+      toelichting: '',
+      aantal_personen: bronRij.personen,
+      website: '',
+      binnengekomen_op: '2026-06-01',
+    }],
+    betalingen: [
+      { soort: 'aanbetaling', bedrag: 100, status: 'open', vervaldatum: '2026-07-01', boeking_id: 42 },
+      { soort: 'restant', bedrag: 450, status: 'open', vervaldatum: '2026-08-01', boeking_id: 42 },
+    ],
+    instellingen: [
+      ['documentenflow_ondertekenaar_naam', instelling.ondertekenaarNaam],
+      ['documentenflow_ondertekenaar_functie', instelling.ondertekenaarFunctie],
+      ['documentenflow_iban', instelling.iban],
+      ['documentenflow_tenaamstelling', instelling.tenaamstelling],
+      ['documentenflow_voorwaarden_vastgesteld_op', instelling.voorwaardenVastgesteldOp],
+      ['documentenflow_huisregels_vastgesteld_op', instelling.huisregelsVastgesteldOp],
+    ].map(([sleutel, waarde]) => ({ sleutel, waarde })),
+    contractversies: [ouder, huidig].map((versie) => ({
+      boeking_id: 42,
+      versie: versie.versie,
+      contractnummer: versie.contractnummer,
+      opgesteld_op: versie.opgesteldOp,
+      tekst: versie.tekst,
+      voorwaarden_tekst: versie.voorwaardenTekst,
+      huisregels_tekst: versie.huisregelsTekst,
+      plattegrond_tekst: versie.plattegrondTekst,
+      vingerafdruk: versie.vingerafdruk,
+      afspraken: versie.afspraken,
+      bestuur_verplicht: versie.bestuurVerplicht,
+      bestuur: versie.bestuur,
+      bestuur_actor: versie.bestuurActor,
+      bestuur_op: versie.bestuurOp,
+      bestuur_toelichting: versie.bestuurToelichting,
+      ondertekening: versie.ondertekening,
+      ondertekening_actor: versie.ondertekeningActor,
+      ondertekening_op: versie.ondertekeningOp,
+      ondertekening_nummer: versie.ondertekeningNummer,
+      ondertekening_versie: versie.ondertekeningVersie,
+      checks: versie.checks,
+    })),
+    contract_verzendingen: [],
+  };
+  const geschreven: number[] = [];
+  function client(leeg: boolean) {
+    return {
+      from(tabel: string) {
+        let rijen = tabellen[tabel] ?? [];
+        let wijziging: Record<string, unknown> | null = null;
+        const query = {
+          select() { return query; },
+          eq(kolom: string, waarde: unknown) {
+            rijen = rijen.filter((rij) => String(rij[kolom]) === String(waarde));
+            return query;
+          },
+          in() { return query; },
+          update(waarden: Record<string, unknown>) {
+            wijziging = waarden;
+            return query;
+          },
+          insert() { return query; },
+          maybeSingle() {
+            return Promise.resolve({ data: rijen[0] ?? null, error: null });
+          },
+          then(resolve: (waarde: unknown) => unknown, reject?: (reden: unknown) => unknown) {
+            if (wijziging) {
+              const versies = rijen.map((rij) => Number(rij.versie));
+              geschreven.push(...versies);
+              return Promise.resolve({ data: leeg ? [] : rijen.map((rij) => ({ versie: rij.versie })), error: null }).then(resolve, reject);
+            }
+            return Promise.resolve({ data: rijen, error: null }).then(resolve, reject);
+          },
+        };
+        return query;
+      },
+    };
+  }
+  const actor = {
+    type: 'gebruiker' as const,
+    naam: 'Nick',
+    rechten: rechten({ instellingen: 'schrijven', aanvragen: 'schrijven' }),
+  };
+  const uit = await pasDocumentenflowToe({
+    client: client(false) as never,
+    env: {},
+    actor,
+    boekingId: '42',
+    actie: { soort: 'akkoord' },
+    modus: 'aan',
+    testadres: null,
+    verstuur: async () => { throw new Error('mail'); },
+  });
+  assert.equal(uit.ok, true, uit.melding);
+  assert.deepEqual(geschreven, [2]);
+  geschreven.length = 0;
+  const leeg = await pasDocumentenflowToe({
+    client: client(true) as never,
+    env: {},
+    actor,
+    boekingId: '42',
+    actie: { soort: 'akkoord' },
+    modus: 'aan',
+    testadres: null,
+    verstuur: async () => { throw new Error('mail'); },
+  });
+  assert.equal(leeg.ok, false);
+  assert.match(leeg.melding, /niet opgeslagen/);
+});
