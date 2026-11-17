@@ -55,10 +55,12 @@ describe('programmaPeriode', () => {
 });
 
 describe('mailMeta', () => {
-  test('past kop en onderwerp aan per frequentie', () => {
-    assert.equal(mailMeta('wekelijks').kop, 'Deze week in Persingen');
-    assert.equal(mailMeta('tweewekelijks').kop, 'Komende twee weken in Persingen');
-    assert.equal(mailMeta('maandelijks', new Date('2026-03-06T09:30:00Z')).kop, 'Maart in Persingen');
+  test('houdt dezelfde groet en past de agenda aan per frequentie', () => {
+    assert.equal(mailMeta('wekelijks').kop, 'Een groet uit Persingen');
+    assert.equal(mailMeta('wekelijks').onderwerp, 'Een groet uit Persingen');
+    assert.equal(mailMeta('tweewekelijks').kop, 'Een groet uit Persingen');
+    assert.equal(mailMeta('tweewekelijks').agendaKop, 'Agenda komende twee weken');
+    assert.equal(mailMeta('maandelijks', new Date('2026-03-06T09:30:00Z')).agendaKop, 'Agenda in maart');
   });
 });
 

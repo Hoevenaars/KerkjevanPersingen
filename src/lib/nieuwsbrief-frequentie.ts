@@ -12,6 +12,12 @@ export type NieuwsbriefMailMeta = {
   legeAgendaTekst: string;
 };
 
+export const NIEUWSBRIEF_KOP = 'Een groet uit Persingen';
+export const NIEUWSBRIEF_ONDERTITEL = 'Speciaal voor de vrienden van ons kerkje';
+export const NIEUWSBRIEF_INTRO = 'Wat fijn dat u ons kerkje een warm hart toedraagt. Iedere week houden we u graag op de hoogte van wat er in en rondom het kerkje gebeurt. Zo blijft u betrokken bij alles wat deze bijzondere plek te bieden heeft.';
+export const NIEUWSBRIEF_AFSLUITING = 'We hopen u binnenkort weer eens te mogen begroeten in ons mooie Persingen!';
+export const NIEUWSBRIEF_GROET = 'Hartelijke groeten,';
+
 export const FREQUENTIE_LABELS: Record<VriendFrequentie, string> = {
   wekelijks: 'Elke week',
   tweewekelijks: 'Elke twee weken',
@@ -73,18 +79,17 @@ export function mailMeta(frequentie: VriendFrequentie, datum = new Date()): Nieu
   switch (frequentie) {
     case 'wekelijks':
       return {
-        kop: 'Deze week in Persingen',
-        intro: 'Elke week een kort bericht over wat er speelt in en om het kerkje.',
-        onderwerp: 'Deze week in Persingen',
+        kop: NIEUWSBRIEF_KOP,
+        intro: NIEUWSBRIEF_INTRO,
+        onderwerp: NIEUWSBRIEF_KOP,
         legeAgendaTekst:
           'Er is deze week geen activiteit gepland. Bekijk de volledige agenda voor komende data.',
       };
     case 'tweewekelijks':
       return {
-        kop: 'Komende twee weken in Persingen',
-        intro:
-          'Eens in de twee weken een kort bericht — hier wat er de komende twee weken te doen is in en om het kerkje.',
-        onderwerp: 'Komende twee weken in Persingen',
+        kop: NIEUWSBRIEF_KOP,
+        intro: NIEUWSBRIEF_INTRO,
+        onderwerp: NIEUWSBRIEF_KOP,
         agendaKop: 'Agenda komende twee weken',
         legeAgendaTekst:
           'Er staan de komende twee weken geen activiteiten gepland. Bekijk de volledige agenda voor komende data.',
@@ -92,9 +97,9 @@ export function mailMeta(frequentie: VriendFrequentie, datum = new Date()): Nieu
     case 'maandelijks': {
       const maand = maandNaam(datum);
       return {
-        kop: `${maand.charAt(0).toUpperCase()}${maand.slice(1)} in Persingen`,
-        intro: `Eens per maand een kort bericht — hier het programma voor de rest van ${maand}.`,
-        onderwerp: `${maand.charAt(0).toUpperCase()}${maand.slice(1)} in Persingen`,
+        kop: NIEUWSBRIEF_KOP,
+        intro: NIEUWSBRIEF_INTRO,
+        onderwerp: NIEUWSBRIEF_KOP,
         agendaKop: `Agenda in ${maand}`,
         legeAgendaTekst:
           'Er staan deze maand geen activiteiten meer gepland. Bekijk de volledige agenda voor komende data.',

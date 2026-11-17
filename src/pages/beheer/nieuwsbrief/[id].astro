@@ -13,8 +13,13 @@ const id = beheerId(Astro.params.id);
 const brief = snapshot.nieuwsbrieven.find((n) => n.id === id);
 
 if (Astro.request.method === 'POST') {
-  const doel = new URL(Astro.url.pathname, Astro.url.origin);
   const formulier = await Astro.request.formData();
+  const terug = String(formulier.get('terug') ?? '');
+  const doel = terug === 'lijst'
+    ? new URL('/beheer/nieuwsbrief/', Astro.url.origin)
+    : terug === 'preview'
+      ? new URL(`/beheer/nieuwsbrief/${encodeURIComponent(id)}/voorbeeld/`, Astro.url.origin)
+      : new URL(Astro.url.pathname, Astro.url.origin);
   if (String(formulier.get('actie') ?? '') !== 'goedkeuren') {
     doel.searchParams.set('fout', 'Nieuwsbrief bewaren en verzenden zijn nog niet beschikbaar. Er is geen mail verstuurd.');
     return Astro.redirect(doel.toString());
@@ -67,15 +72,8 @@ const kanGoedkeuren = Boolean(brief)
   && !brief.goedgekeurd
   && !Astro.locals.beheer?.viewAs
   && magSchrijven(rechten, 'nieuwsbrief');
-const kortNieuws = Astro.url.searchParams.has('kort')
-  ? (Astro.url.searchParams.get('kort') ?? '')
-  : brief.kortNieuws;
-const donatieTekst = Astro.url.searchParams.has('donatie')
-  ? (Astro.url.searchParams.get('donatie') ?? '')
-  : brief.donatieUpdate;
 const extraTitel = Astro.url.searchParams.get('extraTitel') ?? '';
 const extraTekst = Astro.url.searchParams.get('extraTekst') ?? '';
-const donatieAan = Astro.url.searchParams.get('donatieAan') === '1';
 const extraBlokken =
   extraTitel.trim() || extraTekst.trim()
     ? [{ titel: extraTitel, tekst: extraTekst }]
@@ -83,14 +81,12 @@ const extraBlokken =
 
 const voorbeeld = nieuwsbriefVoorbeeldHtml({
   weekMaandag: brief.week,
-  inhoud: {
-    kortNieuws: kortNieuws || undefined,
-    donatieUpdate: donatieAan ? donatieTekst || undefined : undefined,
-    extraBlokken,
-  },
+  inhoud: { extraBlokken },
   bronnen: bronnenVoorWeek(snapshot),
 });
-const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbeeld/${Astro.url.search}`;
+const voorbeeldParams = new URLSearchParams(Astro.url.search);
+voorbeeldParams.set('brief', '1');
+const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbeeld/?${voorbeeldParams.toString()}`;
 ---
 
 <Beheer titel={`Nieuwsbrief ${formatNl(brief.week)}`}>
@@ -120,7 +116,7 @@ const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbe
       )}
       <h2>Preview</h2>
       <p class="bh-hint">{voorbeeld.onderwerp}</p>
-      <a href={voorbeeldUrl}>Open de preview</a>
+      <a href={`/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbeeld/`}>Open de preview</a>
     </div>
     <iframe class="bh-preview-frame" title={`Preview nieuwsbrief ${formatNl(brief.week)}`} src={voorbeeldUrl}></iframe>
   </section>
@@ -128,17 +124,6 @@ const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbe
   <section class="bh-kaart">
       <h2>Inhoud</h2>
       <form method="get" class="bh-form">
-        <label for="kort">Kort nieuws</label>
-        <textarea id="kort" name="kort">{kortNieuws}</textarea>
-
-        <label class="bh-check" for="donatieAan">
-          <input id="donatieAan" name="donatieAan" type="checkbox" value="1" checked={donatieAan} />
-          <span>Donatie-update in deze mail (niet standaard)</span>
-        </label>
-        <label for="donatie">Donatie-update</label>
-        <textarea id="donatie" name="donatie" class="kort">{donatieTekst}</textarea>
-        <p class="bh-muted">Alleen in de preview en de mail als het vinkje aan staat.</p>
-
         <label for="extraTitel">Extra blok (optioneel)</label>
         <input id="extraTitel" name="extraTitel" value={extraTitel} placeholder="Kop, bijvoorbeeld Vrijwilligers" />
         <label for="extraTekst">Tekst extra blok</label>

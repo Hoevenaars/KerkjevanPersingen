@@ -9,8 +9,16 @@ export const LOGO_URL = `${SITE}/logo-klein.png`;
 export const SFEER_URL = `${SITE}/foto/verhuur-ruimte.jpg`;
 export const FOOTER_LANDSCHAP_URL = `${SITE}/foto/footer-landschap.jpg`;
 
-export type { NieuwsbriefMailMeta } from './nieuwsbrief-frequentie.ts';
-import type { NieuwsbriefMailMeta } from './nieuwsbrief-frequentie.ts';
+import {
+  NIEUWSBRIEF_AFSLUITING,
+  NIEUWSBRIEF_GROET,
+  NIEUWSBRIEF_INTRO,
+  NIEUWSBRIEF_KOP,
+  NIEUWSBRIEF_ONDERTITEL,
+  type NieuwsbriefMailMeta,
+} from './nieuwsbrief-frequentie.ts';
+
+export type { NieuwsbriefMailMeta };
 import { CONTRACTBEHEER_EMAIL } from './mail-adressen.ts';
 
 /** Vast Reply-To voor de vriendenmail. Niet de transportfallback. */
@@ -60,11 +68,9 @@ function voettekstLink(href: string, label: string): string {
 }
 
 function preheader(
-  content: NieuwsbriefInhoud | null,
+  _content: NieuwsbriefInhoud | null,
   activiteiten: NieuwsbriefActiviteitBlok[],
 ): string {
-  const nieuws = content?.kortNieuws?.trim();
-  if (nieuws) return nieuws.length > 90 ? `${nieuws.slice(0, 87).trimEnd()}…` : nieuws;
   const activiteit = activiteiten[0];
   if (activiteit) {
     if (activiteiten.length > 1) {
@@ -73,48 +79,6 @@ function preheader(
     return `${activiteit.kop}: ${activiteit.titel}`;
   }
   return 'Wat er te doen is in het kerkje van Persingen.';
-}
-
-function renderKortNieuws(content: NieuwsbriefInhoud | null): string {
-  const tekst = content?.kortNieuws?.trim();
-  const foto = content?.kortNieuwsFotoUrl?.trim();
-  if (!tekst && !foto) return '';
-
-  const fotoRij = foto
-    ? `
-            <tr>
-              <td style="padding:0 0 ${tekst ? '14px' : '0'};line-height:0;font-size:0;">
-                <img src="${escape(foto)}"
-                     alt="${escape(content?.kortNieuwsFotoAlt || 'Kort nieuws')}"
-                     width="496"
-                     style="display:block;width:100%;max-width:496px;height:auto;border:0;" />
-              </td>
-            </tr>`
-    : '';
-
-  const tekstRij = tekst
-    ? `
-            <tr>
-              <td style="padding:0;font-family:Georgia,'Times New Roman',serif;">
-                <p style="color:${INK};font-size:15px;line-height:1.6;margin:0;">
-                  ${metRegels(tekst)}
-                </p>
-              </td>
-            </tr>`
-    : '';
-
-  return `
-      <tr>
-        <td style="padding:28px 32px 0;">
-          <div style="color:${BRICK};font-size:12px;letter-spacing:0.1em;text-transform:uppercase;font-weight:bold;margin-bottom:10px;font-family:Arial,sans-serif;">
-            Kort nieuws
-          </div>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            ${fotoRij}
-            ${tekstRij}
-          </table>
-        </td>
-      </tr>`;
 }
 
 function renderExtraBlokken(blokken?: { titel: string; tekst: string }[]): string {
@@ -135,23 +99,6 @@ function renderExtraBlokken(blokken?: { titel: string; tekst: string }[]): strin
       </tr>`,
     )
     .join('');
-}
-
-function renderDonatieUpdate(tekst?: string): string {
-  if (!tekst?.trim()) return '';
-  return `
-      <tr>
-        <td style="padding:20px 32px 0;font-family:Georgia,'Times New Roman',serif;">
-          <div style="border-left:3px solid ${PINE};padding-left:16px;">
-            <div style="color:${PINE};font-size:12px;letter-spacing:0.1em;text-transform:uppercase;font-weight:bold;margin-bottom:6px;font-family:Arial,sans-serif;">
-              Dankzij jullie steun
-            </div>
-            <p style="color:${INK};font-size:15px;line-height:1.6;margin:0;">
-              ${metRegels(tekst)}
-            </p>
-          </div>
-        </td>
-      </tr>`;
 }
 
 function renderWeekendBlok(activiteit: NieuwsbriefActiviteitBlok): string {
@@ -296,11 +243,11 @@ export function bouwNieuwsbriefHtml(
                     <img src="${LOGO_URL}" width="48" height="49" alt="Zegel van het Kerkje van Persingen, opgericht 1350" style="display:block;border:0;" />
                   </td>
                   <td valign="middle" style="padding:0 0 0 14px;font-family:Georgia,'Times New Roman',serif;">
-                    <div style="color:${SAND};font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-family:Arial,sans-serif;">
-                      Vrienden van het kerkje
+                    <div style="color:${CREAM};font-size:22px;line-height:1.25;font-weight:bold;">
+                      ${escape(NIEUWSBRIEF_KOP)}
                     </div>
-                    <div style="color:${CREAM};font-size:20px;line-height:1.25;margin-top:3px;">
-                      ${escape(meta.kop)}
+                    <div style="color:${CREAM};font-size:15px;line-height:1.4;margin-top:4px;font-style:italic;">
+                      ${escape(NIEUWSBRIEF_ONDERTITEL)}
                     </div>
                   </td>
                 </tr>
@@ -313,20 +260,20 @@ export function bouwNieuwsbriefHtml(
                 Beste vriend van het kerkje,
               </p>
               <p style="color:${INK_SOFT};font-size:15px;line-height:1.6;margin:12px 0 0;">
-                ${escape(meta.intro)}
+                ${escape(NIEUWSBRIEF_INTRO)}
               </p>
             </td>
           </tr>
           ${renderAgendaBlokken(activiteitenMetKop, meta.legeAgendaTekst)}
-          ${renderKortNieuws(content)}
-          ${renderDonatieUpdate(content?.donatieUpdate)}
           ${renderExtraBlokken(content?.extraBlokken)}
           <tr>
-            <td style="padding:28px 32px 28px;text-align:center;">
-              <a href="${SITE}/steun-ons/"
-                 style="display:inline-block;border:1.5px solid ${PINE};color:${PINE};text-decoration:none;padding:10px 24px;font-size:14px;font-family:Georgia,'Times New Roman',serif;">
-                Steun het kerkje
-              </a>
+            <td style="padding:28px 32px 36px;font-family:Georgia,'Times New Roman',serif;">
+              <p style="color:${INK};font-size:16px;line-height:1.6;margin:0;">
+                ${escape(NIEUWSBRIEF_AFSLUITING)}
+              </p>
+              <p style="color:${INK};font-size:16px;line-height:1.6;margin:16px 0 0;">
+                ${escape(NIEUWSBRIEF_GROET)}
+              </p>
             </td>
           </tr>
           <tr>
@@ -384,11 +331,12 @@ export function bouwNieuwsbriefTekst(
   meta: NieuwsbriefMailMeta,
 ): string {
   const regels = [
-    meta.kop,
+    NIEUWSBRIEF_KOP,
+    NIEUWSBRIEF_ONDERTITEL,
     '',
     'Beste vriend van het kerkje,',
     '',
-    meta.intro,
+    NIEUWSBRIEF_INTRO,
     '',
   ];
   if (activiteiten.length === 0) {
@@ -400,12 +348,14 @@ export function bouwNieuwsbriefTekst(
       regels.push(blok.agendaUrl, '');
     }
   }
-  if (content?.kortNieuws?.trim()) regels.push('Kort nieuws', content.kortNieuws.trim(), '');
-  if (content?.donatieUpdate?.trim()) regels.push(content.donatieUpdate.trim(), '');
   for (const blok of content?.extraBlokken ?? []) {
     regels.push(blok.titel, blok.tekst, '');
   }
   regels.push(
+    NIEUWSBRIEF_AFSLUITING,
+    '',
+    NIEUWSBRIEF_GROET,
+    '',
     'Voorkeuren of afmelden:',
     uitschrijfUrl,
     '',

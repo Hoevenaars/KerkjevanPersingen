@@ -269,9 +269,10 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 Zonder `?week=` zoekt de preview de maandag van *deze* kalenderweek. Op zondag is dat
 nog de vorige maandag — zet `week` op de maandag van het document dat je wilt zien.
 
-Zonder ingevuld kort nieuws gaat een rijpe, goedgekeurde week tóch, met alleen het agenda-blok.
-Een week zonder concept, zonder goedkeuring, of een concept dat korter dan vier weken van
-tevoren is geopend, wordt niet verstuurd. Zet "Deze week niet versturen" aan om een week over te slaan.
+De brief opent met "Een groet uit Persingen" en sluit met de groet. Kort nieuws en de knop
+Steun het kerkje staan er niet in. Een week zonder concept, zonder goedkeuring, of een concept
+dat korter dan vier weken van tevoren is geopend, wordt niet verstuurd. Zet "Deze week niet
+versturen" aan om een week over te slaan.
 
 ### Back-up
 
