@@ -74,6 +74,63 @@ export function leesPeriode(waarde: string | null | undefined, nu: Date, timeZon
   return periodeVan(dagen, nu, timeZone);
 }
 
+const MAX_PERIODE_DAGEN = 366;
+
+function isKalenderdag(ymd: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const [jaar, maand, dag] = ymd.split('-').map(Number);
+  const datum = new Date(Date.UTC(jaar, maand - 1, dag));
+  return datum.getUTCFullYear() === jaar && datum.getUTCMonth() === maand - 1 && datum.getUTCDate() === dag;
+}
+
+/**
+ * Een eigen bereik, begrensd op vandaag en op één jaar.
+ * Ongeldige dagen of een begin na vandaag geven null.
+ */
+export function periodeTussen(van: string, tot: string, nu: Date, timeZone: string): Periode | null {
+  if (!isKalenderdag(van) || !isKalenderdag(tot) || tot < van) return null;
+  const vandaag = ymdInTijdzone(nu, timeZone);
+  if (van > vandaag) return null;
+  const einde = tot > vandaag ? vandaag : tot;
+  const lijst = dagenInPeriode(van, einde);
+  if (lijst.length === 0 || lijst.length > MAX_PERIODE_DAGEN) return null;
+  return {
+    dagen: lijst.length,
+    van,
+    tot: einde,
+    vanaf: startVanDag(van, timeZone),
+    totExclusief: startVanDag(voegDagenToe(einde, 1), timeZone),
+  };
+}
+
+/** Even lange periode die direct vóór `periode` eindigt. */
+export function periodeErvoor(periode: Periode, timeZone: string): Periode {
+  const van = voegDagenToe(periode.van, -periode.dagen);
+  const tot = voegDagenToe(periode.van, -1);
+  return {
+    dagen: periode.dagen,
+    van,
+    tot,
+    vanaf: startVanDag(van, timeZone),
+    totExclusief: startVanDag(periode.van, timeZone),
+  };
+}
+
+/** Een geldig van/tot wint van het vaste aantal dagen. */
+export function leesVerkeerPeriode(
+  invoer: { periode?: string | null; van?: string | null; tot?: string | null },
+  nu: Date,
+  timeZone: string,
+): { periode: Periode; eigen: boolean } {
+  const van = invoer.van?.trim() ?? '';
+  const tot = invoer.tot?.trim() ?? '';
+  if (van || tot) {
+    const eigen = periodeTussen(van, tot, nu, timeZone);
+    if (eigen) return { periode: eigen, eigen: true };
+  }
+  return { periode: leesPeriode(invoer.periode, nu, timeZone), eigen: false };
+}
+
 export function dagenInPeriode(van: string, tot: string): string[] {
   if (tot < van) return [];
   const dagen: string[] = [];

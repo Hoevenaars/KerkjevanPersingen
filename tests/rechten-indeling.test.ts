@@ -48,6 +48,10 @@ describe('rechten volgen de secties', () => {
     assert.equal(delen.agenda, 'schrijven');
     assert.equal(delen.website_banner, 'lezen');
     assert.equal(delen.website_extra_balk, 'verborgen');
+    const website = matrixVanFormulier([['kop_website', 'lezen']]);
+    assert.equal(website.agenda, 'lezen');
+    assert.equal(website.analytics, 'lezen');
+    assert.equal(website.instellingen, undefined);
     assert.equal(niveauVanKop(['lezen', 'lezen']), 'lezen');
     assert.equal(niveauVanKop(['lezen', 'verborgen']), null);
   });

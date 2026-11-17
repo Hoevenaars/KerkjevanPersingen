@@ -1,0 +1,448 @@
+---
+import type { DeviceType, WebsiteTrafficStats } from '../../analytics/types.ts';
+import { DEVICE_TYPES } from '../../analytics/types.ts';
+import type { VerkeerOverzicht } from '../../platform/analytics-opslag.ts';
+import {
+  aandeelVan,
+  ANALYTICS_HREF,
+  analyticsHref,
+  bundelVerwijzers,
+  heeftFilter,
+  vergelijking,
+  type AnalyticsScherm,
+} from '../../platform/analytics-scherm.ts';
+
+interface Props {
+  scherm: AnalyticsScherm;
+  resultaat: VerkeerOverzicht;
+  /** Formulieren en links. Standaard het beheerpad. */
+  actie?: string;
+}
+
+const { scherm, resultaat, actie = ANALYTICS_HREF } = Astro.props;
+
+function href(wijziging: Parameters<typeof analyticsHref>[1] = {}) {
+  return analyticsHref(scherm, wijziging, actie);
+}
+
+const MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+const MAANDEN_LANG = [
+  'januari',
+  'februari',
+  'maart',
+  'april',
+  'mei',
+  'juni',
+  'juli',
+  'augustus',
+  'september',
+  'oktober',
+  'november',
+  'december',
+];
+const APPARAAT: Record<DeviceType, string> = {
+  desktop: 'Desktop',
+  mobile: 'Mobiel',
+  tablet: 'Tablet',
+  unknown: 'Onbekend',
+};
+const getal = new Intl.NumberFormat('nl-NL');
+const komma = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 });
+
+function kort(ymd: string): string {
+  const delen = ymd.split('-');
+  return `${Number(delen[2])} ${MAANDEN[Number(delen[1]) - 1] ?? ''}`;
+}
+
+function lang(ymd: string): string {
+  const delen = ymd.split('-');
+  return `${Number(delen[2])} ${MAANDEN_LANG[Number(delen[1]) - 1] ?? ''} ${delen[0]}`;
+}
+
+function aandeelTekst(waarde: number): string {
+  if (!Number.isFinite(waarde) || waarde <= 0) return '0%';
+  return `${komma.format(waarde)}%`;
+}
+
+function publiekPad(path: string): string | null {
+  if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\') || path.includes('://')) return null;
+  return path;
+}
+
+const stats: WebsiteTrafficStats | null = resultaat.ok ? resultaat.stats : null;
+const gefilterd = heeftFilter(scherm.selectie);
+const leeg = Boolean(resultaat.ok && resultaat.ongefilterd === 0);
+const filterLeeg = Boolean(stats && stats.totalen.pageviews === 0 && !leeg);
+const maxDag = stats ? Math.max(1, ...stats.dagelijks.map((dag) => dag.pageviews)) : 1;
+const toonLabels = Boolean(stats && stats.dagelijks.length > 0 && stats.dagelijks.length <= 14);
+const asLabels =
+  stats && !toonLabels && stats.dagelijks.length > 0
+    ? [
+        kort(stats.dagelijks[0].datum),
+        kort(stats.dagelijks[Math.floor((stats.dagelijks.length - 1) / 2)].datum),
+        kort(stats.dagelijks[stats.dagelijks.length - 1].datum),
+      ]
+    : [];
+const drukste = stats?.dagelijks.reduce((best, dag) => (dag.pageviews > best.pageviews ? dag : best));
+const meeste = stats?.paginas[0];
+const verschil = stats && resultaat.ok ? vergelijking(stats.totalen.pageviews, resultaat.vorig.pageviews, scherm.periode.dagen) : null;
+const deelVanAlles = stats && resultaat.ok ? aandeelVan(stats.totalen.pageviews, resultaat.ongefilterd) : 0;
+
+const paginaOpties = resultaat.ok ? [...resultaat.paginas] : [];
+if (scherm.selectie.pageKey && !paginaOpties.some((pagina) => pagina.pageKey === scherm.selectie.pageKey)) {
+  paginaOpties.push({ pageKey: scherm.selectie.pageKey, label: scherm.selectie.pageKey });
+}
+const bronOpties = resultaat.ok ? [...resultaat.bronnen] : [];
+const gekozenHerkomst =
+  scherm.selectie.bronLabel ??
+  (scherm.selectie.bron === 'direct'
+    ? 'Direct'
+    : bronOpties.find((bron) => bron.hosts.includes(scherm.selectie.bron ?? ''))?.label);
+if (gekozenHerkomst && !bronOpties.some((bron) => bron.waarde === gekozenHerkomst)) {
+  bronOpties.push({ waarde: gekozenHerkomst, label: gekozenHerkomst, hosts: [] });
+}
+const paginaLabel = paginaOpties.find((pagina) => pagina.pageKey === scherm.selectie.pageKey)?.label;
+const bronLabel = gekozenHerkomst;
+const wisHref = href( { wisFilters: true });
+---
+
+<header class="bh-top">
+    <div>
+      <p class="bh-label">Website</p>
+      <h1>Analytics</h1>
+      <p class="bh-hint">
+        Paginaweergaven van de publieke site, van {lang(scherm.periode.van)} t/m {lang(scherm.periode.tot)}. Een weergave
+        is één geopende pagina, geen unieke bezoeker. Er worden geen namen bewaard.
+      </p>
+    </div>
+  </header>
+
+  {
+    scherm.ongeldigePeriode && (
+      <p class="bh-hint">Die periode is niet bruikbaar. Hier staan de laatste 30 dagen, tot maximaal een jaar terug.</p>
+    )
+  }
+
+  <div class="bh-analytics-balk">
+    <nav class="bh-tabs" aria-label="Periode">
+      {[7, 30, 90].map((dagen) => (
+        <a
+          href={href( { periode: dagen as 7 | 30 | 90 })}
+          aria-current={!scherm.eigen && scherm.periode.dagen === dagen ? 'page' : undefined}
+        >
+          {dagen} dagen
+        </a>
+      ))}
+    </nav>
+    <form class="bh-analytics-bereik" method="get" action={actie}>
+      {scherm.selectie.pageKey && <input type="hidden" name="pagina" value={scherm.selectie.pageKey} />}
+      {scherm.selectie.deviceType && <input type="hidden" name="apparaat" value={scherm.selectie.deviceType} />}
+      {scherm.selectie.bron && <input type="hidden" name="bron" value={scherm.selectie.bron} />}
+      {scherm.selectie.bronLabel && <input type="hidden" name="herkomst" value={scherm.selectie.bronLabel} />}
+      <label>
+        Van
+        <input type="date" name="van" value={scherm.periode.van} max={scherm.vandaag} required />
+      </label>
+      <label>
+        Tot
+        <input type="date" name="tot" value={scherm.periode.tot} max={scherm.vandaag} required />
+      </label>
+      <button class="bh-btn bh-btn--sec" type="submit">Toon periode</button>
+    </form>
+  </div>
+
+  <form class="bh-analytics-filters" method="get" action={actie}>
+    {
+      scherm.eigen ? (
+        <>
+          <input type="hidden" name="van" value={scherm.periode.van} />
+          <input type="hidden" name="tot" value={scherm.periode.tot} />
+        </>
+      ) : (
+        scherm.periode.dagen !== 30 && <input type="hidden" name="periode" value={String(scherm.periode.dagen)} />
+      )
+    }
+    <label>
+      Pagina
+      <select name="pagina">
+        <option value="">Alle pagina's</option>
+        {paginaOpties.map((pagina) => (
+          <option value={pagina.pageKey} selected={pagina.pageKey === scherm.selectie.pageKey}>
+            {pagina.label}
+          </option>
+        ))}
+      </select>
+    </label>
+    <label>
+      Apparaat
+      <select name="apparaat">
+        <option value="">Alle apparaten</option>
+        {DEVICE_TYPES.map((deviceType) => (
+          <option value={deviceType} selected={deviceType === scherm.selectie.deviceType}>
+            {APPARAAT[deviceType]}
+          </option>
+        ))}
+      </select>
+    </label>
+    <label>
+      Herkomst
+      <select name="herkomst">
+        <option value="">Alle herkomst</option>
+        {bronOpties.map((bron) => (
+          <option value={bron.waarde} selected={bron.waarde === gekozenHerkomst}>
+            {bron.label}
+          </option>
+        ))}
+      </select>
+    </label>
+    <button class="bh-btn bh-btn--sec" type="submit">Toon deze keuze</button>
+    {gefilterd && (
+      <a class="bh-analytics-wis" href={wisHref}>
+        Wis filters
+      </a>
+    )}
+  </form>
+
+  {
+    gefilterd && (
+      <p class="bh-analytics-keuze">
+        Alleen
+        {paginaLabel && (
+          <a href={href( { pagina: null })}>{paginaLabel}</a>
+        )}
+        {scherm.selectie.deviceType && (
+          <a href={href( { apparaat: null })}>{APPARAAT[scherm.selectie.deviceType]}</a>
+        )}
+        {bronLabel && <a href={href({ herkomst: null, bron: null })}>{bronLabel}</a>}
+      </p>
+    )
+  }
+
+  {
+    !resultaat.ok && resultaat.reden === 'niet-gekoppeld' && (
+      <p class="bh-leeg">
+        Supabase is nog niet gekoppeld. Paginaweergaven worden bewaard zodra de beheerdatabase bereikbaar is. De
+        publieke website blijft gewoon werken.
+      </p>
+    )
+  }
+  {
+    !resultaat.ok && resultaat.reden === 'mislukt' && (
+      <p class="bh-leeg">De statistieken konden niet worden geladen. De publieke website blijft gewoon werken.</p>
+    )
+  }
+  {leeg && <p class="bh-leeg">In deze periode zijn geen paginaweergaven gemeten.</p>}
+  {
+    filterLeeg && (
+      <p class="bh-leeg">
+        Niets voor deze keuze. <a href={wisHref}>Toon alles in deze periode</a>
+      </p>
+    )
+  }
+
+  {
+    stats && !leeg && !filterLeeg && resultaat.ok && (
+      <>
+        {resultaat.afgekapt && (
+          <p class="bh-hint">Deze periode bevat heel veel pageviews. Het overzicht toont de oudste 50.000.</p>
+        )}
+        <ul class="bh-analytics-kpi">
+          <li>
+            <strong>{getal.format(stats.totalen.pageviews)}</strong>
+            <span>Paginaweergaven</span>
+            {verschil && <em class={verschil.richting}>{verschil.tekst}</em>}
+          </li>
+          <li>
+            <strong>{komma.format(stats.totalen.gemiddeldPerDag)}</strong>
+            <span>Gemiddeld per dag</span>
+          </li>
+          <li>
+            <strong>{drukste && drukste.pageviews > 0 ? getal.format(drukste.pageviews) : '0'}</strong>
+            <span>{drukste && drukste.pageviews > 0 ? `Drukste dag · ${kort(drukste.datum)}` : 'Drukste dag'}</span>
+          </li>
+          {
+            gefilterd ? (
+              <li>
+                <strong>{aandeelTekst(deelVanAlles)}</strong>
+                <span>Van alle weergaven in deze periode</span>
+              </li>
+            ) : (
+              meeste && (
+                <li>
+                  <strong>{meeste.label}</strong>
+                  <span>Meest bekeken · {aandeelTekst(meeste.aandeel)}</span>
+                </li>
+              )
+            )
+          }
+        </ul>
+
+        <section class="bh-kaart">
+          <h2>Verloop</h2>
+          <p class="bh-hint">Elke staaf is één dag. Wijs een staaf aan voor de datum en het aantal.</p>
+          <div class="bh-reeks" role="list" aria-label="Paginaweergaven per dag">
+            {stats.dagelijks.map((dag) => {
+              const hoogte = dag.pageviews === 0 ? 0 : Math.max(6, (dag.pageviews / maxDag) * 100);
+              return (
+                <div class="bh-reeks-dag" role="listitem" title={`${lang(dag.datum)}: ${getal.format(dag.pageviews)} weergaven`}>
+                  <span class="bh-reeks-track">
+                    <span class="bh-reeks-staaf" style={`height: ${hoogte}%`}></span>
+                  </span>
+                  {toonLabels && <span class="bh-reeks-label">{kort(dag.datum)}</span>}
+                </div>
+              );
+            })}
+          </div>
+          {asLabels.length > 0 && (
+            <p class="bh-reeks-as">
+              {asLabels.map((label) => (
+                <span>{label}</span>
+              ))}
+            </p>
+          )}
+        </section>
+
+        <div class="bh-split">
+          <section class="bh-kaart">
+            <h2>Pagina's</h2>
+            <p class="bh-hint">Kies een pagina om het verloop, de apparaten en de herkomst daarvan te zien.</p>
+            <div class="bh-analytics-scroll">
+              <table class="bh-tabel">
+                <thead>
+                  <tr>
+                    <th>Pagina</th>
+                    <th>Aandeel</th>
+                    <th>Weergaven</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.paginas.map((pagina) => {
+                    const gekozen = scherm.selectie.pageKey === pagina.pageKey;
+                    const adressen = pagina.paden.length + pagina.extraPaden;
+                    return (
+                      <tr class={gekozen ? 'is-gekozen' : undefined}>
+                        <td>
+                          <a
+                            class="bh-rijlink"
+                            href={href( gekozen ? { pagina: null } : { pagina: pagina.pageKey })}
+                            aria-current={gekozen ? 'true' : undefined}
+                          >
+                            {pagina.label}
+                          </a>
+                          {!gekozen && pagina.meerderePaden && <span class="bh-muted"> {adressen} adressen</span>}
+                          {!gekozen && !pagina.meerderePaden && pagina.path && (
+                            <span class="bh-muted"> {pagina.path}</span>
+                          )}
+                          {gekozen && (
+                            <ul class="bh-paden">
+                              {pagina.paden.map((pad) => {
+                                const href = publiekPad(pad.path);
+                                return (
+                                  <li>
+                                    {href ? (
+                                      <a href={href} target="_blank" rel="noopener">
+                                        {pad.path}
+                                      </a>
+                                    ) : (
+                                      pad.path
+                                    )}
+                                    <span class="bh-muted"> {getal.format(pad.pageviews)}</span>
+                                  </li>
+                                );
+                              })}
+                              {pagina.extraPaden > 0 && <li class="bh-muted">en {pagina.extraPaden} andere adressen</li>}
+                            </ul>
+                          )}
+                        </td>
+                        <td>
+                          <span class="bh-verdeling-balk" aria-hidden="true">
+                            <span style={`width: ${Math.min(100, pagina.aandeel)}%`}></span>
+                          </span>
+                        </td>
+                        <td>
+                          {getal.format(pagina.pageviews)}
+                          <span class="bh-muted"> {aandeelTekst(pagina.aandeel)}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div>
+            <section class="bh-kaart">
+              <h2>Herkomst</h2>
+              <p class="bh-hint">Direct is een weergave zonder andere website als herkomst. Alleen het domein wordt bewaard.</p>
+              <ul class="bh-verdeling">
+                {bundelVerwijzers(stats.verwijzers).map((rij) => {
+                  const gekozen = gekozenHerkomst === rij.label;
+                  return (
+                    <li>
+                      <a
+                        href={href(gekozen ? { herkomst: null, bron: null } : { herkomst: rij.label })}
+                        aria-current={gekozen ? 'true' : undefined}
+                      >
+                        {rij.label}
+                      </a>
+                      <span class="bh-verdeling-balk" aria-hidden="true">
+                        <span style={`width: ${Math.min(100, rij.aandeel)}%`}></span>
+                      </span>
+                      <span>
+                        {getal.format(rij.pageviews)} · {aandeelTekst(rij.aandeel)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+            <section class="bh-kaart">
+              <h2>Apparaat</h2>
+              <ul class="bh-verdeling">
+                {stats.apparaten.map((apparaat) => {
+                  const gekozen = scherm.selectie.deviceType === apparaat.deviceType;
+                  return (
+                    <li>
+                      <a
+                        href={href( gekozen ? { apparaat: null } : { apparaat: apparaat.deviceType })}
+                        aria-current={gekozen ? 'true' : undefined}
+                      >
+                        {APPARAAT[apparaat.deviceType]}
+                      </a>
+                      <span class="bh-verdeling-balk" aria-hidden="true">
+                        <span style={`width: ${Math.min(100, apparaat.aandeel)}%`}></span>
+                      </span>
+                      <span>
+                        {getal.format(apparaat.pageviews)} · {aandeelTekst(apparaat.aandeel)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+            {
+              stats.locales.length > 1 && (
+                <section class="bh-kaart">
+                  <h2>Taal</h2>
+                  <ul class="bh-verdeling">
+                    {stats.locales.map((locale) => (
+                      <li>
+                        <span>{locale.label}</span>
+                        <span class="bh-verdeling-balk" aria-hidden="true">
+                          <span style={`width: ${Math.min(100, locale.aandeel)}%`}></span>
+                        </span>
+                        <span>
+                          {getal.format(locale.pageviews)} · {aandeelTekst(locale.aandeel)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            }
+          </div>
+        </div>
+      </>
+    )
+  }

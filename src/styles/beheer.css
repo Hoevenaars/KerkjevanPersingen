@@ -1462,6 +1462,151 @@ html:has(.bh-app) {
   background: var(--pine);
 }
 
+.bh-analytics-balk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: var(--s-4);
+}
+
+.bh-analytics-balk .bh-tabs {
+  margin-bottom: 0;
+}
+
+.bh-analytics-bereik,
+.bh-analytics-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: flex-end;
+}
+
+.bh-analytics-filters {
+  margin: 0 0 var(--s-4);
+}
+
+.bh-analytics-bereik label,
+.bh-analytics-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+}
+
+.bh-analytics-bereik input,
+.bh-analytics-filters select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--sand);
+  border-radius: var(--radius);
+  padding: var(--s-2) var(--s-3);
+  min-height: 2.5rem;
+}
+
+.bh-analytics-filters select {
+  min-width: 12rem;
+}
+
+.bh-analytics-wis {
+  align-self: center;
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+}
+
+.bh-analytics-keuze {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: center;
+  margin: 0 0 var(--s-4);
+}
+
+.bh-analytics-keuze a {
+  text-decoration: none;
+  background: var(--cream-deep);
+  color: var(--pine);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: var(--t-sm);
+}
+
+.bh-analytics-kpi em {
+  display: block;
+  margin-top: var(--s-2);
+  font-style: normal;
+  font-size: var(--t-xs, 0.75rem);
+  color: var(--ink-mute);
+}
+
+.bh-analytics-kpi em.meer {
+  color: var(--pine);
+}
+
+.bh-analytics-kpi em.minder {
+  color: var(--brick-dark, #6a2e22);
+}
+
+.bh-analytics-scroll {
+  max-height: 32rem;
+  overflow: auto;
+}
+
+.bh-tabel tr.is-gekozen td {
+  background: var(--cream-deep);
+}
+
+.bh-rijlink {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.bh-rijlink:hover,
+.bh-verdeling a:hover {
+  text-decoration: underline;
+}
+
+.bh-verdeling a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.bh-verdeling a[aria-current='true'] {
+  color: var(--pine);
+}
+
+.bh-paden {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  font-size: var(--t-sm);
+  font-weight: 400;
+}
+
+.bh-paden li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.bh-paden a {
+  color: var(--ink-soft);
+}
+
+.bh-reeks-as {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin: var(--s-2) 0 0;
+  color: var(--ink-mute);
+  font-size: var(--t-xs, 0.75rem);
+}
+
 .bh-viewas {
   position: sticky;
   top: 0;

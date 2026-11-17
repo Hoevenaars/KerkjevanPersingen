@@ -67,6 +67,7 @@ describe('zes hoofdonderdelen', () => {
       'Website Agenda',
       'Banner',
       'Extra balk',
+      'Analytics',
     ]);
     assert.equal(subitems('website', admin, agendaOpties).some((item) => item.label === 'Overzicht'), false);
     assert.equal(subitems('website', admin, agendaOpties).some((item) => item.label === 'Activiteiten'), false);
@@ -138,6 +139,18 @@ describe('zes hoofdonderdelen', () => {
     );
   });
 
+  test('analytics staat onder website en opent die kop', () => {
+    const alleen: GebruikerRechten = { isSuperAdmin: false, perModule: { analytics: 'lezen' } };
+    assert.deepEqual(hoofditems(alleen, agendaOpties).map((item) => item.sleutel), ['website']);
+    assert.equal(hoofditems(alleen, agendaOpties)[0]?.href, '/beheer/analytics/');
+    assert.deepEqual(subitems('website', alleen, agendaOpties).map((item) => item.label), ['Analytics']);
+    assert.equal(subitems('instellingen', alleen, agendaOpties).some((item) => item.sleutel === 'analytics'), false);
+    assert.deepEqual(locatieVoorPad('/beheer/analytics/', alleen, agendaOpties), {
+      hoofd: 'Website',
+      sub: 'Analytics',
+    });
+  });
+
   test('alleen het overzicht voor wie verder niets mag zien', () => {
     assert.deepEqual(hoofditems(hans, agendaOpties).map((item) => item.sleutel), ['overzicht']);
   });
@@ -166,7 +179,7 @@ describe('zes hoofdonderdelen', () => {
     const verhuur = subitems('verhuur', admin, agendaOpties);
     assert.equal(verhuur.some((item) => item.sleutel === 'kalender'), false);
     assert.equal(verhuur.find((item) => item.sleutel === 'planning')?.label, 'Gastbegeleiders');
-    assert.equal(sub.find((item) => item.sleutel === 'analytics')?.groep, 'Technisch');
+    assert.equal(sub.some((item) => item.sleutel === 'analytics'), false);
     const groepen = groepeer(sub).map((groep) => groep.titel);
     assert.deepEqual(groepen, ['Organisatie en verhuur', 'Personen en toegang', 'Communicatie', 'Technisch']);
   });
@@ -181,7 +194,7 @@ describe('paden blijven bereikbaar', () => {
     assert.equal(sectieVoorPad('/beheer/instellingen/finance/'), 'instellingen');
     assert.equal(sectieVoorPad('/beheer/finance/'), 'financien');
     assert.equal(sectieVoorPad('/beheer/migratie/'), 'instellingen');
-    assert.equal(sectieVoorPad('/beheer/analytics/'), 'instellingen');
+    assert.equal(sectieVoorPad('/beheer/analytics/'), 'website');
   });
 
   test('algemeen is niet actief op een subpagina', () => {

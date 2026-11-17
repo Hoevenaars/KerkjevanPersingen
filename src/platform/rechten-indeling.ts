@@ -50,6 +50,7 @@ export const RECHTEN_SECTIES: readonly RechtenSectie[] = [
       { id: 'website-agenda', label: 'Website Agenda', module: 'agenda' },
       { id: 'banner', label: 'Banner', module: 'website_banner' },
       { id: 'extra-balk', label: 'Extra balk', module: 'website_extra_balk' },
+      { id: 'analytics', label: 'Analytics', module: 'analytics' },
     ],
   },
   {
@@ -81,7 +82,6 @@ export const RECHTEN_SECTIES: readonly RechtenSectie[] = [
       { id: 'automatiseringen', label: 'Automatiseringen', module: 'automatiseringen' },
       { id: 'mailtemplates', label: 'Mailtemplates', module: 'templates' },
       { id: 'systeem', label: 'Systeem', module: 'systeembeheer' },
-      { id: 'analytics', label: 'Bezoekcijfers', module: 'analytics' },
       { id: 'migratie', label: 'Migratie', module: 'migratie' },
     ],
   },

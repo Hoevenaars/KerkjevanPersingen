@@ -32,7 +32,7 @@ Rollen komen uit de bestaande modules. Super Admin ziet alles. Een gewone rol zi
 | `/beheer/finance/` | Geld | Oude vlag op de boeking, en de tabel `betalingen` | Alleen lezen | "Als ontvangen markeren" bestaat niet | `finance` | Betaalblok in het dossier | Ja, de vlag en de tabel | Behouden als Financiën | Ja, voor de penningmeester | Het totaaloverzicht |
 | `/beheer/vrienden/` | Vriendenbestand | Naam, e-mail, frequentie | Export, alleen Super Admin | Toevoegen is uitgeschakeld | `vrienden` | Relaties | Nee | Samenvoegen onder Contacten | Soms | Het aparte bestand en de toestemming |
 | `/beheer/nieuwsbrief/` | Weekoverzicht | Bestaande weken | Openen en voorbeeld | Bewaren en verzenden zijn uit | `nieuwsbrief` | Stond ook op de website-ingang | Eigen tabel | Samenvoegen onder Contacten | Soms | De bestaande nieuwsbrief, zonder nieuwe zending |
-| `/beheer/analytics/` | Bezoekcijfers | `page_views` | Lezen als er rijen zijn | De pagina zegt zelf wanneer de meting nog leeg is | `analytics` | Geen | Nee | Secundair onder Instellingen | Nee | De meting, als die er is |
+| `/beheer/analytics/` | Analytics | `page_views` | Lezen als er rijen zijn. Periode, pagina, apparaat en herkomst zijn te kiezen | De pagina zegt zelf wanneer de meting nog leeg is | `analytics` | Geen | Nee | Onder Website | Nee | De meting, als die er is |
 | `/beheer/zoeken/` | Zoeken in de snapshot | Namen en datums | Zoeken | Geen | `dashboard` | Filters op de agenda | Ja | Behouden in de balk | Ja | Het zoekveld |
 | `/beheer/migratie/` | Leesbare migratiestatus | Aantal `migratie_vastgelegd`. De Sanity-controlelijst alleen als de bron nog Sanity is | Niets. Het scherm schrijft niet | De stappenlijst beschrijft een oude volgorde en start geen import | `migratie`, erft van instellingen | Geen dagelijks scherm | De boekingen zelf | Secundair onder Instellingen, technisch | Nee | Het enige scherm dat zegt dat er niets wordt geschreven |
 
@@ -74,7 +74,8 @@ Eerdere terugkoppeling zei dat `/beheer/migratie/` geen pagina had. Op deze `mai
 | Homepage-melding | Website én Instellingen → Meldingen |
 | Relaties, vrienden, nieuwsbrief | Contacten. De lijsten blijven apart |
 | Finance | Financiën, geleid door `betalingen` |
-| Analytics, systeem, migratie | Instellingen → Technisch |
+| Analytics | Website → Analytics |
+| Systeem, migratie | Instellingen → Technisch |
 | Overige instellingen | Instellingen, in vier groepen |
 
 Oude URL's zijn niet omgeleid. Een link uit een mail of een bladwijzer opent hetzelfde scherm. Vanaf Overzicht of Financiën krijgt het dossier `?van=overzicht` of `?van=financien`, zodat de kruimel terugwijst. Andere waarden van `van` worden genegeerd.
@@ -91,7 +92,7 @@ De bediening, niet de gegevens.
 
 ## 4. Secundair
 
-Maandkalender, bezoekcijfers, systeem, migratie, automatiseringen, mailtemplates, en de twee instelschermen die nog niet opslaan. Die laatste twee zeggen in het menu "nog niet op te slaan".
+Maandkalender, systeem, migratie, automatiseringen, mailtemplates, en de twee instelschermen die nog niet opslaan. Die laatste twee zeggen in het menu "nog niet op te slaan". Analytics staat onder Website.
 
 ## 5. Bewust behouden
 

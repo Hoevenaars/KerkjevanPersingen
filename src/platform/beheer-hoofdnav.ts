@@ -80,7 +80,12 @@ export function sectieVoorPad(pathname: string): HoofdSleutel | null {
   ) {
     return 'verhuur';
   }
-  if (pad.startsWith('/beheer/website') || pad.startsWith('/beheer/agenda') || pad.startsWith('/beheer/publiceren')) {
+  if (
+    pad.startsWith('/beheer/website') ||
+    pad.startsWith('/beheer/agenda') ||
+    pad.startsWith('/beheer/publiceren') ||
+    pad.startsWith('/beheer/analytics')
+  ) {
     return 'website';
   }
   if (
@@ -96,7 +101,6 @@ export function sectieVoorPad(pathname: string): HoofdSleutel | null {
   if (
     pad.startsWith('/beheer/instellingen') ||
     pad.startsWith('/beheer/migratie') ||
-    pad.startsWith('/beheer/analytics') ||
     pad.startsWith('/beheer/mail')
   ) {
     return 'instellingen';
@@ -131,6 +135,9 @@ function websiteSub(rechten: GebruikerRechten, _opties: HoofdOpties): NavItem[] 
   }
   if (magZien(rechten, 'website_extra_balk')) {
     items.push({ sleutel: 'extra-balk', href: '/beheer/website/extra-balk/', label: 'Extra balk' });
+  }
+  if (magZien(rechten, 'analytics')) {
+    items.push({ sleutel: 'analytics', href: '/beheer/analytics/', label: 'Analytics' });
   }
   return items;
 }
@@ -226,15 +233,6 @@ function instellingenSub(rechten: GebruikerRechten): NavItem[] {
       label: 'Systeem',
       groep: technisch,
       toelichting: 'alleen bekijken',
-    });
-  }
-  if (magZien(rechten, 'analytics')) {
-    items.push({
-      sleutel: 'analytics',
-      href: '/beheer/analytics/',
-      label: 'Bezoekcijfers',
-      groep: technisch,
-      toelichting: 'zelden nodig',
     });
   }
   if (magZien(rechten, 'migratie')) {
