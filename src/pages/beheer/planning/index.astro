@@ -7,6 +7,26 @@ import { laadBeheerSnapshot, beheerSnapshotOpties, omgevingsRecord, schrijfActie
 import { actorVanSessie, postAlsSupabase } from '../../../lib/operatie/runtime.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { gastbegeleidersPerBoeking, metTerug } from '../../../platform/planning.ts';
+import PlanningMail from '../../../components/beheer/PlanningMail.astro';
+import { magSchrijven } from '../../../platform/rechten.ts';
+import { supabasePlanningMailOpslag } from '../../../lib/planning-mail-opslag.ts';
+import { verstuurPlanningMail } from '../../../lib/planning-mail-verzend.ts';
+import { besluitVoor } from '../../../lib/automatisering-register.ts';
+import {
+  basisParams,
+  behoudenVelden,
+  kiesVoorbeeld,
+  mailUrl,
+  periodeFout,
+  renderPlanningMail,
+  stelPlanningMailSamen,
+  tijdTekst,
+  verzendmoment,
+  voorgesteldePeriode,
+  PLANNING_MAIL_SLEUTEL,
+  type PlanningMailHistorie,
+} from '../../../platform/planning-mail.ts';
+import { randomUUID } from 'node:crypto';
 import {
   hoortOpGastbegeleiderbord,
   leesBegeleiderKeuze,
@@ -21,12 +41,66 @@ import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { gastherenVoorKoppeling } from '../../../platform/gastheer-lijst.ts';
 
 if (Astro.request.method === 'POST') {
+  const data = await Astro.request.formData();
+  if (String(data.get('actie') ?? '') === 'planning-verzend') {
+    const env = omgevingsRecord();
+    const doel = new URL('/beheer/planning/', Astro.url.origin);
+    for (const sleutel of ['jaar', 'maand', 'q', 'bron']) {
+      const waarde = String(data.get(sleutel) ?? '');
+      if (waarde) doel.searchParams.set(sleutel, waarde);
+    }
+    for (const waarde of data.getAll('begeleider')) {
+      if (waarde === 'ja' || waarde === 'nee') doel.searchParams.append('begeleider', waarde);
+    }
+    const van = String(data.get('mailVan') ?? '');
+    const tot = String(data.get('mailTot') ?? '');
+    const snapshotVoorMail = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
+    const fout = periodeFout(van, tot);
+    const bundel = fout ? null : stelPlanningMailSamen({
+      van,
+      tot,
+      tijd: tijdTekst(snapshotVoorMail.instellingen.openingVan, snapshotVoorMail.instellingen.openingTot),
+      boekingen: snapshotVoorMail.boekingen,
+      toewijzingen: snapshotVoorMail.toewijzingen ?? [],
+      gastheren: snapshotVoorMail.gastheren,
+    });
+    const opslag = snapshotVoorMail.bron === 'supabase' ? supabasePlanningMailOpslag(env) : null;
+    const rechten = Astro.locals.beheer?.effectieveRechten;
+    const actor = actorVanSessie(Astro.locals.beheer);
+    const uit = !opslag
+      ? { ok: false, verstuurd: false, verzendingId: '', melding: 'De verzendhistorie is niet beschikbaar. Er is geen e-mail verstuurd.' }
+      : await verstuurPlanningMail({
+        bevestig: data.get('bevestig') === 'ja',
+        token: String(data.get('token') ?? ''),
+        opnieuw: data.get('opnieuw') === 'ja',
+        voorbeelddata: snapshotVoorMail.bron !== 'supabase',
+        alleenLezen: Boolean(snapshotVoorMail.alleenLezen),
+        magSchrijven: Boolean(rechten && magSchrijven(rechten, 'planning')),
+        periodeFout: fout,
+        bundel,
+        actor: { id: actor.id, naam: actor.naam },
+        env,
+        opslag,
+      });
+    if (uit.verzendingId) {
+      doel.searchParams.set('mail', 'resultaat');
+      doel.searchParams.set('verzending', uit.verzendingId);
+      doel.searchParams.set('melding', uit.melding);
+    } else {
+      doel.searchParams.set('mail', 'bevestig');
+      if (van) doel.searchParams.set('mailVan', van);
+      if (tot) doel.searchParams.set('mailTot', tot);
+      doel.searchParams.set('fout', uit.melding);
+    }
+    return Astro.redirect(doel.toString());
+  }
   const operationeel = await postAlsSupabase({
     request: Astro.request,
     url: Astro.url,
     env: omgevingsRecord(),
     actor: actorVanSessie(Astro.locals.beheer),
     sessie: sessieSupabaseUitAstro(Astro),
+    formulier: data,
   });
   if (operationeel) return operationeel;
   return Astro.redirect(demoNaActie(Astro.url));
@@ -89,12 +163,131 @@ const exposities = snapshot.boekingen
 const lijstLeeg = zoek || begeleiderKeuze !== 'alle'
   ? 'Geen boekingen voor deze zoekopdracht of dit filter.'
   : 'Geen boekingen in deze periode.';
+
+const mailParam = Astro.url.searchParams.get('mail');
+const mailStap = mailParam === 'bevestig'
+  ? 'bevestig'
+  : mailParam === 'resultaat'
+    ? 'resultaat'
+    : mailParam === 'historie'
+      ? 'historie'
+      : mailParam === '1'
+        ? 'kies'
+        : 'dicht';
+const mailBasis = basisParams(Astro.url.searchParams);
+const mailVoorstel = voorgesteldePeriode(vandaag);
+const mailVan = Astro.url.searchParams.has('mailVan')
+  ? (Astro.url.searchParams.get('mailVan') ?? '')
+  : mailStap === 'kies' || mailStap === 'bevestig'
+    ? mailVoorstel.van
+    : '';
+const mailTot = Astro.url.searchParams.has('mailTot')
+  ? (Astro.url.searchParams.get('mailTot') ?? '')
+  : mailStap === 'kies' || mailStap === 'bevestig'
+    ? mailVoorstel.tot
+    : '';
+const mailPeriodeFout = mailVan || mailTot ? periodeFout(mailVan, mailTot) : null;
+const mailBundel = mailStap !== 'dicht' && mailStap !== 'historie' && !mailPeriodeFout && mailVan && mailTot
+  ? stelPlanningMailSamen({
+    van: mailVan,
+    tot: mailTot,
+    tijd: tijdTekst(snapshot.instellingen.openingVan, snapshot.instellingen.openingTot),
+    boekingen: snapshot.boekingen,
+    toewijzingen: snapshot.toewijzingen ?? [],
+    gastheren: snapshot.gastheren,
+  })
+  : null;
+const mailVoorbeeldPersoon = mailBundel
+  ? kiesVoorbeeld(mailBundel.ontvangers, mailBundel.diensten, Astro.url.searchParams.get('mailVoor') ?? '')
+  : null;
+const mailBrief = mailBundel && mailVoorbeeldPersoon ? renderPlanningMail(mailBundel, mailVoorbeeldPersoon) : null;
+const mailRechten = Astro.locals.beheer?.effectieveRechten;
+const mailMagSchrijven = Boolean(mailRechten && magSchrijven(mailRechten, 'planning') && !Astro.locals.beheer?.viewAs);
+let mailBlokkade = !mailMagSchrijven
+  ? 'U kunt de planning bekijken. Verzenden kan alleen met schrijfrecht, en niet terwijl u als iemand anders meekijkt.'
+  : snapshot.bron !== 'supabase' || snapshot.alleenLezen
+    ? 'Deze omgeving verstuurt geen e-mail.'
+    : mailBundel && mailBundel.ontvangers.length === 0
+      ? 'Er is geen actieve gastbegeleider met een e-mailadres.'
+      : '';
+let mailWaarschuwing = '';
+if ((mailStap === 'kies' || mailStap === 'bevestig') && snapshot.bron === 'supabase' && !mailBlokkade) {
+  try {
+    const besluit = await besluitVoor(PLANNING_MAIL_SLEUTEL, undefined, omgevingsRecord());
+    if (!besluit.provider || (besluit.modus !== 'aan' && besluit.modus !== 'test')) {
+      mailBlokkade = 'De schakelaar Planning mailen staat uit. Er wordt niets verstuurd.';
+    } else if (besluit.modus === 'test') {
+      mailWaarschuwing = 'De schakelaar staat op Test. Een verzending gaat alleen naar het testadres, niet naar de gastbegeleiders.';
+    }
+  } catch {
+    mailBlokkade = 'De verzending is nu niet beschikbaar. Er wordt niets verstuurd.';
+  }
+}
+const mailOpslag = mailStap !== 'dicht' && snapshot.bron === 'supabase' ? supabasePlanningMailOpslag(omgevingsRecord()) : null;
+let mailHistorie: PlanningMailHistorie[] = [];
+let mailResultaat: PlanningMailHistorie | null = null;
+let mailDubbelMoment = '';
+if (mailOpslag) {
+  try {
+    mailHistorie = await mailOpslag.recent(12);
+    if (mailStap === 'resultaat') {
+      mailResultaat = await mailOpslag.lees(Astro.url.searchParams.get('verzending') ?? '');
+    }
+    if (mailBundel && (mailStap === 'kies' || mailStap === 'bevestig')) {
+      const laatste = await mailOpslag.laatsteAfgerond(mailBundel.hash);
+      if (laatste && (laatste.status === 'verzonden' || laatste.status === 'deels')) {
+        mailDubbelMoment = verzendmoment(laatste.verzondenOp);
+      }
+    }
+  } catch {
+    mailHistorie = [];
+  }
+}
+const mailToken = mailStap === 'bevestig' ? randomUUID() : '';
+const mailBehouden = behoudenVelden(mailBasis);
 ---
 
 <Beheer titel="Gastbegeleiders">
   <header class="bh-top">
     <h1>Gastbegeleiders</h1>
+    {mailStap === 'dicht' && (
+      <div class="planning-mail-kop">
+        <a class="bh-btn" href={mailUrl(mailBasis, { mail: '1', mailVan: mailVoorstel.van, mailTot: mailVoorstel.tot })}>Planning mailen</a>
+        <a class="bh-btn bh-btn--sec" href={mailUrl(mailBasis, { mail: 'historie' })}>Eerder verzonden</a>
+      </div>
+    )}
   </header>
+
+  {mailStap !== 'dicht' && (
+    <PlanningMail
+      stap={mailStap}
+      terugHref={mailUrl(mailBasis)}
+      startHref={mailUrl(mailBasis, { mail: '1', mailVan: mailVoorstel.van, mailTot: mailVoorstel.tot })}
+      voorbeeldHref={mailUrl(mailBasis, { mail: '1', mailVan, mailTot, mailVoor: mailVoorbeeldPersoon?.email ?? '' })}
+      behouden={mailBehouden}
+      van={mailVan}
+      tot={mailTot}
+      periodeFout={mailPeriodeFout}
+      gepland={mailBundel?.gepland ?? 0}
+      openstaand={mailBundel?.openstaand ?? 0}
+      ontvangers={mailBundel?.ontvangers ?? []}
+      zonderEmail={mailBundel?.zonderEmail ?? []}
+      voorbeeldOpties={mailBundel?.ontvangers ?? []}
+      voorbeeldEmail={mailVoorbeeldPersoon?.email ?? ''}
+      voorbeeldHtml={mailBrief?.html ?? ''}
+      toonVoorbeeld={Boolean(mailBundel) && (mailStap === 'kies' || mailStap === 'bevestig')}
+      magVersturen={mailMagSchrijven && !mailBlokkade && Boolean(mailBundel)}
+      blokkade={mailBlokkade}
+      waarschuwing={mailWaarschuwing}
+      bevestigHref={mailUrl(mailBasis, { mail: 'bevestig', mailVan, mailTot, mailVoor: mailVoorbeeldPersoon?.email ?? '' })}
+      token={mailToken}
+      dubbel={Boolean(mailDubbelMoment)}
+      dubbelMoment={mailDubbelMoment}
+      historie={mailHistorie}
+      historieHref={(id) => mailUrl(mailBasis, { mail: 'resultaat', verzending: id })}
+      resultaat={mailResultaat}
+    />
+  )}
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
   {melding && <p class="bh-flash">{melding}</p>}
@@ -102,6 +295,9 @@ const lijstLeeg = zoek || begeleiderKeuze !== 'alle'
 
   <form class="kc-filters" method="get" action="/beheer/planning/">
     {bronParam && <input type="hidden" name="bron" value={bronParam} />}
+    {mailStap !== 'dicht' && <input type="hidden" name="mail" value={mailStap === 'kies' ? '1' : mailStap} />}
+    {mailVan && <input type="hidden" name="mailVan" value={mailVan} />}
+    {mailTot && <input type="hidden" name="mailTot" value={mailTot} />}
     <div class="kc-veld">
       <label for="jaar">Jaar</label>
       <select id="jaar" name="jaar" onchange="this.form.requestSubmit()">
@@ -196,3 +392,14 @@ const lijstLeeg = zoek || begeleiderKeuze !== 'alle'
   </table>
   )}
 </Beheer>
+
+<style>
+  .planning-mail-kop {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .planning-mail-kop .bh-btn {
+    min-height: 48px;
+  }
+</style>

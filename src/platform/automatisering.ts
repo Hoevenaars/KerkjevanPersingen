@@ -253,6 +253,22 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
     gewijzigdOp: null,
   },
   {
+    sleutel: 'planning_mail',
+    naam: 'Planning naar gastbegeleiders',
+    omschrijving: 'Handmatige planningmail vanaf Gastbegeleiders. Periode, voorbeeld en opslaan versturen niets. Alleen de bevestigde knop Planning verzenden stuurt mail. Er is geen cron.',
+    categorie: 'handmatig',
+    status: 'actief',
+    mailcategorie: 'handmatig',
+    trigger: 'Knop Planning verzenden, na extra bevestiging',
+    actieveTrigger: true,
+    ontvangerstype: 'Actieve gastbegeleiders',
+    risicovol: true,
+    laatsteRun: null,
+    laatsteResultaat: null,
+    gewijzigdDoor: null,
+    gewijzigdOp: null,
+  },
+  {
     sleutel: 'mailtemplate_test',
     naam: 'Testmail van een template',
     omschrijving: 'De testknop bij een mailtemplate. Een echte provider-call gaat alleen naar het centrale testmailadres.',
@@ -501,6 +517,12 @@ export function technischeGereedheid(item: Automatisering): { status: Technische
         label: 'Gereed',
         toelichting: 'Iemand op de reservelijst zetten verstuurt geen e-mail. Er is geen automatische verzending.',
       };
+    case 'planning_mail':
+      return {
+        status: 'gereed',
+        label: 'Gereed',
+        toelichting: 'De mail gaat alleen na de knop Planning verzenden en een extra bevestiging. Er is geen automatische verzending.',
+      };
     case 'nazorg':
       return {
         status: 'gereed',
@@ -563,7 +585,9 @@ export function functioneleStatus(item: Automatisering): FunctioneelOordeel {
       toelichting:
         item.sleutel === 'aanvraag_bestuur'
           ? 'Een nieuwe verhuuraanvraag kan mail naar het bestuur sturen. De verzending wordt gelogd.'
-          : 'Caller en schakelaar staan aan. Ontvangers volgen de echte flow.',
+          : item.sleutel === 'planning_mail'
+            ? 'Er gaat niets uit bij het kiezen van een periode, het voorbeeld of het opslaan. Alleen de bevestigde knop Planning verzenden stuurt de mail.'
+            : 'Caller en schakelaar staan aan. Ontvangers volgen de echte flow.',
     };
   }
   return {
