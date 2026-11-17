@@ -35,7 +35,7 @@ import {
   procesTekst,
   type HandmatigeBoeking,
 } from '../../platform/handmatige-boeking.ts';
-import { isBestuurder } from '../../platform/rechten.ts';
+import { magSchrijven } from '../../platform/rechten.ts';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import { kiesTarief, naAanbetalingOntvangen, tariefSnapshot, INITIELE_TARIEVEN, STANDAARD_AANBETALING_EURO } from '../../platform/finance.ts';
 import { MailGeblokkeerd } from '../../platform/automatisering.ts';
@@ -1504,9 +1504,9 @@ export function bouwPlan(wereld: Wereld, opdracht: Opdracht, ctx: DienstContext)
   return mislukt('Onbekende opdracht.');
 }
 
-function actorIsBestuurder(actor: Actor): boolean {
+function actorMagHandmatigeBoeking(actor: Actor): boolean {
   if (actor.type !== 'gebruiker' || !actor.rechten) return false;
-  return isBestuurder(actor.rechten);
+  return magSchrijven(actor.rechten, 'handmatige_boeking');
 }
 
 function faseWereldUit(wereld: Wereld) {
@@ -1551,7 +1551,7 @@ function planHandmatigeBoeking(
   ctx: DienstContext,
   vandaag: string,
 ): Plan {
-  if (!actorIsBestuurder(ctx.actor)) return mislukt('Alleen een bestuurder kan een handmatige boeking vastleggen.');
+  if (!actorMagHandmatigeBoeking(ctx.actor)) return mislukt('Geen recht om een handmatige boeking vast te leggen.');
   const { soort: _soort, ...rest } = opdracht;
   const gelezen = leesHandmatigeBoeking(rest);
   if (!gelezen.ok) return mislukt(gelezen.melding);

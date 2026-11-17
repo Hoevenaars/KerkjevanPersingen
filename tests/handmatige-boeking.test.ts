@@ -178,7 +178,7 @@ test('overlap met een definitieve of historische boeking vraagt een bewuste afwi
 test('een lezer of schrijver zonder bestuursrecht kan geen boeking aanmaken', async () => {
   const gelezen = await voerOpdrachtUit(legeWereld(), expositie, { ...ctx(), actor: lezer });
   assert.equal(gelezen.resultaat.ok, false);
-  assert.match(gelezen.resultaat.melding, /bestuurder/);
+  assert.match(gelezen.resultaat.melding, /handmatige boeking/);
   const geschreven = await voerOpdrachtUit(legeWereld(), expositie, { ...ctx(), actor: schrijver });
   assert.equal(geschreven.resultaat.ok, false);
   assert.equal(geschreven.wereld.boekingen.length, 0);

@@ -106,6 +106,36 @@ export const BEHEER_MODULES = {
     href: '/beheer/migratie/',
     groep: 'instellingen',
   },
+  handmatige_boeking: {
+    label: 'Handmatige boeking',
+    href: '/beheer/boekingen/nieuw/',
+    groep: 'onderdeel',
+  },
+  website_banner: {
+    label: 'Banner',
+    href: '/beheer/website/banner/',
+    groep: 'onderdeel',
+  },
+  website_extra_balk: {
+    label: 'Extra balk',
+    href: '/beheer/website/extra-balk/',
+    groep: 'onderdeel',
+  },
+  reservelijst: {
+    label: 'Reserve lijst',
+    href: '/beheer/reservelijst/',
+    groep: 'onderdeel',
+  },
+  verhuur_instellingen: {
+    label: 'Verhuur',
+    href: '/beheer/instellingen/verhuur/',
+    groep: 'onderdeel',
+  },
+  contractsjabloon: {
+    label: 'Contractsjabloon',
+    href: '/beheer/instellingen/contractsjabloon/',
+    groep: 'onderdeel',
+  },
 } as const;
 
 export type ModuleSleutel = keyof typeof BEHEER_MODULES;

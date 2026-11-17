@@ -17,7 +17,7 @@ import {
 import { onderwerpUitTemplate } from '../../../../platform/mailtemplates/render.ts';
 import { standaardTemplate } from '../../../../platform/mailtemplates/catalog.ts';
 import { STANDAARD_VERHUURTYPEN } from '../../../../platform/types.ts';
-import { isBestuurder } from '../../../../platform/rechten.ts';
+import { magSchrijven } from '../../../../platform/rechten.ts';
 import { isYmd } from '../../../../platform/datum.ts';
 import { actorVanSessie } from '../../../../lib/operatie/runtime.ts';
 import { voerDossierViaSessie, type DossierSessie } from '../../../../lib/operatie/dossier-sessie.ts';
@@ -27,7 +27,7 @@ import type { FaseWereld } from '../../../../platform/aanvraag-fase.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
-const bestuurder = isBestuurder(rechten);
+const bestuurder = magSchrijven(rechten, 'handmatige_boeking');
 const demo = snapshot.bron === 'demo';
 
 const waarden: Record<string, string> = {
@@ -220,7 +220,7 @@ function aan(sleutel: string): boolean {
     </div>
   </header>
 
-  {!bestuurder && <p class="bh-flash bh-flash--fout">Alleen een bestuurder kan een handmatige boeking vastleggen.</p>}
+  {!bestuurder && <p class="bh-flash bh-flash--fout">Je mag een handmatige boeking bekijken, niet vastleggen.</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
   {gelukt && <p class="bh-flash" role="status">{gelukt}</p>}
 

@@ -27,7 +27,7 @@ import {
   type HandmatigeBoeking,
 } from '../../platform/handmatige-boeking.ts';
 import { optieSnapshot, STANDAARD_OPTIETERMIJN_DAGEN } from '../../platform/optie.ts';
-import { isBestuurder, magSchrijven } from '../../platform/rechten.ts';
+import { magSchrijven } from '../../platform/rechten.ts';
 import { verstuurHandmatigeBevestiging } from './handmatige-bevestiging.ts';
 import { statusActieToegestaan, statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import type { AanvraagStatus, GebruikerRechten } from '../../platform/types.ts';
@@ -593,7 +593,9 @@ async function maakHandmatigeBoeking(
   opdracht: Extract<Opdracht, { soort: 'handmatige_boeking' }>,
   actor: Actor,
 ): Promise<DossierResultaat> {
-  if (!isBestuurder(rechtenVan(actor))) return { ok: false, melding: 'Alleen een bestuurder kan een handmatige boeking vastleggen.' };
+  if (!magSchrijven(rechtenVan(actor), 'handmatige_boeking')) {
+    return { ok: false, melding: 'Geen recht om een handmatige boeking vast te leggen.' };
+  }
   const { soort: _soort, ...rest } = opdracht;
   const gelezen = leesHandmatigeBoeking(rest);
   if (!gelezen.ok) return { ok: false, melding: gelezen.melding };

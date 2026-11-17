@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Beheer from '../../../../layouts/Beheer.astro';
-import { MODULES, BEHEER_MODULES } from '../../../../platform/modules.ts';
+import RechtenEditor from '../../../../components/beheer/RechtenEditor.astro';
 import { legeMatrix } from '../../../../platform/rollen.ts';
 import { loginFoutmelding } from '../../../../lib/beheer-auth.ts';
 import {
@@ -12,7 +12,6 @@ import {
 } from '../../../../lib/beheer-gebruikers.ts';
 import { laadRollen } from '../../../../lib/rollen-opslag.ts';
 import { leesbareSupabaseFout, sessieSupabaseUitAstro, supabaseGeconfigureerd } from '../../../../lib/supabase.ts';
-import type { Rechtniveau } from '../../../../platform/types.ts';
 
 const sessie = Astro.locals.beheer;
 const gekozenId = Astro.url.searchParams.get('id') ?? '';
@@ -69,11 +68,7 @@ const flash =
               ? meldingParam || loginFoutmelding(fout)
               : '';
 
-function niveauVoor(rechten: Record<string, Rechtniveau | undefined>, module: string): Rechtniveau {
-  return rechten[module] ?? 'verborgen';
-}
-
-const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
+const nieuweRechten = gekozen?.rechten ?? gekozenRol?.rechten ?? legeMatrix();
 ---
 
 <Beheer titel="Gebruikers">
@@ -81,8 +76,8 @@ const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
     <div>
       <h1>Gebruikers</h1>
       <p class="bh-hint">
-        Een rol is een naam met rechten. Die richt je hier in en bekijk je via het oogje,
-        ook voordat er een persoon aan gekoppeld is. Een nieuwe naam voeg je toe of verwijder je hieronder.
+        Een rol is een naam met rechten, ingedeeld zoals het menu. Bij een kop kies je de hele sectie,
+        of je laat de kop op verborgen en zet alleen de onderdelen. Het overzicht volgt daarna die rechten.
       </p>
     </div>
   </header>
@@ -124,7 +119,9 @@ const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
     gekozenRol && (
       <section class="bh-kaart" id="rol">
         <h2>Rechten van {gekozenRol.naam}</h2>
-        <p class="bh-hint">Opslaan bewaart deze rol. Er hoeft nog geen persoon aan gekoppeld te zijn.</p>
+        <p class="bh-hint">
+          Lezen of schrijven op de kop geldt voor elk onderdeel. Verborgen op de kop laat de onderdelen vrij.
+        </p>
         <form method="post" action="/api/beheer/rollen" class="bh-gebruiker-form">
           <input type="hidden" name="actie" value="opslaan" />
           <input type="hidden" name="slug" value={gekozenRol.slug} />
@@ -137,33 +134,14 @@ const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
           <table class="bh-rechten bh-rechten-editor">
             <thead>
               <tr>
-                <th>Module</th>
+                <th>Onderdeel</th>
                 <th>Verborgen</th>
                 <th>Lezen</th>
                 <th>Schrijven</th>
               </tr>
             </thead>
             <tbody>
-              {
-                MODULES.map((module) => (
-                  <tr>
-                    <th>{BEHEER_MODULES[module].label}</th>
-                    {(['verborgen', 'lezen', 'schrijven'] as const).map((niveau) => (
-                      <td>
-                        <label class="bh-radio">
-                          <input
-                            type="radio"
-                            name={`recht_${module}`}
-                            value={niveau}
-                            checked={niveauVoor(gekozenRol.rechten, module) === niveau}
-                          />
-                          <span class="visually-hidden">{niveau}</span>
-                        </label>
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              }
+              <RechtenEditor rechten={gekozenRol.rechten} />
             </tbody>
           </table>
           <div class="bh-acties">
@@ -299,45 +277,19 @@ const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
       </div>
       <p class="bh-hint">
         Koppel hier pas een persoon. De rechten starten met de rol die je hierboven hebt opgeslagen.
+        Een kop op lezen of schrijven geldt voor de hele sectie.
       </p>
       <table class="bh-rechten bh-rechten-editor">
         <thead>
           <tr>
-            <th>Module</th>
+            <th>Onderdeel</th>
             <th>Verborgen</th>
             <th>Lezen</th>
             <th>Schrijven</th>
           </tr>
         </thead>
         <tbody>
-          {
-            MODULES.map((module) => {
-              const huidige = gekozen
-                ? gekozen.isSuperAdmin
-                  ? 'schrijven'
-                  : niveauVoor(gekozen.rechten, module)
-                : niveauVoor(nieuweRechten, module);
-              return (
-                <tr>
-                  <th>{BEHEER_MODULES[module].label}</th>
-                  {(['verborgen', 'lezen', 'schrijven'] as const).map((niveau) => (
-                    <td>
-                      <label class="bh-radio">
-                        <input
-                          type="radio"
-                          name={`recht_${module}`}
-                          value={niveau}
-                          checked={huidige === niveau}
-                          disabled={gekozen?.isSuperAdmin}
-                        />
-                        <span class="visually-hidden">{niveau}</span>
-                      </label>
-                    </td>
-                  ))}
-                </tr>
-              );
-            })
-          }
+          <RechtenEditor rechten={nieuweRechten} vast={Boolean(gekozen?.isSuperAdmin)} />
         </tbody>
       </table>
       {
@@ -358,6 +310,35 @@ const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
       }
     </form>
   </section>
+  <script is:inline>
+    document.querySelectorAll('.bh-rechten-editor').forEach((tabel) => {
+      tabel.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        if (target.name.startsWith('kop_') && target.value !== 'verborgen') {
+          const sectie = target.name.slice(4);
+          tabel.querySelectorAll(`[data-rechten-sectie="${sectie}"] input[value="${target.value}"]`).forEach((input) => {
+            input.checked = true;
+          });
+        }
+        if (target.name.startsWith('recht_')) {
+          const rij = target.closest('[data-rechten-sectie]');
+          const sectie = rij && rij.dataset.rechtenSectie;
+          if (sectie) {
+            const niveaus = new Set();
+            tabel.querySelectorAll(`[data-rechten-sectie="${sectie}"]`).forEach((row) => {
+              const checked = row.querySelector('input:checked');
+              if (checked) niveaus.add(checked.value);
+            });
+            const kopWaarde = niveaus.size === 1 ? [...niveaus][0] : '';
+            tabel.querySelectorAll(`input[name="kop_${sectie}"]`).forEach((input) => {
+              input.checked = input.value === kopWaarde;
+            });
+          }
+        }
+      });
+    });
+  </script>
   {
     !gekozen && (
       <script is:inline define:vars={{ rolMatrices }}>
@@ -370,6 +351,9 @@ const nieuweRechten = gekozenRol?.rechten ?? legeMatrix();
             const input = formulier.querySelector(`input[name="recht_${module}"][value="${niveau}"]`);
             if (input) input.checked = true;
           }
+          formulier.querySelectorAll('.bh-rechten-editor [data-rechten-sectie]').forEach((rij) => {
+            rij.querySelector('input')?.dispatchEvent(new Event('change', { bubbles: true }));
+          });
         });
       </script>
     )

@@ -208,7 +208,7 @@ describe('paden blijven bereikbaar', () => {
   });
 
   test('reserve lijst hoort bij contacten en het relatierecht', () => {
-    assert.equal(moduleVoorPad('/beheer/reservelijst/'), 'relaties');
+    assert.equal(moduleVoorPad('/beheer/reservelijst/'), 'reservelijst');
     assert.deepEqual(locatieVoorPad('/beheer/reservelijst/', admin, agendaOpties), {
       hoofd: 'Contacten',
       sub: 'Reserve lijst',

@@ -5,6 +5,7 @@
  */
 
 import { MODULES } from './modules.ts';
+import { GEERFDE_MODULES } from './rechten.ts';
 import type { ModuleSleutel, Rechtniveau } from './types.ts';
 
 export type RechtenMatrix = Partial<Record<ModuleSleutel, Rechtniveau>>;
@@ -41,14 +42,22 @@ export function slugVanNaam(naam: string): string {
   return basis;
 }
 
+const ERF_ALS_LEEG = new Set<ModuleSleutel>([...GEERFDE_MODULES, 'handmatige_boeking']);
+
 export function vulMatrix(gedeeltelijk: RechtenMatrix | null | undefined): RechtenMatrix {
   const matrix = legeMatrix();
-  if (!gedeeltelijk) return matrix;
+  if (!gedeeltelijk) {
+    for (const module of ERF_ALS_LEEG) delete matrix[module];
+    return matrix;
+  }
   for (const module of MODULES) {
     const niveau = gedeeltelijk[module];
     if (niveau === 'verborgen' || niveau === 'lezen' || niveau === 'schrijven') {
       matrix[module] = niveau;
     }
+  }
+  for (const module of ERF_ALS_LEEG) {
+    if (!gedeeltelijk[module]) delete matrix[module];
   }
   return matrix;
 }

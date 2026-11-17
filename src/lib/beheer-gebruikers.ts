@@ -64,17 +64,7 @@ export function valideerInvite(invoer: InviteInvoer): string | null {
   return null;
 }
 
-export function matrixVanFormulier(data: Iterable<[string, FormDataEntryValue]>): RechtenMatrix {
-  const matrix: RechtenMatrix = {};
-  for (const [naam, waarde] of data) {
-    if (!naam.startsWith('recht_')) continue;
-    const module = naam.slice('recht_'.length);
-    if (!MODULES.includes(module as (typeof MODULES)[number])) continue;
-    if (waarde !== 'verborgen' && waarde !== 'lezen' && waarde !== 'schrijven') continue;
-    matrix[module as keyof RechtenMatrix] = waarde;
-  }
-  return matrix;
-}
+export { matrixVanFormulier } from '../platform/rechten-indeling.ts';
 
 export function inviteRechten(invoer: InviteInvoer): RechtenMatrix {
   if (invoer.rechten && Object.keys(invoer.rechten).length > 0) return invoer.rechten;
