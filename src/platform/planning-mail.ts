@@ -479,7 +479,7 @@ function dienstBlok(dienst: PlanningDienst, eigen: boolean): string {
 }
 
 function htmlVan(
-  bundel: Pick<PlanningMailBundel, 'onderwerp' | 'periodeTekst' | 'diensten'>,
+  bundel: Pick<PlanningMailBundel, 'periodeTekst'>,
   ontvanger: PlanningOntvanger,
   eigen: readonly PlanningDienst[],
   open: readonly PlanningDienst[],
@@ -487,9 +487,6 @@ function htmlVan(
   const eigenHtml = eigen.length
     ? eigen.map((dienst) => dienstBlok(dienst, true)).join('')
     : '<p style="margin:0 0 16px;font-size:18px;line-height:1.5;color:#1A1A1A;">U bent in deze periode niet ingedeeld.</p>';
-  const volledig = bundel.diensten.length
-    ? bundel.diensten.map((dienst) => dienstBlok(dienst, false)).join('')
-    : '<p style="margin:0 0 16px;font-size:18px;line-height:1.5;color:#1A1A1A;">In deze periode staan geen diensten.</p>';
   const openHtml = open.length
     ? open.map((dienst) => dienstBlok(dienst, false)).join('')
     : '<p style="margin:0 0 16px;font-size:18px;line-height:1.5;color:#1A1A1A;">Alle diensten in deze periode zijn ingevuld.</p>';
@@ -502,7 +499,7 @@ function htmlVan(
   <title>${escapeHtml(titel)}</title>
 </head>
 <body style="margin:0;padding:0;background:${CREAM};">
-  <div style="display:none;max-height:0;overflow:hidden;">Uw diensten en de planning van ${escapeHtml(bundel.periodeTekst)}.</div>
+  <div style="display:none;max-height:0;overflow:hidden;">Uw diensten en de openstaande diensten van ${escapeHtml(bundel.periodeTekst)}.</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:${CREAM};border-collapse:collapse;">
     <tr>
       <td align="center" style="padding:24px 12px;">
@@ -517,11 +514,9 @@ function htmlVan(
             <td style="background:#ffffff;border:1px solid ${SAND};padding:28px 24px;font-family:Arial,Helvetica,sans-serif;color:${INK};">
               <h1 style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.3;font-weight:600;color:${PINE};">${escapeHtml(titel)}</h1>
               <p style="margin:0 0 16px;font-size:18px;line-height:1.5;">Beste ${escapeHtml(ontvanger.naam)},</p>
-              <p style="margin:0 0 8px;font-size:18px;line-height:1.5;">Dit is de planning van ${escapeHtml(bundel.periodeTekst)}. Uw eigen diensten staan bovenaan.</p>
+              <p style="margin:0 0 8px;font-size:18px;line-height:1.5;">Hier staan uw diensten van ${escapeHtml(bundel.periodeTekst)}, en de diensten die nog open zijn.</p>
               <h2 style="margin:28px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600;color:${PINE};">Uw diensten</h2>
               ${eigenHtml}
-              <h2 style="margin:28px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600;color:${PINE};">De volledige planning</h2>
-              ${volledig}
               <h2 style="margin:28px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600;color:${PINE};">Openstaande diensten</h2>
               ${openHtml}
               <p style="margin:8px 0 0;font-size:18px;line-height:1.5;">Heeft u een vraag, dan kunt u op deze e-mail antwoorden.</p>
@@ -556,7 +551,7 @@ function tekstDienst(dienst: PlanningDienst, eigen: boolean): string {
 }
 
 function tekstVan(
-  bundel: Pick<PlanningMailBundel, 'periodeTekst' | 'diensten'>,
+  bundel: Pick<PlanningMailBundel, 'periodeTekst'>,
   ontvanger: PlanningOntvanger,
   eigen: readonly PlanningDienst[],
   open: readonly PlanningDienst[],
@@ -564,9 +559,6 @@ function tekstVan(
   const eigenTekst = eigen.length
     ? eigen.map((dienst) => tekstDienst(dienst, true)).join('\n\n')
     : 'U bent in deze periode niet ingedeeld.';
-  const volledig = bundel.diensten.length
-    ? bundel.diensten.map((dienst) => tekstDienst(dienst, false)).join('\n\n')
-    : 'In deze periode staan geen diensten.';
   const openTekst = open.length
     ? open.map((dienst) => tekstDienst(dienst, false)).join('\n\n')
     : 'Alle diensten in deze periode zijn ingevuld.';
@@ -575,13 +567,10 @@ function tekstVan(
     '',
     `Beste ${ontvanger.naam},`,
     '',
-    `Dit is de planning van ${bundel.periodeTekst}. Uw eigen diensten staan bovenaan.`,
+    `Hier staan uw diensten van ${bundel.periodeTekst}, en de diensten die nog open zijn.`,
     '',
     'Uw diensten',
     eigenTekst,
-    '',
-    'De volledige planning',
-    volledig,
     '',
     'Openstaande diensten',
     openTekst,
