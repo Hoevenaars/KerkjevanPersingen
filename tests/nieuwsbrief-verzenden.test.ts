@@ -64,6 +64,11 @@ test('aan stuurt de weektekst naar de vriend en markeert de week', async () => {
   assert.equal(uit.overgeslagen, 'aan');
   assert.equal(verzonden.length, 1);
   assert.equal(verzonden[0].naar, 'bo@example.test');
+  assert.deepEqual(verzonden[0].tags, [
+    { name: 'soort', value: 'nieuwsbrief' },
+    { name: 'editie', value: '9' },
+    { name: 'vriend', value: '1' },
+  ]);
   assert.match(verzonden[0].tekst, /Een groet uit Persingen/);
   assert.match(verzonden[0].tekst, /Hartelijke groeten/);
   assert.equal(verzonden[0].tekst.includes('De klok is gerepareerd.'), false);

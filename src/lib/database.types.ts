@@ -402,13 +402,13 @@ isOneToOne: false
                   ]
                 },"nieuwsbrief_verzendingen": {
                   Row: {
-                    "email_op_verzendmoment": string | null,"foutmelding": string | null,"id": number,"nieuwsbrief_id": number,"status": Database["public"]['Enums']["communicatie_status"],"test": boolean,"verzonden_op": string | null,"vriend_id": number | null
+                    "activiteit_geklikt_op": string | null,"email_op_verzendmoment": string | null,"foutmelding": string | null,"geopend_op": string | null,"id": number,"nieuwsbrief_id": number,"provider_id": string | null,"status": Database["public"]['Enums']["communicatie_status"],"test": boolean,"verzonden_op": string | null,"vriend_id": number | null
                   }
                   Insert: {
-                    "email_op_verzendmoment"?: string | null,"foutmelding"?: string | null,"id"?: never,"nieuwsbrief_id": number,"status": Database["public"]['Enums']["communicatie_status"],"test"?: boolean,"verzonden_op"?: string | null,"vriend_id"?: number | null
+                    "activiteit_geklikt_op"?: string | null,"email_op_verzendmoment"?: string | null,"foutmelding"?: string | null,"geopend_op"?: string | null,"id"?: never,"nieuwsbrief_id": number,"provider_id"?: string | null,"status": Database["public"]['Enums']["communicatie_status"],"test"?: boolean,"verzonden_op"?: string | null,"vriend_id"?: number | null
                   }
                   Update: {
-                    "email_op_verzendmoment"?: string | null,"foutmelding"?: string | null,"id"?: never,"nieuwsbrief_id"?: number,"status"?: Database["public"]['Enums']["communicatie_status"],"test"?: boolean,"verzonden_op"?: string | null,"vriend_id"?: number | null
+                    "activiteit_geklikt_op"?: string | null,"email_op_verzendmoment"?: string | null,"foutmelding"?: string | null,"geopend_op"?: string | null,"id"?: never,"nieuwsbrief_id"?: number,"provider_id"?: string | null,"status"?: Database["public"]['Enums']["communicatie_status"],"test"?: boolean,"verzonden_op"?: string | null,"vriend_id"?: number | null
                   }
                   Relationships: [
                     {

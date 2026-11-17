@@ -118,6 +118,7 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
         replyTo: brief.replyTo,
         modus: besluit.modus,
         idempotentieSleutel: dedupNieuwsbrief(voorbereid.week.id, brief.vriend.email),
+        tags: nieuwsbriefTags(voorbereid.week.id, brief.vriend._id),
       },
       { modus: besluit.modus, testadres, transport: opties.transport, register: opties.register },
     );
@@ -130,10 +131,21 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
       test: besluit.modus === 'test',
       status: besluit.modus === 'test' ? 'concept' : 'verzonden',
       templateSleutel: voorbereid.template.sleutel,
+      providerId: uit.providerBerichtId,
     });
   }
   if (besluit.modus === 'aan' && verstuurd > 0 && plan.resterend === 0) {
     await bron.markeerVerstuurd(voorbereid.week.id);
   }
   return { verstuurd, gepland: plan.bedoeldeAantal, overgeslagen: plan.reden };
+}
+
+/** Resend-tags mogen alleen letters, cijfers, _ en -. */
+function nieuwsbriefTags(editieId: string, vriendId: string): { name: string; value: string }[] | undefined {
+  if (!/^\d{1,18}$/.test(editieId) || !/^\d{1,18}$/.test(vriendId)) return undefined;
+  return [
+    { name: 'soort', value: 'nieuwsbrief' },
+    { name: 'editie', value: editieId },
+    { name: 'vriend', value: vriendId },
+  ];
 }

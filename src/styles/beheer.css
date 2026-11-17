@@ -2540,3 +2540,19 @@ a.bh-teller:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.bh-bereik {
+  margin-top: var(--s-8);
+}
+
+.bh-bereik h3 {
+  margin: var(--s-6) 0 var(--s-3);
+}
+
+.bh-bereik-lijst {
+  overflow-x: auto;
+}
+
+.bh-bereik-lijst .bh-tabel {
+  min-width: 40rem;
+}

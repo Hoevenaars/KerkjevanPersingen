@@ -53,6 +53,7 @@ export interface Verzending {
   test: boolean;
   status: 'concept' | 'verzonden' | 'fout';
   templateSleutel: string;
+  providerId?: string | null;
 }
 
 export type NieuwsbriefStop =
@@ -359,6 +360,7 @@ export function supabaseNieuwsbrief(): NieuwsbriefBron {
         test: verzending.test,
         status: verzending.status,
         verzonden_op: verzending.status === 'verzonden' ? new Date().toISOString() : null,
+        provider_id: verzending.providerId || null,
       });
       if (error) throw new Error(error.message);
     },
