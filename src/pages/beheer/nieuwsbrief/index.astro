@@ -9,6 +9,7 @@ import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/behe
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { bereikVanRijen } from '../../../lib/nieuwsbrief-bereik.ts';
 import { bereikVoorBeheer } from '../../../lib/nieuwsbrief-bereik-opslag.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
@@ -21,6 +22,8 @@ const verstuurd = snapshot.nieuwsbrieven
 const bereik = snapshot.bron === 'supabase'
   ? await bereikVoorBeheer(sessieSupabaseUitAstro(Astro))
   : { rijen: [], fout: false };
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const kanGoedkeuren = !Astro.locals.beheer?.viewAs && magSchrijven(rechten, 'nieuwsbrief');
 ---
 
 <Beheer titel="Nieuwsbrief">
@@ -64,6 +67,13 @@ const bereik = snapshot.bron === 'supabase'
               </td>
               <td>
                 <a href={`/beheer/nieuwsbrief/${encodeURIComponent(n.id)}/voorbeeld/`}>Preview</a>
+                {kanGoedkeuren && !n.goedgekeurd && !n.overgeslagen && (
+                  <form method="post" action={`/beheer/nieuwsbrief/${encodeURIComponent(n.id)}/`}>
+                    <input type="hidden" name="actie" value="goedkeuren" />
+                    <input type="hidden" name="terug" value="lijst" />
+                    <button class="bh-btn" type="submit">Goedkeuren</button>
+                  </form>
+                )}
               </td>
             </tr>
             );

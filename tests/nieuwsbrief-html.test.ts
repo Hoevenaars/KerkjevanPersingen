@@ -89,10 +89,16 @@ describe('bouwNieuwsbriefHtml', () => {
     assert.equal(html.includes('>Voorkeuren</a>'), true);
   });
 
-  test('legt in de intro geen nadruk op steun', () => {
-    assert.equal(html.includes('Elke week een kort bericht over wat er speelt in en om het kerkje.'), true);
-    assert.equal(html.includes('zoals jij'), false);
-    assert.equal(html.includes('dankzij de steun'), false);
+  test('opent met de groet en sluit zonder doneerknop of kort nieuws', () => {
+    assert.equal(html.includes('Een groet uit Persingen'), true);
+    assert.equal(html.includes('Speciaal voor de vrienden van ons kerkje'), true);
+    assert.equal(html.includes('Wat fijn dat u ons kerkje een warm hart toedraagt.'), true);
+    assert.equal(html.includes('We hopen u binnenkort weer eens te mogen begroeten in ons mooie Persingen!'), true);
+    assert.equal(html.includes('Hartelijke groeten,'), true);
+    assert.equal(html.includes('Steun het kerkje'), false);
+    assert.equal(html.includes('Kort nieuws'), false);
+    assert.equal(html.includes('Dankzij jullie steun'), false);
+    assert.equal(html.includes('Het bord is vervangen.'), false);
   });
 
   test('houdt adres en telefoon crème, zonder tel-link', () => {
@@ -112,36 +118,6 @@ describe('bouwNieuwsbriefHtml', () => {
   test('maakt de stichtingsnaam in de voettekst groter en crèmekleurig', () => {
     assert.equal(html.includes('font-size:16px'), true);
     assert.equal(html.includes('Stichting Het Kerkje van Persingen'), true);
-  });
-
-  test('toont een foto bij kort nieuws als die is meegegeven', () => {
-    const metFoto = bouwNieuwsbriefHtml(
-      {
-        kortNieuws: 'Het bord is vervangen.',
-        kortNieuwsFotoUrl: 'https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/nieuws.jpg',
-        kortNieuwsFotoAlt: 'Nieuw informatiebord',
-      },
-      [blok],
-      'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
-      mailMeta('wekelijks'),
-    );
-    assert.equal(metFoto.includes('https://xskqpefeumylrticrphp.supabase.co/storage/v1/object/public/public-media/nieuws.jpg'), true);
-    assert.equal(metFoto.includes('Nieuw informatiebord'), true);
-  });
-
-  test('laat kort nieuws weg als tekst én foto ontbreken', () => {
-    const zonder = bouwNieuwsbriefHtml(null, [blok], 'https://kerkjepersingen.nl/vrienden/afmelden?token=abc', mailMeta('wekelijks'));
-    assert.equal(zonder.includes('Kort nieuws'), false);
-  });
-
-  test('laat donatie-update weg als die leeg is', () => {
-    const zonder = bouwNieuwsbriefHtml(
-      { kortNieuws: 'Het bord is vervangen.' },
-      [blok],
-      'https://kerkjepersingen.nl/vrienden/afmelden?token=abc',
-      mailMeta('wekelijks'),
-    );
-    assert.equal(zonder.includes('Dankzij jullie steun'), false);
   });
 
   test('toont een extra blok als die is meegegeven', () => {
@@ -173,6 +149,6 @@ describe('bouwNieuwsbriefHtml', () => {
     );
     assert.equal(lang.includes('Agenda komende twee weken'), true);
     assert.equal(lang.includes('Concert op de orgel'), true);
-    assert.equal(lang.includes('Komende twee weken in Persingen'), true);
+    assert.equal(lang.includes('Een groet uit Persingen'), true);
   });
 });

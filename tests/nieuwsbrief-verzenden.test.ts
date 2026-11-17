@@ -69,7 +69,10 @@ test('aan stuurt de weektekst naar de vriend en markeert de week', async () => {
     { name: 'editie', value: '9' },
     { name: 'vriend', value: '1' },
   ]);
-  assert.match(verzonden[0].tekst, /De klok is gerepareerd/);
+  assert.match(verzonden[0].tekst, /Een groet uit Persingen/);
+  assert.match(verzonden[0].tekst, /Hartelijke groeten/);
+  assert.equal(verzonden[0].tekst.includes('De klok is gerepareerd.'), false);
+  assert.equal(verzonden[0].tekst.includes('Steun het kerkje'), false);
   assert.match(verzonden[0].tekst, /tok-1/);
   assert.equal(bron.verzendingen[0].test, false);
   assert.equal(bron.verzendingen[0].status, 'verzonden');
@@ -129,7 +132,8 @@ test('preview is een dry-run en laat de week open', async () => {
   assert.equal(verzonden.length, 0);
   assert.equal(uit.verstuurd, 0);
   assert.equal(uit.overgeslagen, 'dry-run, geen mail');
-  assert.match(uit.tekst, /De klok is gerepareerd/);
+  assert.match(uit.tekst, /Een groet uit Persingen/);
+  assert.equal(uit.tekst.includes('De klok is gerepareerd.'), false);
   assert.match(uit.tekst, /token=preview/);
   assert.equal(bron.verzendingen.length, 0);
   assert.equal(bron.weken[0].verstuurd, false);
