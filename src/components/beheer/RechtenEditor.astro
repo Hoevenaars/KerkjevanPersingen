@@ -1,0 +1,94 @@
+---
+import { rechtVoor } from '../../platform/rechten.ts';
+import { niveauVanKop, RECHTEN_SECTIES } from '../../platform/rechten-indeling.ts';
+import type { ModuleSleutel, Rechtniveau } from '../../platform/types.ts';
+
+interface Props {
+  rechten: Record<string, Rechtniveau | undefined>;
+  vast?: boolean;
+}
+
+const { rechten, vast = false } = Astro.props;
+const niveaus = ['verborgen', 'lezen', 'schrijven'] as const;
+
+function niveauVoor(module: ModuleSleutel): Rechtniveau {
+  if (vast) return 'schrijven';
+  return rechtVoor({ isSuperAdmin: false, perModule: rechten }, module);
+}
+---
+
+{
+  RECHTEN_SECTIES.map((sectie) => {
+    const los = sectie.onderdelen.length > 0;
+    const kop = los ? niveauVanKop(sectie.onderdelen.map((onderdeel) => niveauVoor(onderdeel.module))) : null;
+    return (
+      <>
+        {los ? (
+          <tr class="bh-rechten-kop" data-rechten-kop={sectie.id}>
+            <th>
+              {sectie.label}
+              <span class="bh-rechten-sub">Hele kop</span>
+            </th>
+            {niveaus.map((niveau) => (
+              <td>
+                <label class="bh-radio">
+                  <input
+                    type="radio"
+                    name={`kop_${sectie.id}`}
+                    value={niveau}
+                    checked={kop === niveau}
+                    disabled={vast}
+                    data-vast={vast ? '1' : undefined}
+                  />
+                  <span class="visually-hidden">{niveau}</span>
+                </label>
+              </td>
+            ))}
+          </tr>
+        ) : (
+          <tr class="bh-rechten-kop">
+            <th>
+              {sectie.label}
+              {sectie.toelichting && <span class="bh-rechten-sub">{sectie.toelichting}</span>}
+            </th>
+            {niveaus.map((niveau) => (
+              <td>
+                <label class="bh-radio">
+                  <input
+                    type="radio"
+                    name={`recht_${sectie.module}`}
+                    value={niveau}
+                    checked={niveauVoor(sectie.module!) === niveau}
+                    disabled={vast}
+                    data-vast={vast ? '1' : undefined}
+                  />
+                  <span class="visually-hidden">{niveau}</span>
+                </label>
+              </td>
+            ))}
+          </tr>
+        )}
+        {sectie.onderdelen.map((onderdeel) => (
+          <tr class="bh-rechten-deel" data-rechten-sectie={sectie.id}>
+            <th>{onderdeel.label}</th>
+            {niveaus.map((niveau) => (
+              <td>
+                <label class="bh-radio">
+                  <input
+                    type="radio"
+                    name={`recht_${onderdeel.module}`}
+                    value={niveau}
+                    checked={niveauVoor(onderdeel.module) === niveau}
+                    disabled={vast}
+                    data-vast={vast ? '1' : undefined}
+                  />
+                  <span class="visually-hidden">{niveau}</span>
+                </label>
+              </td>
+            ))}
+          </tr>
+        ))}
+      </>
+    );
+  })
+}

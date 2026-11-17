@@ -26,7 +26,15 @@ const LEGACY_OUDER: Partial<Record<ModuleSleutel, ModuleSleutel>> = {
   automatiseringen: 'instellingen',
   bridge: 'instellingen',
   migratie: 'instellingen',
+  website_banner: 'agenda',
+  website_extra_balk: 'agenda',
+  reservelijst: 'relaties',
+  verhuur_instellingen: 'instellingen',
+  contractsjabloon: 'instellingen',
 };
+
+/** Modules die een ontbrekende rij van hun ouder erven. Een expliciete rij wint. */
+export const GEERFDE_MODULES = Object.keys(LEGACY_OUDER) as ModuleSleutel[];
 
 export function rechtVoor(
   rechten: GebruikerRechten,
@@ -35,6 +43,9 @@ export function rechtVoor(
   if (rechten.isSuperAdmin) return 'schrijven';
   const direct = rechten.perModule[module];
   if (direct) return direct;
+  if (module === 'handmatige_boeking') {
+    return rechten.perModule.instellingen === 'schrijven' ? 'schrijven' : 'verborgen';
+  }
   const ouder = LEGACY_OUDER[module];
   if (ouder && rechten.perModule[ouder]) return rechten.perModule[ouder] ?? 'verborgen';
   return 'verborgen';

@@ -14,6 +14,7 @@ import {
 import type { BeheerRol } from './rollen.ts';
 import type { GebruikerRechten, ModuleSleutel, Rechtniveau } from './types.ts';
 import { MODULES } from './modules.ts';
+import { magSchrijven } from './rechten.ts';
 
 export const VIEW_AS_COOKIE = 'beheer_view_as';
 export const LAST_ACTIVE_INTERVAL_MS = 5 * 60 * 1000;
@@ -121,7 +122,5 @@ export function magSuperAdminVlagZetten(actor: GebruikerRechten, gewenst: boolea
 export function beheerModus(sessie: BeheerSessie, module: ModuleSleutel | null): 'schrijven' | 'lezen' | 'preview' {
   if (sessie.viewAs) return 'preview';
   if (!module) return 'lezen';
-  return sessie.effectieveRechten.isSuperAdmin || sessie.effectieveRechten.perModule[module] === 'schrijven'
-    ? 'schrijven'
-    : 'lezen';
+  return magSchrijven(sessie.effectieveRechten, module) ? 'schrijven' : 'lezen';
 }

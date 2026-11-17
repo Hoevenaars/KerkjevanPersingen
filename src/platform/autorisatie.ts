@@ -4,7 +4,7 @@
  */
 
 import { BEHEER_MODULES, type ModuleSleutel } from './modules.ts';
-import { isBestuurder, magSchrijven, magZien } from './rechten.ts';
+import { magSchrijven, magZien } from './rechten.ts';
 import type { GebruikerRechten } from './types.ts';
 
 export type BeheerPadSoort = ModuleSleutel | 'auth' | 'onbekend';
@@ -69,15 +69,21 @@ export function moduleVoorPad(pathname: string): BeheerPadSoort {
   if (pad.startsWith('/beheer/instellingen/finance')) return 'finance_instellingen';
   if (pad.startsWith('/beheer/instellingen/automatiseringen')) return 'automatiseringen';
   if (pad.startsWith('/beheer/instellingen/systeem')) return 'systeembeheer';
+  if (pad.startsWith('/beheer/instellingen/verhuur')) return 'verhuur_instellingen';
+  if (pad.startsWith('/beheer/instellingen/contractsjabloon')) return 'contractsjabloon';
+  if (pad.startsWith('/beheer/instellingen/meldingen')) return 'website_extra_balk';
   if (pad.startsWith('/beheer/migratie')) return 'migratie';
   if (pad.startsWith('/beheer/instellingen')) return 'instellingen';
   if (pad.startsWith('/beheer/aanvragen')) return 'aanvragen';
   if (pad.startsWith('/beheer/verhuur')) return 'boekingen';
   if (pad.startsWith('/beheer/boekingen')) return 'boekingen';
   if (pad.startsWith('/beheer/kalender')) return 'kalender';
+  if (pad.startsWith('/beheer/website/banner')) return 'website_banner';
+  if (pad.startsWith('/beheer/website/extra-balk')) return 'website_extra_balk';
   if (pad.startsWith('/beheer/agenda') || pad.startsWith('/beheer/publiceren') || pad.startsWith('/beheer/website')) return 'agenda';
   if (pad.startsWith('/beheer/planning')) return 'planning';
-  if (pad.startsWith('/beheer/relaties') || pad.startsWith('/beheer/reservelijst')) return 'relaties';
+  if (pad.startsWith('/beheer/reservelijst')) return 'reservelijst';
+  if (pad.startsWith('/beheer/relaties')) return 'relaties';
   if (pad.startsWith('/beheer/finance')) return 'finance';
   if (pad.startsWith('/beheer/vrienden')) return 'vrienden';
   if (pad.startsWith('/beheer/nieuwsbrief')) return 'nieuwsbrief';
@@ -99,7 +105,12 @@ export function isContactenPad(pathname: string): boolean {
 
 /** Hub voor relaties, vrienden en nieuwsbrief. Geen nieuw recht en geen schrijfactie. */
 export function magContactenZien(rechten: GebruikerRechten): boolean {
-  return magZien(rechten, 'relaties') || magZien(rechten, 'vrienden') || magZien(rechten, 'nieuwsbrief');
+  return (
+    magZien(rechten, 'relaties') ||
+    magZien(rechten, 'vrienden') ||
+    magZien(rechten, 'nieuwsbrief') ||
+    magZien(rechten, 'reservelijst')
+  );
 }
 
 export function toegangVoorBeheerPad(opties: {
@@ -113,8 +124,9 @@ export function toegangVoorBeheerPad(opties: {
   if (normaliseerPad(opties.pathname) === '/beheer/boekingen/nieuw') {
     if (!opties.ingelogd) return 'login';
     if (!opties.actief) return 'disabled';
-    if (!isBestuurder(opties.rechten)) return 'verborgen';
+    if (!magZien(opties.rechten, 'handmatige_boeking')) return 'verborgen';
     if (isMutatieMethode(opties.methode) && opties.viewAsActief) return 'preview';
+    if (isMutatieMethode(opties.methode) && !magSchrijven(opties.rechten, 'handmatige_boeking')) return 'alleen_lezen';
     return 'ok';
   }
   if (isContactenPad(opties.pathname)) {

@@ -4,7 +4,7 @@
  * De vlag geeft geen extra schrijfrecht en verwijdert geen route.
  */
 
-import { isBestuurder, magZien } from './rechten.ts';
+import { magZien } from './rechten.ts';
 import type { GebruikerRechten } from './types.ts';
 
 export type HoofdSleutel = 'overzicht' | 'verhuur' | 'website' | 'contacten' | 'financien' | 'instellingen';
@@ -112,7 +112,7 @@ function verhuurSub(rechten: GebruikerRechten, opties: HoofdOpties): NavItem[] {
   if (magZien(rechten, 'aanvragen')) {
     items.push({ sleutel: 'aanvragen', href: '/beheer/aanvragen/', label: 'Aanvragen' });
   }
-  if (isBestuurder(rechten)) {
+  if (magZien(rechten, 'handmatige_boeking')) {
     items.push({ sleutel: 'boekingen', href: '/beheer/boekingen/nieuw/', label: 'Handmatige boeking' });
   }
   if (magZien(rechten, 'planning')) {
@@ -122,12 +122,17 @@ function verhuurSub(rechten: GebruikerRechten, opties: HoofdOpties): NavItem[] {
 }
 
 function websiteSub(rechten: GebruikerRechten, _opties: HoofdOpties): NavItem[] {
-  if (!magZien(rechten, 'agenda')) return [];
-  return [
-    { sleutel: 'website-agenda', href: '/beheer/website/agenda/', label: 'Website Agenda' },
-    { sleutel: 'banner', href: '/beheer/website/banner/', label: 'Banner' },
-    { sleutel: 'extra-balk', href: '/beheer/website/extra-balk/', label: 'Extra balk' },
-  ];
+  const items: NavItem[] = [];
+  if (magZien(rechten, 'agenda')) {
+    items.push({ sleutel: 'website-agenda', href: '/beheer/website/agenda/', label: 'Website Agenda' });
+  }
+  if (magZien(rechten, 'website_banner')) {
+    items.push({ sleutel: 'banner', href: '/beheer/website/banner/', label: 'Banner' });
+  }
+  if (magZien(rechten, 'website_extra_balk')) {
+    items.push({ sleutel: 'extra-balk', href: '/beheer/website/extra-balk/', label: 'Extra balk' });
+  }
+  return items;
 }
 
 function contactenSub(rechten: GebruikerRechten): NavItem[] {
@@ -141,7 +146,7 @@ function contactenSub(rechten: GebruikerRechten): NavItem[] {
   if (magZien(rechten, 'nieuwsbrief')) {
     items.push({ sleutel: 'nieuwsbrief', href: '/beheer/nieuwsbrief/', label: 'Nieuwsbrief' });
   }
-  if (magZien(rechten, 'relaties')) {
+  if (magZien(rechten, 'reservelijst')) {
     items.push({ sleutel: 'reservelijst', href: '/beheer/reservelijst/', label: 'Reserve lijst' });
   }
   return items;
@@ -155,6 +160,8 @@ function instellingenSub(rechten: GebruikerRechten): NavItem[] {
   const technisch = 'Technisch';
   if (magZien(rechten, 'instellingen')) {
     items.push({ sleutel: 'algemeen', href: '/beheer/instellingen/', label: 'Algemeen', groep: organisatie });
+  }
+  if (magZien(rechten, 'verhuur_instellingen')) {
     items.push({
       sleutel: 'verhuurinstellingen',
       href: '/beheer/instellingen/verhuur/',
@@ -162,6 +169,8 @@ function instellingenSub(rechten: GebruikerRechten): NavItem[] {
       groep: organisatie,
       toelichting: 'nog niet op te slaan',
     });
+  }
+  if (magZien(rechten, 'contractsjabloon')) {
     items.push({
       sleutel: 'contractsjabloon',
       href: '/beheer/instellingen/contractsjabloon/',

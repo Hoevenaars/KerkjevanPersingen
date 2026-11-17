@@ -48,7 +48,11 @@ describe('route → module', () => {
     assert.equal(isViewAsWisselPad('/api/beheer/view-as'), true);
     assert.equal(isViewAsWisselPad('/api/beheer/gebruikers'), false);
     assert.equal(moduleVoorPad('/beheer/instellingen/templates/abc/'), 'templates');
-    assert.equal(moduleVoorPad('/beheer/instellingen/verhuur/'), 'instellingen');
+    assert.equal(moduleVoorPad('/beheer/instellingen/verhuur/'), 'verhuur_instellingen');
+    assert.equal(moduleVoorPad('/beheer/instellingen/contractsjabloon/'), 'contractsjabloon');
+    assert.equal(moduleVoorPad('/beheer/website/banner/'), 'website_banner');
+    assert.equal(moduleVoorPad('/beheer/website/extra-balk/'), 'website_extra_balk');
+    assert.equal(moduleVoorPad('/beheer/website/agenda/'), 'agenda');
     assert.equal(moduleVoorPad('/beheer/finance/'), 'finance');
     assert.equal(moduleVoorPad('/beheer/verhuur/'), 'boekingen');
     assert.equal(moduleVoorPad('/beheer/verhuur/67/'), 'boekingen');
