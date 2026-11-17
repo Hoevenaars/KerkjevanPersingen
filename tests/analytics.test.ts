@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { aggregeerPageviews } from '../src/analytics/aggregate.ts';
 import { isEvidenteAutomation } from '../src/analytics/bot.ts';
 import { classificeerApparaat } from '../src/analytics/device.ts';
-import { leesPeriode, periodeVan, startVanDag } from '../src/analytics/periode.ts';
+import { leesPeriode, leesVerkeerPeriode, periodeErvoor, periodeTussen, periodeVan, startVanDag } from '../src/analytics/periode.ts';
 import { blokeerInVenster } from '../src/analytics/rate-limit.ts';
 import { externeReferrerHost } from '../src/analytics/referrer.ts';
 import type { AnalyticsConfig, PageViewOntwerp, PageViewRecord } from '../src/analytics/types.ts';
@@ -287,6 +287,16 @@ describe('periode, lege staat en fail-safe', () => {
     assert.equal(dagen[90].van, '2026-07-02');
     assert.equal(startVanDag('2026-09-29', ZONE).toISOString(), '2026-09-28T22:00:00.000Z');
     assert.equal(leesPeriode('nope', NU, ZONE).dagen, 30);
+    const eigen = periodeTussen('2026-09-01', '2026-09-03', NU, ZONE);
+    assert.equal(eigen?.dagen, 3);
+    assert.equal(eigen?.tot, '2026-09-03');
+    assert.equal(periodeTussen('2026-09-03', '2026-09-01', NU, ZONE), null);
+    assert.equal(periodeTussen('2026-02-31', '2026-03-02', NU, ZONE), null);
+    assert.equal(periodeTussen('2026-10-01', '2026-10-02', NU, ZONE), null);
+    assert.equal(periodeErvoor(dagen[7], ZONE).van, '2026-09-16');
+    assert.equal(periodeErvoor(dagen[7], ZONE).tot, '2026-09-22');
+    assert.equal(leesVerkeerPeriode({ van: '2026-09-01', tot: '2026-09-03', periode: '7' }, NU, ZONE).eigen, true);
+    assert.equal(leesVerkeerPeriode({ van: 'geen', tot: 'dag', periode: '7' }, NU, ZONE).periode.dagen, 7);
 
     const rijen: PageViewRecord[] = [
       rij({ createdAt: '2026-09-23T10:00:00.000Z', path: '/', pageKey: 'home' }),
@@ -326,10 +336,26 @@ describe('periode, lege staat en fail-safe', () => {
     const activiteit = stats.paginas.find((pagina) => pagina.pageKey === 'agenda-item');
     assert.equal(activiteit?.pageviews, 2);
     assert.equal(activiteit?.meerderePaden, true);
+    assert.deepEqual(activiteit?.paden.map((pad) => pad.path), ['/agenda/een', '/agenda/twee']);
     assert.equal(activiteit?.label, 'Activiteit');
     assert.equal(stats.locales[0]?.label, 'Nederlands');
     assert.equal(stats.apparaten.find((apparaat) => apparaat.deviceType === 'mobile')?.pageviews, 2);
+    assert.equal(stats.apparaten.some((apparaat) => apparaat.deviceType === 'tablet'), false);
+    const alleenGoogle = aggregeerPageviews([
+      rij({ createdAt: '2026-09-28T12:00:00.000Z', path: '/agenda/een', pageKey: 'agenda-item', deviceType: 'mobile', referrerHost: 'google.com' }),
+      rij({ createdAt: '2026-09-28T14:00:00.000Z', path: '/', pageKey: 'home', deviceType: 'desktop', referrerHost: null }),
+    ], periode, kerkjeAnalytics, { pageKey: 'home', deviceType: 'desktop', bron: 'direct' });
+    assert.equal(alleenGoogle.totalen.pageviews, 1);
+    assert.equal(alleenGoogle.paginas[0]?.pageKey, 'home');
+    assert.equal(alleenGoogle.verwijzers[0]?.host, null);
     assert.equal(stats.verwijzers.find((bron) => bron.host === 'google.com')?.label, 'Google');
+    const google = aggregeerPageviews([
+      rij({ createdAt: '2026-09-28T12:00:00.000Z', path: '/', pageKey: 'home', referrerHost: 'google.com' }),
+      rij({ createdAt: '2026-09-28T13:00:00.000Z', path: '/agenda', pageKey: 'agenda', referrerHost: 'google.nl' }),
+      rij({ createdAt: '2026-09-28T14:00:00.000Z', path: '/', pageKey: 'home', referrerHost: null }),
+    ], periode, kerkjeAnalytics, { bronLabel: 'Google' });
+    assert.equal(google.totalen.pageviews, 2);
+    assert.equal(google.verwijzers.some((bron) => bron.host === null), false);
     assert.equal(stats.verwijzers.find((bron) => bron.host === null)?.label, 'Direct');
     assert.equal(stats.paginas.every((pagina) => Number.isFinite(pagina.aandeel)), true);
   });

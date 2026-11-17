@@ -91,7 +91,7 @@ Bewust niet verwijderd uit het menu, omdat de functie niet in het dossier zit:
 - Planning: het periodebord voor expositiebegeleiders.
 - Publiceren: foto, wachtrij en vrijgekomen weekend. De activiteit zelf blijft op `/beheer/agenda/[id]/`.
 - Relaties, vrienden, nieuwsbrief: gescheiden bestanden en toestemming. Geen nieuwe mail.
-- Bezoekcijfers, systeem, migratie: technisch, onder Instellingen, met de bestaande toelichting.
+- Analytics staat onder Website. Systeem en migratie blijven technisch, onder Instellingen, met de bestaande toelichting.
 
 Nog niet vervallen, en niet in deze ronde:
 

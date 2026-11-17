@@ -1,5 +1,16 @@
-import { DEVICE_TYPES, type AnalyticsConfig, type DeviceType, type PageViewRecord, type Periode, type WebsiteTrafficStats } from './types.ts';
+import { DEVICE_TYPES, type AnalyticsConfig, type DeviceType, type PageViewRecord, type Periode, type VerkeerSelectie, type WebsiteTrafficStats } from './types.ts';
 import { dagenInPeriode, ymdInTijdzone } from './periode.ts';
+
+const PADEN_MAX = 6;
+
+function hoortBij(rij: PageViewRecord, selectie: VerkeerSelectie, config: AnalyticsConfig): boolean {
+  if (selectie.pageKey && rij.pageKey !== selectie.pageKey) return false;
+  if (selectie.deviceType && rij.deviceType !== selectie.deviceType) return false;
+  if (selectie.bronLabel && verwijzerLabel(config, rij.referrerHost) !== selectie.bronLabel) return false;
+  if (selectie.bron === 'direct') return rij.referrerHost === null;
+  if (selectie.bron && rij.referrerHost !== selectie.bron) return false;
+  return true;
+}
 
 function aandeel(deel: number, totaal: number): number {
   if (totaal <= 0 || deel <= 0) return 0;
@@ -27,10 +38,11 @@ export function aggregeerPageviews(
   rijen: readonly PageViewRecord[],
   periode: Periode,
   config: AnalyticsConfig,
+  selectie: VerkeerSelectie = {},
 ): WebsiteTrafficStats {
   const binnen = rijen.filter((rij) => {
     const tijdstip = new Date(rij.createdAt);
-    return !Number.isNaN(tijdstip.getTime()) && tijdstip >= periode.vanaf && tijdstip < periode.totExclusief;
+    return !Number.isNaN(tijdstip.getTime()) && tijdstip >= periode.vanaf && tijdstip < periode.totExclusief && hoortBij(rij, selectie, config);
   });
 
   const totaal = binnen.length;
@@ -60,19 +72,16 @@ export function aggregeerPageviews(
 
   const paginas = [...perPagina.entries()]
     .map(([pageKey, waarde]) => {
-      let path = '';
-      let hoogste = -1;
-      for (const [pad, aantal] of waarde.paden) {
-        if (aantal > hoogste) {
-          hoogste = aantal;
-          path = pad;
-        }
-      }
+      const paden = [...waarde.paden.entries()]
+        .map(([path, pageviews]) => ({ path, pageviews }))
+        .sort((a, b) => b.pageviews - a.pageviews || a.path.localeCompare(b.path, 'nl'));
       return {
         pageKey,
         label: labelVoor(config, pageKey),
-        path,
-        meerderePaden: waarde.paden.size > 1,
+        path: paden[0]?.path ?? '',
+        meerderePaden: paden.length > 1,
+        paden: paden.slice(0, PADEN_MAX),
+        extraPaden: Math.max(0, paden.length - PADEN_MAX),
         pageviews: waarde.pageviews,
         aandeel: aandeel(waarde.pageviews, totaal),
       };
@@ -93,7 +102,7 @@ export function aggregeerPageviews(
     deviceType,
     pageviews: totaal === 0 ? 0 : (perApparaat.get(deviceType) ?? 0),
     aandeel: aandeel(perApparaat.get(deviceType) ?? 0, totaal),
-  })).filter((rij) => totaal > 0);
+  })).filter((rij) => rij.pageviews > 0);
 
   const verwijzers = [...perVerwijzer.entries()]
     .map(([host, pageviews]) => ({

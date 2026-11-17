@@ -54,15 +54,24 @@ export interface PageViewRecord {
 }
 
 export interface Periode {
-  dagen: PeriodeDagen;
+  /** Aantal kalenderdagen, inclusief de laatste dag. */
+  dagen: number;
   van: string;
   tot: string;
   vanaf: Date;
   totExclusief: Date;
 }
 
+/** Lege velden betekenen: geen beperking op die as. `bron: 'direct'` is één host. `bronLabel` vat gelijke namen samen, zoals Google. */
+export interface VerkeerSelectie {
+  pageKey?: string;
+  deviceType?: DeviceType;
+  bron?: string;
+  bronLabel?: string;
+}
+
 export interface WebsiteTrafficStats {
-  periode: { dagen: PeriodeDagen; van: string; tot: string };
+  periode: { dagen: number; van: string; tot: string };
   totalen: { pageviews: number; gemiddeldPerDag: number };
   dagelijks: { datum: string; pageviews: number }[];
   paginas: {
@@ -70,6 +79,8 @@ export interface WebsiteTrafficStats {
     label: string;
     path: string;
     meerderePaden: boolean;
+    paden: { path: string; pageviews: number }[];
+    extraPaden: number;
     pageviews: number;
     aandeel: number;
   }[];
