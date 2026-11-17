@@ -4,7 +4,7 @@
  * Aan stuurt de weekinhoud en de agenda naar de vrienden van deze ronde.
  */
 
-import { bereidNieuwsbrief, draaiNieuwsbriefDryRun, supabaseNieuwsbrief, type NieuwsbriefBron } from './nieuwsbrief-supabase.ts';
+import { bereidNieuwsbrief, draaiNieuwsbriefDryRun, supabaseNieuwsbrief, vulNieuwsbriefConcepten, type NieuwsbriefBron } from './nieuwsbrief-supabase.ts';
 import { supabaseVrienden, type VriendenBron } from './vrienden-supabase.ts';
 import { datumVoorPreview } from './week.ts';
 import { bouwNieuwsbriefHtml } from './nieuwsbrief-html.ts';
@@ -12,7 +12,7 @@ import { kiesActiviteitenVoorMail } from './nieuwsbrief-agenda.ts';
 import type { Automatisering } from '../platform/automatisering.ts';
 import type { MailTransport } from './mail-transport.ts';
 
-export { datumVoorPreview, bouwNieuwsbriefHtml, kiesActiviteitenVoorMail };
+export { datumVoorPreview, bouwNieuwsbriefHtml, kiesActiviteitenVoorMail, vulNieuwsbriefConcepten };
 
 /** True als het cron-endpoint de aanroep moet weigeren. */
 export function cronOnbevoegd(request: Request): boolean {
@@ -63,11 +63,12 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
   }
   const vrienden = opties.vrienden ?? supabaseVrienden();
   const bron = opties.bron ?? supabaseNieuwsbrief();
+  const voorbereiden = { datum: opties.datum, vrienden, bron, maakIndienOntbreekt: false as const, eisDoorlooptijd: true as const };
   if (besluit.modus === 'dry-run') {
-    const uit = await draaiNieuwsbriefDryRun({ datum: opties.datum, vrienden, bron });
-    return { verstuurd: 0, gepland: uit.gepland, overgeslagen: 'dry-run' };
+    const uit = await draaiNieuwsbriefDryRun(voorbereiden);
+    return { verstuurd: 0, gepland: uit.gepland, overgeslagen: uit.template ? 'dry-run' : uit.overgeslagen };
   }
-  const voorbereid = await bereidNieuwsbrief({ datum: opties.datum, vrienden, bron });
+  const voorbereid = await bereidNieuwsbrief(voorbereiden);
   if (voorbereid.stoppen || !voorbereid.week || !voorbereid.template) {
     return { verstuurd: 0, gepland: 0, overgeslagen: voorbereid.stoppen ?? 'geen editie' };
   }

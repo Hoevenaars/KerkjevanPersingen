@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { cronOnbevoegd } from '../../../lib/nieuwsbrief';
+import { cronOnbevoegd, vulNieuwsbriefConcepten } from '../../../lib/nieuwsbrief';
 import { draaiWorkflow } from '../../../lib/operatie/runtime';
 
 export const prerender = false;
@@ -10,8 +10,15 @@ export const GET: APIRoute = async ({ request, url }) => {
   }
 
   try {
+    let concepten: { weken: string[]; nieuw: string[] } | { fout: string } = { weken: [], nieuw: [] };
+    try {
+      concepten = await vulNieuwsbriefConcepten();
+    } catch (err) {
+      console.error('Nieuwsbriefconcepten niet klaargezet:', err);
+      concepten = { fout: String(err) };
+    }
     const resultaat = await draaiWorkflow(process.env, url.origin);
-    return new Response(JSON.stringify(resultaat), {
+    return new Response(JSON.stringify({ ...resultaat, concepten }), {
       status: resultaat.ok ? 200 : 500,
       headers: { 'content-type': 'application/json' },
     });

@@ -147,6 +147,8 @@ export interface DemoNieuwsbrief {
   donatieUpdate: string;
   overgeslagen: boolean;
   verstuurd: boolean;
+  /** Datum waarop het concept is geopend. */
+  aangemaaktOp?: string;
 }
 
 export interface DemoTemplate {

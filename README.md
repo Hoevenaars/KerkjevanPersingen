@@ -251,8 +251,10 @@ Supabase. De ontvangerslijst ziet alleen de webmaster.
 - Aanmelden: `/vrienden/aanmelden/` — niet in navigatie of footer. De rode knop op
   Steun ons linkt ernaar.
 - Uitschrijven: persoonlijke link in elke mail (`/vrienden/afmelden/?token=…`).
-- Donderdag (16:00 Nederlandse wintertijd / 17:00 zomertijd): concept naar de webmaster.
-- Vrijdagochtend (10:30 wintertijd / 11:30 zomertijd): verzending naar actieve vrienden.
+- Elke ochtend zet de workflowcron ontbrekende concepten klaar, van deze week tot en met vier weken verder.
+- Donderdag (16:00 Nederlandse wintertijd / 17:00 zomertijd): voorbeeld van de week, zonder verzending.
+- Vrijdagochtend (10:30 wintertijd / 11:30 zomertijd): verzending naar actieve vrienden,
+  alleen als het concept minstens vier weken voor die vrijdag bestond.
   Die uurverschuiving rond de zomertijdovergang is een bewust geaccepteerd Hobby-plan-risico.
 
 Handmatig een concept naar de webmaster (niet naar de vriendenlijst):
@@ -265,8 +267,9 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 Zonder `?week=` zoekt de preview de maandag van *deze* kalenderweek. Op zondag is dat
 nog de vorige maandag — zet `week` op de maandag van het document dat je wilt zien.
 
-Zonder ingevuld nieuwsbrief-document gaat de mail tóch, met alleen het agenda-blok. Zet
-"Deze week niet versturen" aan om een week over te slaan.
+Zonder ingevuld kort nieuws gaat een rijpe week tóch, met alleen het agenda-blok. Een week
+zonder concept, of een concept dat korter dan vier weken van tevoren is geopend, wordt niet
+verstuurd. Zet "Deze week niet versturen" aan om een week over te slaan.
 
 ### Back-up
 

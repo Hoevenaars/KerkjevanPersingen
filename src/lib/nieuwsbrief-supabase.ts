@@ -12,6 +12,14 @@ import { directeFotoUrl } from './agenda-zichtbaarheid.ts';
 import type { Vriend, VriendenBron } from './vrienden-supabase.ts';
 import { getVriendenVoorVerzending } from './vrienden-supabase.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
+import {
+  conceptIsOpTijd,
+  conceptMaandagen,
+  kortNieuwsVoorConcept,
+  type ConceptBron,
+} from './nieuwsbrief-concepten.ts';
+import { ymdInAmsterdam } from '../platform/datum.ts';
+import { WINTERSTOP_TEKST } from './winterstop.ts';
 
 export interface NieuwsbriefWeek {
   id: string;
@@ -22,6 +30,13 @@ export interface NieuwsbriefWeek {
   donatieUpdate?: string;
   geannuleerd: boolean;
   verstuurd: boolean;
+  /** Datum waarop het concept is geopend, YYYY-MM-DD of ISO. */
+  aangemaaktOp?: string;
+}
+
+export interface WeekConcept {
+  kortNieuws?: string;
+  aangemaaktOp?: string;
 }
 
 export interface NieuwsbriefTemplate {
@@ -39,14 +54,22 @@ export interface Verzending {
   templateSleutel: string;
 }
 
+export type NieuwsbriefStop =
+  | 'geannuleerd door bestuur'
+  | 'al verstuurd deze week'
+  | 'geen concept'
+  | 'doorlooptijd nog niet gehaald'
+  | null;
+
 export interface NieuwsbriefBron {
   week(maandag: string): Promise<NieuwsbriefWeek | null>;
-  maakWeek(maandag: string): Promise<NieuwsbriefWeek>;
+  maakWeek(maandag: string, extra?: WeekConcept): Promise<NieuwsbriefWeek>;
   template(sleutel: string): Promise<NieuwsbriefTemplate | null>;
   legVast(verzending: Verzending): Promise<void>;
   agenda(): Promise<{ activiteiten: Activiteit[]; overzicht: AgendaOverzicht }>;
   alLiveVerzonden(nieuwsbriefId: string): Promise<ReadonlySet<string>>;
   markeerVerstuurd(id: string): Promise<void>;
+  conceptBronnen?: () => Promise<ConceptBron[]>;
 }
 
 export interface KlaargezetteBrief {
@@ -58,7 +81,7 @@ export interface KlaargezetteBrief {
 }
 
 export interface VoorbereideNieuwsbrief {
-  stoppen: 'geannuleerd door bestuur' | 'al verstuurd deze week' | null;
+  stoppen: NieuwsbriefStop;
   week: NieuwsbriefWeek | null;
   template: NieuwsbriefTemplate | null;
   brieven: KlaargezetteBrief[];
@@ -79,6 +102,10 @@ export async function bereidNieuwsbrief(opties: {
   vrienden: VriendenBron;
   bron: NieuwsbriefBron;
   templateSleutel?: string;
+  /** Verzenden maakt geen week aan. Een ontbrekend concept blijft concept. */
+  maakIndienOntbreekt?: boolean;
+  /** Verzenden eist dat het concept de doorlooptijd van vier weken heeft gehad. */
+  eisDoorlooptijd?: boolean;
 }): Promise<VoorbereideNieuwsbrief> {
   const datum = opties.datum ?? new Date();
   const sleutel = opties.templateSleutel ?? 'nieuwsbrief_week';
@@ -86,7 +113,15 @@ export async function bereidNieuwsbrief(opties: {
   let week = await opties.bron.week(maandag);
   if (week?.geannuleerd) return { stoppen: 'geannuleerd door bestuur', week: null, template: null, brieven: [], voorbeeld: null };
   if (week?.verstuurd) return { stoppen: 'al verstuurd deze week', week, template: null, brieven: [], voorbeeld: null };
-  if (!week) week = await opties.bron.maakWeek(maandag);
+  if (!week) {
+    if (opties.maakIndienOntbreekt === false) {
+      return { stoppen: 'geen concept', week: null, template: null, brieven: [], voorbeeld: null };
+    }
+    week = await opties.bron.maakWeek(maandag);
+  }
+  if (opties.eisDoorlooptijd && !conceptIsOpTijd(week.aangemaaktOp, week.week)) {
+    return { stoppen: 'doorlooptijd nog niet gehaald', week, template: null, brieven: [], voorbeeld: null };
+  }
 
   const ontvangers = await getVriendenVoorVerzending(datum, opties.vrienden);
   const gekozen = (await opties.bron.template(sleutel)) ?? {
@@ -180,29 +215,114 @@ function briefVoor(
   );
 }
 
+function weekUitRij(data: {
+  id: number;
+  week_maandag: string;
+  kort_nieuws?: string | null;
+  foto_pad?: string | null;
+  foto_alt?: string | null;
+  donatie_update?: string | null;
+  overgeslagen: boolean;
+  verstuurd: boolean;
+  aangemaakt_op?: string | null;
+}): NieuwsbriefWeek {
+  return {
+    id: String(data.id),
+    week: data.week_maandag,
+    kortNieuws: data.kort_nieuws ?? undefined,
+    fotoPad: data.foto_pad ?? undefined,
+    fotoAlt: data.foto_alt ?? undefined,
+    donatieUpdate: data.donatie_update ?? undefined,
+    geannuleerd: data.overgeslagen,
+    verstuurd: data.verstuurd,
+    aangemaaktOp: data.aangemaakt_op ?? undefined,
+  };
+}
+
+function tekstVanRij(rij: Record<string, unknown>, sleutel: string): string {
+  const waarde = rij[sleutel];
+  return typeof waarde === 'string' ? waarde : '';
+}
+
+async function conceptBronnenUitSupabase(client: NonNullable<ReturnType<typeof maakBeheerAdminClient>>): Promise<ConceptBron[]> {
+  const los = client as unknown as {
+    from(tabel: string): {
+      select(kolommen: string): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+    };
+  };
+  const [publiek, intern] = await Promise.all([
+    los.from('publieke_activiteiten').select('titel,start_datum,eind_datum,korte_omschrijving,omschrijving,gepubliceerd,zichtbaarheid,levenscyclus'),
+    los.from('interne_activiteiten').select('titel,start_datum,eind_datum'),
+  ]);
+  if (publiek.error) throw new Error(publiek.error.message);
+  if (intern.error) throw new Error(intern.error.message);
+  const exposities: ConceptBron[] = (publiek.data ?? [])
+    .filter((rij) => rij.gepubliceerd === true && rij.zichtbaarheid === 'publiek' && rij.levenscyclus !== 'geannuleerd')
+    .map((rij) => ({
+      titel: tekstVanRij(rij, 'titel').trim(),
+      start: tekstVanRij(rij, 'start_datum'),
+      eind: tekstVanRij(rij, 'eind_datum') || tekstVanRij(rij, 'start_datum'),
+      tekst: (tekstVanRij(rij, 'korte_omschrijving') || tekstVanRij(rij, 'omschrijving')).trim(),
+      winterstop: false,
+    }));
+  const winter: ConceptBron[] = (intern.data ?? [])
+    .filter((rij) => tekstVanRij(rij, 'titel').trim().toLowerCase() === 'winterstop')
+    .map((rij) => ({
+      titel: 'Winterstop',
+      start: tekstVanRij(rij, 'start_datum'),
+      eind: tekstVanRij(rij, 'eind_datum') || tekstVanRij(rij, 'start_datum'),
+      tekst: WINTERSTOP_TEKST,
+      winterstop: true,
+    }));
+  return [...exposities, ...winter];
+}
+
+/** Opent ontbrekende concepten van deze week t/m vier weken verder. Bestaande tekst blijft staan. */
+export async function vulNieuwsbriefConcepten(opties: {
+  datum?: Date;
+  bron?: NieuwsbriefBron;
+  activiteiten?: readonly ConceptBron[];
+} = {}): Promise<{ weken: string[]; nieuw: string[] }> {
+  const datum = opties.datum ?? new Date();
+  const bron = opties.bron ?? supabaseNieuwsbrief();
+  const activiteiten = opties.activiteiten ?? (await bron.conceptBronnen?.()) ?? [];
+  const vandaag = ymdInAmsterdam(datum);
+  const weken = conceptMaandagen(vandaag);
+  const nieuw: string[] = [];
+  for (const maandag of weken) {
+    const bestaand = await bron.week(maandag);
+    if (bestaand) continue;
+    const kortNieuws = kortNieuwsVoorConcept(maandag, activiteiten);
+    await bron.maakWeek(maandag, { kortNieuws: kortNieuws || undefined, aangemaaktOp: vandaag });
+    nieuw.push(maandag);
+  }
+  return { weken, nieuw };
+}
+
 export function supabaseNieuwsbrief(): NieuwsbriefBron {
   const client = maakBeheerAdminClient();
   if (!client) throw new Error('Supabase service-role ontbreekt. De nieuwsbrief kan niet worden gelezen.');
   return {
     async week(maandag) {
-      const { data, error } = await client.from('nieuwsbrieven').select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd').eq('week_maandag', maandag).maybeSingle();
+      const { data, error } = await client.from('nieuwsbrieven').select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd,aangemaakt_op').eq('week_maandag', maandag).maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) return null;
-      return {
-        id: String(data.id),
-        week: data.week_maandag,
-        kortNieuws: data.kort_nieuws ?? undefined,
-        fotoPad: data.foto_pad ?? undefined,
-        fotoAlt: data.foto_alt ?? undefined,
-        donatieUpdate: data.donatie_update ?? undefined,
-        geannuleerd: data.overgeslagen,
-        verstuurd: data.verstuurd,
-      };
+      return weekUitRij(data);
     },
-    async maakWeek(maandag) {
-      const { data, error } = await client.from('nieuwsbrieven').insert({ week_maandag: maandag, overgeslagen: false, verstuurd: false }).select('id,week_maandag').single();
+    async maakWeek(maandag, extra) {
+      const rij: { week_maandag: string; overgeslagen: boolean; verstuurd: boolean; kort_nieuws?: string; aangemaakt_op?: string } = {
+        week_maandag: maandag,
+        overgeslagen: false,
+        verstuurd: false,
+      };
+      if (extra?.kortNieuws) rij.kort_nieuws = extra.kortNieuws;
+      if (extra?.aangemaaktOp) rij.aangemaakt_op = `${extra.aangemaaktOp.slice(0, 10)}T12:00:00.000Z`;
+      const { data, error } = await client.from('nieuwsbrieven').insert(rij).select('id,week_maandag,kort_nieuws,foto_pad,foto_alt,donatie_update,overgeslagen,verstuurd,aangemaakt_op').single();
       if (error) throw new Error(error.message);
-      return { id: String(data.id), week: data.week_maandag, geannuleerd: false, verstuurd: false };
+      return weekUitRij(data);
+    },
+    async conceptBronnen() {
+      return conceptBronnenUitSupabase(client);
     },
     async template(sleutel) {
       const { data, error } = await client.rpc('huidige_template', { p_sleutel: sleutel });
@@ -260,9 +380,16 @@ export function geheugenNieuwsbrief(start?: { template?: NieuwsbriefTemplate }):
     async week(maandag) {
       return weken.find((item) => item.week === maandag) ?? null;
     },
-    async maakWeek(maandag) {
+    async maakWeek(maandag, extra) {
       volg += 1;
-      const week: NieuwsbriefWeek = { id: String(volg), week: maandag, geannuleerd: false, verstuurd: false };
+      const week: NieuwsbriefWeek = {
+        id: String(volg),
+        week: maandag,
+        kortNieuws: extra?.kortNieuws,
+        geannuleerd: false,
+        verstuurd: false,
+        aangemaaktOp: extra?.aangemaaktOp ?? new Date().toISOString(),
+      };
       weken.push(week);
       return week;
     },
