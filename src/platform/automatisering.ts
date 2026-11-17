@@ -485,7 +485,7 @@ export function technischeGereedheid(item: Automatisering): { status: Technische
       return {
         status: 'aandacht',
         label: 'Aandacht nodig',
-        toelichting: 'Openstaande aanbetalingen worden herkend, ook bij een definitieve boeking. Er gaat niets uit zolang deze schakelaar uit staat.',
+        toelichting: 'Openstaande aanbetalingen worden herkend, ook bij een definitieve boeking. De herinnering volgt de plandatum. Een datum vóór de activatie wordt overgeslagen.',
       };
     case 'social_media_content':
       return {
@@ -509,7 +509,7 @@ export function technischeGereedheid(item: Automatisering): { status: Technische
       return {
         status: 'aandacht',
         label: 'Aandacht nodig',
-        toelichting: 'De planner blijft uit tot een beheerder die aanzet. Dan draaien alleen de afzonderlijke schakelaars die op Aan staan.',
+        toelichting: 'De planner draait elke ochtend om 07:00. Alleen de afzonderlijke schakelaars op Aan versturen. Een stap van vóór de activatiedatum gaat niet alsnog de deur uit.',
       };
     case 'reservelijst_mail':
       return {
@@ -527,7 +527,7 @@ export function technischeGereedheid(item: Automatisering): { status: Technische
       return {
         status: 'gereed',
         label: 'Gereed',
-        toelichting: 'De reviewmail gaat naar de huurder, één dag na de einddatum, en maar één keer. De schakelaar blijft uit tot een beheerder die aanzet.',
+        toelichting: 'De reviewmail gaat naar de huurder, één dag na de einddatum, en maar één keer.',
       };
     default:
       if (!item.actieveTrigger) {
