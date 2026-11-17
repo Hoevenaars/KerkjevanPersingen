@@ -342,54 +342,56 @@ const mailBehouden = behoudenVelden(mailBasis);
   {exposities.length === 0 ? (
     <p class="bh-leeg">{lijstLeeg}</p>
   ) : (
-  <table class="bh-tabel">
-    <thead>
-      <tr>
-        <th>Boeking</th>
-        <th>Datum</th>
-        <th>Exposant</th>
-        <th>Expositiebegeleider</th>
-      </tr>
-    </thead>
-    <tbody>
-      {
-        exposities.map((b) => (
-          <tr>
-            <td>
-              <a href={metTerug(`/beheer/boekingen/${encodeURIComponent(b.id)}/`, lijstPad)}>{leesbareTitel(b.interneTitel, b.huurder)}</a>
-            </td>
-            <td>
-              {formatNl(b.start)}
-              {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
-            </td>
-            <td>{b.huurder}</td>
-            <td>
-              {!heeftKoppeling(b.id, b.gastheerId) && (
-                <span class="bh-badge">ontbreekt</span>
-              )}
-              <form method="post" class="bh-form bh-form-rij">
-                <input type="hidden" name="boekingId" value={b.id} />
-                <label class="visually-hidden" for={`g-${b.id}`}>
-                  Expositiebegeleider voor {b.interneTitel}
-                </label>
-                <select id={`g-${b.id}`} name="gastheerId">
-                  <option value="">Nog niet ingepland</option>
-                  {gastherenVoorKoppeling(snapshot.gastheren, b.gastheerId).map((g) => (
-                    <option value={g.id} selected={g.id === b.gastheerId}>
-                      {g.actief ? g.naam : `${g.naam} (niet actief)`}
-                    </option>
-                  ))}
-                </select>
-                <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="bewaar">
-                  Bewaar
-                </button>
-              </form>
-            </td>
-          </tr>
-        ))
-      }
-    </tbody>
-  </table>
+  <form method="post">
+    <p class="bh-muted">Kies per boeking een begeleider. Bewaar slaat de hele lijst in één keer op.</p>
+    <table class="bh-tabel">
+      <thead>
+        <tr>
+          <th>Boeking</th>
+          <th>Datum</th>
+          <th>Exposant</th>
+          <th>Expositiebegeleider</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          exposities.map((b) => (
+            <tr>
+              <td>
+                <a href={metTerug(`/beheer/boekingen/${encodeURIComponent(b.id)}/`, lijstPad)}>{leesbareTitel(b.interneTitel, b.huurder)}</a>
+              </td>
+              <td>
+                {formatNl(b.start)}
+                {b.eind !== b.start ? ` – ${formatNl(b.eind)}` : ''}
+              </td>
+              <td>{b.huurder}</td>
+              <td>
+                {!heeftKoppeling(b.id, b.gastheerId) && (
+                  <span class="bh-badge">ontbreekt</span>
+                )}
+                <div class="bh-form bh-form-rij">
+                  <label class="visually-hidden" for={`g-${b.id}`}>
+                    Expositiebegeleider voor {b.interneTitel}
+                  </label>
+                  <select id={`g-${b.id}`} name={`begeleider:${b.id}`}>
+                    <option value="">Nog niet ingepland</option>
+                    {gastherenVoorKoppeling(snapshot.gastheren, b.gastheerId).map((g) => (
+                      <option value={g.id} selected={g.id === b.gastheerId}>
+                        {g.actief ? g.naam : `${g.naam} (niet actief)`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    <div class="bh-acties">
+      <button class="bh-btn" type="submit" name="actie" value="bewaar">Bewaar</button>
+    </div>
+  </form>
   )}
 </Beheer>
 

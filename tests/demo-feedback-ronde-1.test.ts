@@ -231,6 +231,14 @@ test('gastheren: filter, historische koppeling en verwijderen', async () => {
   assert.equal(filterGastheren(lijst, 'alles').length, 2);
   assert.deepEqual(gastherenVoorKoppeling(lijst, null).map((item) => item.id), ['1']);
   assert.deepEqual(gastherenVoorKoppeling(lijst, '2').map((item) => item.id), ['1', '2']);
+  assert.deepEqual(
+    gastherenVoorKoppeling([
+      { id: '9', naam: 'Zara Vos', actief: true },
+      { id: '3', naam: 'anna berg', actief: true },
+      { id: '4', naam: 'Hans', actief: false },
+    ], '4').map((item) => item.naam),
+    ['anna berg', 'Hans', 'Zara Vos'],
+  );
   assert.equal(beoordeelGastheerVerwijdering({ boekingenAlsGastheer: 1, toewijzingen: 0, overige: 0 }).mag, false);
   assert.equal(beoordeelGastheerVerwijdering({ boekingenAlsGastheer: 0, toewijzingen: 2, overige: 0 }).mag, false);
   assert.match(GASTHEER_VERWIJDER_GEKOPPELD, /niet worden verwijderd/);
