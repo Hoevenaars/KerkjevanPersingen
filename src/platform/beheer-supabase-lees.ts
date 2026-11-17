@@ -183,11 +183,14 @@ export async function leesSupabaseBeheer(
   opties: { vandaag: string; testmodus: boolean },
 ): Promise<BeheerSnapshot> {
   async function leesNieuwsbrieven(): Promise<Record<string, unknown>[]> {
-    const met = 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd,aangemaakt_op';
+    const met = 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd,aangemaakt_op,goedgekeurd';
     try {
       return await lees(client, 'nieuwsbrieven', met);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('goedgekeurd')) {
+        return lees(client, 'nieuwsbrieven', 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd,aangemaakt_op');
+      }
       if (!message.includes('aangemaakt_op')) throw error;
       return lees(client, 'nieuwsbrieven', 'id,week_maandag,kort_nieuws,donatie_update,overgeslagen,verstuurd');
     }
@@ -457,6 +460,7 @@ export async function leesSupabaseBeheer(
       donatieUpdate: tekst(rij.donatie_update),
       overgeslagen: Boolean(rij.overgeslagen),
       verstuurd: Boolean(rij.verstuurd),
+      goedgekeurd: Boolean(rij.goedgekeurd),
       aangemaaktOp: tekst(rij.aangemaakt_op).slice(0, 10),
     })),
     templates,

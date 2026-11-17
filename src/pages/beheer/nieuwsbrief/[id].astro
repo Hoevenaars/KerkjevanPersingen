@@ -5,6 +5,8 @@ import Beheer from '../../../layouts/Beheer.astro';
 import { formatNl } from '../../../platform/demo-data';
 import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../platform/beheer-bron.ts';
 import { bronnenVoorWeek, nieuwsbriefVoorbeeldHtml } from '../../../lib/nieuwsbrief-voorbeeld.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+import { magSchrijven } from '../../../platform/rechten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -12,7 +14,43 @@ const brief = snapshot.nieuwsbrieven.find((n) => n.id === id);
 
 if (Astro.request.method === 'POST') {
   const doel = new URL(Astro.url.pathname, Astro.url.origin);
-  doel.searchParams.set('fout', 'Nieuwsbrief bewaren en verzenden zijn nog niet beschikbaar. Er is geen mail verstuurd.');
+  const formulier = await Astro.request.formData();
+  if (String(formulier.get('actie') ?? '') !== 'goedkeuren') {
+    doel.searchParams.set('fout', 'Nieuwsbrief bewaren en verzenden zijn nog niet beschikbaar. Er is geen mail verstuurd.');
+    return Astro.redirect(doel.toString());
+  }
+  const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+  if (!brief) {
+    return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+  }
+  if (Astro.locals.beheer?.viewAs || !magSchrijven(rechten, 'nieuwsbrief')) {
+    doel.searchParams.set('fout', 'Goedkeuren vraagt schrijfrecht op de nieuwsbrief. Er is niets opgeslagen.');
+    return Astro.redirect(doel.toString());
+  }
+  if (brief.verstuurd) {
+    doel.searchParams.set('fout', 'Een verstuurde nieuwsbrief kan niet meer worden goedgekeurd.');
+    return Astro.redirect(doel.toString());
+  }
+  if (snapshot.bron !== 'supabase') {
+    doel.searchParams.set('fout', 'Goedkeuren kan alleen op de live lijst. Er is niets opgeslagen.');
+    return Astro.redirect(doel.toString());
+  }
+  const client = sessieSupabaseUitAstro(Astro);
+  if (!client) {
+    doel.searchParams.set('fout', 'De verbinding ontbreekt. Er is niets opgeslagen.');
+    return Astro.redirect(doel.toString());
+  }
+  const { data, error } = await client
+    .from('nieuwsbrieven')
+    .update({ goedgekeurd: true, goedgekeurd_op: new Date().toISOString() })
+    .eq('id', Number(brief.id))
+    .eq('verstuurd', false)
+    .select('id');
+  if (error || !data?.length) {
+    doel.searchParams.set('fout', 'De week is niet goedgekeurd. Er is niets opgeslagen.');
+    return Astro.redirect(doel.toString());
+  }
+  doel.searchParams.set('melding', 'Goedgekeurd. Deze week kan vrijdag worden verstuurd.');
   return Astro.redirect(doel.toString());
 }
 
@@ -22,6 +60,13 @@ if (!brief) {
 
 const flash = Astro.url.searchParams.get('demo') === '1';
 const fout = Astro.url.searchParams.get('fout');
+const melding = Astro.url.searchParams.get('melding');
+const rechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+const kanGoedkeuren = Boolean(brief)
+  && !brief.verstuurd
+  && !brief.goedgekeurd
+  && !Astro.locals.beheer?.viewAs
+  && magSchrijven(rechten, 'nieuwsbrief');
 const kortNieuws = Astro.url.searchParams.has('kort')
   ? (Astro.url.searchParams.get('kort') ?? '')
   : brief.kortNieuws;
@@ -53,15 +98,26 @@ const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbe
   <header class="bh-top">
     <div>
       <h1>Week van {formatNl(brief.week)}</h1>
-      <p class="bh-hint">Het voorbeeld is de brief van deze week. Niets wordt opgeslagen of verstuurd. De vrijdagcron verstuurt deze week pas als het concept vier weken van tevoren klaarstond.</p>
+      <p class="bh-hint">Het voorbeeld is de brief van deze week. Goedkeuren bewaart alleen die keuze. De mail gaat vrijdag de deur uit als de week is goedgekeurd.</p>
     </div>
   </header>
 
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
+  {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
 
   <section class="bh-kaart">
     <div class="bh-top">
+      {brief.goedgekeurd ? (
+        <p class="bh-hint">Goedgekeurd</p>
+      ) : kanGoedkeuren ? (
+        <form method="post">
+          <input type="hidden" name="actie" value="goedkeuren" />
+          <button class="bh-btn" type="submit">Goedkeuren</button>
+        </form>
+      ) : (
+        <p class="bh-hint">Nog niet goedgekeurd</p>
+      )}
       <h2>Preview</h2>
       <p class="bh-hint">{voorbeeld.onderwerp}</p>
       <a href={voorbeeldUrl}>Open de preview</a>

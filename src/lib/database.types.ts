@@ -427,13 +427,13 @@ isOneToOne: false
                   ]
                 },"nieuwsbrieven": {
                   Row: {
-                    "aangemaakt_op": string,"donatie_update": string | null,"foto_alt": string | null,"foto_pad": string | null,"id": number,"kort_nieuws": string | null,"legacy_id": string | null,"legacy_source": string | null,"overgeslagen": boolean,"verstuurd": boolean,"verstuurd_op": string | null,"week_maandag": string
+                    "aangemaakt_op": string,"donatie_update": string | null,"foto_alt": string | null,"foto_pad": string | null,"goedgekeurd": boolean,"goedgekeurd_op": string | null,"id": number,"kort_nieuws": string | null,"legacy_id": string | null,"legacy_source": string | null,"overgeslagen": boolean,"verstuurd": boolean,"verstuurd_op": string | null,"week_maandag": string
                   }
                   Insert: {
-                    "aangemaakt_op"?: string,"donatie_update"?: string | null,"foto_alt"?: string | null,"foto_pad"?: string | null,"id"?: never,"kort_nieuws"?: string | null,"legacy_id"?: string | null,"legacy_source"?: string | null,"overgeslagen"?: boolean,"verstuurd"?: boolean,"verstuurd_op"?: string | null,"week_maandag": string
+                    "aangemaakt_op"?: string,"donatie_update"?: string | null,"foto_alt"?: string | null,"foto_pad"?: string | null,"goedgekeurd"?: boolean,"goedgekeurd_op"?: string | null,"id"?: never,"kort_nieuws"?: string | null,"legacy_id"?: string | null,"legacy_source"?: string | null,"overgeslagen"?: boolean,"verstuurd"?: boolean,"verstuurd_op"?: string | null,"week_maandag": string
                   }
                   Update: {
-                    "aangemaakt_op"?: string,"donatie_update"?: string | null,"foto_alt"?: string | null,"foto_pad"?: string | null,"id"?: never,"kort_nieuws"?: string | null,"legacy_id"?: string | null,"legacy_source"?: string | null,"overgeslagen"?: boolean,"verstuurd"?: boolean,"verstuurd_op"?: string | null,"week_maandag"?: string
+                    "aangemaakt_op"?: string,"donatie_update"?: string | null,"foto_alt"?: string | null,"foto_pad"?: string | null,"goedgekeurd"?: boolean,"goedgekeurd_op"?: string | null,"id"?: never,"kort_nieuws"?: string | null,"legacy_id"?: string | null,"legacy_source"?: string | null,"overgeslagen"?: boolean,"verstuurd"?: boolean,"verstuurd_op"?: string | null,"week_maandag"?: string
                   }
                   Relationships: [
                     
