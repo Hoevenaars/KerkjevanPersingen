@@ -81,6 +81,16 @@ describe('stukken', () => {
     assert.equal(stukkenStand({ inhoudStatus: 'gevraagd' }), 'niet_aangeleverd');
     assert.equal(stukkenStand({ contentstatus: 'goedgekeurd', inhoudStatus: 'ingediend' }), 'te_beoordelen');
     assert.equal(stukkenStand({ inhoudStatus: 'niet_vereist' }), 'onbekend');
+    assert.equal(stukkenStand({
+      contentstatus: 'goedgekeurd',
+      inhoudStatus: 'niet_gestart',
+      opDeWebsite: true,
+    }), 'compleet');
+    assert.equal(stukkenStand({ inhoudStatus: 'niet_gestart', opDeWebsite: true }), 'compleet');
+    assert.equal(stukkenStand({
+      contentstatus: 'goedgekeurd',
+      inhoudStatus: 'niet_gestart',
+    }), 'te_beoordelen');
   });
 
   test('onbekend telt niet als open taak, een open restant en een expositie zonder gastheer wel', () => {
@@ -289,6 +299,24 @@ describe('agendaweergave', () => {
     assert.match(scherm.rijen[0].activiteit, /Mede-exposant/);
     assert.equal(scherm.rijen[0].stukkenTekst, 'Te beoordelen');
     assert.equal(scherm.rijen[0].websiteTekst, 'Nog niet');
+    const opDeSite = bouwSchermRijen({
+      overzicht,
+      boekingen: [withaar],
+      gastheren: [],
+      toewijzingen: [],
+      activiteiten: [{
+        boekingId: '67',
+        contentstatus: 'goedgekeurd',
+        inhoudStatus: 'niet_gestart',
+        publicatiestatus: 'publiek',
+        tabel: 'publieke_activiteiten',
+      }],
+      zoek: 'withaar',
+      alleenAandacht: false,
+    });
+    assert.equal(opDeSite.rijen[0].websiteTekst, 'Op de site');
+    assert.equal(opDeSite.rijen[0].stukkenTekst, 'Compleet');
+    assert.equal(opDeSite.rijen[0].taken.some((taak) => /beoordeling/i.test(taak)), false);
     assert.equal(scherm.rijen[0].restTekst, 'Open');
     assert.equal(scherm.rijen[0].gastheerTekst, 'Nog kiezen');
     assert.equal(scherm.rijen[0].taken.some((taak) => /aanbetaling/i.test(taak)), false);

@@ -86,21 +86,25 @@ export function stukPaneel(input: {
   demo: boolean;
   leesfout: string;
   beoordelingen: readonly StukBeoordeling[];
+  /** Wat al op de website staat, is akkoord zolang deze versie geen eigen besluit heeft. */
+  opDeWebsite?: boolean;
 }): StukPaneel {
   const huidig = input.beoordelingen.find((rij) => zelfdeSleutel(rij, input.sleutel)) ?? null;
   const eerdere = input.beoordelingen
     .filter((rij) => rij.stukType === input.sleutel.stukType && rij.stukId === input.sleutel.stukId && rij.versie < input.sleutel.versie)
     .sort((links, rechts) => rechts.versie - links.versie)[0] ?? null;
-  const status = huidig?.status ?? 'te_beoordelen';
+  const viaWebsite = !huidig && input.opDeWebsite === true && input.sleutel.aanwezig;
+  const status = huidig?.status ?? (viaWebsite ? 'goedgekeurd' : 'te_beoordelen');
   const kan = !input.demo && !input.leesfout && stukKanBeoordelen({
     aanwezig: input.sleutel.aanwezig,
     magSchrijven: input.magSchrijven,
-    alBeoordeeld: Boolean(huidig),
+    alBeoordeeld: Boolean(huidig) || viaWebsite,
   });
   let toelichting = 'Afkeuren bewaart de reden bij deze versie. De website wordt hier niet gepubliceerd.';
   if (input.demo) toelichting = 'Voorbeeld. Er is niets opgeslagen.';
   else if (input.leesfout) toelichting = input.leesfout;
   else if (!input.sleutel.aanwezig) toelichting = 'Er is nog niets om te beoordelen.';
+  else if (viaWebsite) toelichting = 'Deze activiteit staat op de website. De content is daarmee akkoord.';
   else if (!input.magSchrijven) toelichting = 'Je kunt dit bekijken. Opslaan vraagt schrijfrecht op boekingen.';
   else if (huidig) {
     toelichting = 'Deze versie is beoordeeld. Een nieuwe upload vraagt een nieuwe beoordeling. De eerdere beslissing blijft staan en geldt niet voor de nieuwe versie. De website wordt hier niet gepubliceerd.';
@@ -115,8 +119,8 @@ export function stukPaneel(input: {
     status,
     statusTekst: status === 'goedgekeurd' ? 'Goedgekeurd' : status === 'afgekeurd' ? 'Afgekeurd' : 'Te beoordelen',
     kleur: status === 'goedgekeurd' ? 'ok' : status === 'afgekeurd' ? 'no' : input.sleutel.aanwezig ? 'pending' : 'unknown',
-    beoordelaar: huidig?.beoordelaar || 'nog niet vastgelegd',
-    datum: huidig ? formatBeoordelingsdatum(huidig.beoordeeldOp) : 'nog niet vastgelegd',
+    beoordelaar: huidig?.beoordelaar || (viaWebsite ? 'Website' : 'nog niet vastgelegd'),
+    datum: huidig ? formatBeoordelingsdatum(huidig.beoordeeldOp) : (viaWebsite ? 'staat op de website' : 'nog niet vastgelegd'),
     reden: huidig?.reden ?? '',
     kan,
     toelichting,

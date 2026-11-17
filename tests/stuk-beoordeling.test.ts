@@ -61,6 +61,18 @@ test('een hogere versie is opnieuw te beoordelen en de oude beslissing blijft zi
   });
   assert.equal(paneel.status, 'te_beoordelen');
   assert.equal(paneel.kan, true);
+  const opDeSite = stukPaneel({
+    sleutel: { ...tekst, versie: 2 },
+    magSchrijven: true,
+    demo: false,
+    leesfout: '',
+    beoordelingen: [oud],
+    opDeWebsite: true,
+  });
+  assert.equal(opDeSite.statusTekst, 'Goedgekeurd');
+  assert.equal(opDeSite.kan, false);
+  assert.equal(opDeSite.beoordelaar, 'Website');
+  assert.match(opDeSite.toelichting, /website/);
   assert.match(paneel.eerdere, /Versie 1 is goedgekeurd/);
   assert.match(paneel.eerdere, /geldt niet voor versie 2/);
 });
@@ -71,6 +83,7 @@ test('een opgeslagen beslissing zet de status en zet de knoppen uit', () => {
     magSchrijven: true,
     demo: false,
     leesfout: '',
+    opDeWebsite: true,
     beoordelingen: [{
       stukType: 'inhoud',
       stukId: 'tekst:17',

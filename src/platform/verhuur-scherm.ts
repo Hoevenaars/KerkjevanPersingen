@@ -205,7 +205,10 @@ export function verhuurQuery(
 export function stukkenStand(input: {
   contentstatus?: string | null;
   inhoudStatus?: string | null;
+  /** Zichtbaarheid publiek. Wat op de website staat, is akkoord. */
+  opDeWebsite?: boolean;
 }): StukkenStand {
+  if (input.opDeWebsite) return 'compleet';
   const bekend = [input.contentstatus, input.inhoudStatus]
     .map((waarde) => contentstatusNaarBeheer(waarde))
     .filter((waarde): waarde is NonNullable<typeof waarde> => waarde != null);
@@ -694,9 +697,6 @@ function naarSchermRij(
   const boeking = rij.boekingId ? boekingVan.get(rij.boekingId) : undefined;
   const activiteit = rij.boekingId ? activiteitVan.get(rij.boekingId) : undefined;
   const namen = gastheerNamen(boeking, gastheren, toewijzingen.filter((item) => item.boekingId === rij.boekingId));
-  const stukken = rij.herkomst === 'boeking'
-    ? stukkenStand({ contentstatus: activiteit?.contentstatus, inhoudStatus: activiteit?.inhoudStatus })
-    : 'niet_zichtbaar';
   const website = rij.herkomst === 'boeking'
     ? websiteStand({
         soort: boeking?.soort ?? '',
@@ -704,6 +704,13 @@ function naarSchermRij(
         trigger: activiteit?.trigger,
         geannuleerd: activiteit?.levenscyclus === 'geannuleerd',
         heeftActiviteit: activiteit != null,
+      })
+    : 'niet_zichtbaar';
+  const stukken = rij.herkomst === 'boeking'
+    ? stukkenStand({
+        contentstatus: activiteit?.contentstatus,
+        inhoudStatus: activiteit?.inhoudStatus,
+        opDeWebsite: website === 'op_de_site',
       })
     : 'niet_zichtbaar';
   const hostStand = rij.herkomst === 'boeking'
@@ -858,6 +865,7 @@ export function maakDossierWeergave(input: {
     demo: input.demo === true,
     leesfout: input.beoordelingFout ?? '',
     beoordelingen: input.beoordelingen ?? [],
+    opDeWebsite: input.rij.website === 'op_de_site',
   };
   return {
     id: input.boeking.id,
