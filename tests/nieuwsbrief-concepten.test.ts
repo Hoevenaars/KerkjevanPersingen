@@ -6,6 +6,7 @@ import {
   conceptMaandagen,
   conceptStatusLabel,
   kortNieuwsVoorConcept,
+  nieuwsbrievenOpDatum,
   type ConceptBron,
 } from '../src/lib/nieuwsbrief-concepten.ts';
 import { WINTERSTOP_TEKST } from '../src/lib/winterstop.ts';
@@ -84,6 +85,16 @@ test('kort nieuws komt uit het programma van die week', () => {
   assert.match(kortNieuwsVoorConcept('2026-11-30', PROGRAMMA), /^Fusion\. Marion Groenenberg/);
   assert.equal(kortNieuwsVoorConcept('2026-12-14', PROGRAMMA), WINTERSTOP_TEKST);
   assert.equal(kortNieuwsVoorConcept('2026-10-05', PROGRAMMA), '');
+});
+
+test('de lijst toont de eerstvolgende week bovenaan en verstopt verstuurde weken', () => {
+  const lijst = nieuwsbrievenOpDatum([
+    { id: 'ver', week: '2026-11-16', verstuurd: true },
+    { id: 'oud', week: '2026-11-09', verstuurd: false },
+    { id: 'later', week: '2026-11-30', verstuurd: false },
+    { id: 'nu', week: '2026-11-23', verstuurd: false },
+  ], VANDAAG);
+  assert.deepEqual(lijst.map((brief) => brief.id), ['nu', 'later', 'oud']);
 });
 
 test('het overzicht benoemt of de doorlooptijd al voorbij is', () => {
@@ -170,6 +181,26 @@ test('verzenden slaat een te jong concept over en maakt er geen aan', async () =
   assert.equal(ontbreekt.overgeslagen, 'geen concept');
   assert.equal(leeg.weken.length, 0);
 
+  const stil = await verstuurWekelijkseNieuwsbrief({
+    register,
+    datum: new Date('2026-12-18T08:00:00Z'),
+    vrienden: geheugenVrienden([VRIEND]),
+    bron,
+    transport: { async verstuur() { throw new Error('niet versturen'); } },
+  });
+  assert.equal(stil.verstuurd, 0);
+  assert.equal(stil.overgeslagen, 'geen activiteit deze week');
+  assert.equal(bron.weken.find((week) => week.week === '2026-12-14')?.verstuurd, false);
+
+  bron.activiteiten.push({
+    _id: 'winter',
+    slug: 'winterstop',
+    interneTitel: 'Winterstop',
+    start: '2026-12-19',
+    eind: '2027-02-11',
+    soort: 'winterstop',
+    zichtbaarheid: 'publiek',
+  });
   const rijp = await verstuurWekelijkseNieuwsbrief({
     register,
     datum: new Date('2026-12-18T08:00:00Z'),

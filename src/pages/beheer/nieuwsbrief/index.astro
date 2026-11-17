@@ -4,12 +4,12 @@ export const prerender = false;
 import Beheer from '../../../layouts/Beheer.astro';
 import { formatNl } from '../../../platform/demo-data';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
-import { conceptStatusLabel } from '../../../lib/nieuwsbrief-concepten.ts';
+import { conceptStatusLabel, nieuwsbrievenOpDatum } from '../../../lib/nieuwsbrief-concepten.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
-const brieven = [...snapshot.nieuwsbrieven].sort((a, b) => b.week.localeCompare(a.week));
+const brieven = nieuwsbrievenOpDatum(snapshot.nieuwsbrieven, vandaag);
 ---
 
 <Beheer titel="Nieuwsbrief">
@@ -18,8 +18,8 @@ const brieven = [...snapshot.nieuwsbrieven].sort((a, b) => b.week.localeCompare(
       <h1>Nieuwsbrief</h1>
       <p class="bh-hint">
         Weken uit {snapshot.bron === 'supabase' ? 'Supabase' : 'de voorbeelddata'}. Dit scherm verstuurt
-        niets. Concepten staan vier weken voor de vrijdag klaar. De vrijdagcron verstuurt alleen een concept
-        dat die doorlooptijd heeft gehad.
+        niets. De eerstvolgende week staat bovenaan. Verstuurde weken staan hier niet.
+        De vrijdagcron verstuurt een concept pas na vier weken doorlooptijd, en alleen als er dat weekend een activiteit is.
       </p>
     </div>
   </header>
@@ -37,7 +37,7 @@ const brieven = [...snapshot.nieuwsbrieven].sort((a, b) => b.week.localeCompare(
       {
         brieven.length === 0 ? (
           <tr>
-            <td colspan="4" class="bh-leeg">Geen nieuwsbriefweken.</td>
+            <td colspan="4" class="bh-leeg">Geen open nieuwsbrieven.</td>
           </tr>
         ) : (
           brieven.map((n) => {

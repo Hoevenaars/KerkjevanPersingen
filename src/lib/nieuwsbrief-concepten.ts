@@ -23,6 +23,21 @@ export function vrijdagVanWeek(maandag: string): string {
   return voegDagenToe(maandag, 4);
 }
 
+/**
+ * Onverstuurde weken, met de eerstvolgende bovenaan.
+ * Verstuurde weken vallen weg. Voorbije weken staan onder de komende.
+ */
+export function nieuwsbrievenOpDatum<T extends { week: string; verstuurd: boolean }>(
+  brieven: readonly T[],
+  vandaag: string,
+): T[] {
+  const maandag = maandagVanWeekIso(new Date(`${vandaag}T12:00:00Z`));
+  const open = brieven.filter((brief) => !brief.verstuurd);
+  const komend = open.filter((brief) => brief.week >= maandag).sort((a, b) => a.week.localeCompare(b.week));
+  const voorbij = open.filter((brief) => brief.week < maandag).sort((a, b) => b.week.localeCompare(a.week));
+  return [...komend, ...voorbij];
+}
+
 /** Maandagen van deze week t/m de week die de minimale doorlooptijd verder ligt. */
 export function conceptMaandagen(vandaag: string, weken = NIEUWSBRIEF_DOORLOOPTIJD_WEKEN): string[] {
   const start = maandagVanWeekIso(new Date(`${vandaag}T12:00:00Z`));

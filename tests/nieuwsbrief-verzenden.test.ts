@@ -32,6 +32,15 @@ function bronMetNieuws() {
     verstuurd: false,
     aangemaaktOp: '2026-08-01',
   });
+  bron.activiteiten.push({
+    _id: 'expo',
+    slug: 'expositie',
+    interneTitel: 'Herfstexpositie',
+    start: '2026-10-03',
+    eind: '2026-10-04',
+    soort: 'expositie',
+    zichtbaarheid: 'publiek',
+  });
   return bron;
 }
 
