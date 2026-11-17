@@ -5,9 +5,12 @@ import { STANDAARD_AUTOMATISERINGEN } from '../src/platform/automatisering.ts';
 import { functioneleStatus, technischeGereedheid } from '../src/platform/automatisering.ts';
 import {
   beoordeelVerzending,
+  compacteDatum,
   kiesVoorbeeld,
   renderPlanningMail,
   stelPlanningMailSamen,
+  tijdWeergave,
+  voornaamVan,
   type PlanningMailBundel,
   type PlanningMailClaim,
   type PlanningMailHistorie,
@@ -102,25 +105,132 @@ test('de persoonlijke planning staat bovenaan en een lege indeling zegt dat', ()
   const marieke = mail.ontvangers.find((ontvanger) => ontvanger.naam === 'Marieke Jansen');
   assert.ok(marieke);
   const brief = renderPlanningMail(mail, marieke);
-  const eigen = brief.tekst.indexOf('Uw diensten');
-  const open = brief.tekst.indexOf('Openstaande diensten');
+  const eigen = brief.tekst.indexOf('Uw diensten (1)');
+  const open = brief.tekst.indexOf('Openstaande diensten (1)');
   assert.equal(brief.tekst.includes('De volledige planning'), false);
   assert.equal(brief.html.includes('De volledige planning'), false);
+  assert.equal(brief.tekst.includes('Datum:'), false);
+  assert.equal(brief.html.includes('Datum:'), false);
   assert.ok(eigen >= 0 && eigen < open);
   assert.match(brief.tekst.slice(eigen, open), /Voorjaarsexpositie/);
+  assert.match(brief.tekst.slice(eigen, open), /Za 4 en zo 5 april 2026/);
+  assert.match(brief.tekst.slice(eigen, open), /11\.00 – 17\.00 uur/);
+  assert.equal(brief.tekst.slice(eigen, open).includes('Marieke Jansen'), false);
   assert.equal(brief.tekst.includes('Concert'), false);
   assert.match(brief.tekst.slice(open), /Zomerexpositie/);
+  assert.match(brief.tekst, /Beste Marieke,/);
   assert.match(brief.html, /U bent in deze periode niet ingedeeld|Voorjaarsexpositie/);
   const els = renderPlanningMail(mail, { relatieIds: ['onbekend'], naam: 'Els', email: 'els@example.nl' });
+  assert.match(els.tekst, /Uw diensten \(0\)/);
   assert.match(els.tekst, /U bent in deze periode niet ingedeeld/);
   assert.match(els.tekst, /Nog niet ingevuld/);
   assert.equal(els.tekst.includes('Nog 1 gastbegeleider nodig'), false);
+  assert.equal(els.tekst.includes('Concert'), false);
   assert.equal(brief.html.includes('<th'), false);
+  assert.equal(brief.html.includes('display:flex'), false);
   assert.equal(brief.html.includes('font-size:12px'), false);
   assert.equal(brief.html.includes('font-size:13px'), false);
   assert.match(brief.html, /lang="nl"/);
+  assert.match(brief.html, /dir="ltr"/);
   assert.match(brief.html, /<h1/);
-  assert.match(brief.html, /font-size:18px/);
+  assert.match(brief.html, /max-width:600px/);
+  assert.match(brief.html, /font-size:16px/);
+  assert.match(brief.html, /role="presentation"/);
+});
+
+test('de compacte brief toont alleen eigen en open diensten, ook bij gedeeltelijke bezetting', () => {
+  assert.equal(compacteDatum('2026-10-24', '2026-10-25'), 'Za 24 en zo 25 oktober 2026');
+  assert.equal(compacteDatum('2026-10-27', '2026-10-27'), 'Di 27 oktober 2026');
+  assert.equal(compacteDatum('2026-10-31', '2026-11-01'), 'Za 31 oktober en zo 1 november 2026');
+  assert.equal(compacteDatum('2026-12-31', '2027-01-01'), 'Do 31 december 2026 en vr 1 januari 2027');
+  assert.equal(tijdWeergave('11:00–17:00'), '11.00 – 17.00 uur');
+  assert.equal(voornaamVan('Betty van de Veerdonk'), 'Betty');
+
+  const mail = stelPlanningMailSamen({
+    van: '2026-10-01',
+    tot: '2026-11-30',
+    tijd: '11:00–17:00',
+    boekingen: [
+      { id: 'een', status: 'definitief', interneTitel: 'Oktober 3/4', huurder: 'Eerste expositie', start: '2026-10-03', eind: '2026-10-04', gastheerId: 'marieke' },
+      { id: 'twee', status: 'definitief', interneTitel: 'Oktober 10/11', huurder: 'Tweede expositie', start: '2026-10-10', eind: '2026-10-11', gastheerId: 'marieke' },
+      { id: 'vol', status: 'definitief', interneTitel: 'November 14/15', huurder: 'Volle dienst', start: '2026-11-14', eind: '2026-11-15', gastheerId: 'hans' },
+      {
+        id: 'lang',
+        status: 'definitief',
+        interneTitel: 'Een bijzonder lange activiteitsnaam die over de regel moet lopen zonder de mail breder te maken',
+        huurder: 'Lang',
+        start: '2026-10-27',
+        eind: '2026-10-27',
+      },
+    ],
+    toewijzingen: [],
+    gastheren: [
+      { id: 'marieke', naam: 'Marieke Jansen', email: 'marieke@example.nl', actief: true },
+      { id: 'hans', naam: 'Hans Maas', email: 'hans@example.nl', actief: true },
+      { id: 'els', naam: 'Els Pieters', email: 'els@example.nl', actief: true },
+    ],
+  });
+  const marieke = mail.ontvangers.find((ontvanger) => ontvanger.naam === 'Marieke Jansen');
+  assert.ok(marieke);
+  const brief = renderPlanningMail(mail, marieke);
+  assert.match(brief.tekst, /Uw diensten \(2\)/);
+  assert.match(brief.tekst, /Eerste expositie/);
+  assert.match(brief.tekst, /Tweede expositie/);
+  assert.equal(brief.tekst.includes('Volle dienst'), false);
+  assert.match(brief.tekst, /Openstaande diensten \(1\)/);
+  assert.match(brief.tekst, /Een bijzonder lange activiteitsnaam/);
+  assert.match(brief.html, /overflow-wrap:break-word/);
+  assert.match(brief.tekst, /Er zijn geen openstaande diensten|Nog niet ingevuld/);
+
+  const allesDicht = renderPlanningMail({
+    onderwerp: mail.onderwerp,
+    periodeTekst: mail.periodeTekst,
+    tijd: mail.tijd,
+    diensten: mail.diensten.filter((dienst) => dienst.id !== 'lang'),
+  }, marieke);
+  assert.match(allesDicht.tekst, /Er zijn geen openstaande diensten in deze periode/);
+  assert.equal(allesDicht.tekst.includes('De volledige planning'), false);
+
+  const gedeeltelijk = renderPlanningMail({
+    onderwerp: 'Planning gastbegeleiders, test',
+    periodeTekst: '1 november 2026 t/m 8 november 2026',
+    tijd: '11:00–17:00',
+    diensten: [
+      {
+        id: 'deel',
+        start: '2026-11-07',
+        eind: '2026-11-07',
+        datumTekst: 'oud',
+        tijd: '11:00–17:00',
+        activiteit: 'Expositie',
+        namen: ['Hans Peters'],
+        relatieIds: ['hans'],
+        openTekst: 'Nog 1 gastbegeleider nodig',
+        ingevuld: 1,
+        verwacht: 2,
+      },
+      {
+        id: 'leeg',
+        start: '2026-11-08',
+        eind: '2026-11-08',
+        datumTekst: 'oud',
+        tijd: '11:00–17:00',
+        activiteit: 'Lege dienst',
+        namen: [],
+        relatieIds: [],
+        openTekst: 'Nog niet ingevuld',
+        ingevuld: 0,
+        verwacht: 1,
+      },
+    ],
+  }, { relatieIds: ['els'], naam: 'Els Pieters', email: 'els@example.nl' });
+  assert.match(gedeeltelijk.tekst, /Uw diensten \(0\)/);
+  assert.match(gedeeltelijk.tekst, /Openstaande diensten \(2\)/);
+  assert.match(gedeeltelijk.tekst, /Ingedeeld: Hans Peters/);
+  assert.match(gedeeltelijk.tekst, /Nog 1 gastbegeleider nodig/);
+  assert.match(gedeeltelijk.tekst, /Nog niet ingevuld/);
+  assert.equal(gedeeltelijk.tekst.includes('Ingedeeld: Nog niemand'), false);
+  assert.equal(gedeeltelijk.html.includes('De volledige planning'), false);
 });
 
 test('het voorbeeld kiest de gevraagde ontvanger en verstuurt niets', () => {
@@ -164,7 +274,7 @@ test('zonder bevestiging, bij dezelfde planning en in voorbeelddata gaat er geen
   assert.equal(eerste.verstuurd, true);
   assert.equal(verboden.aantal, 2);
   assert.equal(verboden.ontvangers.slice().sort().join(','), 'hans@example.nl,marieke@example.nl');
-  assert.match(verboden.onderwerpen[0], /Planning Kerkje van Persingen/);
+  assert.match(verboden.onderwerpen[0], /Planning gastbegeleiders/);
   assert.equal(geheugen.rijen[0]?.gestartDoorNaam, 'Nelleke');
   assert.equal(geheugen.rijen[0]?.status, 'verzonden');
 
