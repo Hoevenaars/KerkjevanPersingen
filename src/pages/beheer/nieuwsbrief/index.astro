@@ -6,12 +6,21 @@ import { formatNl } from '../../../platform/demo-data';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
 import { conceptStatusLabel, nieuwsbrievenOpDatum, verzendMoment } from '../../../lib/nieuwsbrief-concepten.ts';
 import { laadBeheerSnapshot, beheerSnapshotOpties } from '../../../platform/beheer-bron.ts';
+import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
+import { bereikVanRijen } from '../../../lib/nieuwsbrief-bereik.ts';
+import { bereikVoorBeheer } from '../../../lib/nieuwsbrief-bereik-opslag.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
 const brieven = nieuwsbrievenOpDatum(snapshot.nieuwsbrieven, vandaag);
 const moment = verzendMoment(vandaag);
 const verzendDatum = formatNl(moment.vrijdag);
+const verstuurd = snapshot.nieuwsbrieven
+  .filter((brief) => brief.verstuurd)
+  .sort((a, b) => b.week.localeCompare(a.week));
+const bereik = snapshot.bron === 'supabase'
+  ? await bereikVoorBeheer(sessieSupabaseUitAstro(Astro))
+  : { rijen: [], fout: false };
 ---
 
 <Beheer titel="Nieuwsbrief">
@@ -63,4 +72,45 @@ const verzendDatum = formatNl(moment.vrijdag);
       }
     </tbody>
   </table>
+
+  {
+    verstuurd.length > 0 && (
+      <section class="bh-bereik">
+        <h2>Verstuurd</h2>
+        <p class="bh-hint">
+          Per week: hoeveel vrienden de brief openden, wie dat niet deed, en wie op “Bekijk in de agenda” klikte.
+        </p>
+        <table class="bh-tabel">
+          <thead>
+            <tr>
+              <th>Week</th>
+              <th>Verstuurd</th>
+              <th>Geopend</th>
+              <th>Niet geopend</th>
+              <th>Activiteit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {verstuurd.map((brief) => {
+              const telling = bereikVanRijen(bereik.rijen, brief.id);
+              const leeg = snapshot.bron !== 'supabase' || bereik.fout || telling.verstuurd === 0;
+              return (
+                <tr>
+                  <td>
+                    <a href={`/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/`}>{formatNl(brief.week)}</a>
+                  </td>
+                  <td>{leeg ? '—' : telling.verstuurd}</td>
+                  <td>{leeg ? '—' : telling.geopend}</td>
+                  <td>{leeg ? '—' : telling.nietGeopend}</td>
+                  <td>{leeg ? '—' : telling.activiteit}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {snapshot.bron !== 'supabase' && <p class="bh-hint">In het voorbeeld staan geen echte ontvangers.</p>}
+        {bereik.fout && <p class="bh-hint">De openingen konden niet worden gelezen.</p>}
+      </section>
+    )
+  }
 </Beheer>

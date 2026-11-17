@@ -99,6 +99,7 @@ geen bescherming tegen misbruik van de domeinnaam.
 | --- | --- | --- |
 | `SITE_PASSWORD` | nee | Gevuld = site afgeschermd én `noindex`. Leeg = openbaar. |
 | `RESEND_API_KEY` | ja | Zonder deze sleutel wordt geen aanvraag verstuurd. |
+| `RESEND_WEBHOOK_SECRET` | voor openingen | Sleutel (`whsec_…`) waarmee Resend het openen en doorklikken van de nieuwsbrief ondertekent. Zonder deze sleutel worden openingen niet bijgehouden. |
 | `CONTACT_FALLBACK_EMAIL` | ja | Terugval als het ontvangstadres in Supabase leeg of ongeldig is. |
 | `CONTACT_BCC_EMAIL` | nee | Extra BCC, alleen op mail naar mensen van het kerkje. |
 | `TOEZICHT_BCC_EMAIL` | nee | Tijdelijke BCC op diezelfde interne mail. Standaard `nhoevenaars@gmail.com`. Leeg = alleen die kopie uit. `kerkjevanpersingenhm@gmail.com` blijft BCC, ook op aanvraag- en contactnotificaties. |
@@ -268,6 +269,8 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 
 Zonder `?week=` zoekt de preview de maandag van *deze* kalenderweek. Op zondag is dat
 nog de vorige maandag — zet `week` op de maandag van het document dat je wilt zien.
+
+Na verzending houdt beheer bij wie de brief opende en wie niet, en wie op “Bekijk in de agenda” klikte. Resend moet daarvoor `email.opened` en `email.clicked` melden op `https://kerkjepersingen.nl/api/resend/nieuwsbrief`, ondertekend met `RESEND_WEBHOOK_SECRET`. Een opening betekent dat het mailprogramma de brief laadde; sommige programma’s doen dat zonder dat iemand hem las. Oudere verzendingen, van voor deze meting, hebben geen lijst.
 
 Zonder ingevuld kort nieuws gaat een rijpe, goedgekeurde week tóch, met alleen het agenda-blok.
 Een week zonder concept, zonder goedkeuring, of een concept dat korter dan vier weken van
