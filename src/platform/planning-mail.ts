@@ -14,6 +14,8 @@ export const GASTBEGELEIDERS_PER_DIENST = 1;
 export const PLANNING_MAIL_MAX_DAGEN = 366;
 
 const WEEKDAGEN = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'] as const;
+const WEEKDAG_KORT = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'] as const;
+const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'] as const;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,7 +23,10 @@ const PINE = '#4A5235';
 const BRICK = '#9C4A2F';
 const CREAM = '#FAF8F3';
 const CREAM_DEEP = '#F1EBDD';
-const SAND = '#D9CFBC';
+const SAND = '#F6F1E6';
+const SAND_LINE = '#E4D9C6';
+const MINT = '#F3F6EC';
+const MINT_LINE = '#D5DEC4';
 const INK = '#1A1A1A';
 const SITE = 'https://kerkjepersingen.nl';
 
@@ -205,6 +210,38 @@ export function periodeTekstVan(start: string, eind: string): string {
   return `${datumMetWeekdag(start)} t/m ${datumMetWeekdag(eind)}`;
 }
 
+/** Za 24 en zo 25 oktober 2026. De tweede weekdag blijft klein, zoals in de brief. */
+export function compacteDatum(start: string, eind: string): string {
+  if (!isYmd(start)) return start;
+  const eerste = dagDelen(start);
+  if (!eerste) return start;
+  if (!isYmd(eind) || start === eind) return `${dagKop(start, true)} ${eerste.maandNaam} ${eerste.jaar}`;
+  const tweede = dagDelen(eind);
+  if (!tweede) return `${dagKop(start, true)} ${eerste.maandNaam} ${eerste.jaar}`;
+  if (eerste.maand === tweede.maand && eerste.jaar === tweede.jaar) {
+    return `${dagKop(start, true)} en ${dagKop(eind, false)} ${eerste.maandNaam} ${eerste.jaar}`;
+  }
+  if (eerste.jaar === tweede.jaar) {
+    return `${dagKop(start, true)} ${eerste.maandNaam} en ${dagKop(eind, false)} ${tweede.maandNaam} ${eerste.jaar}`;
+  }
+  return `${dagKop(start, true)} ${eerste.maandNaam} ${eerste.jaar} en ${dagKop(eind, false)} ${tweede.maandNaam} ${tweede.jaar}`;
+}
+
+export function tijdWeergave(tijd: string): string {
+  const schoon = tijd.trim();
+  if (!schoon) return '';
+  const zonderUur = schoon.replace(/\s*uur\s*$/i, '');
+  const delen = zonderUur.split(/\s*[–—-]\s*/).filter(Boolean);
+  const stuk = (waarde: string) => waarde.trim().replace(':', '.');
+  if (delen.length >= 2) return `${stuk(delen[0])} – ${stuk(delen[1])} uur`;
+  return `${stuk(delen[0] ?? zonderUur)} uur`;
+}
+
+export function voornaamVan(naam: string): string {
+  const eerste = naam.trim().split(/\s+/)[0];
+  return eerste || naam.trim();
+}
+
 export function verzendmoment(iso: string | null): string {
   if (!iso) return '';
   const datum = new Date(iso);
@@ -247,7 +284,7 @@ export function stelPlanningMailSamen(input: {
     .filter((persoon) => persoon.actief && !geldigEmail(persoon.email))
     .map((persoon) => ({ id: persoon.id, naam: persoon.naam.trim() || 'Naam ontbreekt' }))
     .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
-  const onderwerp = `Planning Kerkje van Persingen, ${periodeTekst}`;
+  const onderwerp = `Planning gastbegeleiders, ${periodeTekst}`;
   const zonderHash = {
     van: input.van,
     tot: input.tot,
@@ -461,21 +498,55 @@ function escapeHtml(waarde: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function dienstBlok(dienst: PlanningDienst, eigen: boolean): string {
-  const namen = dienst.namen.length ? dienst.namen.join(', ') : 'Nog niemand ingedeeld';
-  const open = dienst.openTekst
-    ? `<p style="margin:8px 0 0;font-size:18px;line-height:1.5;font-weight:700;color:${BRICK};">${escapeHtml(dienst.openTekst)}</p>`
+function dagDelen(ymd: string): { dag: number; maand: number; jaar: number; maandNaam: string } | null {
+  if (!isYmd(ymd)) return null;
+  const maand = Number(ymd.slice(5, 7));
+  const maandNaam = MAANDEN[maand - 1];
+  if (!maandNaam) return null;
+  return { dag: Number(ymd.slice(8, 10)), maand, jaar: Number(ymd.slice(0, 4)), maandNaam };
+}
+
+function dagKop(ymd: string, hoofdletter: boolean): string {
+  const delen = dagDelen(ymd);
+  if (!delen) return ymd;
+  const kort = WEEKDAG_KORT[weekdag(ymd)] ?? '';
+  const label = hoofdletter ? `${kort.charAt(0).toUpperCase()}${kort.slice(1)}` : kort;
+  return `${label} ${delen.dag}`;
+}
+
+function regelTijdActiviteit(dienst: PlanningDienst): string {
+  const tijd = tijdWeergave(dienst.tijd);
+  if (tijd && dienst.activiteit) return `${tijd} | ${dienst.activiteit}`;
+  return tijd || dienst.activiteit;
+}
+
+function eigenBlok(dienst: PlanningDienst): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 10px;border-collapse:separate;">
+    <tr>
+      <td bgcolor="${MINT}" style="background:${MINT};border:1px solid ${MINT_LINE};border-radius:8px;padding:10px 12px;">
+        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;font-weight:700;color:${INK};">${escapeHtml(compacteDatum(dienst.start, dienst.eind))}</p>
+        <p style="margin:2px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;color:${INK};word-wrap:break-word;overflow-wrap:break-word;">${escapeHtml(regelTijdActiviteit(dienst))}</p>
+      </td>
+    </tr>
+  </table>`;
+}
+
+function openBlok(dienst: PlanningDienst, laatste: boolean): string {
+  const ingedeeld = dienst.namen.length
+    ? `<p style="margin:2px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;color:${INK};word-wrap:break-word;overflow-wrap:break-word;">Ingedeeld: ${escapeHtml(dienst.namen.join(', '))}</p>`
     : '';
-  const tijd = dienst.tijd
-    ? `<p style="margin:6px 0 0;font-size:18px;line-height:1.5;color:${INK};">Tijd: ${escapeHtml(dienst.tijd)}</p>`
+  const status = dienst.openTekst
+    ? `<p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;font-weight:700;color:${BRICK};">${escapeHtml(dienst.openTekst)}</p>`
     : '';
-  return `<div style="margin:0 0 18px;padding:0 0 16px;border-bottom:1px solid ${SAND};">
-    <p style="margin:0;font-size:18px;line-height:1.5;color:${INK};">Datum: ${escapeHtml(dienst.datumTekst)}</p>
-    ${tijd}
-    <p style="margin:6px 0 0;font-size:18px;line-height:1.5;color:${INK};">Activiteit: ${escapeHtml(dienst.activiteit)}</p>
-    <p style="margin:6px 0 0;font-size:18px;line-height:1.5;color:${INK};">${eigen ? 'Uw dienst' : 'Ingedeeld'}: ${escapeHtml(namen)}</p>
-    ${open}
-  </div>`;
+  const lijn = laatste ? 'none' : `1px solid ${SAND_LINE}`;
+  return `<tr>
+      <td style="padding:10px 12px;border-bottom:${lijn};">
+        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;font-weight:700;color:${INK};">${escapeHtml(compacteDatum(dienst.start, dienst.eind))}</p>
+        <p style="margin:2px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;color:${INK};word-wrap:break-word;overflow-wrap:break-word;">${escapeHtml(regelTijdActiviteit(dienst))}</p>
+        ${ingedeeld}
+        ${status}
+      </td>
+    </tr>`;
 }
 
 function htmlVan(
@@ -485,69 +556,76 @@ function htmlVan(
   open: readonly PlanningDienst[],
 ): string {
   const eigenHtml = eigen.length
-    ? eigen.map((dienst) => dienstBlok(dienst, true)).join('')
-    : '<p style="margin:0 0 16px;font-size:18px;line-height:1.5;color:#1A1A1A;">U bent in deze periode niet ingedeeld.</p>';
+    ? eigen.map((dienst) => eigenBlok(dienst)).join('')
+    : `<p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;color:${INK};">U bent in deze periode niet ingedeeld.</p>`;
   const openHtml = open.length
-    ? open.map((dienst) => dienstBlok(dienst, false)).join('')
-    : '<p style="margin:0 0 16px;font-size:18px;line-height:1.5;color:#1A1A1A;">Alle diensten in deze periode zijn ingevuld.</p>';
-  const titel = `Planning ${bundel.periodeTekst}`;
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${SAND}" style="width:100%;background:${SAND};border-radius:8px;border-collapse:separate;">
+        ${open.map((dienst, index) => openBlok(dienst, index === open.length - 1)).join('')}
+      </table>`
+    : `<p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;color:${INK};">Er zijn geen openstaande diensten in deze periode.</p>`;
+  const voornaam = voornaamVan(ontvanger.naam);
   return `<!DOCTYPE html>
-<html lang="nl">
+<html lang="nl" dir="ltr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(titel)}</title>
+  <title>Planning gastbegeleiders</title>
 </head>
 <body style="margin:0;padding:0;background:${CREAM};">
+  <div lang="nl" dir="ltr">
   <div style="display:none;max-height:0;overflow:hidden;">Uw diensten en de openstaande diensten van ${escapeHtml(bundel.periodeTekst)}.</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:${CREAM};border-collapse:collapse;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CREAM}" style="width:100%;background:${CREAM};border-collapse:collapse;">
     <tr>
-      <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;border-collapse:collapse;">
+      <td align="center" style="padding:8px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;border-collapse:collapse;">
           <tr>
-            <td style="padding:0 0 16px;">
-              <img src="${KERKJE_LOGO_URL}" width="44" height="45" alt="Zegel van het Kerkje van Persingen" style="display:block;border:0;width:44px;height:auto;" />
-              <p style="margin:8px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.4;color:${PINE};">Kerkje van Persingen</p>
+            <td style="padding:4px 4px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+                <tr>
+                  <td width="40" valign="middle" style="width:40px;padding:0 8px 0 0;">
+                    <img src="${KERKJE_LOGO_URL}" width="36" height="37" alt="Zegel van het Kerkje van Persingen" style="display:block;border:0;width:36px;height:auto;" />
+                  </td>
+                  <td valign="middle" style="font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.3;color:${PINE};">Kerkje van Persingen</td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
-            <td style="background:#ffffff;border:1px solid ${SAND};padding:28px 24px;font-family:Arial,Helvetica,sans-serif;color:${INK};">
-              <h1 style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.3;font-weight:600;color:${PINE};">${escapeHtml(titel)}</h1>
-              <p style="margin:0 0 16px;font-size:18px;line-height:1.5;">Beste ${escapeHtml(ontvanger.naam)},</p>
-              <p style="margin:0 0 8px;font-size:18px;line-height:1.5;">Hier staan uw diensten van ${escapeHtml(bundel.periodeTekst)}, en de diensten die nog open zijn.</p>
-              <h2 style="margin:28px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600;color:${PINE};">Uw diensten</h2>
+            <td bgcolor="#ffffff" style="background:#ffffff;padding:16px 16px 12px;font-family:Arial,Helvetica,sans-serif;color:${INK};">
+              <h1 style="margin:0 0 4px;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.25;font-weight:700;color:${PINE};">Planning gastbegeleiders</h1>
+              <p style="margin:0 0 14px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;color:${PINE};">${escapeHtml(bundel.periodeTekst)}</p>
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;font-weight:700;">Beste ${escapeHtml(voornaam)},</p>
+              <p style="margin:2px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;">Hieronder vindt u uw ingeplande diensten en de diensten waarvoor nog hulp nodig is.</p>
+              <h2 style="margin:20px 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:1.3;font-weight:700;color:${PINE};">Uw diensten (${eigen.length})</h2>
               ${eigenHtml}
-              <h2 style="margin:28px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600;color:${PINE};">Openstaande diensten</h2>
+              <h2 style="margin:20px 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:1.3;font-weight:700;color:${PINE};">Openstaande diensten (${open.length})</h2>
               ${openHtml}
-              <p style="margin:8px 0 0;font-size:18px;line-height:1.5;">Heeft u een vraag, dan kunt u op deze e-mail antwoorden.</p>
-              <p style="margin:20px 0 0;font-size:18px;line-height:1.5;">Met vriendelijke groet,<br />Het bestuur van Het Kerkje van Persingen</p>
+              <p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;">Kunt u bij een openstaande dienst helpen? Laat het ons gerust weten door op deze e-mail te antwoorden.</p>
+              <p style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;">Met vriendelijke groet,<br /><strong>Het bestuur van het Kerkje van Persingen</strong></p>
             </td>
           </tr>
           <tr>
-            <td style="background:${CREAM_DEEP};padding:18px 24px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5;color:${INK};">
+            <td bgcolor="${CREAM_DEEP}" style="background:${CREAM_DEEP};padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.4;color:${INK};">
               Stichting Het Kerkje van Persingen<br />
               Persingensestraat 7, 6575 JA Persingen<br />
               06 52 66 84 49<br />
-              <a href="${SITE}/" style="color:${PINE};font-size:16px;text-decoration:underline;">kerkjepersingen.nl</a>
+              <a href="${SITE}/" style="color:${PINE};font-size:15px;text-decoration:underline;">kerkjepersingen.nl</a>
             </td>
           </tr>
         </table>
       </td>
     </tr>
   </table>
+  </div>
 </body>
 </html>`;
 }
 
 function tekstDienst(dienst: PlanningDienst, eigen: boolean): string {
-  const regels = [
-    `Datum: ${dienst.datumTekst}`,
-    dienst.tijd ? `Tijd: ${dienst.tijd}` : '',
-    `Activiteit: ${dienst.activiteit}`,
-    `${eigen ? 'Uw dienst' : 'Ingedeeld'}: ${dienst.namen.length ? dienst.namen.join(', ') : 'Nog niemand ingedeeld'}`,
-    dienst.openTekst ?? '',
-  ].filter(Boolean);
-  return regels.join('\n');
+  const regels = [compacteDatum(dienst.start, dienst.eind), regelTijdActiviteit(dienst)];
+  if (!eigen && dienst.namen.length) regels.push(`Ingedeeld: ${dienst.namen.join(', ')}`);
+  if (dienst.openTekst) regels.push(dienst.openTekst);
+  return regels.filter(Boolean).join('\n');
 }
 
 function tekstVan(
@@ -561,24 +639,25 @@ function tekstVan(
     : 'U bent in deze periode niet ingedeeld.';
   const openTekst = open.length
     ? open.map((dienst) => tekstDienst(dienst, false)).join('\n\n')
-    : 'Alle diensten in deze periode zijn ingevuld.';
+    : 'Er zijn geen openstaande diensten in deze periode.';
   return [
-    `Planning ${bundel.periodeTekst}`,
+    'Planning gastbegeleiders',
+    bundel.periodeTekst,
     '',
-    `Beste ${ontvanger.naam},`,
+    `Beste ${voornaamVan(ontvanger.naam)},`,
     '',
-    `Hier staan uw diensten van ${bundel.periodeTekst}, en de diensten die nog open zijn.`,
+    'Hieronder vindt u uw ingeplande diensten en de diensten waarvoor nog hulp nodig is.',
     '',
-    'Uw diensten',
+    `Uw diensten (${eigen.length})`,
     eigenTekst,
     '',
-    'Openstaande diensten',
+    `Openstaande diensten (${open.length})`,
     openTekst,
     '',
-    'Heeft u een vraag, dan kunt u op deze e-mail antwoorden.',
+    'Kunt u bij een openstaande dienst helpen? Laat het ons gerust weten door op deze e-mail te antwoorden.',
     '',
     'Met vriendelijke groet,',
-    'Het bestuur van Het Kerkje van Persingen',
+    'Het bestuur van het Kerkje van Persingen',
     '',
     'Stichting Het Kerkje van Persingen',
     'Persingensestraat 7, 6575 JA Persingen',
