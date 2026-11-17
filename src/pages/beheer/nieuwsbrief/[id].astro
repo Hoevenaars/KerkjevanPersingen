@@ -7,6 +7,9 @@ import { beheerId, laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash }
 import { bronnenVoorWeek, nieuwsbriefVoorbeeldHtml } from '../../../lib/nieuwsbrief-voorbeeld.ts';
 import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { magSchrijven } from '../../../platform/rechten.ts';
+import NieuwsbriefBereik from '../../../components/beheer/NieuwsbriefBereik.astro';
+import { bereikVanRijen } from '../../../lib/nieuwsbrief-bereik.ts';
+import { bereikVoorBeheer } from '../../../lib/nieuwsbrief-bereik-opslag.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -87,6 +90,11 @@ const voorbeeld = nieuwsbriefVoorbeeldHtml({
 const voorbeeldParams = new URLSearchParams(Astro.url.search);
 voorbeeldParams.set('brief', '1');
 const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbeeld/?${voorbeeldParams.toString()}`;
+const bereik = brief.verstuurd && snapshot.bron === 'supabase'
+  ? await bereikVoorBeheer(sessieSupabaseUitAstro(Astro))
+  : { rijen: [], fout: false };
+const overzicht = bereikVanRijen(bereik.rijen, brief.id);
+const meting = bereik.fout ? 'fout' : snapshot.bron === 'supabase' ? 'live' : 'voorbeeld';
 ---
 
 <Beheer titel={`Nieuwsbrief ${formatNl(brief.week)}`}>
@@ -101,6 +109,14 @@ const voorbeeldUrl = `/beheer/nieuwsbrief/${encodeURIComponent(brief.id)}/voorbe
   {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
   {melding && <p class="bh-flash">{melding}</p>}
   {fout && <p class="bh-flash bh-flash--fout">{fout}</p>}
+
+  {
+    brief.verstuurd ? (
+      <NieuwsbriefBereik overzicht={overzicht} meting={meting} />
+    ) : (
+      <p class="bh-hint">Na verzending staat hier wie de brief opende, wie dat niet deed, en wie op de agenda-activiteit klikte.</p>
+    )
+  }
 
   <section class="bh-kaart">
     <div class="bh-top">

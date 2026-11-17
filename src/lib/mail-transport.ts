@@ -34,6 +34,8 @@ export interface MailBericht {
   bijlagen?: { bestandsnaam: string; inhoud: Uint8Array }[];
   eisBijlagen?: boolean;
   idempotentieSleutel?: string;
+  /** Korte labels voor de verzender, bijvoorbeeld editie en vriend. Geen inhoud van de mail. */
+  tags?: { name: string; value: string }[];
 }
 
 export interface ResendInhoud {
@@ -51,6 +53,7 @@ export interface ResendInhoud {
   bijlagen?: { bestandsnaam: string; inhoud: Uint8Array }[];
   eisBijlagen?: boolean;
   idempotentieSleutel?: string;
+  tags?: { name: string; value: string }[];
 }
 
 export interface MailTransport {
@@ -274,6 +277,7 @@ export async function verstuurMetResend(
     replyTo,
     ...(inhoud.testmodus || !inhoud.bcc?.length ? {} : { bcc: inhoud.bcc }),
     ...(inhoud.headers ? { headers: inhoud.headers } : {}),
+    ...(inhoud.tags?.length ? { tags: inhoud.tags } : {}),
     ...(attachments ? { attachments } : {}),
   }, inhoud.idempotentieSleutel ? { idempotencyKey: inhoud.idempotentieSleutel } : undefined);
   if (error) throw new Error(error.message);
@@ -301,6 +305,7 @@ function resendTransport(): MailTransport {
       if (bericht.bijlagen?.length) inhoud.bijlagen = bericht.bijlagen;
       inhoud.eisBijlagen = bericht.eisBijlagen;
       inhoud.idempotentieSleutel = bericht.idempotentieSleutel;
+      inhoud.tags = bericht.tags;
       if (test) {
         inhoud.bcc = [];
         inhoud.cc = [];

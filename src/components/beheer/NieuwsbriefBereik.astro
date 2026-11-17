@@ -1,0 +1,117 @@
+---
+import type { BereikOverzicht } from '../../lib/nieuwsbrief-bereik.ts';
+
+interface Props {
+  overzicht: BereikOverzicht;
+  meting: 'live' | 'voorbeeld' | 'fout';
+}
+
+const { overzicht, meting } = Astro.props;
+const geopend = overzicht.personen.filter((persoon) => persoon.geopendOp || persoon.activiteitOp);
+const niet = overzicht.personen.filter((persoon) => !persoon.geopendOp && !persoon.activiteitOp);
+
+function momentNl(iso: string | null): string {
+  if (!iso) return '—';
+  const datum = new Date(iso);
+  if (Number.isNaN(datum.getTime())) return '—';
+  return new Intl.DateTimeFormat('nl-NL', {
+    timeZone: 'Europe/Amsterdam',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(datum);
+}
+---
+
+<section class="bh-kaart bh-bereik">
+  <h2>Openen en doorklikken</h2>
+  {
+    meting === 'fout' ? (
+      <p class="bh-hint">De openingen konden niet worden gelezen. De brief zelf is wel verstuurd.</p>
+    ) : meting === 'voorbeeld' ? (
+      <p class="bh-hint">In het voorbeeld staan geen echte ontvangers.</p>
+    ) : overzicht.verstuurd === 0 ? (
+      <p class="bh-hint">
+        Van deze week zijn geen ontvangers bewaard. Oudere verzendingen, van voor deze meting, hebben geen lijst.
+      </p>
+    ) : (
+      <>
+        <ul class="bh-analytics-kpi">
+          <li>
+            <strong>{overzicht.verstuurd}</strong>
+            <span>verstuurd</span>
+          </li>
+          <li>
+            <strong>{overzicht.geopend}</strong>
+            <span>geopend</span>
+          </li>
+          <li>
+            <strong>{overzicht.nietGeopend}</strong>
+            <span>niet geopend</span>
+          </li>
+          <li>
+            <strong>{overzicht.activiteit}</strong>
+            <span>klikte op de activiteit</span>
+          </li>
+        </ul>
+        <p class="bh-hint">
+          Geopend betekent dat het mailprogramma de brief heeft geladen. Sommige programma’s doen dat al voordat iemand hem leest.
+          “Klikte op de activiteit” is de knop “Bekijk in de agenda” of de afbeelding van de activiteit.
+        </p>
+
+        <h3>Geopend</h3>
+        {
+          geopend.length === 0 ? (
+            <p class="bh-muted">Nog niemand. Dat kan kloppen, of de melding van de mailverzender is nog niet ingesteld.</p>
+          ) : (
+            <div class="bh-bereik-lijst">
+            <table class="bh-tabel">
+              <thead>
+                <tr>
+                  <th>Naam</th>
+                  <th>E-mail</th>
+                  <th>Geopend</th>
+                  <th>Activiteit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {geopend.map((persoon) => (
+                  <tr>
+                    <td>{persoon.naam}</td>
+                    <td>{persoon.email}</td>
+                    <td>{momentNl(persoon.geopendOp)}</td>
+                    <td>{persoon.activiteitOp ? momentNl(persoon.activiteitOp) : 'niet geklikt'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          )
+        }
+
+        <h3>Niet geopend</h3>
+        {
+          niet.length === 0 ? (
+            <p class="bh-muted">Iedereen van wie we een melding hebben, heeft de brief geopend.</p>
+          ) : (
+            <table class="bh-tabel">
+              <thead>
+                <tr>
+                  <th>Naam</th>
+                  <th>E-mail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {niet.map((persoon) => (
+                  <tr>
+                    <td>{persoon.naam}</td>
+                    <td>{persoon.email}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        }
+      </>
+    )
+  }
+</section>
