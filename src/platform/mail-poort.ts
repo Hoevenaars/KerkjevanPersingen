@@ -4,6 +4,7 @@
  */
 
 import { automatiseringVoorTemplate, magAutomatiseringUitvoeren, type Automatisering } from './automatisering.ts';
+import { betalingscommunicatieBesluit, isBetalingsTemplate } from './betalingscommunicatie.ts';
 import { communicatieStappen, type CommunicatieContext, type InhoudStatus } from './continuiteit.ts';
 import { voegDagenToe } from './datum.ts';
 import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailBericht } from './mailtemplates/render.ts';
@@ -371,7 +372,10 @@ export function komendeBerichten(input: {
       if (verzonden.has(stap.templateId)) continue;
       if (stap.geplandOp < input.vandaag || stap.geplandOp > horizon) continue;
       const sleutel = automatiseringVoorTemplate(stap.templateId) ?? '';
-      const besluit = sleutel ? magAutomatiseringUitvoeren(sleutel, input.register) : null;
+      const eigen = sleutel ? magAutomatiseringUitvoeren(sleutel, input.register) : null;
+      const besluit = isBetalingsTemplate(stap.templateId) && betalingscommunicatieBesluit(input.register).modus !== 'aan'
+        ? betalingscommunicatieBesluit(input.register)
+        : eigen;
       const template = input.templates.find((item) => item.id === stap.templateId);
       const email = stap.ontvangerRol === 'gastheer'
         ? boeking.gastheerEmail

@@ -169,6 +169,14 @@ begin
     ('factuur_kvk', 'factuur', to_jsonb('00000000'::text), 'ketentest')
   on conflict (sleutel) do nothing;
 
+  begin
+    insert into public.facturen (boeking_id) values (v_boeking);
+    raise exception 'Factuurinsert terwijl betalingscommunicatie uit staat';
+  exception when others then
+    if sqlerrm not like '%Betalingscommunicatie staat uit%' then raise; end if;
+  end;
+
+  perform public.zet_automatisering_status('betalingscommunicatie', 'actief', 'ketentest');
   v_factuur := public.factuur_bij_contract(v_boeking, 1);
   if v_factuur.fase <> 'aanbetaling' or v_factuur.bedrag <> 100 then
     raise exception 'Factuur van het moment is niet de aanbetaling: % %', v_factuur.fase, v_factuur.bedrag;
@@ -180,6 +188,17 @@ begin
   if (select count(*) from public.facturen where boeking_id = v_boeking) <> 1 then
     raise exception 'Meer dan één factuur voor de boeking';
   end if;
+  perform public.zet_automatisering_status('betalingscommunicatie', 'uit', 'ketentest');
+  v_opnieuw := public.factuur_bij_contract(v_boeking, 1);
+  if v_opnieuw.factuurnummer <> v_factuur.factuurnummer then
+    raise exception 'Na uitzetten ontstond een ander factuurnummer';
+  end if;
+  begin
+    insert into public.facturen (boeking_id) values (v_boeking);
+    raise exception 'Factuurinsert na opnieuw uitzetten';
+  exception when others then
+    if sqlerrm not like '%Betalingscommunicatie staat uit%' then raise; end if;
+  end;
 
   -- Nee op het contractpakket: activiteitsgoedkeuring en optie blijven staan.
   update public.contractversies set bestuur = 'terug' where boeking_id = v_boeking and versie = 1;

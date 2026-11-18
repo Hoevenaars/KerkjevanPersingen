@@ -1,4 +1,5 @@
 /** Facturatie gebruikt betalingen en instellingen; schrijft pas bij bestuursakkoord. */
+import { BETALING_DICHT } from '../../platform/betalingscommunicatie.ts';
 import { ymdInAmsterdam } from '../../platform/datum.ts';
 import { factuurSnapshotFout, vasteContractbedragenFout, kiesFactuurVanMoment, type BtwRegime, type FactuurSnapshot } from '../../platform/factuur-van-moment.ts';
 import type { FlowContext, ContractVersie } from '../../platform/documentenflow.ts';
@@ -86,7 +87,13 @@ export async function bekijkFactuurConcept(client: DossierSessie, context: FlowC
 }
 
 /** De RPC garandeert één nummer per betaalregel en bevriest de fiscale waarden. */
-export async function geefFactuurVoorContract(client: DossierSessie, context: FlowContext, versie: ContractVersie): Promise<Resultaat> {
+export async function geefFactuurVoorContract(
+  client: DossierSessie,
+  context: FlowContext,
+  versie: ContractVersie,
+  opties?: { betalingscommunicatieAan?: boolean },
+): Promise<Resultaat> {
+  if (opties?.betalingscommunicatieAan !== true) return { ok: false, melding: BETALING_DICHT };
   if (!client.rpc) return { ok: false, melding: 'De factuurmigratie of databaseverbinding ontbreekt. Er is niets verzonden.' };
   const antwoord = await client.rpc('factuur_bij_contract', { p_boeking_id: Number(context.bron.boekingId), p_versie: versie.versie });
   const payload = Array.isArray(antwoord.data) && antwoord.data.length === 1 ? antwoord.data[0] : antwoord.data;

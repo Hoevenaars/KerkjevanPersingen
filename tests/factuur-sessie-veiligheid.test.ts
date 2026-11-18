@@ -81,7 +81,11 @@ test('ander bedrag in bevroren contract verhindert uitgifte',async()=>{
 });
 test('RPC die niet geïnstalleerd is geeft geen foutief factuurnummer terug',async()=>{
   const {client,calls}=mockDb();
-  const r=await geefFactuurVoorContract(client,context,versie);
+  const dicht=await geefFactuurVoorContract(client,context,versie);
+  assert.equal(dicht.ok,false);
+  assert.match(dicht.ok ? '' : dicht.melding, /Betalingscommunicatie staat uit/);
+  assert.equal(calls.rpc,0);
+  const r=await geefFactuurVoorContract(client,context,versie,{betalingscommunicatieAan:true});
   assert.equal(r.ok,false);
   assert.equal(calls.rpc,1);
 });

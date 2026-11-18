@@ -918,6 +918,7 @@ export interface ContractOpvolgingWeergave {
   nummerVoorOndertekening: string;
   versieVoorOndertekening: string;
   aandacht: string[];
+  betalingscommunicatie: 'uit' | 'test' | 'aan' | null;
 }
 
 export function bouwOpvolging(input: {
@@ -930,6 +931,7 @@ export function bouwOpvolging(input: {
   bekijkHref: string;
   fout: string;
   modus: 'uit' | 'test' | 'aan';
+  betalingscommunicatie?: 'uit' | 'test' | 'aan' | null;
 }): ContractOpvolgingWeergave {
   const huidig = laatste(input.versies);
   const afspraken = huidig?.afspraken ?? { tijdVan: '', tijdTot: '', opbouw: '', afbouw: '', contactpersoon: input.bron.huurderNaam };
@@ -1004,6 +1006,16 @@ export function bouwOpvolging(input: {
         : 'Nog niet',
     },
     { label: 'Aanbetaling ontvangen', waarde: input.betaling.stand === 'ontvangen' ? 'Ontvangen' : (input.bron.aanbetalingCent ?? 0) <= 0 ? 'Niet vereist' : input.betaling.stand === 'open' ? 'Nog niet' : 'Niet vastgelegd' },
+    ...(input.betalingscommunicatie
+      ? [{
+          label: 'Betalingscommunicatie',
+          waarde: input.betalingscommunicatie === 'aan'
+            ? 'Aan'
+            : input.betalingscommunicatie === 'test'
+              ? 'Test. Er gaat niets naar de huurder en er wordt geen factuurnummer uitgegeven.'
+              : 'Uit. Het contract en de conceptfactuur kunnen worden bekeken. Er wordt geen factuur uitgegeven en er gaat geen betalingsmail uit.',
+        }]
+      : []),
     {
       label: 'Definitieve bevestiging',
       waarde: alVerzonden(input.versies, 'bevestiging') ? 'Verstuurd' : 'Nog niet verstuurd',
@@ -1063,6 +1075,7 @@ export function bouwOpvolging(input: {
     nummerVoorOndertekening: huidig?.contractnummer ?? '',
     versieVoorOndertekening: huidig ? String(huidig.versie) : '',
     aandacht: contractAandachtspunten(input.bron),
+    betalingscommunicatie: input.betalingscommunicatie ?? null,
   };
 }
 

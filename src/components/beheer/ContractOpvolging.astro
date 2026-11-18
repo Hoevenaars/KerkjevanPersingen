@@ -103,7 +103,13 @@ const proef = opvolging.modus !== 'aan';
   {driePdf && opvolging.kanGoedkeuren && (
     <form method="post" action={actie} class="bh-form" id="bestuursbesluit-contract">
       <h3>Is dit contractpakket akkoord?</h3>
-      <p class="bh-muted">Bekijk de drie documenten. Bij Ja wordt het pakket direct met de tekenlink verzonden; bij Nee gaat het terug ter correctie.</p>
+      {
+        opvolging.betalingscommunicatie === 'aan' ? (
+          <p class="bh-muted">Bekijk de drie documenten. Bij Ja wordt het pakket direct met de tekenlink verzonden; bij Nee gaat het terug ter correctie.</p>
+        ) : (
+          <p class="bh-muted">Betalingscommunicatie staat uit. De drie documenten kunnen als concept worden bekeken. Ja geeft geen factuur uit en verstuurt niets. Nee zet het pakket terug ter correctie.</p>
+        )
+      }
       <div class="bh-acties" aria-label="Voorbeeld van de drie contractdocumenten">
         <a class="bh-btn bh-btn--sec" href={`${actie}?document=overeenkomst&versie=${opvolging.versie}`} target="_blank" rel="noopener noreferrer">1. Overeenkomst (PDF)</a>
         <a class="bh-btn bh-btn--sec" href={`${actie}?document=voorwaarden&versie=${opvolging.versie}`} target="_blank" rel="noopener noreferrer">2. Voorwaarden (PDF)</a>

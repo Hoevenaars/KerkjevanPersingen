@@ -31,6 +31,8 @@ import { noteerGetekendDocument } from './ontvangst.ts';
 import { bewaarOnveranderlijkePdf, type PdfBucket } from './onveranderlijke-pdf-opslag.ts';
 import { reserveerLiveContractVerzending } from './contract-verzendclaim.ts';
 import { contractProviderUitkomstOnzeker } from '../../platform/verzend-onzekerheid.ts';
+import { BETALING_DICHT, betalingscommunicatieBesluit } from '../../platform/betalingscommunicatie.ts';
+import { laadAutomatiseringsregister } from '../automatisering-register.ts';
 
 type Fout = { message: string; code?: string } | null;
 type Rij = Record<string, unknown>;
@@ -464,6 +466,10 @@ export async function pasDocumentenflowToe(input: {
     }).eq('idempotentie', idempotentie).select('id').maybeSingle();
     return !minimaal.error && Boolean(minimaal.data?.id);
   }
+  if (plan.mail && driePdf && isContractmail(plan.mail.soort)) {
+    const poort = betalingscommunicatieBesluit(await laadAutomatiseringsregister(input.env));
+    if (poort.modus !== 'aan') return { ok: false, melding: BETALING_DICHT };
+  }
   if (plan.mail) {
     // Nieuwe live pakketten krijgen een boekingslock via een Supabase-RPC;
     // de gewone INSERT alleen voor de bestaande proef-/legacyverzendingen.
@@ -541,7 +547,7 @@ export async function pasDocumentenflowToe(input: {
       if (driePdf) {
         const factuurResultaat = plan.mail.soort === 'proef'
           ? await bekijkFactuurConcept(input.client, context, pakketVersie)
-          : await geefFactuurVoorContract(input.client, context, pakketVersie);
+          : await geefFactuurVoorContract(input.client, context, pakketVersie, { betalingscommunicatieAan: true });
         if (!factuurResultaat.ok) {
           await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
           return factuurResultaat;

@@ -347,6 +347,7 @@ if (documentSoort === 'contract' || (factuurpakketAan(omgevingsRecord()) && ['ov
 }
 
 const mailBesluit = await besluitVoor('handmatige_template', undefined, omgevingsRecord());
+const betalingsmodus = (await besluitVoor('betalingscommunicatie', undefined, omgevingsRecord())).modus;
 const mailmodusLabel = mailBesluit.modus === 'test' ? 'Test' : mailBesluit.modus === 'aan' ? 'Aan' : 'Uit';
 const testadres = mailBesluit.modus === 'test' ? await getTestMailRecipient().catch(() => null) : null;
 const intake = snapshot.bron === 'supabase' ? await lijstIntake(boeking.id).catch(() => []) : [];
@@ -530,6 +531,7 @@ if (kanContract && contractDefinitief && mailSessie && /^\d+$/.test(boeking.id))
       bekijkHref: `${basis}?tab=documenten&document=contract&versie=${context.versies.reduce((hoogste, item) => Math.max(hoogste, item.versie), 0) || 1}`,
       fout: '',
       modus: mailBesluit.modus === 'aan' || mailBesluit.modus === 'test' ? mailBesluit.modus : 'uit',
+      betalingscommunicatie: betalingsmodus === 'aan' || betalingsmodus === 'test' ? betalingsmodus : 'uit',
     });
   }
 }

@@ -6,11 +6,13 @@ DB="${KETEN_DB:-kerkje_v5_migraties}"
 PSQL=(sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$DB")
 
 "${PSQL[@]}" -f supabase/migrations/20261118200000_betaalherinnering_uit.sql
+"${PSQL[@]}" -f supabase/migrations/20261118210000_betalingscommunicatie_uit.sql
 "${PSQL[@]}" -f tests/sql/v5-keten.sql
 
 status=$("${PSQL[@]}" -tA -c "select status from public.automatiseringen where sleutel='betaalherinnering'")
-if [[ "$status" != "uit" ]]; then
-  echo "betaalherinnering staat op $status" >&2
+poort=$("${PSQL[@]}" -tA -c "select status from public.automatiseringen where sleutel='betalingscommunicatie'")
+if [[ "$status" != "uit" || "$poort" != "uit" ]]; then
+  echo "betalingscommunicatie=$poort betaalherinnering=$status" >&2
   exit 1
 fi
 overig=$("${PSQL[@]}" -tA -c "select count(*) from public.automatiseringen where sleutel in ('workflow','aanvraag_bevestiging','statusmail_huurder','content_herinnering','herinnering','gastheer_mail','nazorg') and status <> 'actief'")

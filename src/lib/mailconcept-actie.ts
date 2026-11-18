@@ -84,6 +84,7 @@ export async function verwerkMailconcept(input: {
       replyTo: concept.replyTo,
       richting: 'aanvrager',
       modus: besluit.modus,
+      templateId: templateSleutel,
       bijlagen: input.bijlagen,
       eisBijlagen: Boolean(input.brief || isContractTemplate(templateSleutel)),
     },

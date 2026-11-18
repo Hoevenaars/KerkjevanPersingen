@@ -5,6 +5,7 @@
 
 import { besluitVoor } from './automatisering-register.ts';
 import { MailGeblokkeerd, type Automatisering, type Verzendbesluit } from '../platform/automatisering.ts';
+import { BETALING_DICHT, raaktBetalingscommunicatie } from '../platform/betalingscommunicatie.ts';
 import {
   GEEN_TESTMAILADRES,
   pasTestmodusToe,
@@ -84,6 +85,20 @@ export async function verstuurGecontroleerd(
   } = {},
 ): Promise<TransportUitkomst> {
   const besluit = await besluitVoor(bericht.sleutel, opties.register, opties.env);
+  if (raaktBetalingscommunicatie(bericht)) {
+    const poort = await besluitVoor('betalingscommunicatie', opties.register, opties.env);
+    if (poort.modus !== 'aan' && poort.modus !== 'test') {
+      return {
+        verzonden: false,
+        providerAangeroepen: false,
+        besluit: { ...poort, modus: 'uit', provider: false, uitvoeren: false, reden: BETALING_DICHT },
+        bedoeldeOntvanger: bericht.naar,
+        geblokkeerd: true,
+        melding: BETALING_DICHT,
+      };
+    }
+    if (poort.modus === 'test') opties = { ...opties, modus: 'test' };
+  }
   if (opties.vereisteLiveModus && besluit.modus !== 'aan') {
     return {
       verzonden: false,

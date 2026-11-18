@@ -15,6 +15,8 @@ import { documentenflowAan } from '../../platform/documentenflow-vlag.ts';
 import { leesContractSjabloon } from '../contract-sjabloon-opslag.ts';
 import { leesDocumentenDossier, pasDocumentenflowToe } from './documentenflow-sessie.ts';
 import { bekijkFactuurConcept, factuurpakketAan } from './factuur-sessie.ts';
+import { BETALING_DICHT, betalingscommunicatieBesluit } from '../../platform/betalingscommunicatie.ts';
+import { laadAutomatiseringsregister } from '../automatisering-register.ts';
 
 type FlowInvoer = Omit<Parameters<typeof pasDocumentenflowToe>[0], 'actie'>;
 type Resultaat = { ok: boolean; melding: string };
@@ -46,6 +48,10 @@ async function verwerkContractbesluit(input: BestuursInvoer): Promise<Resultaat>
   }
   if (!Number.isSafeInteger(verwachteVersie) || verwachteVersie < 1) {
     return { ok: false, melding: 'Het contract heeft geen geldig versienummer. Vernieuw het dossier.' };
+  }
+  if (input.besluit === 'ja' && factuurpakketAan(input.env)) {
+    const poort = betalingscommunicatieBesluit(await laadAutomatiseringsregister(input.env));
+    if (poort.modus !== 'aan') return { ok: false, melding: BETALING_DICHT };
   }
   const gelezen = await leesDocumentenDossier(client, boekingId, input.promotieAanwezig);
   if (!gelezen.ok) return gelezen;

@@ -294,6 +294,8 @@ export interface DienstContext {
   internEmail: string;
   /** Triggers vóór deze dag starten niet. Leeg: geen extra grens. */
   actiefVanaf?: string | null;
+  /** Dag waarop betalingscommunicatie op Aan is gezet. Leeg: geen betalingsmail. */
+  betalingsActiefVanaf?: string | null;
   /** Alleen gezet door de workflowcron. Een uitgeschakelde kindschakelaar wordt dan overgeslagen. */
   sjabloonOpen?: (templateId: string) => boolean;
 }
@@ -621,7 +623,13 @@ export function jobDedupSleutel(boekingId: string, templateId: string): string {
   return `job:${boekingId}:${templateId}`;
 }
 
-function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string, actiefVanaf?: string | null): CommunicatieContext {
+function contextVan(
+  wereld: Wereld,
+  boeking: BoekingRij,
+  vandaag: string,
+  actiefVanaf?: string | null,
+  betalingsActiefVanaf?: string | null,
+): CommunicatieContext {
   const publiek = wereld.publiek.find((item) => item.boekingId === boeking.id);
   const trigger = publiek?.trigger ?? publicatieTriggerVoor(boeking.verhuurtype);
   return {
@@ -644,6 +652,7 @@ function contextVan(wereld: Wereld, boeking: BoekingRij, vandaag: string, actief
     eind: boeking.eind || boeking.start,
     geannuleerd: boeking.status === 'geannuleerd' || Boolean(publiek?.geannuleerd),
     actiefVanaf: actiefVanaf ?? null,
+    betalingsActiefVanaf: betalingsActiefVanaf ?? null,
   };
 }
 
@@ -709,7 +718,7 @@ function communicatieMutaties(
   const boekingen = wereld.boekingen.filter((boeking) => !alleenBoekingId || boeking.id === alleenBoekingId);
 
   for (const boeking of boekingen) {
-    const comm = contextVan(wereld, boeking, vandaag, ctx.actiefVanaf);
+    const comm = contextVan(wereld, boeking, vandaag, ctx.actiefVanaf, ctx.betalingsActiefVanaf);
     const openTemplates = wereld.jobs
       .filter(
         (job) =>

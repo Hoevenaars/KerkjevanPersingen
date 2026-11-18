@@ -3,6 +3,7 @@
  */
 
 import { automatiseringVoorTemplate, magAutomatiseringUitvoeren, MailGeblokkeerd } from '../../platform/automatisering.ts';
+import { isBetalingsTemplate } from '../../platform/betalingscommunicatie.ts';
 import { komendeBerichten, redenBuitenWorkflow, type GeplandBericht, type KomendeBoeking } from '../../platform/mail-poort.ts';
 import { verstuurGecontroleerd } from '../mail-transport.ts';
 import { grensVoorActivatie } from '../../platform/activatiegrens.ts';
@@ -379,6 +380,7 @@ export async function voerOperationeel(
     basisUrl: string;
     nu?: Date;
     actiefVanaf?: string | null;
+    betalingsActiefVanaf?: string | null;
     sjabloonOpen?: (templateId: string) => boolean;
   },
 ): Promise<{ ok: boolean; melding: string; links?: { doel: string; url: string }[] }> {
@@ -391,6 +393,7 @@ export async function voerOperationeel(
     basisUrl: opties.basisUrl,
     internEmail: String(env.CONTACT_FALLBACK_EMAIL ?? env.MAIL_STAGING_OVERRIDE ?? ''),
     actiefVanaf: opties.actiefVanaf,
+    betalingsActiefVanaf: opties.betalingsActiefVanaf,
     sjabloonOpen: opties.sjabloonOpen,
   }, mailTransport(env));
   if (!uit.resultaat.ok || uit.mutaties.length === 0) return uit.resultaat;
@@ -438,12 +441,16 @@ export async function draaiWorkflow(env: Record<string, unknown> = process.env, 
   const register = await laadAutomatiseringsregister(env);
   const vandaag = ymdInAmsterdam(new Date());
   const grens = grensVoorActivatie(await leesActiefVanaf('workflow', env), vandaag);
+  const betaalAan = magAutomatiseringUitvoeren('betalingscommunicatie', register).modus === 'aan';
+  const betaalGrens = betaalAan ? await leesActiefVanaf('betalingscommunicatie', env) : null;
   return voerOperationeel({ soort: 'scheduler' }, {
     env,
     actor: { type: 'systeem', naam: 'planner' },
     basisUrl,
     actiefVanaf: grens,
+    betalingsActiefVanaf: betaalGrens,
     sjabloonOpen: (templateId) => {
+      if (isBetalingsTemplate(templateId) && (!betaalAan || !betaalGrens)) return false;
       const sleutel = automatiseringVoorTemplate(templateId);
       return Boolean(sleutel) && magAutomatiseringUitvoeren(sleutel as string, register).modus === 'aan';
     },

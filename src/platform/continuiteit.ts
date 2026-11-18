@@ -60,6 +60,8 @@ export interface CommunicatieContext {
   geannuleerd?: boolean;
   /** Triggers vóór deze dag worden niet alsnog verstuurd. */
   actiefVanaf?: string | null;
+  /** Betalingsstappen vóór deze dag blijven liggen. Leeg: geen betalingsmail. */
+  betalingsActiefVanaf?: string | null;
 }
 
 /** Publicatie volgt de bestaande trigger, niet het activiteitstype alleen. */
@@ -331,6 +333,7 @@ export function actueleVerzendingen(ctx: CommunicatieContext): CommunicatieStap[
       if (ctx.verzonden.has(item.templateId)) continue;
       if (!conditieWaar(item, ctx)) continue;
       if (ctx.actiefVanaf && item.geplandOp < ctx.actiefVanaf) continue;
+      if (item.keten === 'betaling' && (!ctx.betalingsActiefVanaf || item.geplandOp < ctx.betalingsActiefVanaf)) continue;
       if (item.geplandOp > ctx.vandaag) break;
       gekozen.push(item);
       break;

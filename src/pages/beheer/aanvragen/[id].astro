@@ -400,6 +400,7 @@ const tijdlijn = aanvraag && sessieClient
   : [];
 const testadres = await getTestMailRecipient().catch(() => null);
 const mailmodus = (await besluitVoor('handmatige_template', undefined, omgevingsRecord())).modus;
+const betalingsmodus = (await besluitVoor('betalingscommunicatie', undefined, omgevingsRecord())).modus;
 const mailmodusLabel = mailmodus === 'test' ? 'Test' : mailmodus === 'aan' ? 'Aan' : 'Uit';
 const voorbeeld = aanvraag?.informatievraag ? briefMeerInformatie(aanvraag.naam, aanvraag.informatievraag) : null;
 const fotos = aanvraag && sessieClient ? await lijstAanvraagFotos(sessieClient as never, aanvraag.id) : [];
@@ -521,6 +522,7 @@ if (flowBoeking && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'))
     bekijkHref: `${dossierPad}?document=contract&versie=${versies.reduce((hoogste, item) => Math.max(hoogste, item.versie), 0) || 1}`,
     fout,
     modus: documentenflowAan(omgevingsRecord()) && (mailmodus === 'aan' || mailmodus === 'test') ? mailmodus : 'uit',
+    betalingscommunicatie: betalingsmodus === 'aan' || betalingsmodus === 'test' ? betalingsmodus : 'uit',
   });
 }
 if (contractVersies.length > 0 && flowBoeking) {
