@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import test from 'node:test';
-import { STANDAARD_AUTOMATISERINGEN, type Automatisering, type AutomatiseringStatus } from '../src/platform/automatisering.ts';
+import { STANDAARD_AUTOMATISERINGEN, magAutomatiseringUitvoeren, type Automatisering, type AutomatiseringStatus } from '../src/platform/automatisering.ts';
+import { voegDagenToe } from '../src/platform/datum.ts';
+import { legeWereld, voerOpdrachtUit, type MailTransport } from '../src/lib/operatie/kern.ts';
 import {
   BETALING_DICHT,
   betalingscommunicatieBesluit,
@@ -107,6 +110,143 @@ test('E uit opnieuw blokkeert cron, herhaling en een handmatige route', async ()
   assert.equal(actueleVerzendingen({ ...betaling, betalingsActiefVanaf: '2026-11-08', vandaag: '2026-11-17' }).some((stap) => stap.geplandOp < '2026-11-08'), false);
 });
 
+function transport(): MailTransport & { n: number; templates: string[] } {
+  return {
+    n: 0,
+    templates: [],
+    async verstuur(input) {
+      this.n += 1;
+      this.templates.push(input.templateSleutel ?? '');
+      if ((input.onderwerp ?? '').includes('FOUT')) throw new Error('provider weigert');
+    },
+  };
+}
+
+test('cron, herstart, ingeplande job en retry sturen niets zolang de poort uit staat', async () => {
+  const start = '2026-11-01T09:00:00Z';
+  const later = '2026-11-10T07:00:00Z';
+  let wereld = legeWereld();
+  const mail = transport();
+  ({ wereld } = await voerOpdrachtUit(wereld, {
+    soort: 'dien_aanvraag',
+    naam: 'Proef Huurder',
+    email: 'klant@example.nl',
+    verhuurtype: 'vergadering',
+    start: '2026-12-01',
+    eind: '2026-12-01',
+    toelichting: 'Bijeenkomst',
+  }, {
+    nu: new Date(start),
+    env: { FACTUURPAKKET_V3: 'true', DOCUMENTENFLOW: 'true', VERCEL_ENV: 'preview', MAIL_STAGING_ALLOWLIST: 'klant@example.nl' },
+    actor: { type: 'gebruiker', naam: 'Bestuur', rechten: { isSuperAdmin: true, perModule: {} } },
+    basisUrl: 'https://preview.kerkje.test',
+    internEmail: 'bestuur@example.nl',
+  }, mail));
+  const aanvraagId = wereld.aanvragen[0].id;
+  ({ wereld } = await voerOpdrachtUit(wereld, { soort: 'beoordeel', aanvraagId, besluit: 'goedkeuren' }, {
+    nu: new Date(start),
+    env: { FACTUURPAKKET_V3: 'true', VERCEL_ENV: 'preview', MAIL_STAGING_ALLOWLIST: 'klant@example.nl' },
+    actor: { type: 'gebruiker', naam: 'Bestuur', rechten: { isSuperAdmin: true, perModule: {} } },
+    basisUrl: 'https://preview.kerkje.test',
+    internEmail: 'bestuur@example.nl',
+  }, mail));
+  const boeking = wereld.boekingen[0];
+  const zouVersturen = actueleVerzendingen({
+    status: 'optie',
+    start: boeking.start,
+    verhuurtype: boeking.verhuurtype,
+    publicatieTrigger: 'niet_publiceren',
+    inhoudStatus: 'niet_vereist',
+    aanbetalingOntvangen: false,
+    aanbetalingVerplicht: boeking.aanbetalingBedrag > 0,
+    optieAangemaaktOp: boeking.optieAangemaaktOp,
+    betaaldeadline: boeking.optieEind,
+    gastheerAanwezig: false,
+    verzonden: new Set(),
+    vandaag: '2026-11-10',
+    actiefVanaf: '2026-11-01',
+    betalingsActiefVanaf: '2026-11-01',
+  });
+  assert.equal(boeking.aanbetalingBedrag > 0, true);
+  assert.equal(zouVersturen.some((stap) => stap.templateId === 'booking_payment_reminder'), true);
+  wereld.jobs.push({
+    id: 'mislukt',
+    boekingId: boeking.id,
+    aanvraagId,
+    relatieId: boeking.relatieId,
+    templateSleutel: 'booking_payment_reminder',
+    status: 'fout',
+    modus: 'automatisch',
+    geplandOp: '2026-11-08T07:00:00Z',
+    dedup: `job:${boeking.id}:booking_payment_reminder`,
+    ontvangerEmail: 'klant@example.nl',
+    onderwerp: 'Herinnering',
+    pogingen: 1,
+    foutmelding: 'provider weigert',
+  });
+  const context = {
+    nu: new Date(later),
+    env: { FACTUURPAKKET_V3: 'true', DOCUMENTENFLOW: 'true', VERCEL_ENV: 'production' },
+    actor: { type: 'systeem' as const, naam: 'planner' },
+    basisUrl: 'https://kerkjepersingen.nl',
+    internEmail: 'bestuur@example.nl',
+    actiefVanaf: '2026-11-01',
+    betalingsActiefVanaf: null,
+    sjabloonOpen: (templateId: string) => {
+      if (isBetalingsTemplate(templateId)) return false;
+      return magAutomatiseringUitvoeren('workflow', STANDAARD_AUTOMATISERINGEN).modus === 'aan';
+    },
+  };
+  const voor = mail.n;
+  ({ wereld } = await voerOpdrachtUit(wereld, { soort: 'scheduler' }, context, mail));
+  ({ wereld } = await voerOpdrachtUit(wereld, { soort: 'scheduler' }, context, mail));
+  assert.equal(mail.n, voor);
+  assert.equal(mail.templates.some((item) => isBetalingsTemplate(item)), false);
+  assert.equal(wereld.jobs.some((job) => isBetalingsTemplate(job.templateSleutel) && job.status === 'verzonden'), false);
+
+  const herstart = execFileSync(process.execPath, ['--experimental-strip-types', '-e', `
+    import { STANDAARD_AUTOMATISERINGEN } from './src/platform/automatisering.ts';
+    import { betalingscommunicatieBesluit } from './src/platform/betalingscommunicatie.ts';
+    const besluit = betalingscommunicatieBesluit(STANDAARD_AUTOMATISERINGEN);
+    if (besluit.modus !== 'uit' || besluit.provider) process.exit(2);
+  `], {
+    cwd: new URL('..', import.meta.url),
+    env: { ...process.env, FACTUURPAKKET_V3: 'true', DOCUMENTENFLOW: 'true', V4_ATOMAIR_CONTRACT: 'true' },
+    encoding: 'utf8',
+  });
+  assert.equal(herstart, '');
+});
+
+test('expliciet aan laat alleen de nieuwe stap toe en uit daarna blokkeert de retry', async () => {
+  const gekozen = actueleVerzendingen({
+    ...betaling,
+    vandaag: '2026-11-08',
+    betalingsActiefVanaf: '2026-11-08',
+  }).filter((stap) => stap.templateId === 'booking_payment_reminder');
+  assert.equal(gekozen.length, 1);
+  assert.equal(gekozen[0].geplandOp, voegDagenToe('2026-11-01', 7));
+  const oud = actueleVerzendingen({
+    ...betaling,
+    vandaag: '2026-11-18',
+    betalingsActiefVanaf: '2026-11-18',
+  }).filter((stap) => stap.keten === 'betaling');
+  assert.equal(oud.length, 0);
+  let provider = 0;
+  const aan = registerMet({ betalingscommunicatie: 'actief', betaalherinnering: 'actief' });
+  const live = await verstuurGecontroleerd(
+    { sleutel: 'betaalherinnering', naar: 'klant@example.nl', onderwerp: 'Herinnering', tekst: 'Open', templateId: 'booking_payment_reminder' },
+    { register: aan, transport: { async verstuur() { provider += 1; return 'id-1'; } }, env: { VERCEL_ENV: 'production' } },
+  );
+  assert.equal(live.providerAangeroepen, true);
+  const uit = registerMet({ betalingscommunicatie: 'uit', betaalherinnering: 'actief' });
+  const retry = await verstuurGecontroleerd(
+    { sleutel: 'betaalherinnering', naar: 'klant@example.nl', onderwerp: 'Herinnering', tekst: 'Open', templateId: 'booking_payment_reminder' },
+    { register: uit, transport: { async verstuur() { provider += 1; return 'id-2'; } }, env: { VERCEL_ENV: 'production' } },
+  );
+  assert.equal(retry.providerAangeroepen, false);
+  assert.equal(provider, 1);
+});
+
 test('F de tweede Ja verstuurt geen factuurmail en valt niet terug op een onvolledig pakket', async () => {
   let geraakt = false;
   const uit = await besluitContractViaSessie({
@@ -130,5 +270,47 @@ test('F de tweede Ja verstuurt geen factuurmail en valt niet terug op een onvoll
   });
   assert.equal(uit.ok, false);
   assert.equal(uit.melding, BETALING_DICHT);
+  assert.equal(geraakt, false);
+  const tegelijk = await Promise.all([
+    besluitContractViaSessie({
+      client: { from() { geraakt = true; throw new Error('database'); } } as never,
+      env: { FACTUURPAKKET_V3: 'true', DOCUMENTENFLOW: 'true' },
+      actor: {
+        type: 'gebruiker',
+        naam: 'Bestuur',
+        rechten: { isSuperAdmin: false, perModule: { aanvragen: 'schrijven', instellingen: 'schrijven', boekingen: 'schrijven' } },
+      },
+      boekingId: '18',
+      besluit: 'ja',
+      verwachteVersie: 1,
+      modus: 'aan',
+      testadres: null,
+      promotieAanwezig: false,
+      verstuur: async () => {
+        geraakt = true;
+        return { verzonden: true, berichtId: 'provider', melding: 'verstuurd' };
+      },
+    }),
+    besluitContractViaSessie({
+      client: { from() { geraakt = true; throw new Error('database'); } } as never,
+      env: { FACTUURPAKKET_V3: 'true' },
+      actor: {
+        type: 'gebruiker',
+        naam: 'Tweede bestuurder',
+        rechten: { isSuperAdmin: false, perModule: { aanvragen: 'schrijven', instellingen: 'schrijven', boekingen: 'schrijven' } },
+      },
+      boekingId: '18',
+      besluit: 'ja',
+      verwachteVersie: 1,
+      modus: 'aan',
+      testadres: null,
+      promotieAanwezig: false,
+      verstuur: async () => {
+        geraakt = true;
+        return { verzonden: true, berichtId: 'provider-2', melding: 'verstuurd' };
+      },
+    }),
+  ]);
+  assert.equal(tegelijk.every((item) => item.ok === false && item.melding === BETALING_DICHT), true);
   assert.equal(geraakt, false);
 });
