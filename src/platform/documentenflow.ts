@@ -445,7 +445,7 @@ export function contractTekst(
     `Vervaldatum restbetaling: ${restRegel.verval}`,
     `Betalingskenmerk: ${contractnummer}`,
     `Betaalgegevens: ${schoon(instellingen.tenaamstelling)}, ${instellingen.iban}`,
-    'Een eventueel betaalverzoek of factuur wordt apart verstrekt. Deze huurovereenkomst is zelf geen factuur.',
+    'Deze huurovereenkomst is zelf geen factuur. Een eventueel bijbehorende factuur wordt als afzonderlijk document verstrekt.',
     'Het boekingsnummer blijft gelijk bij een nieuwe documentversie. Het betalingskenmerk hoort bij deze versie.',
     '',
     '4. Voorwaarden en zorgvuldig gebruik',
@@ -696,6 +696,9 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
     }
     if (actie.soort === 'akkoord' && huidig.bestuur === 'akkoord') {
       return { ok: true, melding: 'Deze versie is al goedgekeurd.', versies: [...context.versies], mail: null, promoveer: false };
+    }
+    if (huidig.bestuur === 'terug' && actie.soort === 'akkoord') {
+      return weiger('Dit contract is teruggestuurd. Maak eerst een verbeterde nieuwe contractversie.');
     }
     if (!['open', 'wacht', 'terug'].includes(huidig.bestuur)) return weiger('Deze versie kan niet worden goedgekeurd.');
     const terug = actie.soort === 'terug';
@@ -1021,9 +1024,9 @@ export function bouwOpvolging(input: {
     kanOpnieuw: beheer && klaar && akkoord && verzonden && input.modus === 'aan',
     kanProef: beheer && klaar && akkoord && input.modus !== 'uit',
     kanVoorleggen: false,
-    kanGoedkeuren: bestuur && Boolean(huidig?.bestuurVerplicht) && past && huidig?.bestuur !== 'akkoord',
-    kanAkkoord: bestuur && Boolean(huidig?.bestuurVerplicht) && past && huidig?.bestuur !== 'akkoord',
-    kanTerug: bestuur && huidig?.bestuur === 'wacht',
+    kanGoedkeuren: bestuur && beheer && Boolean(huidig?.bestuurVerplicht) && past && !ingetrokken && (huidig?.bestuur === 'open' || huidig?.bestuur === 'wacht') && input.modus === 'aan',
+    kanAkkoord: bestuur && beheer && Boolean(huidig?.bestuurVerplicht) && past && !ingetrokken && (huidig?.bestuur === 'open' || huidig?.bestuur === 'wacht') && input.modus === 'aan',
+    kanTerug: bestuur && Boolean(huidig?.bestuurVerplicht) && !ingetrokken && (huidig?.bestuur === 'open' || huidig?.bestuur === 'wacht'),
     kanOndertekenen: beheer && Boolean(huidig) && huidig?.ondertekening !== 'ontvangen',
     kanAanbetaling: (beheer || magSchrijven(input.rechten, 'finance'))
       && input.betaling.stand !== 'ontvangen'

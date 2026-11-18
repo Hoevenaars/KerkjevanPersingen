@@ -868,7 +868,7 @@ export type Opdracht =
       website?: string;
       personen?: string;
     }
-  | { soort: 'beoordeel'; aanvraagId: string; besluit: 'in_behandeling' | 'nieuw' | 'goedkeuren' | 'afwijzen' | 'meer_informatie'; reden?: string; vraag?: string }
+  | { soort: 'beoordeel'; aanvraagId: string; besluit: 'in_behandeling' | 'nieuw' | 'goedkeuren' | 'goedkeuren_direct' | 'afwijzen' | 'afwijzen_direct' | 'meer_informatie'; reden?: string; vraag?: string }
   | { soort: 'verstuur_informatie'; aanvraagId: string }
   | { soort: 'aanvulling'; token: string; toelichting: string }
   | { soort: 'betaling'; boekingId: string }

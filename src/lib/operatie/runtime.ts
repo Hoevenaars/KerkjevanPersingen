@@ -663,7 +663,9 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
   const boekingId = String(data.get('boekingId') ?? (delen[1] === 'boekingen' ? padId : ''));
   const aanvraagId = delen[1] === 'aanvragen' ? padId : String(data.get('aanvraagId') ?? '');
   const reden = String(data.get('reden') ?? data.get('toelichting') ?? '');
+  if (actie === 'ja_activiteit' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'goedkeuren_direct' };
   if ((actie === 'optie' || actie === 'akkoord') && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'goedkeuren' };
+  if (actie === 'nee_activiteit' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'afwijzen_direct', reden };
   if (actie === 'weiger' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'afwijzen', reden };
   if (actie === 'meer' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'meer_informatie', vraag: String(data.get('vraag') ?? '') };
   if (actie === 'meer_verstuur' && aanvraagId) return { soort: 'verstuur_informatie', aanvraagId };
@@ -737,7 +739,26 @@ export async function postAlsSupabase(input: {
       return beheerRedirect(doel);
     }
     const uit = await voerDossierViaSessie(input.sessie, opdracht, input.actor);
-    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    let vervolgMelding = uit.melding;
+    if (actie === 'ja_activiteit' && uit.ok) {
+      let voorbereid = false;
+      if (input.env.V4_AUTOCONTRACT === 'true' && uit.boekingId && /^\d+$/.test(uit.boekingId)) {
+        const { probeerContractAutoVoorbereiden } = await import('./contract-autovoorbereiden.ts');
+        const vervolg = await probeerContractAutoVoorbereiden({
+          client: input.sessie, actor: input.actor, env: input.env,
+          aanvraagId: Number(uit.aanvraagId), boekingId: Number(uit.boekingId),
+        });
+        voorbereid = vervolg.voorbereid;
+        if (vervolg.melding) vervolgMelding += ` ${vervolg.melding}`;
+      }
+      if (voorbereid) {
+        doel.hash = 'contract-opvolging';
+      } else {
+        doel.searchParams.set('contract', 'genereren');
+        doel.hash = 'contract-wizard';
+      }
+    }
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', vervolgMelding);
   } catch (error) {
     const tekst = error instanceof Error ? error.message : 'Opslaan mislukt.';
     doel.searchParams.set('fout', leesbareAuthFout(tekst));

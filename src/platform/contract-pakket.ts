@@ -259,6 +259,7 @@ export function contractmailMagWeg(input: {
   link: string;
   bijlagen: readonly PdfBijlage[];
   contractnummer: string;
+  pakketDrie?: boolean;
 }): string | null {
   if (!input.tekst.includes(PRIVACY_URL)) return 'De privacyverklaring ontbreekt in de mail. Er is niets verstuurd.';
   if (!input.tekst.toLowerCase().includes('verhuurvoorwaarden')) {
@@ -268,7 +269,18 @@ export function contractmailMagWeg(input: {
     return 'De tekenlink ontbreekt of is ongeldig. Er is geen mail verstuurd.';
   }
   try {
-    const attachments = resendAttachments(input.bijlagen, input.contractnummer);
+    if (input.pakketDrie) {
+      if (input.bijlagen.length !== 3 ||
+          !input.bijlagen[0].bestandsnaam.startsWith('Huurovereenkomst-') ||
+          !input.bijlagen[1].bestandsnaam.startsWith('Voorwaarden-en-huisregels-') ||
+          !/^(Factuur-|CONCEPTFACTUUR-)/.test(input.bijlagen[2].bestandsnaam) ||
+          !pdfBevatTekst(input.bijlagen[0].inhoud, input.contractnummer) ||
+          !pdfBevatTekst(input.bijlagen[1].inhoud, 'Verhuurvoorwaarden') ||
+          !pdfBevatTekst(input.bijlagen[2].inhoud, input.contractnummer)) {
+        return 'De drie verplichte documenten zijn niet compleet. Er is geen mail verstuurd.';
+      }
+    }
+    const attachments = resendAttachments(input.bijlagen, input.pakketDrie ? undefined : input.contractnummer);
     if (attachments.length === 0 || attachments[0].content.byteLength < 800) {
       return 'De PDF zit niet in de bijlagen. Er is geen mail verstuurd.';
     }
@@ -276,4 +288,45 @@ export function contractmailMagWeg(input: {
     return error instanceof Error ? error.message : 'De bijlage is ongeldig. Er is geen mail verstuurd.';
   }
   return null;
+}
+
+/** V3: één mail, drie afzonderlijke PDF's. Oude mail blijft voor historisch verkeer. */
+export function contractMailDriePdf(input: ContractMailInput): { onderwerp: string; tekst: string; html: string } {
+  const huurder = input.naam.replace(/\s+/g, ' ').trim() || 'huurder';
+  const link = input.link?.trim() || '';
+  const geldig = vervalTekst(input.verlooptOp)
+    ? `De ondertekenlink is geldig tot ${vervalTekst(input.verlooptOp)}.`
+    : 'De ondertekenlink is tijdelijk geldig.';
+  const regels = [
+    'Bij deze mail ontvangt u drie PDF-documenten:',
+    '1. Uw huurovereenkomst.',
+    '2. De verhuurvoorwaarden en huisregels (en eventuele expositiebijlage).',
+    '3. De factuur voor de betaaltermijn die nu wordt gefactureerd.',
+    '',
+    'Wilt u de overeenkomst en voorwaarden rustig doorlezen en digitaal ondertekenen?',
+    ...(link ? ['', CONTRACT_KNOP, link, geldig] : []),
+    '',
+    'Op de factuur vindt u het verschuldigde bedrag, de betaaldatum en het betalingskenmerk.',
+    'De digitale ondertekening betreft de overeenkomst en bijbehorende voorwaarden, niet de factuur.',
+    'De reservering wordt definitief zodra aan de overeengekomen onderteken- en betaalvoorwaarden is voldaan.',
+    '',
+    'Heeft u vragen? Neem gerust contact met ons op.',
+    `Privacyverklaring: ${PRIVACY_URL}`,
+  ];
+  const tekstBrief = regels.join('\n');
+  const htmlBrief = `<p style="font:16px/1.6 Arial,sans-serif;color:#4A4A44;margin:0 0 14px;">U ontvangt drie PDF-documenten: de verhuurovereenkomst, de voorwaarden en huisregels, en de factuur voor de betaaltermijn van dit moment.</p>
+<p style="font:16px/1.6 Arial,sans-serif;color:#4A4A44;margin:0 0 14px;">Lees de overeenkomst en voorwaarden rustig door en onderteken vervolgens digitaal.</p>
+${link ? `<p style="margin:16px 0 20px;"><a href="${mailEscape(link)}" style="display:inline-block;background:#9C4A2F;color:white;text-decoration:none;font:bold 16px Arial,sans-serif;padding:14px 20px;">${CONTRACT_KNOP}</a></p>
+<p style="font:13px/1.5 Arial,sans-serif;color:#4A4A44;word-break:break-all;">${mailEscape(link)}<br>${mailEscape(geldig)}</p>` : ''}
+<p style="font:16px/1.6 Arial,sans-serif;color:#4A4A44;">Op de bijgevoegde factuur staan het verschuldigde bedrag, de vervaldatum en het betalingskenmerk. De digitale ondertekening betreft alleen de overeenkomst en de voorwaarden. Uw reservering is definitief zodra aan de betaal- en ondertekenafspraken is voldaan.</p>
+<p style="font:13px/1.5 Arial,sans-serif;"><a href="${PRIVACY_URL}">Privacyverklaring</a></p>`;
+  const brief = kerkjeMail({
+    titel: 'Uw huurovereenkomst en factuur',
+    aanhef: `Beste ${huurder},`,
+    introductie: 'Hartelijk dank voor uw reservering bij het Kerkje van Persingen.',
+    hoofdtekst: tekstBrief,
+    hoofdHtml: htmlBrief,
+    ondertekening: 'Team Kerkje van Persingen',
+  });
+  return { onderwerp: 'Uw huurovereenkomst en factuur | Kerkje van Persingen', tekst: brief.text, html: brief.html };
 }

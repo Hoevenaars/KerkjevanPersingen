@@ -33,8 +33,12 @@ import {
   magContractBeheren,
   type ContractBron,
   type ContractVersie,
+  type FlowMail,
 } from '../../../platform/documentenflow.ts';
 import { leesDocumentenDossier, pasDocumentenflowToe } from '../../../lib/operatie/documentenflow-sessie.ts';
+import { besluitContractViaSessie } from '../../../lib/operatie/contract-besluit.ts';
+import { bekijkFactuurConcept, factuurpakketAan } from '../../../lib/operatie/factuur-sessie.ts';
+import { maakDrieContractBijlagen } from '../../../platform/factuur-van-moment.ts';
 import { verstuurGecontroleerd } from '../../../lib/mail-transport.ts';
 import { legVerzendingVast } from '../../../lib/communicatie-log.ts';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES } from '../../../lib/mail-adressen.ts';
@@ -103,17 +107,19 @@ if (Astro.request.method === 'POST') {
       : null;
     const flowActie = flowActieUit(actie, formulier);
     const modus = (await besluitVoor('handmatige_template', undefined, omgevingsRecord())).modus;
-    const uit = flowActie
-      ? await pasDocumentenflowToe({
+    const isBestuursbesluit = actie === 'df_ja_en_verzend' || actie === 'df_nee_contract';
+    if (factuurpakketAan(omgevingsRecord()) && (actie === 'df_akkoord' || actie === 'df_terug' || actie === 'df_voorleggen')) {
+      return Astro.redirect(boekingPad({ tab: 'documenten', fout: 'Gebruik het huidige Ja/Nee-besluit voor een contract. Er is niets gewijzigd.' }));
+    }
+    const flowInvoer = {
         client: mailSessie as never,
         env: omgevingsRecord(),
         actor: actorVanSessie(Astro.locals.beheer),
         boekingId: boeking.id,
-        actie: flowActie,
-        modus: modus === 'aan' || modus === 'test' ? modus : 'uit',
+        modus: modus === 'aan' || modus === 'test' ? modus : 'uit' as const,
         testadres: await getTestMailRecipient().catch(() => null),
         bestand: bijlage,
-        verstuur: async (mail) => {
+        verstuur: async (mail: FlowMail) => {
           const verzonden = await verstuurGecontroleerd(
             {
               sleutel: 'handmatige_template',
@@ -128,13 +134,15 @@ if (Astro.request.method === 'POST') {
             },
             {
               modus: mail.teltAlsVerzonden ? 'aan' : 'test',
+              vereisteLiveModus: mail.teltAlsVerzonden,
               testadres: mail.teltAlsVerzonden ? null : mail.naar,
               env: omgevingsRecord(),
             },
           );
-          const geaccepteerd = verzonden.providerAangeroepen && Boolean(verzonden.providerBerichtId);
+          const geaccepteerd = verzonden.verzonden && verzonden.providerAangeroepen && Boolean(verzonden.providerBerichtId);
           if (geaccepteerd) {
-            await legVerzendingVast({
+            try {
+              await legVerzendingVast({
               aanvraagId: null,
               boekingId: mail.teltAlsVerzonden && (mail.soort === 'contract' || mail.soort === 'herhaling') ? boeking.id : null,
               templateSleutel: mail.soort === 'contract' || mail.soort === 'herhaling' ? 'huurovereenkomst' : mail.soort,
@@ -149,23 +157,39 @@ if (Astro.request.method === 'POST') {
               test: !mail.teltAlsVerzonden,
               dedupSleutel: mail.idempotentie,
               handmatig: true,
-            }, omgevingsRecord());
+              }, omgevingsRecord());
+            } catch {
+              // Het providerbericht is al geaccepteerd. Een fout in de
+              // aanvullende tijdlijn mag nooit tot een tweede mail leiden.
+              console.error('Aanvullende contractmailtijdlijn mislukt; controleer het verzendregister.');
+            }
           }
           if (!geaccepteerd) {
             return {
               verzonden: false,
               berichtId: null,
+              providerAangeroepen: verzonden.providerAangeroepen,
               melding: verzonden.melding || 'De mailprovider heeft de mail niet geaccepteerd. Er is niets als verzonden genoteerd.',
             };
           }
           return {
             verzonden: true,
             berichtId: verzonden.providerBerichtId ?? null,
+            providerAangeroepen: verzonden.providerAangeroepen,
             melding: 'De mailprovider heeft de mail geaccepteerd. Aflevering is daarmee nog niet bevestigd.',
           };
         },
-      })
-      : { ok: false, melding: 'Deze actie hoort niet bij het contract.' };
+      };
+    const uit = isBestuursbesluit
+      ? await besluitContractViaSessie({
+          ...flowInvoer,
+          besluit: actie === 'df_ja_en_verzend' ? 'ja' : 'nee',
+          verwachteVersie: Number(formulier.get('versie')),
+          toelichting: String(formulier.get('toelichting') ?? ''),
+        })
+      : flowActie
+        ? await pasDocumentenflowToe({ ...flowInvoer, actie: flowActie })
+        : { ok: false, melding: 'Deze actie hoort niet bij het contract.' };
     return Astro.redirect(boekingPad({ tab: 'documenten', [uit.ok ? 'melding' : 'fout']: uit.melding }));
   }
   if (boeking && actie === 'contract_definitief') {
@@ -187,6 +211,7 @@ if (Astro.request.method === 'POST') {
         velden,
         actor: actorVanSessie(Astro.locals.beheer),
         vervang: String(formulier.get('nieuwe_versie') ?? '') === 'ja',
+        atomair: omgevingsRecord().V4_ATOMAIR_CONTRACT === 'true',
       });
       if (!uit.ok) {
         wizardPost = velden;
@@ -255,15 +280,48 @@ if (!boeking) {
   return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
 }
 
-if (Astro.url.searchParams.get('document') === 'contract') {
+const documentSoort = Astro.url.searchParams.get('document');
+if (documentSoort === 'contract' || (factuurpakketAan(omgevingsRecord()) && ['overeenkomst', 'voorwaarden', 'factuur'].includes(documentSoort ?? ''))) {
   const nietGevonden = new Response('Niet gevonden', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex, nofollow' } });
   if (!mailSessie) return nietGevonden;
   const gelezen = await leesDocumentenDossier(mailSessie as never, boeking.id);
   if (!gelezen.ok) return new Response(gelezen.melding, { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   const gevraagd = Number(Astro.url.searchParams.get('versie'));
-  const versie = gelezen.lading.context.versies.find((item) => item.versie === gevraagd)
-    ?? gelezen.lading.context.versies.reduce<ContractVersie | null>((best, item) => (!best || item.versie > best.versie ? item : best), null);
+  const versie = Astro.url.searchParams.has('versie')
+    ? gelezen.lading.context.versies.find((item) => item.versie === gevraagd) ?? null
+    : gelezen.lading.context.versies.reduce<ContractVersie | null>((best, item) => (!best || item.versie > best.versie ? item : best), null);
   if (!versie) return nietGevonden;
+  if (documentSoort !== 'contract') {
+    const factuur = await bekijkFactuurConcept(mailSessie as never, gelezen.lading.context, versie);
+    if (!factuur.ok) return new Response(factuur.melding, {
+      status: 422,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' },
+    });
+    let bijlagen;
+    try {
+      bijlagen = maakDrieContractBijlagen({
+        tekst: versie.tekst,
+        voorwaardenTekst: versie.voorwaardenTekst,
+        huisregelsTekst: versie.huisregelsTekst,
+        plattegrondTekst: versie.plattegrondTekst,
+        soort: boeking.soort,
+      }, versie.contractnummer, factuur.factuur, true);
+    } catch (error) {
+      return new Response(error instanceof Error ? error.message : 'De documenten zijn nog niet compleet.', {
+        status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' },
+      });
+    }
+    const index = documentSoort === 'overeenkomst' ? 0 : documentSoort === 'voorwaarden' ? 1 : 2;
+    const bestand = bijlagen[index];
+    return new Response(Buffer.from(bestand.inhoud), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="${bestand.bestandsnaam}"`,
+        'Cache-Control': 'private, no-store',
+        'X-Robots-Tag': 'noindex, nofollow',
+      },
+    });
+  }
   const sjabloon = await leesContractSjabloon();
   if (sjabloon.fout) {
     return new Response(sjabloon.fout, { status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -762,6 +820,7 @@ function tabHref(tabNaam: string): string {
           actie={`${basis}?tab=documenten`}
           betalingToelichting={opvolgingBetaling}
           toonMaken={false}
+          driePdf={factuurpakketAan(omgevingsRecord())}
           nieuweVersieHref={contractDefinitief && kanContract && !wizardOpen ? nieuweVersieLink : ''}
         />
       )}

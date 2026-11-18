@@ -29,6 +29,7 @@ interface Query extends PromiseLike<{ data: Record<string, unknown>[] | null; er
 }
 
 export interface ContractWizardSessie {
+  rpc?: (naam: string, invoer: Record<string, unknown>) => PromiseLike<{ data?: unknown; error?: Fout }>;
   from: (tabel: string) => {
     select: (kolommen: string) => Query;
     update: (waarden: Record<string, unknown>) => Query;
@@ -174,15 +175,16 @@ async function laatVorigeVersieVervallen(
     const soort = String(rij.soort ?? '');
     const status = String(rij.status ?? '');
     if ((soort !== 'contract' && soort !== 'herhaling') || (status !== 'verzonden' && status !== 'bezig')) continue;
-    const update = await client.from('contract_verzendingen').update({ status: 'ingetrokken' }).eq('id', rij.id);
-    if (update.error && !tabelMist(update.error.message)) return leesbareAuthFout(update.error.message);
+    // Historische verzendingen zijn bewijsstukken. De database kent bovendien
+    // geen status 'ingetrokken'. Alleen de oude tekenlink wordt ongeldig gemaakt.
+    // Laat het verstuurde bericht daarom expliciet intact.
   }
   return null;
 }
 
 export async function bewaarDefinitiefContract(
   client: ContractWizardSessie,
-  input: { boekingId: number; aanvraagId: number | null; velden: ContractWizardVelden; actor: Actor; vervang?: boolean },
+  input: { boekingId: number; aanvraagId: number | null; velden: ContractWizardVelden; actor: Actor; vervang?: boolean; atomair?: boolean },
 ): Promise<{ ok: boolean; melding: string; nummer?: string }> {
   if (!magContractBeheren(input.actor.rechten ?? { isSuperAdmin: false, perModule: {} })) {
     return { ok: false, melding: 'Geen recht om een contract definitief te maken. Er is niets opgeslagen.' };
@@ -207,9 +209,41 @@ export async function bewaarDefinitiefContract(
   const gemaakt = maakDefinitiefContract(input.velden, String(input.boekingId), versie, ymdInAmsterdam(new Date()), soort);
   if ('fout' in gemaakt) return { ok: false, melding: gemaakt.fout };
   if (!input.vervang && stand.definitief && stand.vingerafdruk === gemaakt.vingerafdruk) {
-    const betaling = await pasBetalingenToe(client, input.boekingId, input.velden);
-    if (betaling) return { ok: false, melding: betaling };
-    return { ok: true, melding: `Contract ${stand.nummer} is al opgeslagen. Er is geen mail verstuurd.`, nummer: stand.nummer };
+    // No-op betekent echt geen mutatie: een betaalregel kan al gefactureerd zijn.
+    return { ok: true, melding: `Contract ${stand.nummer} is al opgeslagen. Er is niets gewijzigd of verstuurd.`, nummer: stand.nummer };
+  }
+  if (input.atomair === true) {
+    // Eén database-transactie in plaats van: versie -> betalingen -> boeking -> aanvraag.
+    // Bij een ontbrekende RPC nooit terugvallen op het onveilige losse schrijfpad.
+    if (!client.rpc) return { ok: false, melding: 'Atomair opslaan is ingeschakeld, maar de databasefunctie ontbreekt. Er is niets gewijzigd.' };
+    const termijnen = betaalregelsUitWizard(velden);
+    if ('fout' in termijnen) return { ok: false, melding: termijnen.fout };
+    const huurCent = euroNaarCent(velden.huurprijs);
+    const aanCent = euroNaarCent(velden.aanbetaling);
+    if (huurCent == null || aanCent == null) return { ok: false, melding: 'De bedragen zijn ongeldig.' };
+    const antwoord = await client.rpc('bewaar_contract_atomair', {
+      p_boeking_id: input.boekingId,
+      p_aanvraag_id: input.aanvraagId,
+      p_verwachte_versie: stand.versie,
+      p_contract: {
+        versie, contractnummer: gemaakt.nummer, opgesteld_op: ymdInAmsterdam(new Date()),
+        tekst: gemaakt.tekst, voorwaarden_tekst: VOORWAARDEN_V1,
+        huisregels_tekst: HUISREGELS_V1, plattegrond_tekst: PLATTEGROND_V1,
+        vingerafdruk: gemaakt.vingerafdruk,
+        periode_van: velden.periodeVan, periode_tot: velden.periodeTot,
+        huurprijs_euro: (huurCent / 100).toFixed(2),
+        aanbetaling_euro: (aanCent / 100).toFixed(2),
+      },
+      p_wizard: velden,
+      p_betalingen: termijnen.map((rij) => ({ ...rij, bedrag: rij.bedrag.toFixed(2) })),
+    });
+    if (antwoord.error) return { ok: false, melding: `Het contract is niet opgeslagen: ${leesbareAuthFout(antwoord.error.message)}. Er zijn geen deelwijzigingen uitgevoerd.` };
+    const resultaat = antwoord.data && typeof antwoord.data === 'object' && !Array.isArray(antwoord.data)
+      ? antwoord.data as Record<string, unknown> : null;
+    if (!resultaat || resultaat.contractnummer !== gemaakt.nummer || Number(resultaat.versie) !== versie) {
+      return { ok: false, melding: 'De database bevestigde niet het verwachte contract. Controleer het dossier voordat je opnieuw opslaat.' };
+    }
+    return { ok: true, melding: `Contract ${gemaakt.nummer}, boeking en betaaltermijnen zijn samen vastgelegd. Alleen het bestuursbesluit resteert. Er is geen mail verstuurd.`, nummer: gemaakt.nummer };
   }
   const vandaag = ymdInAmsterdam(new Date());
   const insert = await client.from('contractversies').insert({
@@ -255,8 +289,8 @@ export async function bewaarDefinitiefContract(
   }).eq('id', input.boekingId);
   if (boekingBijgewerkt.error) {
     return {
-      ok: true,
-      melding: `Contract ${gemaakt.nummer} is opgeslagen.${vervallen} De boeking zelf is niet bijgewerkt. Het bestuur keurt deze versie nog goed. Er is geen mail verstuurd.${vervallenWaarschuwing}`,
+      ok: false,
+      melding: `Contract ${gemaakt.nummer} is opgeslagen, maar de boeking is NIET bijgewerkt. Controleer de inconsistentie; niet goedkeuren of verzenden.${vervallenWaarschuwing}`,
       nummer: gemaakt.nummer,
     };
   }

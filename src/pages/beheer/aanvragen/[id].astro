@@ -35,13 +35,15 @@ import {
   betalingStand,
   type ContractBron,
   type ContractVersie,
+  type FlowMail,
 } from '../../../platform/documentenflow.ts';
 import ContractWizard from '../../../components/beheer/ContractWizard.astro';
 import { leesWizardVelden, wizardUitDossier, type ContractWizardVelden } from '../../../platform/contract-wizard.ts';
 import { bewaarDefinitiefContract, leesContractWizardStand } from '../../../lib/operatie/contract-wizard-sessie.ts';
 import { ymdInAmsterdam } from '../../../platform/datum.ts';
-import { documentenflowAan } from '../../../platform/documentenflow-vlag.ts';
 import { maakContractPdf } from '../../../platform/contract-pakket.ts';
+import { maakDrieContractBijlagen } from '../../../platform/factuur-van-moment.ts';
+import { bekijkFactuurConcept, factuurpakketAan } from '../../../lib/operatie/factuur-sessie.ts';
 import { leesContractSjabloon } from '../../../lib/contract-sjabloon-opslag.ts';
 import { leesDocumentenDossier, pasDocumentenflowToe } from '../../../lib/operatie/documentenflow-sessie.ts';
 import { verstuurGecontroleerd } from '../../../lib/mail-transport.ts';
@@ -49,6 +51,8 @@ import { legVerzendingVast } from '../../../lib/communicatie-log.ts';
 import { VAN_ADRES } from '../../../lib/mail-adressen.ts';
 import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astro';
 import { verwerkOntvangst } from '../../../lib/operatie/ontvangst.ts';
+import { besluitContractViaSessie } from '../../../lib/operatie/contract-besluit.ts';
+import { documentenflowAan } from '../../../platform/documentenflow-vlag.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -63,6 +67,11 @@ let wizardPost: ContractWizardVelden | null = null;
 if (Astro.request.method === 'POST') {
   const formulier = await Astro.request.formData();
   const actie = String(formulier.get('actie') ?? '');
+  if ((actie === 'ja_activiteit' || actie === 'nee_activiteit') && (!Astro.locals.beheer || Astro.locals.beheer.viewAs || snapshot.alleenLezen || snapshot.bron !== 'supabase' || !mailSessie)) {
+    const doel = new URL(Astro.url.pathname, Astro.url.origin);
+    doel.searchParams.set('fout', 'Deze bestuursbeslissing kan alleen in de actieve beheeromgeving worden vastgelegd.');
+    return Astro.redirect(doel.toString());
+  }
   if (aanvraag && (actie === 'ondertekening_ontvangen' || actie === 'aanbetaling_ontvangen')) {
     const bestand = formulier.get('bestand');
     const uit = await verwerkOntvangst(actie, {
@@ -79,24 +88,33 @@ if (Astro.request.method === 'POST') {
     return Astro.redirect(doel.toString());
   }
   if (aanvraag && actie.startsWith('df_')) {
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs || snapshot.alleenLezen || snapshot.bron !== 'supabase' || !mailSessie) {
+      const doel = new URL(Astro.url.pathname, Astro.url.origin);
+      doel.searchParams.set('fout', 'Alleen in de actieve beheeromgeving kunnen contractbesluiten worden vastgelegd. Er is niets gewijzigd of verstuurd.');
+      return Astro.redirect(doel.toString());
+    }
     const bestand = formulier.get('bestand');
     const bijlage = bestand instanceof File && bestand.size > 0
       ? { naam: bestand.name, bytes: new Uint8Array(await bestand.arrayBuffer()) }
       : null;
     const flowActie = flowActieUit(actie, formulier);
     const modus = (await besluitVoor('handmatige_template', undefined, omgevingsRecord())).modus;
-    const uit = flowActie
-      ? await pasDocumentenflowToe({
+    const isBestuursbesluit = actie === 'df_ja_en_verzend' || actie === 'df_nee_contract';
+    if (factuurpakketAan(omgevingsRecord()) && (actie === 'df_akkoord' || actie === 'df_terug' || actie === 'df_voorleggen')) {
+      const doel = new URL(Astro.url.pathname, Astro.url.origin);
+      doel.searchParams.set('fout', 'Gebruik het huidige Ja/Nee-besluit voor een contract. Er is niets gewijzigd.');
+      return Astro.redirect(doel.toString());
+    }
+    const flowInvoer = {
         client: mailSessie as never,
         env: omgevingsRecord(),
         actor: actorVanSessie(Astro.locals.beheer),
         boekingId: aanvraag.boekingId ?? '',
-        actie: flowActie,
         promotieAanwezig: Boolean(aanvraag.website?.trim()),
         modus: modus === 'aan' || modus === 'test' ? modus : 'uit',
         testadres: await getTestMailRecipient().catch(() => null),
         bestand: bijlage,
-        verstuur: async (mail) => {
+        verstuur: async (mail: FlowMail) => {
           const verzonden = await verstuurGecontroleerd(
             {
               sleutel: 'handmatige_template',
@@ -111,13 +129,17 @@ if (Astro.request.method === 'POST') {
             },
             {
               modus: mail.teltAlsVerzonden ? 'aan' : 'test',
+              vereisteLiveModus: mail.teltAlsVerzonden,
               testadres: mail.teltAlsVerzonden ? null : mail.naar,
               env: omgevingsRecord(),
             },
           );
-          const geaccepteerd = verzonden.providerAangeroepen && Boolean(verzonden.providerBerichtId);
+          const geaccepteerd = verzonden.verzonden && verzonden.providerAangeroepen && Boolean(verzonden.providerBerichtId);
           if (geaccepteerd) {
-            await legVerzendingVast({
+            // De provider heeft al een mail-ID afgegeven. Een fout in de
+            // aanvullende tijdlijnregistratie mag NOOIT een tweede mail uitlokken.
+            try {
+              await legVerzendingVast({
               aanvraagId: aanvraag.id,
               boekingId: mail.teltAlsVerzonden && (mail.soort === 'contract' || mail.soort === 'herhaling') ? aanvraag.boekingId : null,
               templateSleutel: mail.soort === 'contract' || mail.soort === 'herhaling' ? 'huurovereenkomst' : mail.soort,
@@ -132,23 +154,40 @@ if (Astro.request.method === 'POST') {
               test: !mail.teltAlsVerzonden,
               dedupSleutel: mail.idempotentie,
               handmatig: true,
-            }, omgevingsRecord());
+              }, omgevingsRecord());
+            } catch {
+              // Het primaire bewijs wordt apart in contract_verzendingen bewaard.
+              // Een aparte tijdlijnfout is geen providerfout en mag geen
+              // tweede verzending veroorzaken. Houd wel een serverdiagnose bij.
+              console.error('De aanvullende mailtijdlijnregistratie is mislukt; controleer de bestaande contractverzending.');
+            }
           }
           if (!geaccepteerd) {
             return {
               verzonden: false,
               berichtId: null,
+              providerAangeroepen: verzonden.providerAangeroepen,
               melding: verzonden.melding || 'De mailprovider heeft de mail niet geaccepteerd. Er is niets als verzonden genoteerd.',
             };
           }
           return {
             verzonden: true,
             berichtId: verzonden.providerBerichtId ?? null,
+            providerAangeroepen: verzonden.providerAangeroepen,
             melding: 'De mailprovider heeft de mail geaccepteerd. Aflevering is daarmee nog niet bevestigd.',
           };
         },
-      })
-      : { ok: false, melding: 'Deze actie hoort niet bij het contract.' };
+      };
+    const uit = isBestuursbesluit
+      ? await besluitContractViaSessie({
+          ...flowInvoer,
+          besluit: actie === 'df_ja_en_verzend' ? 'ja' : 'nee',
+          verwachteVersie: Number(formulier.get('versie')),
+          toelichting: String(formulier.get('toelichting') ?? ''),
+        })
+      : flowActie
+        ? await pasDocumentenflowToe({ ...flowInvoer, actie: flowActie })
+        : { ok: false, melding: 'Deze actie hoort niet bij het contract.' };
     const doel = new URL(Astro.url.pathname, Astro.url.origin);
     doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
     return Astro.redirect(doel.toString());
@@ -224,6 +263,7 @@ if (Astro.request.method === 'POST') {
         velden,
         actor: actorVanSessie(Astro.locals.beheer),
         vervang: String(formulier.get('nieuwe_versie') ?? '') === 'ja',
+        atomair: omgevingsRecord().V4_ATOMAIR_CONTRACT === 'true',
       });
       if (!uit.ok) {
         wizardPost = velden;
@@ -266,15 +306,51 @@ if (!aanvraag) {
   return new Response(null, { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
 }
 
-if (Astro.url.searchParams.get('document') === 'contract') {
+const documentSoort = Astro.url.searchParams.get('document');
+if (documentSoort === 'contract' || (factuurpakketAan(omgevingsRecord()) && ['overeenkomst', 'voorwaarden', 'factuur'].includes(documentSoort ?? ''))) {
   const nietGevonden = new Response('Niet gevonden', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex, nofollow' } });
   if (!aanvraag.boekingId || !mailSessie) return nietGevonden;
   const gelezen = await leesDocumentenDossier(mailSessie as never, aanvraag.boekingId);
   if (!gelezen.ok) return new Response(gelezen.melding, { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   const gevraagd = Number(Astro.url.searchParams.get('versie'));
-  const versie = gelezen.lading.context.versies.find((item) => item.versie === gevraagd)
-    ?? gelezen.lading.context.versies.reduce<ContractVersie | null>((best, item) => (!best || item.versie > best.versie ? item : best), null);
+  // Een expliciet gevraagde versie mag nooit stilzwijgend een andere PDF tonen.
+  const versie = Astro.url.searchParams.has('versie')
+    ? gelezen.lading.context.versies.find((item) => item.versie === gevraagd) ?? null
+    : gelezen.lading.context.versies.reduce<ContractVersie | null>((best, item) => (!best || item.versie > best.versie ? item : best), null);
   if (!versie) return nietGevonden;
+  if (documentSoort !== 'contract') {
+    // Alleen een voorbeeld: er wordt geen definitieve factuur en geen
+    // factuurnummer aangemaakt door deze GET-aanvraag.
+    const factuur = await bekijkFactuurConcept(mailSessie as never, gelezen.lading.context, versie);
+    if (!factuur.ok) return new Response(factuur.melding, {
+      status: 422,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' },
+    });
+    let bijlagen;
+    try {
+      bijlagen = maakDrieContractBijlagen({
+        tekst: versie.tekst,
+        voorwaardenTekst: versie.voorwaardenTekst,
+        huisregelsTekst: versie.huisregelsTekst,
+        plattegrondTekst: versie.plattegrondTekst,
+        soort: aanvraag.soort,
+      }, versie.contractnummer, factuur.factuur, true);
+    } catch (error) {
+      return new Response(error instanceof Error ? error.message : 'De documenten zijn nog niet compleet.', {
+        status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' },
+      });
+    }
+    const index = documentSoort === 'overeenkomst' ? 0 : documentSoort === 'voorwaarden' ? 1 : 2;
+    const bestand = bijlagen[index];
+    return new Response(Buffer.from(bestand.inhoud), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="${bestand.bestandsnaam}"`,
+        'Cache-Control': 'private, no-store',
+        'X-Robots-Tag': 'noindex, nofollow',
+      },
+    });
+  }
   const sjabloon = await leesContractSjabloon();
   if (sjabloon.fout) {
     return new Response(sjabloon.fout, { status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -300,9 +376,12 @@ if (Astro.url.searchParams.get('document') === 'contract') {
 }
 
 const dossierPad = `/beheer/aanvragen/${encodeURIComponent(aanvraag.id)}/`;
-const kanBeoordelen = !Astro.locals.beheer?.viewAs && magAanvraagWijzigen(
-  Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
-);
+const kanBeoordelen = !Astro.locals.beheer?.viewAs
+  && !snapshot.alleenLezen
+  && magSchrijven(Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} }, 'instellingen')
+  && magAanvraagWijzigen(
+    Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
+  );
 
 const emailNorm = aanvraag.email.trim().toLowerCase();
 const gekoppeldeRelatie = aanvraag.relatieId
@@ -377,7 +456,6 @@ const faseAanvraag = {
   boekingId: aanvraag.boekingId,
 };
 let beeld = beoordeelAanvraag(faseAanvraag, wereld);
-const flowAan = documentenflowAan();
 const flowBoeking = snapshot.boekingen.find((item) => item.id === beeld.boeking?.id) ?? null;
 let opvolging = null;
 let opvolgingBetaling = '';
@@ -442,7 +520,7 @@ if (flowBoeking && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'))
     vandaag: ymdInAmsterdam(new Date()),
     bekijkHref: `${dossierPad}?document=contract&versie=${versies.reduce((hoogste, item) => Math.max(hoogste, item.versie), 0) || 1}`,
     fout,
-    modus: mailmodus === 'aan' || mailmodus === 'test' ? mailmodus : 'uit',
+    modus: documentenflowAan(omgevingsRecord()) && (mailmodus === 'aan' || mailmodus === 'test') ? mailmodus : 'uit',
   });
 }
 if (contractVersies.length > 0 && flowBoeking) {
@@ -453,9 +531,10 @@ if (contractVersies.length > 0 && flowBoeking) {
   }
 }
 const rechtenNu = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+// De bestaande, volledige wizard blijft ook bij DOCUMENTENFLOW=true bereikbaar.
+// Anders loopt een aanvraag na 'Ja, geschikt' vast op ontbrekende bedragen of tijden.
 const kanContract = !Astro.locals.beheer?.viewAs
   && magContractBeheren(rechtenNu)
-  && !flowAan
   && beeld.fase === 'in_behandeling'
   && Boolean(beeld.boeking)
   && !beeld.checklist.verzonden;
@@ -521,7 +600,10 @@ const nieuweVersieLink = (() => {
   params.set('contract', 'nieuw');
   return `${dossierPad}?${params.toString()}#contract-wizard`;
 })();
-const kanGoedkeuren = beeld.geschikt && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
+const kanGoedkeuren = magSchrijven(rechtenNu, 'instellingen')
+  && !snapshot.alleenLezen
+  && (aanvraag.status === 'nieuw' || aanvraag.status === 'in_behandeling')
+  && !aanvraag.boekingId && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
 const magVastleggen = !Astro.locals.beheer?.viewAs
   && !snapshot.alleenLezen
   && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed')
@@ -586,28 +668,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
     {
       toonBeoordeling && (
         <>
-          <h3>Past deze activiteit in het Kerkje van Persingen?</h3>
-          {
-            !kanBeoordelen ? (
-              <p>Je kunt deze aanvraag bekijken. Beoordelen vraagt schrijfrecht op aanvragen.</p>
-            ) : beeld.geschikt ? (
-              <p class="bh-fase bh-fase--groen">Ja, geschikt. Afgerond.</p>
-            ) : (
-              <form method="post" action={dossierPad} class="bh-acties">
-                <button class="bh-btn" type="submit" name="actie" value="geschikt">Ja, geschikt</button>
-              </form>
-            )
-          }
-          {
-            kanBeoordelen && (
-              <form method="post" action={dossierPad} class="bh-form">
-                <label for="reden">Afwijsreden, als de activiteit niet past</label>
-                <textarea id="reden" name="reden" rows="3" required></textarea>
-                <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="weiger">Nee, afwijzen</button>
-              </form>
-            )
-          }
-          <h3>Is de ruimte beschikbaar?</h3>
+          <h3>Is het Kerkje van Persingen beschikbaar?</h3>
           <p class={`bh-fase bh-fase--${beeld.beschikbaarheid.uitkomst === 'beschikbaar' ? 'groen' : beeld.beschikbaarheid.uitkomst === 'aanvraag' ? 'oranje' : 'rood'}`}>
             <strong>{beeld.beschikbaarheid.kop}.</strong> {beeld.beschikbaarheid.tekst}
           </p>
@@ -627,12 +688,19 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
               </p>
             ))
           }
+          <h3>Past deze activiteit in het Kerkje van Persingen?</h3>
           {
-            kanBeoordelen && kanGoedkeuren && (
-              <form method="post" action={dossierPad} class="bh-acties">
-                <button class="bh-btn" type="submit" name="actie" value="akkoord">Goedkeuren en in behandeling nemen</button>
+            kanBeoordelen ? (
+              <form method="post" action={dossierPad} class="bh-form" id="bestuursbesluit-activiteit">
+                <div class="bh-acties">
+                  <button class="bh-btn" type="submit" name="actie" value="ja_activiteit" disabled={!kanGoedkeuren}>Ja, geschikt</button>
+                  <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="nee_activiteit">Nee, afwijzen</button>
+                </div>
+                <label for="reden">Toelichting bij afwijzen (optioneel)</label>
+                <textarea id="reden" name="reden" rows="2" placeholder="Alleen invullen als je een reden wilt toevoegen"></textarea>
+                {!kanGoedkeuren && <p class="bh-muted">Er kan pas een optie worden vastgelegd wanneer de periode beschikbaar is. Afwijzen blijft mogelijk.</p>}
               </form>
-            )
+            ) : <p>Je kunt deze aanvraag bekijken. Beoordelen is alleen beschikbaar voor het bestuur met aanvraagrechten.</p>
           }
         </>
       )
@@ -838,8 +906,9 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
       opvolging={opvolging}
       actie={dossierPad}
       betalingToelichting={opvolgingBetaling}
-      toonMaken={flowAan}
+      toonMaken={false}
       toonOntvangst={false}
+      driePdf={factuurpakketAan(omgevingsRecord())}
       nieuweVersieHref={contractDefinitief && magNieuweVersie && !wizardOpen ? nieuweVersieLink : ''}
     />
   )}

@@ -77,11 +77,23 @@ export async function verstuurGecontroleerd(
     register?: readonly Automatisering[];
     transport?: MailTransport;
     modus?: Mailmodus;
+    /** Voor contracten: nooit een proefschakelaar als live-uitzending overrulen. */
+    vereisteLiveModus?: boolean;
     testadres?: string | null;
     env?: Record<string, unknown>;
   } = {},
 ): Promise<TransportUitkomst> {
   const besluit = await besluitVoor(bericht.sleutel, opties.register, opties.env);
+  if (opties.vereisteLiveModus && besluit.modus !== 'aan') {
+    return {
+      verzonden: false,
+      providerAangeroepen: false,
+      besluit,
+      bedoeldeOntvanger: bericht.naar,
+      geblokkeerd: true,
+      melding: 'De live-mailschakelaar is gewijzigd. Er is geen contract naar de huurder verstuurd.',
+    };
+  }
   const modus: Mailmodus = opties.modus ?? bericht.modus ?? besluit.modus;
   const effectief: Verzendbesluit = { ...besluit, modus };
   if (modus === 'uit' || modus === 'dry-run' || !effectief.provider) {

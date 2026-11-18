@@ -8,9 +8,10 @@ interface Props {
   toonMaken?: boolean;
   nieuweVersieHref?: string;
   toonOntvangst?: boolean;
+  driePdf?: boolean;
 }
 
-const { opvolging, actie, betalingToelichting, toonMaken = true, nieuweVersieHref = '', toonOntvangst = true } = Astro.props;
+const { opvolging, actie, betalingToelichting, toonMaken = true, nieuweVersieHref = '', toonOntvangst = true, driePdf = false } = Astro.props;
 const proef = opvolging.modus !== 'aan';
 ---
 
@@ -99,10 +100,27 @@ const proef = opvolging.modus !== 'aan';
     )
   }
 
+  {driePdf && opvolging.kanGoedkeuren && (
+    <form method="post" action={actie} class="bh-form" id="bestuursbesluit-contract">
+      <h3>Is dit contractpakket akkoord?</h3>
+      <p class="bh-muted">Bekijk de drie documenten. Bij Ja wordt het pakket direct met de tekenlink verzonden; bij Nee gaat het terug ter correctie.</p>
+      <div class="bh-acties" aria-label="Voorbeeld van de drie contractdocumenten">
+        <a class="bh-btn bh-btn--sec" href={`${actie}?document=overeenkomst&versie=${opvolging.versie}`} target="_blank" rel="noopener noreferrer">1. Overeenkomst (PDF)</a>
+        <a class="bh-btn bh-btn--sec" href={`${actie}?document=voorwaarden&versie=${opvolging.versie}`} target="_blank" rel="noopener noreferrer">2. Voorwaarden (PDF)</a>
+        <a class="bh-btn bh-btn--sec" href={`${actie}?document=factuur&versie=${opvolging.versie}`} target="_blank" rel="noopener noreferrer">3. Conceptfactuur (PDF)</a>
+      </div>
+      <input type="hidden" name="versie" value={opvolging.versie ?? ''} />
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit" name="actie" value="df_ja_en_verzend">Ja, pakket goedkeuren en verzenden</button>
+        {opvolging.kanTerug && <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="df_nee_contract">Nee, aanpassen</button>}
+      </div>
+      {opvolging.kanTerug && <><label for="bestuur-toelichting">Toelichting bij Nee (optioneel)</label><textarea id="bestuur-toelichting" name="toelichting" rows="2" maxlength="500"></textarea></>}
+    </form>
+  )}
   <div class="bh-acties">
-    {opvolging.kanBekijken && <a class="bh-btn bh-btn--sec" href={opvolging.bekijkHref}>Contract bekijken</a>}
+    {opvolging.kanBekijken && (!driePdf || !opvolging.kanGoedkeuren) && <a class="bh-btn bh-btn--sec" href={opvolging.bekijkHref}>Contract bekijken</a>}
     {
-      opvolging.kanGoedkeuren && (
+      !driePdf && opvolging.kanGoedkeuren && (
         <form method="post" action={actie}>
           <input type="hidden" name="actie" value="df_akkoord" />
           <button class="bh-btn" type="submit">Goedkeuren</button>
@@ -110,12 +128,12 @@ const proef = opvolging.modus !== 'aan';
       )
     }
     {
-      opvolging.kanVerzenden && (
+      opvolging.kanVerzenden && (!driePdf || !opvolging.kanGoedkeuren) && (
         <form method="post" action={actie}>
           <input type="hidden" name="actie" value="df_verzend" />
           <input type="hidden" name="proef" value="nee" />
           <input type="hidden" name="poging" value={crypto.randomUUID()} />
-          <button class="bh-btn" type="submit">Verzenden</button>
+          <button class="bh-btn" type="submit">{driePdf ? 'Contractverzending hervatten' : 'Verzenden'}</button>
         </form>
       )
     }
@@ -140,12 +158,23 @@ const proef = opvolging.modus !== 'aan';
     }
   </div>
   {
-    opvolging.kanTerug && (
+    opvolging.kanTerug && (!driePdf || !opvolging.kanGoedkeuren) && (
       <form method="post" action={actie} class="bh-form">
-        <input type="hidden" name="actie" value="df_terug" />
-        <label for="df-terug">Terug voor aanpassing</label>
-        <textarea id="df-terug" name="toelichting" rows="3" required maxlength="500"></textarea>
-        <button class="bh-btn bh-btn--sec" type="submit">Terug voor aanpassing</button>
+        {driePdf ? (
+          <>
+            <input type="hidden" name="versie" value={opvolging.versie ?? ''} />
+            <label for="df-terug">Toelichting bij Nee (optioneel)</label>
+            <textarea id="df-terug" name="toelichting" rows="2" maxlength="500"></textarea>
+            <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="df_nee_contract">Nee, aanpassen</button>
+          </>
+        ) : (
+          <>
+            <input type="hidden" name="actie" value="df_terug" />
+            <label for="df-terug">Terug voor aanpassing</label>
+            <textarea id="df-terug" name="toelichting" rows="3" required maxlength="500"></textarea>
+            <button class="bh-btn bh-btn--sec" type="submit">Terug voor aanpassing</button>
+          </>
+        )}
       </form>
     )
   }

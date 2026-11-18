@@ -506,8 +506,8 @@ export function magFaseTerug(beeld: AanvraagBeeld): { ok: true; van: string; naa
   return { ok: false, melding: 'Deze fase heeft geen vorige stap.' };
 }
 
-export function magGoedkeuren(beeld: AanvraagBeeld, status: string): { ok: boolean; melding?: string } {
-  if (status !== 'in_behandeling') {
+export function magGoedkeuren(beeld: AanvraagBeeld, status: string, opties: { direct?: boolean } = {}): { ok: boolean; melding?: string } {
+  if (status !== 'in_behandeling' && !(opties.direct && status === 'nieuw')) {
     return { ok: false, melding: 'Beoordeel eerst of de activiteit in het Kerkje van Persingen past.' };
   }
   if (beeld.beschikbaarheid.uitkomst === 'onvolledig') {
