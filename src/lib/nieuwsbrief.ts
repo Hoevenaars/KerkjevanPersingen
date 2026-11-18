@@ -119,6 +119,7 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
         modus: besluit.modus,
         idempotentieSleutel: dedupNieuwsbrief(voorbereid.week.id, brief.vriend.email),
         tags: nieuwsbriefTags(voorbereid.week.id, brief.vriend._id),
+        berichtsoort: 'geen_betaling',
       },
       { modus: besluit.modus, testadres, transport: opties.transport, register: opties.register },
     );

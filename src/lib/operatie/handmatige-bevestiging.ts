@@ -9,6 +9,7 @@ import { standaardTemplate } from '../../platform/mailtemplates/catalog.ts';
 import { metReservering } from '../../platform/mailtemplates/definitief-mail.ts';
 import { onderwerpUitTemplate, plainTekstUitTemplate, renderMailBericht } from '../../platform/mailtemplates/render.ts';
 import { magAutomatiseringUitvoeren, type Automatisering } from '../../platform/automatisering.ts';
+import { berichtsoortVoorSjabloon } from '../../platform/betalingscommunicatie.ts';
 import { laadAutomatiseringsregister } from '../automatisering-register.ts';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES } from '../mail-adressen.ts';
 import { verstuurGecontroleerd } from '../mail-transport.ts';
@@ -92,6 +93,7 @@ export async function verstuurHandmatigeBevestiging(
         richting: 'aanvrager',
         replyTo: CONTRACTBEHEER_EMAIL,
         idempotentieSleutel: proefVooraf ? `test:${dedup}` : dedup,
+        berichtsoort: berichtsoortVoorSjabloon(bevestiging.templateId) ?? undefined,
       },
       { register, env },
     );

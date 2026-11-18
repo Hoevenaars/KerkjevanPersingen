@@ -5,7 +5,7 @@ import { KERKJE_LOGO_URL, KERKJE_MAIL_MERK, kerkjeMail } from '../src/lib/kerkje
 import { bouwResendInhoud } from '../src/lib/mail-transport.ts';
 import { CONTRACTBEHEER_EMAIL } from '../src/lib/mail-adressen.ts';
 import { nieuwsbriefEnvelop, NIEUWSBRIEF_REPLY_TO } from '../src/lib/nieuwsbrief-html.ts';
-import { mailMeta } from '../src/lib/nieuwsbrief-frequentie.ts';
+import { mailMeta, NIEUWSBRIEF_INTRO } from '../src/lib/nieuwsbrief-frequentie.ts';
 import { renderMailBericht } from '../src/platform/mailtemplates/render.ts';
 import { standaardTemplate } from '../src/platform/mailtemplates/catalog.ts';
 import { VOORBEELD_VARIABELEN } from '../src/platform/mailtemplates/voorbeeld.ts';
@@ -175,7 +175,7 @@ describe('centrale Kerkje-mail', () => {
     assert.equal(brief.html.includes(KERKJE_MAIL_MERK), false);
     assert.match(brief.html, /vrienden\/afmelden/);
     assert.match(brief.html, /verhuur-ruimte\.jpg/);
-    assert.match(brief.text, /Een korte noot voor de vrienden/);
+    assert.match(brief.text, new RegExp(NIEUWSBRIEF_INTRO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(brief.text, /token=mailveiligheid-test/);
     geenRuweHtml(brief.text);
   });

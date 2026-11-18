@@ -3,6 +3,7 @@
  */
 
 import { automatiseringVoorTemplate, magAutomatiseringUitvoeren, MailGeblokkeerd } from '../../platform/automatisering.ts';
+import { berichtsoortVoorSjabloon, isBetalingsTemplate } from '../../platform/betalingscommunicatie.ts';
 import { komendeBerichten, redenBuitenWorkflow, type GeplandBericht, type KomendeBoeking } from '../../platform/mail-poort.ts';
 import { verstuurGecontroleerd } from '../mail-transport.ts';
 import { grensVoorActivatie } from '../../platform/activatiegrens.ts';
@@ -362,6 +363,7 @@ function mailTransport(env: Record<string, unknown>) {
           idempotentieSleutel: input.idempotentieSleutel
             ? besluit.modus === 'test' ? `test:${input.idempotentieSleutel}` : input.idempotentieSleutel
             : undefined,
+          berichtsoort: berichtsoortVoorSjabloon(input.templateSleutel) ?? undefined,
         },
         { env },
       );
@@ -379,6 +381,7 @@ export async function voerOperationeel(
     basisUrl: string;
     nu?: Date;
     actiefVanaf?: string | null;
+    betalingsActiefVanaf?: string | null;
     sjabloonOpen?: (templateId: string) => boolean;
   },
 ): Promise<{ ok: boolean; melding: string; links?: { doel: string; url: string }[] }> {
@@ -391,6 +394,7 @@ export async function voerOperationeel(
     basisUrl: opties.basisUrl,
     internEmail: String(env.CONTACT_FALLBACK_EMAIL ?? env.MAIL_STAGING_OVERRIDE ?? ''),
     actiefVanaf: opties.actiefVanaf,
+    betalingsActiefVanaf: opties.betalingsActiefVanaf,
     sjabloonOpen: opties.sjabloonOpen,
   }, mailTransport(env));
   if (!uit.resultaat.ok || uit.mutaties.length === 0) return uit.resultaat;
@@ -438,12 +442,16 @@ export async function draaiWorkflow(env: Record<string, unknown> = process.env, 
   const register = await laadAutomatiseringsregister(env);
   const vandaag = ymdInAmsterdam(new Date());
   const grens = grensVoorActivatie(await leesActiefVanaf('workflow', env), vandaag);
+  const betaalAan = magAutomatiseringUitvoeren('betalingscommunicatie', register).modus === 'aan';
+  const betaalGrens = betaalAan ? await leesActiefVanaf('betalingscommunicatie', env) : null;
   return voerOperationeel({ soort: 'scheduler' }, {
     env,
     actor: { type: 'systeem', naam: 'planner' },
     basisUrl,
     actiefVanaf: grens,
+    betalingsActiefVanaf: betaalGrens,
     sjabloonOpen: (templateId) => {
+      if (isBetalingsTemplate(templateId) && (!betaalAan || !betaalGrens)) return false;
       const sleutel = automatiseringVoorTemplate(templateId);
       return Boolean(sleutel) && magAutomatiseringUitvoeren(sleutel as string, register).modus === 'aan';
     },
@@ -663,7 +671,9 @@ function opdrachtUitFormulier(url: URL, data: FormData): Opdracht | null {
   const boekingId = String(data.get('boekingId') ?? (delen[1] === 'boekingen' ? padId : ''));
   const aanvraagId = delen[1] === 'aanvragen' ? padId : String(data.get('aanvraagId') ?? '');
   const reden = String(data.get('reden') ?? data.get('toelichting') ?? '');
+  if (actie === 'ja_activiteit' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'goedkeuren_direct' };
   if ((actie === 'optie' || actie === 'akkoord') && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'goedkeuren' };
+  if (actie === 'nee_activiteit' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'afwijzen_direct', reden };
   if (actie === 'weiger' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'afwijzen', reden };
   if (actie === 'meer' && aanvraagId) return { soort: 'beoordeel', aanvraagId, besluit: 'meer_informatie', vraag: String(data.get('vraag') ?? '') };
   if (actie === 'meer_verstuur' && aanvraagId) return { soort: 'verstuur_informatie', aanvraagId };
@@ -737,7 +747,26 @@ export async function postAlsSupabase(input: {
       return beheerRedirect(doel);
     }
     const uit = await voerDossierViaSessie(input.sessie, opdracht, input.actor);
-    doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+    let vervolgMelding = uit.melding;
+    if (actie === 'ja_activiteit' && uit.ok) {
+      let voorbereid = false;
+      if (input.env.V4_AUTOCONTRACT === 'true' && uit.boekingId && /^\d+$/.test(uit.boekingId)) {
+        const { probeerContractAutoVoorbereiden } = await import('./contract-autovoorbereiden.ts');
+        const vervolg = await probeerContractAutoVoorbereiden({
+          client: input.sessie, actor: input.actor, env: input.env,
+          aanvraagId: Number(uit.aanvraagId), boekingId: Number(uit.boekingId),
+        });
+        voorbereid = vervolg.voorbereid;
+        if (vervolg.melding) vervolgMelding += ` ${vervolg.melding}`;
+      }
+      if (voorbereid) {
+        doel.hash = 'contract-opvolging';
+      } else {
+        doel.searchParams.set('contract', 'genereren');
+        doel.hash = 'contract-wizard';
+      }
+    }
+    doel.searchParams.set(uit.ok ? 'melding' : 'fout', vervolgMelding);
   } catch (error) {
     const tekst = error instanceof Error ? error.message : 'Opslaan mislukt.';
     doel.searchParams.set('fout', leesbareAuthFout(tekst));

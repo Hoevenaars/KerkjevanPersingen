@@ -20,6 +20,7 @@ import { analyticsTeVaak } from './analytics/rate-limit.ts';
 import { bewaarPageview, wachtNietOp } from './platform/analytics-opslag.ts';
 import { kerkjeAnalytics } from './platform/analytics-config.ts';
 import { acceptatieBesluit } from './platform/acceptatie-sessie.ts';
+import { previewRaaktProductie } from './lib/supabase-project.ts';
 
 /**
  * Afscherming tot livegang.
@@ -44,6 +45,7 @@ function leesAdres(context: { clientAddress: string }): string | null {
 }
 
 function metAnalytics(context: Parameters<MiddlewareHandler>[0], response: Response): Response {
+  if (previewRaaktProductie()) return response;
   const pad = context.url.pathname;
   if (
     pad.startsWith('/beheer') ||
@@ -210,6 +212,19 @@ async function beheerMiddleware(context: Parameters<MiddlewareHandler>[0], next:
 
 export const onRequest: MiddlewareHandler = async (context, next) => {
   const pad = context.url.pathname;
+  const methode = context.request.method.toUpperCase();
+
+  // De preview deelt in de projectconfiguratie de productiedatabase.
+  // Lezen mag, zodat de pagina's bekeken kunnen worden. Schrijven, cron en mail niet.
+  if (previewRaaktProductie() && (methode !== 'GET' && methode !== 'HEAD' && methode !== 'OPTIONS' || pad.startsWith('/api/cron/'))) {
+    return new Response('Deze preview wijst naar de productiedatabase. Er is niets opgeslagen of verzonden.', {
+      status: 403,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Robots-Tag': 'noindex, nofollow',
+      },
+    });
+  }
 
   // Cron heeft een eigen Bearer-secret. Afmelden moet zonder sitewachtwoord (AVG).
   // Resend meldt openen en klikken met een eigen handtekening, niet met het sitewachtwoord.

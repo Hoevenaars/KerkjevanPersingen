@@ -162,6 +162,7 @@ async function mailMetPdf(input: {
       bijlagen: input.pdf && input.naam ? [{ bestandsnaam: input.naam, inhoud: input.pdf }] : undefined,
       eisBijlagen: Boolean(input.pdf),
       idempotentieSleutel: input.idempotentie,
+      berichtsoort: 'geen_betaling',
     },
     { modus: besluit.modus, testadres, env: input.env },
   );

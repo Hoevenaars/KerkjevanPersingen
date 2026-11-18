@@ -425,9 +425,10 @@ test('een nieuwe versie laat de vorige direct vervallen', async () => {
   assert.equal(tekeningen.length, 1);
   assert.equal(tekeningen[0]?.waarden.verloopt_op, '1970-01-01T00:00:00.000Z');
   assert.notEqual(tekeningen[0]?.waarden.token_hash, 'oud');
-  const ingetrokken = schrijfsels.filter((item) => item.tabel === 'contract_verzendingen');
-  assert.equal(ingetrokken.length, 1);
-  assert.equal(ingetrokken[0]?.waarden.status, 'ingetrokken');
+  // Historische verzendingen blijven bewijsmateriaal. De live database kent
+  // geen status 'ingetrokken'; alleen de oude ondertekenlink vervalt.
+  const verzendingMutaties = schrijfsels.filter((item) => item.tabel === 'contract_verzendingen');
+  assert.equal(verzendingMutaties.length, 0);
 });
 
 test('dezelfde gegevens zonder nieuwe versie laten de tekenlink staan', async () => {

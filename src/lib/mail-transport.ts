@@ -5,6 +5,7 @@
 
 import { besluitVoor } from './automatisering-register.ts';
 import { MailGeblokkeerd, type Automatisering, type Verzendbesluit } from '../platform/automatisering.ts';
+import { BETALING_DICHT, berichtsoortVoorSjabloon, isFinancieelBericht, type Berichtsoort } from '../platform/betalingscommunicatie.ts';
 import {
   GEEN_TESTMAILADRES,
   pasTestmodusToe,
@@ -36,6 +37,11 @@ export interface MailBericht {
   idempotentieSleutel?: string;
   /** Korte labels voor de verzender, bijvoorbeeld editie en vriend. Geen inhoud van de mail. */
   tags?: { name: string; value: string }[];
+  /**
+   * Zet de afzender bij het aanmaken van het bericht.
+   * Ontbreekt de soort, of is zij iets anders dan geen_betaling, dan geldt de betalingspoort.
+   */
+  berichtsoort?: Berichtsoort;
 }
 
 export interface ResendInhoud {
@@ -77,11 +83,37 @@ export async function verstuurGecontroleerd(
     register?: readonly Automatisering[];
     transport?: MailTransport;
     modus?: Mailmodus;
+    /** Voor contracten: nooit een proefschakelaar als live-uitzending overrulen. */
+    vereisteLiveModus?: boolean;
     testadres?: string | null;
     env?: Record<string, unknown>;
   } = {},
 ): Promise<TransportUitkomst> {
   const besluit = await besluitVoor(bericht.sleutel, opties.register, opties.env);
+  if (isFinancieelBericht(bericht.berichtsoort)) {
+    const poort = await besluitVoor('betalingscommunicatie', opties.register, opties.env);
+    if (poort.modus !== 'aan' && poort.modus !== 'test') {
+      return {
+        verzonden: false,
+        providerAangeroepen: false,
+        besluit: { ...poort, modus: 'uit', provider: false, uitvoeren: false, reden: BETALING_DICHT },
+        bedoeldeOntvanger: bericht.naar,
+        geblokkeerd: true,
+        melding: BETALING_DICHT,
+      };
+    }
+    if (poort.modus === 'test') opties = { ...opties, modus: 'test' };
+  }
+  if (opties.vereisteLiveModus && besluit.modus !== 'aan') {
+    return {
+      verzonden: false,
+      providerAangeroepen: false,
+      besluit,
+      bedoeldeOntvanger: bericht.naar,
+      geblokkeerd: true,
+      melding: 'De live-mailschakelaar is gewijzigd. Er is geen contract naar de huurder verstuurd.',
+    };
+  }
   const modus: Mailmodus = opties.modus ?? bericht.modus ?? besluit.modus;
   const effectief: Verzendbesluit = { ...besluit, modus };
   if (modus === 'uit' || modus === 'dry-run' || !effectief.provider) {
@@ -214,6 +246,7 @@ export async function sendInterneAanvraagMail(
       aanvragerEmail: input.aanvragerEmail ?? undefined,
       aanvragerNaam: input.aanvragerNaam ?? undefined,
       richting: 'intern',
+      berichtsoort: 'geen_betaling',
     },
     opties,
   );
@@ -243,6 +276,7 @@ export async function sendMailNaarAanvrager(
       html: input.html,
       templateId: input.templateId,
       richting: 'aanvrager',
+      berichtsoort: berichtsoortVoorSjabloon(input.templateId) ?? undefined,
     },
     opties,
   );

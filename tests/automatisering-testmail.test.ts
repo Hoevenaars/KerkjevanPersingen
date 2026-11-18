@@ -85,6 +85,7 @@ test('de verzender roept de provider alleen aan voor test en alleen naar het tes
   const register = registerMet({
     aanvraag_bestuur: 'actief',
     betaalherinnering: 'test',
+    betalingscommunicatie: 'test',
     mailtemplate_test: 'test',
     statusmail_huurder: 'uit',
   });
@@ -104,19 +105,19 @@ test('de verzender roept de provider alleen aan voor test en alleen naar het tes
   });
   assert.deepEqual(
     ontvangen.map((bericht) => bericht.naar),
-    [TEST, TEST],
+    [TEST, TEST, TEST],
   );
   assert.equal(ontvangen.some((bericht) => bericht.onderwerp.includes('Nieuwe verhuuraanvraag')), false);
-  assert.equal(uit.filter((item) => item.verzonden).length, 2);
+  assert.equal(uit.filter((item) => item.verzonden).length, 3);
   const samen = vatTestmailsSamen(uit, TEST);
-  assert.match(samen.melding, /2 testmails verstuurd naar nhoevenaars@gmail.com/);
+  assert.match(samen.melding, /3 testmails verstuurd naar nhoevenaars@gmail.com/);
   assert.equal(samen.fout, '');
 });
 
 test('een providerfout stopt de overige testmails niet', async () => {
   let teller = 0;
   const uit = await verstuurAutomatiseringTestmails({
-    register: registerMet({ betaalherinnering: 'test', herinnering: 'test' }),
+    register: registerMet({ betaalherinnering: 'test', betalingscommunicatie: 'test', herinnering: 'test' }),
     testadres: TEST,
     transport: {
       async verstuur() {
@@ -125,7 +126,7 @@ test('een providerfout stopt de overige testmails niet', async () => {
       },
     },
   });
-  assert.equal(uit.filter((item) => item.verzonden).length, 1);
+  assert.equal(uit.filter((item) => item.verzonden).length, 2);
   assert.match(vatTestmailsSamen(uit, TEST).fout, /provider tijdelijk weg/);
 });
 

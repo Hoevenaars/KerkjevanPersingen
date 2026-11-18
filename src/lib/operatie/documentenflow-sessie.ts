@@ -4,7 +4,9 @@
  */
 
 import { documentenflowAan } from '../../platform/documentenflow-vlag.ts';
-import { contractmailMagWeg, maakContractPdf, tekenUrl } from '../../platform/contract-pakket.ts';
+import { contractmailMagWeg, contractMailDriePdf, maakContractPdf, sha256Hex, tekenUrl } from '../../platform/contract-pakket.ts';
+import { maakDrieContractBijlagen } from '../../platform/factuur-van-moment.ts';
+import { factuurpakketAan, bekijkFactuurConcept, geefFactuurVoorContract, markeerFactuurVerzonden } from './factuur-sessie.ts';
 import { leesContractSjabloon } from '../contract-sjabloon-opslag.ts';
 import { hashTekenToken, maakTekenToken } from '../../platform/contract-tekenen.ts';
 import {
@@ -26,6 +28,11 @@ import type { Actor } from './kern.ts';
 import { voerDossierViaSessie, type DossierSessie } from './dossier-sessie.ts';
 import { promoveerIndienKlaar } from './definitief-auto.ts';
 import { noteerGetekendDocument } from './ontvangst.ts';
+import { bewaarOnveranderlijkePdf, type PdfBucket } from './onveranderlijke-pdf-opslag.ts';
+import { reserveerLiveContractVerzending } from './contract-verzendclaim.ts';
+import { contractProviderUitkomstOnzeker } from '../../platform/verzend-onzekerheid.ts';
+import { BETALING_DICHT, betalingscommunicatieBesluit } from '../../platform/betalingscommunicatie.ts';
+import { laadAutomatiseringsregister } from '../automatisering-register.ts';
 
 type Fout = { message: string; code?: string } | null;
 type Rij = Record<string, unknown>;
@@ -266,12 +273,28 @@ async function bewaarVersies(client: DossierSessie, boekingId: number, vorige: r
         ondertekening: versie.ondertekening,
       }).select('versie').maybeSingle();
       if (insert.error) return insert.error.message;
+      if (Number(insert.data?.versie) !== versie.versie) {
+        return 'De nieuwe contractversie kon niet worden bevestigd. Controleer het dossier voordat je verdergaat.';
+      }
       continue;
     }
     if (oud.tekst !== versie.tekst || oud.voorwaardenTekst !== versie.voorwaardenTekst || oud.huisregelsTekst !== versie.huisregelsTekst) {
       return 'Een vastgelegde contractversie zou veranderen. Er is niets opgeslagen.';
     }
-    const update = await client.from('contractversies').update({
+    // Een verzendactie verandert geen contractversie. Schrijf in dat geval
+    // niets terug: oude snapshots mogen een nieuw bestuursbesluit niet wissen.
+    if (oud.bestuur === versie.bestuur
+      && oud.bestuurActor === versie.bestuurActor
+      && oud.bestuurOp === versie.bestuurOp
+      && oud.bestuurToelichting === versie.bestuurToelichting
+      && oud.ondertekening === versie.ondertekening
+      && oud.ondertekeningActor === versie.ondertekeningActor
+      && oud.ondertekeningOp === versie.ondertekeningOp
+      && oud.ondertekeningNummer === versie.ondertekeningNummer
+      && oud.ondertekeningVersie === versie.ondertekeningVersie
+      && JSON.stringify(oud.checks) === JSON.stringify(versie.checks)) continue;
+    // Voorkom dat twee bestuursbesluiten over een oude status elkaar overschrijven.
+    let update = client.from('contractversies').update({
       bestuur: versie.bestuur,
       bestuur_actor: versie.bestuurActor,
       bestuur_op: versie.bestuurOp,
@@ -283,8 +306,10 @@ async function bewaarVersies(client: DossierSessie, boekingId: number, vorige: r
       ondertekening_versie: versie.ondertekeningVersie,
       checks: versie.checks,
     }).eq('boeking_id', boekingId).eq('versie', versie.versie);
-    const antwoord = await (update as unknown as Promise<Antwoord>);
+    if (oud.bestuur !== versie.bestuur) update = update.eq('bestuur', oud.bestuur);
+    const antwoord = await update.select('id').maybeSingle();
     if (antwoord.error) return antwoord.error.message;
+    if (!antwoord.data?.id) return 'De contractversie is intussen aangepast. Vernieuw het dossier voordat je een nieuw besluit neemt.';
   }
   return null;
 }
@@ -326,24 +351,33 @@ export async function pasDocumentenflowToe(input: {
   actor: Actor;
   boekingId: string;
   actie: FlowActie;
+  verwachteVersie?: number;
   promotieAanwezig?: boolean;
   modus: 'uit' | 'test' | 'aan';
   testadres: string | null;
   bestand?: { naam: string; bytes: Uint8Array } | null;
-  verstuur: (mail: FlowMail) => Promise<{ verzonden: boolean; berichtId: string | null; melding: string }>;
+  verstuur: (mail: FlowMail) => Promise<{ verzonden: boolean; berichtId: string | null; melding: string; providerAangeroepen?: boolean }>;
 }): Promise<{ ok: boolean; melding: string }> {
   const extraMail = input.actie.soort === 'praktisch' || input.actie.soort === 'promotie';
   if (extraMail && !documentenflowAan(input.env)) return { ok: false, melding: 'Documentenflow staat uit. Er is niets gewijzigd.' };
   if (!input.client) return { ok: false, melding: 'Voorbeeld. Er is niets opgeslagen en er is geen mail verstuurd.' };
   const gelezen = await leesDocumentenDossier(input.client, input.boekingId, input.promotieAanwezig);
   if (!gelezen.ok) return gelezen;
+  // Na een preview mag niet per ongeluk een nieuwer, niet beoordeeld contract
+  // worden goedgekeurd of verstuurd door een gelijktijdige versieaanpassing.
+  if (input.verwachteVersie != null) {
+    const nieuwste = gelezen.lading.context.versies.reduce((nr, v) => Math.max(nr, v.versie), 0);
+    if (nieuwste !== input.verwachteVersie) {
+      return { ok: false, melding: 'Het contract is intussen gewijzigd. Bekijk eerst de nieuwe versie; er is niets gewijzigd of verzonden.' };
+    }
+  }
   if (input.bestand && input.actie.soort === 'ondertekend') {
     if (input.bestand.bytes.byteLength > 8_000_000 || !tekstVanBytes(input.bestand.bytes).startsWith('%PDF')) {
       return { ok: false, melding: 'Het bestand is geen PDF. Er is niets vastgelegd.' };
     }
     const pad = `contracten/${input.boekingId}/getekend-v${input.actie.versie}.pdf`;
     const opslag = input.client as DossierSessie & {
-      storage?: { from(bucket: string): { upload(pad: string, body: Uint8Array, opties: { contentType: string; upsert: boolean }): Promise<{ error: { message: string } | null }> } };
+      storage?: { from(bucket: string): PdfBucket };
     };
     if (!opslag.storage?.from) return { ok: false, melding: 'Het bestand is niet opgeslagen. De ontvangst is niet vastgelegd.' };
     const upload = await opslag.storage.from('booking-documents').upload(pad, input.bestand.bytes, { contentType: 'application/pdf', upsert: false });
@@ -369,6 +403,13 @@ export async function pasDocumentenflowToe(input: {
   };
   const plan = voerFlowUit(input.actie, context);
   if (!plan.ok) return plan;
+  // Ook de bestaande handmatige verzendknop mag na het activeren van V4
+  // niet terugvallen op de oude mail met slechts één PDF.
+  if (plan.mail?.teltAlsVerzonden &&
+      (input.env.V4_ATOMAIR_CONTRACT === 'true' || input.env.V4_AUTOCONTRACT === 'true') &&
+      !factuurpakketAan(input.env)) {
+    return { ok: false, melding: 'Het driedelige contractpakket is niet ingeschakeld. Er is niets verstuurd.' };
+  }
   const fout = await bewaarVersies(input.client, Number(input.boekingId), context.versies, plan.versies);
   if (fout) return { ok: false, melding: fout };
   if (input.actie.soort === 'akkoord' || input.actie.soort === 'ondertekend' || input.actie.soort === 'gereed') {
@@ -385,6 +426,11 @@ export async function pasDocumentenflowToe(input: {
   let manifest: { bestandsnaam: string; bytes: number; sha256: string; mime: 'application/pdf' }[] = [];
   let pakket: ReturnType<typeof maakContractPdf> | null = null;
   let pakketVersie: ContractVersie | null = null;
+  const driePdf = factuurpakketAan(input.env);
+  let factuurId: number | null = null;
+  let factuurEerderVerzonden = false;
+  let factuurPad: string | null = null;
+  let factuurSha: string | null = null;
   if (plan.mail && isContractmail(plan.mail.soort)) {
     pakketVersie = plan.versies.find((item) => item.versie === plan.mail?.versie) ?? context.versies.at(-1) ?? null;
     if (!pakketVersie) return { ok: false, melding: 'De contractversie ontbreekt. Er is geen mail verstuurd.' };
@@ -404,33 +450,78 @@ export async function pasDocumentenflowToe(input: {
     );
     if (!pakket.ok) return pakket;
   }
-  async function zetStatus(idempotentie: string, status: 'verzonden' | 'geweigerd', berichtId: string | null) {
+  async function zetStatus(idempotentie: string, status: 'verzonden' | 'geweigerd', berichtId: string | null): Promise<boolean> {
     const volledig = await input.client!.from('contract_verzendingen').update({
       status,
       bericht_id: berichtId,
       provider_status: status === 'verzonden' ? 'geaccepteerd' : null,
       bijlagen: manifest,
-    }).eq('idempotentie', idempotentie);
-    if (volledig.error) {
-      await input.client!.from('contract_verzendingen').update({
-        status,
-        bericht_id: berichtId,
-      }).eq('idempotentie', idempotentie);
-    }
+    }).eq('idempotentie', idempotentie).select('id').maybeSingle();
+    if (!volledig.error && volledig.data?.id) return true;
+    // Oudere migraties kunnen de aanvullende kolommen missen. De basismutatie
+    // is alleen geslaagd als exact een bestaande verzendrij is teruggegeven.
+    const minimaal = await input.client!.from('contract_verzendingen').update({
+      status,
+      bericht_id: berichtId,
+    }).eq('idempotentie', idempotentie).select('id').maybeSingle();
+    return !minimaal.error && Boolean(minimaal.data?.id);
+  }
+  if (plan.mail && driePdf && isContractmail(plan.mail.soort)) {
+    const poort = betalingscommunicatieBesluit(await laadAutomatiseringsregister(input.env));
+    if (poort.modus !== 'aan') return { ok: false, melding: BETALING_DICHT };
   }
   if (plan.mail) {
-    const claim = await input.client.from('contract_verzendingen').insert({
-      boeking_id: Number(input.boekingId),
-      versie: plan.mail.versie,
-      soort: plan.mail.soort,
-      idempotentie: plan.mail.idempotentie,
-      ontvanger: plan.mail.bedoelde,
-      werkelijk: plan.mail.naar,
-      status: 'bezig',
-    }).select('id').maybeSingle();
+    // Nieuwe live pakketten krijgen een boekingslock via een Supabase-RPC;
+    // de gewone INSERT alleen voor de bestaande proef-/legacyverzendingen.
+    // Bij een ontbrekende RPC is dit fail-closed: er gaat geen mail uit.
+    const livePakket = driePdf && (plan.mail.soort === 'contract' || plan.mail.soort === 'herhaling');
+    const claim = livePakket
+      ? await (async () => {
+          const resultaat = await reserveerLiveContractVerzending(input.client, {
+            boekingId: Number(input.boekingId),
+            versie: plan.mail!.versie,
+            soort: plan.mail!.soort as 'contract' | 'herhaling',
+            idempotentie: plan.mail!.idempotentie,
+            ontvanger: plan.mail!.bedoelde,
+            werkelijk: plan.mail!.naar,
+          });
+          return resultaat.ok
+            ? { data: { id: resultaat.id }, error: null }
+            : { data: null, error: { message: resultaat.melding } };
+        })()
+      : await input.client.from('contract_verzendingen').insert({
+          boeking_id: Number(input.boekingId),
+          versie: plan.mail.versie,
+          soort: plan.mail.soort,
+          idempotentie: plan.mail.idempotentie,
+          ontvanger: plan.mail.bedoelde,
+          werkelijk: plan.mail.naar,
+          status: 'bezig',
+        }).select('id').maybeSingle();
     if (claim.error) {
-      if (claim.error.code === '23505') return { ok: true, melding: 'Deze verzending bestaat al. Er is niet opnieuw gemaild.' };
+      if (claim.error.code === '23505') {
+        // Een unieke sleutel kan ook botsen met een nog lopende verzending.
+        // Dat is GEEN succes; anders ziet het bestuur een onjuiste bevestiging.
+        const bestaand = await input.client.from('contract_verzendingen')
+          .select('status,bericht_id,idempotentie,soort')
+          .eq('boeking_id', Number(input.boekingId))
+          .eq('versie', plan.mail.versie);
+        if (bestaand.error) return { ok: false, melding: 'De verzendstatus kon niet worden vastgesteld. Er is geen nieuwe mail gestart.' };
+        const dezelfde = (bestaand.data ?? []).find((rij) => rij.idempotentie === plan.mail?.idempotentie);
+        const geaccepteerd = (bestaand.data ?? []).some((rij) =>
+          (rij.soort === 'contract' || rij.soort === 'herhaling') && rij.status === 'verzonden' && Boolean(rij.bericht_id));
+        if (geaccepteerd) return { ok: true, melding: 'Dit contract is eerder door de mailprovider geaccepteerd. Er is niet opnieuw gemaild.' };
+        if (dezelfde?.status === 'geweigerd') {
+          return { ok: false, melding: 'De vorige verzendpoging is mislukt. Vernieuw het dossier en probeer opnieuw via Contractverzending hervatten.' };
+        }
+        return { ok: false, melding: 'Een contractverzending is al in behandeling. Er is geen tweede mail gestart. Controleer eerst de verzendstatus.' };
+      }
       return { ok: false, melding: claim.error.message };
+    }
+    if (!claim.data?.id) {
+      // Een INSERT zonder leesbare bevestiging bewijst niet dat de unieke
+      // verzendclaim is vastgelegd. De provider mag dan nooit worden benaderd.
+      return { ok: false, melding: 'De verzendclaim kon niet worden bevestigd. Er is geen mail verstuurd; controleer het dossier.' };
     }
     if (pakket?.ok && pakketVersie) {
       const link = await bewaarTekenlink(input.client, Number(input.boekingId), pakketVersie.versie, context.bron.email);
@@ -445,16 +536,61 @@ export async function pasDocumentenflowToe(input: {
         return { ok: false, melding: opnieuw.ok ? 'Er is geen mail verstuurd.' : opnieuw.melding };
       }
       plan.mail = opnieuw.mail;
-      plan.mail.bijlagen = [{
-        bestandsnaam: pakket.bijlage.bestandsnaam,
-        tekst: plan.mail.bijlagen[0]?.tekst ?? '',
-        bytes: pakket.bijlage.inhoud,
-      }];
+      const bron = {
+        tekst: pakketVersie.tekst,
+        voorwaardenTekst: pakketVersie.voorwaardenTekst,
+        huisregelsTekst: pakketVersie.huisregelsTekst,
+        plattegrondTekst: pakketVersie.plattegrondTekst,
+        soort: context.bron.soort,
+      };
+      let bijlagen = [pakket.bijlage];
+      if (driePdf) {
+        const factuurResultaat = plan.mail.soort === 'proef'
+          ? await bekijkFactuurConcept(input.client, context, pakketVersie)
+          : await geefFactuurVoorContract(input.client, context, pakketVersie, { betalingscommunicatieAan: true });
+        if (!factuurResultaat.ok) {
+          await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+          return factuurResultaat;
+        }
+        factuurId = factuurResultaat.id;
+        factuurEerderVerzonden = factuurResultaat.eerderVerzonden === true;
+        if (factuurEerderVerzonden && plan.mail.soort === 'contract') {
+          await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+          return { ok: false, melding: 'De factuur bij deze contractversie is al eerder verzonden. Controleer de verzending; niet opnieuw als eerste contractmail versturen.' };
+        }
+        try {
+          bijlagen = [...maakDrieContractBijlagen(bron, pakketVersie.contractnummer, factuurResultaat.factuur, plan.mail.soort === 'proef')];
+        } catch (error) {
+          await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+          return { ok: false, melding: error instanceof Error ? error.message : 'De PDF-bijlagen zijn ongeldig.' };
+        }
+        const brief = contractMailDriePdf({
+          naam: context.bron.huurderNaam,
+          contractnummer: pakketVersie.contractnummer,
+          versie: pakketVersie.versie,
+          link: link.link,
+          verlooptOp: link.verloopt,
+        });
+        plan.mail.onderwerp = brief.onderwerp;
+        plan.mail.tekst = brief.tekst;
+        plan.mail.html = brief.html;
+        plan.mail.berichtsoort = 'betaling';
+        if (factuurId != null) {
+          factuurPad = `facturen/${input.boekingId}/${factuurResultaat.factuur.factuurnummer}.pdf`;
+          factuurSha = sha256Hex(bijlagen[2].inhoud);
+        }
+      }
+      plan.mail.bijlagen = bijlagen.map((bestand) => ({
+        bestandsnaam: bestand.bestandsnaam,
+        tekst: '',
+        bytes: bestand.inhoud,
+      }));
       const blokkade = contractmailMagWeg({
         tekst: plan.mail.tekst,
         link: link.link,
-        bijlagen: [{ bestandsnaam: pakket.bijlage.bestandsnaam, inhoud: pakket.bijlage.inhoud }],
+        bijlagen,
         contractnummer: pakketVersie.contractnummer,
+        pakketDrie: driePdf,
       });
       if (blokkade) {
         await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
@@ -462,46 +598,96 @@ export async function pasDocumentenflowToe(input: {
       }
       const pad = `contracten/${input.boekingId}/pakket-v${pakketVersie.versie}.pdf`;
       const opslag = input.client as DossierSessie & {
-        storage?: { from(bucket: string): { upload(pad: string, body: Uint8Array, opties: { contentType: string; upsert: boolean }): Promise<{ error: { message: string } | null }> } };
+        storage?: { from(bucket: string): PdfBucket };
       };
       if (!opslag.storage?.from) {
         await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
-        return { ok: false, melding: 'Het PDF-bestand is niet opgeslagen. Er is geen mail verstuurd.' };
+        return { ok: false, melding: 'De documentopslag is niet bereikbaar. Er is geen mail verstuurd.' };
       }
-      const upload = await opslag.storage.from('booking-documents').upload(pad, pakket.bijlage.inhoud, { contentType: 'application/pdf', upsert: true });
-      if (upload.error) {
-        await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
-        return { ok: false, melding: 'Het PDF-bestand is niet opgeslagen. Er is geen mail verstuurd.' };
+      const stukken = [{ pad, inhoud: pakket.bijlage.inhoud }, ...(
+        driePdf ? bijlagen.map((bestand, i) => ({
+          pad: i === 0 ? `contracten/${input.boekingId}/overeenkomst-v${pakketVersie!.versie}.pdf`
+            : i === 1 ? `contracten/${input.boekingId}/voorwaarden-v${pakketVersie!.versie}.pdf`
+              : factuurPad ?? `contracten/${input.boekingId}/proef-factuur-v${pakketVersie!.versie}.pdf`,
+          inhoud: bestand.inhoud,
+        })) : [])];
+      const bucket = opslag.storage.from('booking-documents');
+      for (const stuk of stukken) {
+        const upload = await bewaarOnveranderlijkePdf(bucket, stuk.pad, stuk.inhoud);
+        if (!upload.ok) {
+          await zetStatus(plan.mail.idempotentie, 'geweigerd', null);
+          return { ok: false, melding: `${upload.melding} (${stuk.pad}). Er is geen mail verstuurd.` };
+        }
       }
-      manifest = [pakket.manifest];
+      manifest = driePdf
+        ? bijlagen.map((bestand) => ({ bestandsnaam: bestand.bestandsnaam, bytes: bestand.inhoud.byteLength,
+          sha256: sha256Hex(bestand.inhoud), mime: 'application/pdf' as const }))
+        : [pakket.manifest];
     }
-    let uit: { verzonden: boolean; berichtId: string | null; melding: string };
+    let uit: { verzonden: boolean; berichtId: string | null; melding: string; providerAangeroepen?: boolean };
+    let providerOnbekend = false;
     try {
       uit = await input.verstuur(plan.mail);
     } catch (error) {
+      providerOnbekend = true;
       uit = { verzonden: false, berichtId: null, melding: veiligLog(error instanceof Error ? error.message : 'Verzenden mislukt.') };
     }
     if (uit.verzonden && !uit.berichtId) {
       return { ok: false, melding: 'De mailprovider gaf geen mail-ID. De verzending blijft bezig en is niet opnieuw gestart.' };
     }
-    const geaccepteerd = Boolean(uit.berichtId);
-    await zetStatus(plan.mail.idempotentie, geaccepteerd ? 'verzonden' : 'geweigerd', uit.berichtId);
+    // Bij een time-out kan de provider het bericht al hebben geaccepteerd.
+    // De claim blijft bewust 'bezig' totdat het providerbericht gecontroleerd is.
+    // 'geweigerd' zou een latere dubbele verzending mogelijk maken.
+    if (contractProviderUitkomstOnzeker({ livePakket, providerWierpFout: providerOnbekend, verzonden: uit.verzonden, providerAangeroepen: uit.providerAangeroepen })) {
+      return { ok: false, melding: 'De providerstatus is onzeker. Er wordt niet automatisch opnieuw verstuurd. Controleer de verzendclaim en Resend voordat deze wordt vrijgegeven.' };
+    }
+    const geaccepteerd = uit.verzonden && Boolean(uit.berichtId);
+    const statusVastgelegd = await zetStatus(plan.mail.idempotentie, geaccepteerd ? 'verzonden' : 'geweigerd', geaccepteerd ? uit.berichtId : null);
+    if (!statusVastgelegd) {
+      // De provider kan de mail al hebben afgeleverd. Geef de tekenlink alsnog
+      // vrij als dat veilig kan; blijf de ontbrekende verzendregistratie tonen
+      // als handmatig te herstellen incident. Er mag nooit blind opnieuw uit.
+      if (geaccepteerd && (plan.mail.soort === 'contract' || plan.mail.soort === 'herhaling')) {
+        await input.client.from('contract_tekeningen').update({ vrijgegeven: true })
+          .eq('boeking_id', Number(input.boekingId)).eq('versie', plan.mail.versie);
+      }
+      return { ok: false, melding: geaccepteerd
+        ? 'De mailprovider heeft het contract geaccepteerd, maar registratie van de verzendstatus is mislukt. Niet opnieuw verzenden: controleer de provider en het dossier handmatig.'
+        : 'De mailstatus kon niet worden vastgelegd. Controleer de verzendpoging voordat je opnieuw verzendt.' };
+    }
+    // Na acceptatie door de mailprovider eerst de tekenlink vrijgeven. Ook als
+    // een latere administratieve registratie faalt, moet de reeds ontvangen
+    // mail bruikbaar blijven; de mail mag niet opnieuw worden verstuurd.
     if (geaccepteerd && (plan.mail.soort === 'contract' || plan.mail.soort === 'herhaling')) {
-      await input.client.from('contract_tekeningen').update({ vrijgegeven: true }).eq('boeking_id', Number(input.boekingId)).eq('versie', plan.mail.versie);
+      const vrijgave = await input.client.from('contract_tekeningen').update({ vrijgegeven: true }).eq('boeking_id', Number(input.boekingId)).eq('versie', plan.mail.versie);
+      if (vrijgave.error) return { ok: false, melding: 'Contract is geaccepteerd door de mailprovider, maar de ondertekenlink kon niet worden vrijgegeven. Controleer het dossier; niet opnieuw mailen.' };
     }
     if (!geaccepteerd) {
       await input.client.from('contract_tekeningen').update({ verloopt_op: new Date().toISOString(), vrijgegeven: false }).eq('boeking_id', Number(input.boekingId)).eq('versie', plan.mail.versie);
       return { ok: false, melding: uit.melding || 'De mailprovider heeft de mail niet geaccepteerd. Er is niets als verzonden genoteerd.' };
     }
-    if (plan.mail.soort === 'contract' || plan.mail.soort === 'herhaling') {
+    if (factuurId != null && factuurPad && factuurSha && !factuurEerderVerzonden) {
+      const genoteerd = await markeerFactuurVerzonden(input.client, factuurId, uit.berichtId!, factuurPad, factuurSha);
+      if (!genoteerd) return { ok: false, melding: 'De mailprovider heeft de factuur geaccepteerd, maar de factuurregistratie is niet afgerond. Niet opnieuw verzenden; controleer het dossier.' };
+    }
+    // Een herhalingsmail is geen nieuwe contractuitgifte en maakt geen
+    // dubbele documentrijen aan. De eerdere factuur en PDF blijven leidend.
+    if (plan.mail.soort === 'contract') {
       await input.client.from('documenten').insert({
         boeking_id: Number(input.boekingId),
         type: 'contract',
-        bestandsnaam: manifest[0]?.bestandsnaam || `${plan.mail.versie}.pdf`,
+        bestandsnaam: pakket?.ok ? pakket.manifest.bestandsnaam : `${plan.mail.versie}.pdf`,
         storage_pad: `contracten/${input.boekingId}/pakket-v${plan.mail.versie}.pdf`,
         mime_type: 'application/pdf',
-        grootte_bytes: manifest[0]?.bytes ?? null,
+        grootte_bytes: pakket?.ok ? pakket.manifest.bytes : null,
       });
+      if (driePdf && factuurId != null && factuurPad && manifest.length === 3) {
+        await input.client.from('documenten').insert({
+          boeking_id: Number(input.boekingId), type: 'factuur', bestandsnaam: manifest[2].bestandsnaam,
+          storage_pad: factuurPad, mime_type: 'application/pdf', grootte_bytes: manifest[2].bytes,
+          merge_velden: { factuur_id: factuurId, versie: plan.mail.versie },
+        });
+      }
     }
   }
   if (input.actie.soort === 'ondertekend' && !input.bestand) {

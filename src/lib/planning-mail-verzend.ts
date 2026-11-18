@@ -121,6 +121,7 @@ export async function verstuurPlanningMail(input: {
           modus: oordeel.modus,
           bedoeldeOntvanger: ontvanger.email,
           idempotentieSleutel: `planning-mail/${claim.id}/${ontvanger.email}`,
+          berichtsoort: 'geen_betaling',
         },
         { modus: oordeel.modus, env, transport: input.transport, register: input.register },
       );

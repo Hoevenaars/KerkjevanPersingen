@@ -404,27 +404,32 @@ async function leesAanvraag(client: DossierSessie, id: number): Promise<Aanvraag
   return data as unknown as AanvraagRij;
 }
 
-async function afwijzen(client: DossierSessie, id: number, reden: string, actor: Actor): Promise<DossierResultaat> {
-  if (!mag(actor, 'aanvragen')) return { ok: false, melding: 'Geen recht om een aanvraag af te wijzen.' };
-  if (!reden.trim()) return { ok: false, melding: 'Vul een afwijsreden in. Er is niets gewijzigd.' };
+async function afwijzen(client: DossierSessie, id: number, reden: string, actor: Actor, zonderToelichting = false): Promise<DossierResultaat> {
+  if (!mag(actor, 'aanvragen') || (zonderToelichting && !magSchrijven(rechtenVan(actor), 'instellingen'))) {
+    return { ok: false, melding: 'Geen recht om deze aanvraag als bestuursbesluit af te wijzen.' };
+  }
+  if (!reden.trim() && !zonderToelichting) return { ok: false, melding: 'Vul een afwijsreden in. Er is niets gewijzigd.' };
+  const afwijsreden = reden.trim() || 'De activiteit past niet binnen de mogelijkheden van het Kerkje van Persingen.';
   const aanvraag = await leesAanvraag(client, id);
   if ('fout' in aanvraag) return { ok: false, melding: aanvraag.fout };
   const poort = magStatusZetten(aanvraag.status as AanvraagStatus, 'afgewezen', rechtenVan(actor));
   if (!poort.ok) return { ok: false, melding: poort.melding ?? 'Overgang geweigerd.' };
-  const { error } = await client
+  const gewijzigd = await client
     .from('aanvragen')
-    .update({ status: 'afgewezen', afwijsreden: reden.trim() || null })
+    .update({ status: 'afgewezen', afwijsreden })
     .eq('id', id)
+    .eq('status', aanvraag.status)
     .select('id')
     .maybeSingle();
-  if (error) return { ok: false, melding: leesbareAuthFout(error.message) };
+  if (gewijzigd.error) return { ok: false, melding: leesbareAuthFout(gewijzigd.error.message) };
+  if (!gewijzigd.data?.id) return { ok: false, melding: 'De aanvraag is niet bijgewerkt. Er is niets als afgewezen bevestigd.' };
   await audit(client, actor, {
     actie: 'afgewezen',
     type: 'aanvraag',
     id: String(id),
     van: aanvraag.status,
     naar: 'afgewezen',
-    reden,
+    reden: afwijsreden,
     dedup: `aanvraag:${id}:afgewezen`,
   });
   return { ok: true, melding: 'Aanvraag afgewezen. Er is geen mail verstuurd.' };
@@ -523,6 +528,58 @@ async function geschikt(client: DossierSessie, id: number, actor: Actor): Promis
     dedup: `aanvraag:${id}:geschikt`,
   });
   return { ok: true, melding: 'Activiteit beoordeeld als geschikt. Er is nog geen boeking en er is geen mail verstuurd.' };
+}
+
+/**
+ * Een bestuurs-Ja reserveert atomair via een beveiligde RPC met expliciete
+ * rechtencontrole, ook wanneer RLS een bezetting zou verbergen.
+ * De oude actie `goedkeuren` blijft bestaan voor bestaande koppelingen.
+ * Zonder migratie weigeren we fail-closed: geen losse insert/update.
+ */
+async function keurActiviteitDirectGoed(
+  client: DossierSessie,
+  id: number,
+  actor: Actor,
+): Promise<DossierResultaat> {
+  if (!Number.isSafeInteger(id) || id <= 0) return { ok: false, melding: 'Ongeldige aanvraag. Er is niets gewijzigd.' };
+  if (!mag(actor, 'aanvragen') || !magSchrijven(rechtenVan(actor), 'instellingen')) {
+    return { ok: false, melding: 'Alleen een bestuurder met aanvraagrechten kan deze activiteit goedkeuren en een optie vastleggen.' };
+  }
+  const aanvraag = await leesAanvraag(client, id);
+  if ('fout' in aanvraag) return { ok: false, melding: aanvraag.fout };
+  if (aanvraag.boeking_id != null && aanvraag.status === 'goedgekeurd') {
+    return { ok: true, aanvraagId: String(id), boekingId: String(aanvraag.boeking_id), melding: 'De activiteit was al goedgekeurd. Er is niets dubbel vastgelegd.' };
+  }
+  const poort = magStatusZetten(aanvraag.status as AanvraagStatus, 'goedgekeurd', rechtenVan(actor));
+  if (!poort.ok) return { ok: false, melding: poort.melding ?? 'Deze beoordeling is niet toegestaan.' };
+  if (!aanvraag.start_datum || !aanvraag.eind_datum) return { ok: false, melding: 'De aangevraagde periode ontbreekt.' };
+  const wereld = await wereldVoorGoedkeuren(client);
+  if ('fout' in wereld) return { ok: false, melding: wereld.fout };
+  const beeld = beoordeelAanvraag({
+    id: String(aanvraag.id), status: aanvraag.status, naam: aanvraag.naam,
+    start: aanvraag.start_datum, eind: aanvraag.eind_datum, boekingId: undefined,
+  }, wereld);
+  const vrij = magGoedkeuren(beeld, aanvraag.status, { direct: true });
+  if (!vrij.ok) return { ok: false, melding: vrij.melding ?? 'De periode is niet vrij.' };
+  if (!client.rpc) return { ok: false, melding: 'De veilige reserveringsfunctie is niet beschikbaar. Er is niets opgeslagen.' };
+  const antwoord = await client.rpc('keur_aanvraag_en_reserveer', { p_aanvraag_id: id });
+  if (antwoord.error) return { ok: false, melding: leesbareAuthFout(antwoord.error.message) };
+  const data = antwoord.data && typeof antwoord.data === 'object' && !Array.isArray(antwoord.data)
+    ? antwoord.data as Record<string, unknown> : null;
+  const boekingId = Number(data?.boekingId);
+  if (!Number.isSafeInteger(boekingId) || boekingId <= 0) {
+    return { ok: false, melding: 'De reservering is niet bevestigd door de database. Controleer het dossier voordat je opnieuw klikt.' };
+  }
+  if (data?.alVerwerkt !== true) {
+    await audit(client, actor, {
+      actie: 'goedgekeurd', type: 'aanvraag', id: String(id), van: aanvraag.status,
+      naar: 'goedgekeurd', dedup: `aanvraag:${id}:goedgekeurd`,
+    });
+  }
+  return {
+    ok: true, aanvraagId: String(id), boekingId: String(boekingId),
+    melding: 'Ja, activiteit goedgekeurd en optie vastgelegd. Het contract staat klaar om de ontbrekende gegevens aan te vullen; er is nog geen mail verstuurd.',
+  };
 }
 
 async function goedkeuren(client: DossierSessie, id: number, actor: Actor): Promise<DossierResultaat> {
@@ -837,8 +894,14 @@ export async function voerDossierViaSessie(
   if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'afwijzen') {
     return afwijzen(client, Number(opdracht.aanvraagId), opdracht.reden ?? '', actor);
   }
+  if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'afwijzen_direct') {
+    return afwijzen(client, Number(opdracht.aanvraagId), opdracht.reden ?? '', actor, true);
+  }
   if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'in_behandeling') {
     return geschikt(client, Number(opdracht.aanvraagId), actor);
+  }
+  if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'goedkeuren_direct') {
+    return keurActiviteitDirectGoed(client, Number(opdracht.aanvraagId), actor);
   }
   if (opdracht.soort === 'beoordeel' && opdracht.besluit === 'goedkeuren') {
     return goedkeuren(client, Number(opdracht.aanvraagId), actor);

@@ -4,6 +4,7 @@
  */
 
 import { kerkjeMail } from '../lib/kerkje-mail.ts';
+import { berichtsoortVoorSjabloon, type Berichtsoort } from './betalingscommunicatie.ts';
 import { magAutomatiseringUitvoeren, type Automatisering } from './automatisering.ts';
 import { onderwerpUitTemplate, renderMailBericht } from './mailtemplates/render.ts';
 import type { MailTemplateDef } from './mailtemplates/types.ts';
@@ -42,6 +43,7 @@ export interface GeplandeTestmail {
     templateId?: string;
     richting: 'intern' | 'aanvrager';
     bedoeldeOntvanger: string;
+    berichtsoort: Berichtsoort;
   };
 }
 
@@ -78,7 +80,13 @@ function pak(
     templateId: extra.templateId,
     richting: extra.richting,
     bedoeldeOntvanger: adres,
+    berichtsoort: soortVan(item.sleutel, extra.templateId),
   };
+}
+
+function soortVan(sleutel: string, sjabloon?: string): Berichtsoort {
+  return berichtsoortVoorSjabloon(sjabloon)
+    ?? (sleutel === 'betaalherinnering' || sleutel === 'betalingscommunicatie' ? 'betaling' : 'geen_betaling');
 }
 
 function proeftekst(item: Automatisering, adres: string): NonNullable<GeplandeTestmail['bericht']> {

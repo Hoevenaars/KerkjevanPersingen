@@ -125,6 +125,22 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
     gewijzigdOp: null,
   },
   {
+    sleutel: 'betalingscommunicatie',
+    naam: 'Betalingscommunicatie',
+    omschrijving: 'Centrale poort voor betalingsverzoeken, facturen, herinneringen en betaallinks. Blijft uit tot iemand deze schakelaar zelf op Aan zet. Een featurevlag of deployment zet haar niet aan.',
+    categorie: 'automatisering',
+    status: 'uit',
+    mailcategorie: 'automatisering',
+    trigger: 'Elke route die een betaling vraagt of een factuur meestuurt',
+    actieveTrigger: true,
+    ontvangerstype: 'Huurder en finance',
+    risicovol: true,
+    laatsteRun: null,
+    laatsteResultaat: null,
+    gewijzigdDoor: null,
+    gewijzigdOp: null,
+  },
+  {
     sleutel: 'betaalherinnering',
     naam: 'Betaalherinneringen',
     omschrijving: 'Betalingsherinnering, laatste herinnering en interne escalatie bij een open betaling.',
@@ -420,6 +436,7 @@ const GEKOPPELDE_FLOW: Record<string, string> = {
   aanvraag_bevestiging: 'Verhuurformulier',
   workflow: 'Cron /api/cron/workflow',
   nieuwsbrief: 'Nieuwsbriefcron',
+  betalingscommunicatie: 'Elke betalings- of factuurroute',
   betaalherinnering: 'Planner',
   statusmail_huurder: 'Dossieractie',
   content_herinnering: 'Planner',
@@ -480,6 +497,12 @@ export function technischeGereedheid(item: Automatisering): { status: Technische
         status: 'geblokkeerd',
         label: 'Geblokkeerd',
         toelichting: 'De contactpagina heeft geen formulier. Deze schakelaar verstuurt daarom geen bericht.',
+      };
+    case 'betalingscommunicatie':
+      return {
+        status: 'aandacht',
+        label: 'Aandacht nodig',
+        toelichting: 'Staat standaard uit. Zolang deze schakelaar uit staat, gaan er geen betalingsverzoeken, facturen, herinneringen of betaallinks de deur uit. Een featurevlag zet haar niet aan.',
       };
     case 'betaalherinnering':
       return {

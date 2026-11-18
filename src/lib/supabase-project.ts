@@ -8,6 +8,19 @@ export const STANDAARD_SUPABASE_URL = 'https://xskqpefeumylrticrphp.supabase.co'
 export const STANDAARD_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_Xygy4sCKoWc7WJc3Wh1PWQ_io5qJrph';
 export const STANDAARD_SUPER_ADMIN_EMAIL = 'nhoevenaars@gmail.com';
 
+/** Host van de enige productiedatabase. Preview-verkeer mag hier niet naartoe schrijven. */
+export const PRODUCTIE_SUPABASE_HOST = 'xskqpefeumylrticrphp.supabase.co';
+
+/**
+ * True wanneer een Vercel-preview de productiedatabase zou raken.
+ * Productie, lokale ontwikkeling en een preview met een andere host blijven ongemoeid.
+ */
+export function previewRaaktProductie(env: Record<string, unknown> = process.env): boolean {
+  if (env.VERCEL_ENV !== 'preview') return false;
+  const url = eerste(env.SUPABASE_URL, env.PUBLIC_SUPABASE_URL, STANDAARD_SUPABASE_URL);
+  return url.includes(PRODUCTIE_SUPABASE_HOST);
+}
+
 export function supabaseLoginUitOmgeving(
   env: Record<string, unknown>,
   gebruikStandaard = false,

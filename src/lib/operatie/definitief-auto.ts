@@ -33,10 +33,10 @@ async function rijen(
   kolommen: string,
   kolom: string,
   waarde: unknown,
-): Promise<Rij[]> {
+): Promise<{ ok: true; data: Rij[] } | { ok: false }> {
   const antwoord = await client.from(tabel).select(kolommen).eq(kolom, waarde);
-  if (antwoord.error) return [];
-  return antwoord.data ?? [];
+  if (antwoord.error || !Array.isArray(antwoord.data)) return { ok: false };
+  return { ok: true, data: antwoord.data };
 }
 
 export async function promoveerIndienKlaar(
@@ -52,8 +52,9 @@ export async function promoveerIndienKlaar(
     .select('id,status,start_datum,eind_datum,aanvraag_id,aanbetaling_bedrag,aanbetaling_ontvangen,nummer')
     .eq('id', boekingId)
     .maybeSingle();
-  if (boeking.error || !boeking.data) {
-    return { ok: true, gepromoveerd: false, melding: 'De boeking is niet definitief gemaakt.' };
+  if (boeking.error) return { ok: false, gepromoveerd: false, melding: 'De boeking kon niet worden gelezen. Definitief maken is geblokkeerd.' };
+  if (!boeking.data) {
+    return { ok: true, gepromoveerd: false, melding: 'De boeking is niet gevonden.' };
   }
   const status = tekst(boeking.data.status);
   if (status !== 'optie' && status !== 'optie_verlopen') {
@@ -63,8 +64,12 @@ export async function promoveerIndienKlaar(
   const aanvraag = aanvraagId == null
     ? null
     : await client.from('aanvragen').select('id,status').eq('id', aanvraagId).maybeSingle();
+  if (aanvraag?.error || (aanvraagId != null && !aanvraag?.data)) {
+    return { ok: false, gepromoveerd: false, melding: 'De aanvraag kon niet worden gecontroleerd. Boeking blijft op optie.' };
+  }
   const versies = await rijen(client, 'contractversies', 'versie,ondertekening,bestuur,bestuur_verplicht', 'boeking_id', boekingId);
-  const huidig = versies.reduce<Rij | null>((hoogste, rij) => {
+  if (!versies.ok) return { ok: false, gepromoveerd: false, melding: 'De contractversies konden niet worden gecontroleerd. Boeking blijft op optie.' };
+  const huidig = versies.data.reduce<Rij | null>((hoogste, rij) => {
     if (!hoogste || Number(rij.versie) > Number(hoogste.versie)) return rij;
     return hoogste;
   }, null);
@@ -76,14 +81,16 @@ export async function promoveerIndienKlaar(
     }
     : null;
   const betalingen = await rijen(client, 'betalingen', 'soort,status', 'boeking_id', boekingId);
+  if (!betalingen.ok) return { ok: false, gepromoveerd: false, melding: 'De betalingen konden niet worden gecontroleerd. Boeking blijft op optie.' };
   const betaling = aanbetalingVoorwaarde(
-    betalingen.map((rij) => ({ soort: tekst(rij.soort), status: tekst(rij.status) })),
+    betalingen.data.map((rij) => ({ soort: tekst(rij.soort), status: tekst(rij.status) })),
     boeking.data.aanbetaling_ontvangen === true,
   );
   const anderen = await client.from('boekingen').select('id,status,start_datum,eind_datum').in('status', ['optie', 'definitief']);
+  if (anderen.error || !Array.isArray(anderen.data)) return { ok: false, gepromoveerd: false, melding: 'De bezetting kon niet worden gecontroleerd. Boeking blijft op optie.' };
   const start = tekst(boeking.data.start_datum);
   const eind = tekst(boeking.data.eind_datum);
-  const overlapt = (anderen.data ?? []).some((rij) => {
+  const overlapt = anderen.data.some((rij) => {
     if (Number(rij.id) === boekingId) return false;
     if (!statusTeltVoorOverlap(tekst(rij.status))) return false;
     return periodesOverlappen(

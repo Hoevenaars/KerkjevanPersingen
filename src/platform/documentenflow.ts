@@ -138,6 +138,8 @@ export interface FlowMail {
   bijlagen: { bestandsnaam: string; tekst: string; bytes?: Uint8Array }[];
   teltAlsVerzonden: boolean;
   versie: number;
+  /** De samensteller zet dit. De transportlaag leidt het niet af uit de tekst of de bestandsnaam. */
+  berichtsoort: 'betaling' | 'geen_betaling';
 }
 
 export type FlowActie =
@@ -445,7 +447,7 @@ export function contractTekst(
     `Vervaldatum restbetaling: ${restRegel.verval}`,
     `Betalingskenmerk: ${contractnummer}`,
     `Betaalgegevens: ${schoon(instellingen.tenaamstelling)}, ${instellingen.iban}`,
-    'Een eventueel betaalverzoek of factuur wordt apart verstrekt. Deze huurovereenkomst is zelf geen factuur.',
+    'Deze huurovereenkomst is zelf geen factuur. Een eventueel bijbehorende factuur wordt als afzonderlijk document verstrekt.',
     'Het boekingsnummer blijft gelijk bij een nieuwe documentversie. Het betalingskenmerk hoort bij deze versie.',
     '',
     '4. Voorwaarden en zorgvuldig gebruik',
@@ -697,6 +699,9 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
     if (actie.soort === 'akkoord' && huidig.bestuur === 'akkoord') {
       return { ok: true, melding: 'Deze versie is al goedgekeurd.', versies: [...context.versies], mail: null, promoveer: false };
     }
+    if (huidig.bestuur === 'terug' && actie.soort === 'akkoord') {
+      return weiger('Dit contract is teruggestuurd. Maak eerst een verbeterde nieuwe contractversie.');
+    }
     if (!['open', 'wacht', 'terug'].includes(huidig.bestuur)) return weiger('Deze versie kan niet worden goedgekeurd.');
     const terug = actie.soort === 'terug';
     return {
@@ -771,6 +776,7 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
         bijlagen: [{ bestandsnaam: `${huidig.contractnummer}.pdf`, tekst: bijlage }],
         teltAlsVerzonden: doel.telt,
         versie: huidig.versie,
+        berichtsoort: 'geen_betaling',
       },
     };
   }
@@ -843,6 +849,7 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
           : [],
         teltAlsVerzonden: doel.telt,
         versie: huidig.versie,
+        berichtsoort: 'geen_betaling',
       },
     };
   }
@@ -875,6 +882,7 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
       bijlagen: [],
       teltAlsVerzonden: true,
       versie: huidig.versie,
+      berichtsoort: 'geen_betaling',
     } : null,
   };
 }
@@ -915,6 +923,7 @@ export interface ContractOpvolgingWeergave {
   nummerVoorOndertekening: string;
   versieVoorOndertekening: string;
   aandacht: string[];
+  betalingscommunicatie: 'uit' | 'test' | 'aan' | null;
 }
 
 export function bouwOpvolging(input: {
@@ -927,6 +936,7 @@ export function bouwOpvolging(input: {
   bekijkHref: string;
   fout: string;
   modus: 'uit' | 'test' | 'aan';
+  betalingscommunicatie?: 'uit' | 'test' | 'aan' | null;
 }): ContractOpvolgingWeergave {
   const huidig = laatste(input.versies);
   const afspraken = huidig?.afspraken ?? { tijdVan: '', tijdTot: '', opbouw: '', afbouw: '', contactpersoon: input.bron.huurderNaam };
@@ -1001,6 +1011,16 @@ export function bouwOpvolging(input: {
         : 'Nog niet',
     },
     { label: 'Aanbetaling ontvangen', waarde: input.betaling.stand === 'ontvangen' ? 'Ontvangen' : (input.bron.aanbetalingCent ?? 0) <= 0 ? 'Niet vereist' : input.betaling.stand === 'open' ? 'Nog niet' : 'Niet vastgelegd' },
+    ...(input.betalingscommunicatie
+      ? [{
+          label: 'Betalingscommunicatie',
+          waarde: input.betalingscommunicatie === 'aan'
+            ? 'Aan'
+            : input.betalingscommunicatie === 'test'
+              ? 'Test. Er gaat niets naar de huurder en er wordt geen factuurnummer uitgegeven.'
+              : 'Uit. Het contract en de conceptfactuur kunnen worden bekeken. Er wordt geen factuur uitgegeven en er gaat geen betalingsmail uit.',
+        }]
+      : []),
     {
       label: 'Definitieve bevestiging',
       waarde: alVerzonden(input.versies, 'bevestiging') ? 'Verstuurd' : 'Nog niet verstuurd',
@@ -1021,9 +1041,9 @@ export function bouwOpvolging(input: {
     kanOpnieuw: beheer && klaar && akkoord && verzonden && input.modus === 'aan',
     kanProef: beheer && klaar && akkoord && input.modus !== 'uit',
     kanVoorleggen: false,
-    kanGoedkeuren: bestuur && Boolean(huidig?.bestuurVerplicht) && past && huidig?.bestuur !== 'akkoord',
-    kanAkkoord: bestuur && Boolean(huidig?.bestuurVerplicht) && past && huidig?.bestuur !== 'akkoord',
-    kanTerug: bestuur && huidig?.bestuur === 'wacht',
+    kanGoedkeuren: bestuur && beheer && Boolean(huidig?.bestuurVerplicht) && past && !ingetrokken && (huidig?.bestuur === 'open' || huidig?.bestuur === 'wacht') && input.modus === 'aan',
+    kanAkkoord: bestuur && beheer && Boolean(huidig?.bestuurVerplicht) && past && !ingetrokken && (huidig?.bestuur === 'open' || huidig?.bestuur === 'wacht') && input.modus === 'aan',
+    kanTerug: bestuur && Boolean(huidig?.bestuurVerplicht) && !ingetrokken && (huidig?.bestuur === 'open' || huidig?.bestuur === 'wacht'),
     kanOndertekenen: beheer && Boolean(huidig) && huidig?.ondertekening !== 'ontvangen',
     kanAanbetaling: (beheer || magSchrijven(input.rechten, 'finance'))
       && input.betaling.stand !== 'ontvangen'
@@ -1060,6 +1080,7 @@ export function bouwOpvolging(input: {
     nummerVoorOndertekening: huidig?.contractnummer ?? '',
     versieVoorOndertekening: huidig ? String(huidig.versie) : '',
     aandacht: contractAandachtspunten(input.bron),
+    betalingscommunicatie: input.betalingscommunicatie ?? null,
   };
 }
 

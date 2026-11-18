@@ -92,6 +92,7 @@ test('handmatig concept previewt in de Kerkje-layout en Uit belt de provider nie
       tekst: concept.text,
       html: concept.html,
       replyTo: concept.replyTo,
+      berichtsoort: 'geen_betaling' as const,
     },
     {
       register: STANDAARD_AUTOMATISERINGEN,
