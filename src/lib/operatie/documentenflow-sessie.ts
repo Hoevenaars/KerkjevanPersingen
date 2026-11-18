@@ -574,6 +574,7 @@ export async function pasDocumentenflowToe(input: {
         plan.mail.onderwerp = brief.onderwerp;
         plan.mail.tekst = brief.tekst;
         plan.mail.html = brief.html;
+        plan.mail.berichtsoort = 'betaling';
         if (factuurId != null) {
           factuurPad = `facturen/${input.boekingId}/${factuurResultaat.factuur.factuurnummer}.pdf`;
           factuurSha = sha256Hex(bijlagen[2].inhoud);

@@ -5,7 +5,7 @@
 
 import { besluitVoor } from './automatisering-register.ts';
 import { MailGeblokkeerd, type Automatisering, type Verzendbesluit } from '../platform/automatisering.ts';
-import { BETALING_DICHT, raaktBetalingscommunicatie } from '../platform/betalingscommunicatie.ts';
+import { BETALING_DICHT, berichtsoortVoorSjabloon, isFinancieelBericht, type Berichtsoort } from '../platform/betalingscommunicatie.ts';
 import {
   GEEN_TESTMAILADRES,
   pasTestmodusToe,
@@ -37,6 +37,11 @@ export interface MailBericht {
   idempotentieSleutel?: string;
   /** Korte labels voor de verzender, bijvoorbeeld editie en vriend. Geen inhoud van de mail. */
   tags?: { name: string; value: string }[];
+  /**
+   * Zet de afzender bij het aanmaken van het bericht.
+   * Ontbreekt de soort, of is zij iets anders dan geen_betaling, dan geldt de betalingspoort.
+   */
+  berichtsoort?: Berichtsoort;
 }
 
 export interface ResendInhoud {
@@ -85,7 +90,7 @@ export async function verstuurGecontroleerd(
   } = {},
 ): Promise<TransportUitkomst> {
   const besluit = await besluitVoor(bericht.sleutel, opties.register, opties.env);
-  if (raaktBetalingscommunicatie(bericht)) {
+  if (isFinancieelBericht(bericht.berichtsoort)) {
     const poort = await besluitVoor('betalingscommunicatie', opties.register, opties.env);
     if (poort.modus !== 'aan' && poort.modus !== 'test') {
       return {
@@ -241,6 +246,7 @@ export async function sendInterneAanvraagMail(
       aanvragerEmail: input.aanvragerEmail ?? undefined,
       aanvragerNaam: input.aanvragerNaam ?? undefined,
       richting: 'intern',
+      berichtsoort: 'geen_betaling',
     },
     opties,
   );
@@ -270,6 +276,7 @@ export async function sendMailNaarAanvrager(
       html: input.html,
       templateId: input.templateId,
       richting: 'aanvrager',
+      berichtsoort: berichtsoortVoorSjabloon(input.templateId) ?? undefined,
     },
     opties,
   );

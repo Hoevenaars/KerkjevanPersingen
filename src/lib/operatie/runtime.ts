@@ -3,7 +3,7 @@
  */
 
 import { automatiseringVoorTemplate, magAutomatiseringUitvoeren, MailGeblokkeerd } from '../../platform/automatisering.ts';
-import { isBetalingsTemplate } from '../../platform/betalingscommunicatie.ts';
+import { berichtsoortVoorSjabloon, isBetalingsTemplate } from '../../platform/betalingscommunicatie.ts';
 import { komendeBerichten, redenBuitenWorkflow, type GeplandBericht, type KomendeBoeking } from '../../platform/mail-poort.ts';
 import { verstuurGecontroleerd } from '../mail-transport.ts';
 import { grensVoorActivatie } from '../../platform/activatiegrens.ts';
@@ -363,6 +363,7 @@ function mailTransport(env: Record<string, unknown>) {
           idempotentieSleutel: input.idempotentieSleutel
             ? besluit.modus === 'test' ? `test:${input.idempotentieSleutel}` : input.idempotentieSleutel
             : undefined,
+          berichtsoort: berichtsoortVoorSjabloon(input.templateSleutel) ?? undefined,
         },
         { env },
       );

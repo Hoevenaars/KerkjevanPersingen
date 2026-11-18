@@ -237,7 +237,7 @@ test('Een naar Test teruggezette mailschakelaar mag live contractverzending niet
     rij.sleutel === 'handmatige_template' ? { ...rij, status } : rij);
   let providers = 0;
   const transport = { async verstuur() { providers++; return 'mail-123'; } };
-  const bericht = { sleutel: 'handmatige_template', naar: 'aanvrager@example.invalid', onderwerp: 'Contract', tekst: 'Bijlage' };
+  const bericht = { sleutel: 'handmatige_template', naar: 'aanvrager@example.invalid', onderwerp: 'Contract', tekst: 'Bijlage', berichtsoort: 'geen_betaling' as const };
   for (const status of ['test', 'uit'] as const) {
     const geweigerd = await verstuurGecontroleerd(bericht, {
       register: register(status), transport, modus: 'aan', vereisteLiveModus: true,

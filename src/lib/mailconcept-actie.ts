@@ -6,6 +6,7 @@ import { besluitVoor } from './automatisering-register.ts';
 import { legVerzendingVast } from './communicatie-log.ts';
 import { verstuurGecontroleerd } from './mail-transport.ts';
 import { getTestMailRecipient } from './testmail-adres.ts';
+import { berichtsoortVoorSjabloon } from '../platform/betalingscommunicatie.ts';
 import { boekingIdVoorLog, isContractTemplate } from '../platform/contract-mail.ts';
 import { mailconceptMelding, stelMailconceptSamen } from '../platform/mailconcept.ts';
 import type { MailTemplateDef } from '../platform/mailtemplates/types.ts';
@@ -87,6 +88,7 @@ export async function verwerkMailconcept(input: {
       templateId: templateSleutel,
       bijlagen: input.bijlagen,
       eisBijlagen: Boolean(input.brief || isContractTemplate(templateSleutel)),
+      berichtsoort: berichtsoortVoorSjabloon(templateSleutel) ?? undefined,
     },
     { modus: besluit.modus, testadres, env },
   );

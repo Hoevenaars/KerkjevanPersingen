@@ -150,6 +150,7 @@ export function planSocialMediaVerzending(inhoud: SocialMediaInhoud, besluit: Ve
       html: mail.html,
       bedoeldeOntvanger: ontvanger.adres,
       richting: 'aanvrager',
+      berichtsoort: 'geen_betaling',
     },
   };
 }

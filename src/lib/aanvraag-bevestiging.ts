@@ -50,6 +50,7 @@ export async function verstuurAanvraagbevestiging(waarden: Aanvraag, aanvraagId?
         richting: 'aanvrager',
         modus: besluit.modus,
         idempotentieSleutel: dedup,
+        berichtsoort: 'geen_betaling',
       },
       { modus: besluit.modus },
     );

@@ -6,6 +6,7 @@ import { voegDagenToe } from '../src/platform/datum.ts';
 import { legeWereld, voerOpdrachtUit, type MailTransport } from '../src/lib/operatie/kern.ts';
 import {
   BETALING_DICHT,
+  berichtsoortVoorSjabloon,
   betalingscommunicatieBesluit,
   isBetalingsTemplate,
 } from '../src/platform/betalingscommunicatie.ts';
@@ -85,11 +86,11 @@ test('E uit opnieuw blokkeert cron, herhaling en een handmatige route', async ()
   });
   const transport = { async verstuur() { provider += 1; return 'mag-niet'; } };
   const herinnering = await verstuurGecontroleerd(
-    { sleutel: 'betaalherinnering', naar: 'huurder@example.com', onderwerp: 'Herinnering', tekst: 'Open betaling', templateId: 'booking_payment_reminder' },
+    { sleutel: 'betaalherinnering', naar: 'huurder@example.com', onderwerp: 'Herinnering', tekst: 'Open betaling', templateId: 'booking_payment_reminder', berichtsoort: 'betaling' },
     { register, transport },
   );
   const handmatig = await verstuurGecontroleerd(
-    { sleutel: 'handmatige_template', naar: 'huurder@example.com', onderwerp: 'Betaling', tekst: 'Rond de betaling af', templateId: 'booking_approved_payment_required' },
+    { sleutel: 'handmatige_template', naar: 'huurder@example.com', onderwerp: 'Betaling', tekst: 'Rond de betaling af', templateId: 'booking_approved_payment_required', berichtsoort: 'betaling' },
     { register, transport },
   );
   const factuurBijlage = await verstuurGecontroleerd(
@@ -98,7 +99,8 @@ test('E uit opnieuw blokkeert cron, herhaling en een handmatige route', async ()
       naar: 'huurder@example.com',
       onderwerp: 'Contract',
       tekst: 'Bijlage',
-      bijlagen: [{ bestandsnaam: 'factuur-van-het-moment.pdf', inhoud: new Uint8Array([1]) }],
+      bijlagen: [{ bestandsnaam: 'Factuur-KVPF-2026-000001.pdf', inhoud: new Uint8Array([1]) }],
+      berichtsoort: 'betaling',
     },
     { register, transport },
   );
@@ -234,13 +236,13 @@ test('expliciet aan laat alleen de nieuwe stap toe en uit daarna blokkeert de re
   let provider = 0;
   const aan = registerMet({ betalingscommunicatie: 'actief', betaalherinnering: 'actief' });
   const live = await verstuurGecontroleerd(
-    { sleutel: 'betaalherinnering', naar: 'klant@example.nl', onderwerp: 'Herinnering', tekst: 'Open', templateId: 'booking_payment_reminder' },
+    { sleutel: 'betaalherinnering', naar: 'klant@example.nl', onderwerp: 'Herinnering', tekst: 'Open', templateId: 'booking_payment_reminder', berichtsoort: 'betaling' as const },
     { register: aan, transport: { async verstuur() { provider += 1; return 'id-1'; } }, env: { VERCEL_ENV: 'production' } },
   );
   assert.equal(live.providerAangeroepen, true);
   const uit = registerMet({ betalingscommunicatie: 'uit', betaalherinnering: 'actief' });
   const retry = await verstuurGecontroleerd(
-    { sleutel: 'betaalherinnering', naar: 'klant@example.nl', onderwerp: 'Herinnering', tekst: 'Open', templateId: 'booking_payment_reminder' },
+    { sleutel: 'betaalherinnering', naar: 'klant@example.nl', onderwerp: 'Herinnering', tekst: 'Open', templateId: 'booking_payment_reminder', berichtsoort: 'betaling' as const },
     { register: uit, transport: { async verstuur() { provider += 1; return 'id-2'; } }, env: { VERCEL_ENV: 'production' } },
   );
   assert.equal(retry.providerAangeroepen, false);
@@ -313,4 +315,97 @@ test('F de tweede Ja verstuurt geen factuurmail en valt niet terug op een onvoll
   ]);
   assert.equal(tegelijk.every((item) => item.ok === false && item.melding === BETALING_DICHT), true);
   assert.equal(geraakt, false);
+});
+
+test('vrije tekst en een onbekend bericht zijn financieel; gewone mails blijven open', async () => {
+  assert.equal(berichtsoortVoorSjabloon('vrij'), null);
+  assert.equal(berichtsoortVoorSjabloon(''), null);
+  assert.equal(berichtsoortVoorSjabloon('onbekend_sjabloon'), null);
+  assert.equal(berichtsoortVoorSjabloon('booking_payment_reminder'), 'betaling');
+  assert.equal(berichtsoortVoorSjabloon('booking_approved_payment_required'), 'betaling');
+  assert.equal(berichtsoortVoorSjabloon('contract_begeleiding'), 'geen_betaling');
+  assert.equal(berichtsoortVoorSjabloon('huurovereenkomst'), 'geen_betaling');
+  assert.equal(berichtsoortVoorSjabloon('booking_practical_information'), 'geen_betaling');
+  assert.equal(berichtsoortVoorSjabloon('booking_content_request'), 'geen_betaling');
+
+  let provider = 0;
+  const register = registerMet({
+    betalingscommunicatie: 'uit',
+    handmatige_template: 'actief',
+    workflow: 'actief',
+    content_herinnering: 'actief',
+    herinnering: 'actief',
+  });
+  const transport = { async verstuur() { provider += 1; return 'id'; } };
+  const gevallen = [
+    { naam: 'factuur-pdf', berichtsoort: 'betaling' as const, tekst: 'Zie de factuur', templateId: 'huurovereenkomst' },
+    { naam: 'verzoek-zonder-pdf', berichtsoort: 'betaling' as const, tekst: 'Wilt u 250 euro overmaken', templateId: 'booking_approved_payment_required' },
+    { naam: 'vrije-tekst', berichtsoort: undefined, tekst: 'Maak 250 euro over op onze rekening', templateId: 'vrij' },
+    { naam: 'onbekend', berichtsoort: undefined, tekst: 'Hallo', templateId: 'zelf_bedacht' },
+    { naam: 'contract-met-factuur', berichtsoort: 'betaling' as const, tekst: 'Op de factuur staat het verschuldigde bedrag', templateId: 'huurovereenkomst' },
+  ];
+  for (const geval of gevallen) {
+    const uit = await verstuurGecontroleerd(
+      {
+        sleutel: 'handmatige_template',
+        naar: 'huurder@example.com',
+        onderwerp: geval.naam,
+        tekst: geval.tekst,
+        templateId: geval.templateId,
+        berichtsoort: geval.berichtsoort,
+      },
+      { register, transport },
+    );
+    assert.equal(uit.providerAangeroepen, false, geval.naam);
+    assert.equal(uit.melding, BETALING_DICHT, geval.naam);
+  }
+  const gewoonContract = await verstuurGecontroleerd(
+    {
+      sleutel: 'handmatige_template',
+      naar: 'huurder@example.com',
+      onderwerp: 'Uw huurovereenkomst',
+      tekst: 'Na ondertekening is de reservering nog niet definitief. Hiervoor gelden de betaalafspraken uit de overeenkomst.',
+      templateId: 'huurovereenkomst',
+      berichtsoort: 'geen_betaling',
+    },
+    { register, transport },
+  );
+  const handmatig = await verstuurGecontroleerd(
+    {
+      sleutel: 'handmatige_template',
+      naar: 'huurder@example.com',
+      onderwerp: 'Praktische informatie',
+      tekst: 'De sleutel ligt bij de begeleider.',
+      templateId: 'booking_practical_information',
+      berichtsoort: berichtsoortVoorSjabloon('booking_practical_information') ?? undefined,
+    },
+    { register, transport },
+  );
+  const automatisch = await verstuurGecontroleerd(
+    {
+      sleutel: 'content_herinnering',
+      naar: 'huurder@example.com',
+      onderwerp: 'Informatie',
+      tekst: 'Wilt u de tekst voor de website aanleveren?',
+      templateId: 'booking_content_request',
+      berichtsoort: berichtsoortVoorSjabloon('booking_content_request') ?? undefined,
+    },
+    { register, transport },
+  );
+  const zonderRij = await verstuurGecontroleerd(
+    {
+      sleutel: 'betaalherinnering',
+      naar: 'huurder@example.com',
+      onderwerp: 'Herinnering',
+      tekst: 'De betaling staat open',
+      berichtsoort: 'betaling',
+    },
+    { register: register.filter((item) => item.sleutel !== 'betalingscommunicatie'), transport },
+  );
+  assert.equal(gewoonContract.providerAangeroepen, true);
+  assert.equal(handmatig.providerAangeroepen, true);
+  assert.equal(automatisch.providerAangeroepen, true);
+  assert.equal(zonderRij.providerAangeroepen, false);
+  assert.equal(zonderRij.melding, BETALING_DICHT);
+  assert.equal(provider, 3);
 });

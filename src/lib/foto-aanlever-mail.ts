@@ -101,6 +101,7 @@ async function standaardVerstuur(brief: {
     templateId: 'foto_aanlevering',
     richting: 'aanvrager',
     idempotentieSleutel: brief.idempotentie,
+    berichtsoort: 'geen_betaling',
   });
 }
 

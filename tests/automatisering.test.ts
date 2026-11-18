@@ -24,6 +24,7 @@ const bericht = {
   naar: 'bestuur@example.nl',
   onderwerp: 'test',
   tekst: 'geen echte mail',
+  berichtsoort: 'geen_betaling' as const,
 };
 
 function verbodenTransport() {

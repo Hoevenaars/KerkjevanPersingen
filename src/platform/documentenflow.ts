@@ -138,6 +138,8 @@ export interface FlowMail {
   bijlagen: { bestandsnaam: string; tekst: string; bytes?: Uint8Array }[];
   teltAlsVerzonden: boolean;
   versie: number;
+  /** De samensteller zet dit. De transportlaag leidt het niet af uit de tekst of de bestandsnaam. */
+  berichtsoort: 'betaling' | 'geen_betaling';
 }
 
 export type FlowActie =
@@ -774,6 +776,7 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
         bijlagen: [{ bestandsnaam: `${huidig.contractnummer}.pdf`, tekst: bijlage }],
         teltAlsVerzonden: doel.telt,
         versie: huidig.versie,
+        berichtsoort: 'geen_betaling',
       },
     };
   }
@@ -846,6 +849,7 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
           : [],
         teltAlsVerzonden: doel.telt,
         versie: huidig.versie,
+        berichtsoort: 'geen_betaling',
       },
     };
   }
@@ -878,6 +882,7 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
       bijlagen: [],
       teltAlsVerzonden: true,
       versie: huidig.versie,
+      berichtsoort: 'geen_betaling',
     } : null,
   };
 }

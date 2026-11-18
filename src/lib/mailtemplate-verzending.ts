@@ -1,3 +1,4 @@
+import { berichtsoortVoorSjabloon } from '../platform/betalingscommunicatie.ts';
 import { verstuurGecontroleerd } from './mail-transport.ts';
 import { MailGeblokkeerd } from '../platform/automatisering.ts';
 
@@ -23,6 +24,7 @@ export async function verstuurTestMail(input: {
       templateId: input.templateId,
       richting: 'aanvrager',
       bedoeldeOntvanger: input.naar,
+      berichtsoort: berichtsoortVoorSjabloon(input.templateId) ?? undefined,
     });
     if (!uit.providerAangeroepen) {
       return { verzonden: false, detail: uit.melding || uit.besluit.reden };

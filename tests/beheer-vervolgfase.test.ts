@@ -68,15 +68,15 @@ test('uit en dry-run doen geen provider-call, aan behoudt de ontvanger', async (
     },
   };
   const uit = await verstuurGecontroleerd(
-    { sleutel: 'nieuwsbrief', naar: 'vriend@example.com', onderwerp: 'nb', tekst: 'x' },
+    { sleutel: 'nieuwsbrief', naar: 'vriend@example.com', onderwerp: 'nb', tekst: 'x', berichtsoort: 'geen_betaling' as const },
     { transport, modus: 'uit' },
   );
   const droog = await verstuurGecontroleerd(
-    { sleutel: 'nieuwsbrief', naar: 'vriend@example.com', onderwerp: 'nb', tekst: 'x' },
+    { sleutel: 'nieuwsbrief', naar: 'vriend@example.com', onderwerp: 'nb', tekst: 'x', berichtsoort: 'geen_betaling' as const },
     { transport, modus: 'dry-run' },
   );
   const aan = await verstuurGecontroleerd(
-    { sleutel: 'aanvraag_bestuur', naar: 'bestuur@example.com', onderwerp: 'nb', tekst: 'x' },
+    { sleutel: 'aanvraag_bestuur', naar: 'bestuur@example.com', onderwerp: 'nb', tekst: 'x', berichtsoort: 'geen_betaling' as const },
     { register: STANDAARD_AUTOMATISERINGEN, transport, modus: 'aan' },
   );
   assert.equal(uit.providerAangeroepen, false);
@@ -90,7 +90,7 @@ test('uit en dry-run doen geen provider-call, aan behoudt de ontvanger', async (
 
 test('ontbrekend testadres blokkeert zonder provider', async () => {
   const uit = await verstuurGecontroleerd(
-    { sleutel: 'mailtemplate_test', naar: 'klant@example.com', onderwerp: 'x', tekst: 'y' },
+    { sleutel: 'mailtemplate_test', naar: 'klant@example.com', onderwerp: 'x', tekst: 'y', berichtsoort: 'geen_betaling' as const },
     { register: STANDAARD_AUTOMATISERINGEN, testadres: '   ', transport: { async verstuur() { throw new Error('provider'); } } },
   );
   assert.equal(uit.providerAangeroepen, false);

@@ -131,6 +131,7 @@ if (Astro.request.method === 'POST') {
               bijlagen: mail.bijlagen.flatMap((deel) => deel.bytes ? [{ bestandsnaam: deel.bestandsnaam, inhoud: deel.bytes }] : []),
               eisBijlagen: mail.soort === 'contract' || mail.soort === 'proef' || mail.soort === 'herhaling',
               idempotentieSleutel: mail.idempotentie,
+              berichtsoort: mail.berichtsoort,
             },
             {
               modus: mail.teltAlsVerzonden ? 'aan' : 'test',
