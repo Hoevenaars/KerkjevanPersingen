@@ -134,14 +134,14 @@ export function isoWeekNummer(datum: Date): number {
   );
 }
 
-/** Vrijdag van de nieuwsbriefverzending in Amsterdam (YYYY-MM-DD). */
-function vrijdagAmsterdam(datum: Date): { jaar: number; maand: number; dag: number } {
+/** Woensdag van de nieuwsbriefverzending in Amsterdam (YYYY-MM-DD). */
+function woensdagAmsterdam(datum: Date): { jaar: number; maand: number; dag: number } {
   const ymd = datum.toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' });
   const [jaar, maand, dag] = ymd.split('-').map(Number);
   const utc = new Date(Date.UTC(jaar, maand - 1, dag, 12, 0, 0));
   const weekdag = utc.getUTCDay();
-  const naarVrijdag = weekdag <= 5 ? 5 - weekdag : 5 - weekdag + 7;
-  utc.setUTCDate(utc.getUTCDate() + naarVrijdag);
+  const naarWoensdag = weekdag <= 3 ? 3 - weekdag : 3 - weekdag + 7;
+  utc.setUTCDate(utc.getUTCDate() + naarWoensdag);
   return {
     jaar: utc.getUTCFullYear(),
     maand: utc.getUTCMonth() + 1,
@@ -149,17 +149,17 @@ function vrijdagAmsterdam(datum: Date): { jaar: number; maand: number; dag: numb
   };
 }
 
-/** Eerste vrijdag van de maand (dag 1–7). */
-export function isEersteVrijdagVanMaand(datum: Date): boolean {
-  const { dag } = vrijdagAmsterdam(datum);
+/** Eerste woensdag van de maand (dag 1–7). */
+export function isEersteWoensdagVanMaand(datum: Date): boolean {
+  const { dag } = woensdagAmsterdam(datum);
   return dag <= 7;
 }
 
 /**
  * Bepaalt of een vriend de nieuwsbrief van deze verzendronde moet ontvangen.
- * - wekelijks: elke vrijdag
+ * - wekelijks: elke woensdag
  * - tweewekelijks: om de week (even ISO-weeknummers)
- * - maandelijks: alleen op de eerste vrijdag van de maand
+ * - maandelijks: alleen op de eerste woensdag van de maand
  */
 export function ontvangtDezeVerzending(
   frequentie: VriendFrequentie | undefined,
@@ -172,6 +172,6 @@ export function ontvangtDezeVerzending(
     case 'tweewekelijks':
       return isoWeekNummer(datum) % 2 === 0;
     case 'maandelijks':
-      return isEersteVrijdagVanMaand(datum);
+      return isEersteWoensdagVanMaand(datum);
   }
 }

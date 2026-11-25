@@ -5,6 +5,7 @@ import {
   conceptIsOpTijd,
   conceptMaandagen,
   conceptStatusLabel,
+  isNieuwsbriefVerzendmoment,
   kortNieuwsVoorConcept,
   nieuwsbrievenOpDatum,
   verzendMoment,
@@ -73,10 +74,11 @@ test('concepten dekken deze week en vier weken daarna', () => {
   ]);
 });
 
-test('een concept is pas op tijd vier weken voor de vrijdag', () => {
+test('een concept is pas op tijd vier weken voor de woensdag', () => {
   assert.equal(conceptIsOpTijd('2026-11-17', '2026-11-16'), false);
   assert.equal(conceptIsOpTijd('2026-11-17', '2026-12-07'), false);
   assert.equal(conceptIsOpTijd('2026-11-17', '2026-12-14'), true);
+  assert.equal(conceptIsOpTijd('2026-11-19', '2026-12-14'), false);
   assert.equal(conceptIsOpTijd(undefined, '2026-12-14'), false);
 });
 
@@ -88,10 +90,19 @@ test('kort nieuws komt uit het programma van die week', () => {
   assert.equal(kortNieuwsVoorConcept('2026-10-05', PROGRAMMA), '');
 });
 
-test('de lijst noemt de eerstvolgende vrijdag en het verzenduur', () => {
-  assert.deepEqual(verzendMoment('2026-11-17'), { vrijdag: '2026-11-20', uur: '10:30' });
-  assert.deepEqual(verzendMoment('2026-07-01'), { vrijdag: '2026-07-03', uur: '11:30' });
-  assert.equal(verzendMoment('2026-11-21').vrijdag, '2026-11-27');
+test('de lijst noemt de eerstvolgende woensdag en 11:30', () => {
+  assert.deepEqual(verzendMoment('2026-11-17'), { woensdag: '2026-11-18', uur: '11:30' });
+  assert.deepEqual(verzendMoment('2026-07-01'), { woensdag: '2026-07-01', uur: '11:30' });
+  assert.equal(verzendMoment('2026-11-21').woensdag, '2026-11-25');
+});
+
+test('alleen woensdag rond 11:30 Amsterdam is het verzendmoment', () => {
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T10:30:00Z')), true);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T09:30:00Z')), false);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-07-01T09:30:00Z')), true);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-07-01T10:30:00Z')), false);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T11:15:00Z')), true);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-20T10:30:00Z')), false);
 });
 
 test('de lijst toont de eerstvolgende week bovenaan en verstopt verstuurde weken', () => {

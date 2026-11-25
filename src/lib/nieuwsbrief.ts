@@ -1,7 +1,7 @@
 /**
  * Nieuwsbriefcron.
  * Uit stuurt niets. Test gaat naar het testmailadres.
- * Aan stuurt de weekinhoud en de agenda naar de vrienden van deze ronde.
+ * Aan stuurt woensdag om 11:30 de weekinhoud en de agenda naar de vrienden van deze ronde.
  */
 
 import { bereidNieuwsbrief, draaiNieuwsbriefDryRun, supabaseNieuwsbrief, vulNieuwsbriefConcepten, type NieuwsbriefBron } from './nieuwsbrief-supabase.ts';

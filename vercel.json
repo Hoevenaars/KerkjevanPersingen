@@ -48,12 +48,12 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/nieuwsbrief-preview",
-      "schedule": "0 15 * * 4"
+      "path": "/api/cron/nieuwsbrief-verzenden",
+      "schedule": "30 9 * * 3"
     },
     {
       "path": "/api/cron/nieuwsbrief-verzenden",
-      "schedule": "30 9 * * 5"
+      "schedule": "30 10 * * 3"
     },
     {
       "path": "/api/cron/workflow",
