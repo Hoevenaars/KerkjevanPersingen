@@ -111,11 +111,11 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
   {
     sleutel: 'nieuwsbrief',
     naam: 'Nieuwsbrief',
-    omschrijving: 'Wekelijkse vriendenmail en de previewcron.',
+    omschrijving: 'Wekelijkse vriendenmail. Verzending woensdag om 11:30 Nederlandse tijd.',
     categorie: 'automatisering',
     status: 'actief',
     mailcategorie: 'automatisering',
-    trigger: 'Cron vrijdag / donderdag-preview',
+    trigger: 'Cron woensdag 11:30',
     actieveTrigger: true,
     ontvangerstype: 'Vrienden',
     risicovol: true,
@@ -526,7 +526,7 @@ export function technischeGereedheid(item: Automatisering): { status: Technische
       return {
         status: 'gereed',
         label: 'Gereed',
-        toelichting: 'De donderdag-preview is een dry-run. De vrijdagverzending volgt alleen deze schakelaar.',
+        toelichting: 'Woensdag om 11:30 Nederlandse tijd gaat de brief naar de vrienden. Er is geen dry-run-cron. De verzending volgt alleen deze schakelaar.',
       };
     case 'workflow':
       return {

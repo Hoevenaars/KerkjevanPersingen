@@ -253,14 +253,14 @@ Supabase. De ontvangerslijst ziet alleen de webmaster.
   Steun ons linkt ernaar.
 - Uitschrijven: persoonlijke link in elke mail (`/vrienden/afmelden/?token=…`).
 - Elke ochtend zet de workflowcron ontbrekende concepten klaar, van deze week tot en met vier weken verder.
-- Donderdag (16:00 Nederlandse wintertijd / 17:00 zomertijd): voorbeeld van de week, zonder verzending.
-- Vrijdagochtend (10:30 wintertijd / 11:30 zomertijd): verzending naar actieve vrienden,
+- Woensdag 11:30 Nederlandse tijd, in winter- en zomertijd: verzending naar actieve vrienden,
   alleen als iemand de week in beheer heeft goedgekeurd, het concept minstens vier weken
-  voor die vrijdag bestond én er dat weekend een publieke activiteit is, inclusief de winterstop.
+  voor die woensdag bestond én er dat weekend een publieke activiteit is, inclusief de winterstop.
   Een stille week of een niet-goedgekeurde week gaat niet de deur uit.
-  Die uurverschuiving rond de zomertijdovergang is een bewust geaccepteerd Hobby-plan-risico.
+  Vercel kent alleen UTC, dus de route staat op 09:30 en 10:30 UTC. Alleen het tijdstip
+  dat in Amsterdam 11:30 is verstuurt; de andere aanroep slaat over. Er is geen dry-run-cron.
 
-Handmatig een concept naar de webmaster (niet naar de vriendenlijst):
+Handmatig de brief opbouwen, zonder verzending (niet naar de vriendenlijst):
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" \

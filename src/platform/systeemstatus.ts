@@ -51,7 +51,6 @@ export function resendSignaal(input: { sleutelAanwezig: boolean; laatsteVerzendi
 
 export const BEKENDE_CRONROUTES = [
   '/api/cron/workflow',
-  '/api/cron/nieuwsbrief-preview',
   '/api/cron/nieuwsbrief-verzenden',
 ] as const;
 

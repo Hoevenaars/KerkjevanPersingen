@@ -1,7 +1,8 @@
 /**
  * Concepten voor de vriendenmail.
- * Een week wordt vier weken voor de verzendvrijdag klaargezet.
+ * Een week wordt vier weken voor de verzendwoensdag klaargezet.
  * Verzenden mag pas als dat concept die doorlooptijd heeft gehad.
+ * De cron vuurt op 09:30 en 10:30 UTC; alleen 11:30 in Amsterdam verstuurt.
  */
 
 import { voegDagenToe } from '../platform/datum.ts';
@@ -19,22 +20,51 @@ export interface ConceptBron {
   winterstop: boolean;
 }
 
-export function vrijdagVanWeek(maandag: string): string {
-  return voegDagenToe(maandag, 4);
+/** Woensdag van de kalenderweek die op deze maandag begint. */
+export function woensdagVanWeek(maandag: string): string {
+  return voegDagenToe(maandag, 2);
 }
 
-/** Eerstvolgende verzendvrijdag, met het vaste cronuur in Nederlandse tijd. */
-export function verzendMoment(vandaag: string): { vrijdag: string; uur: string } {
+/** Eerstvolgende verzendwoensdag. Het uur is 11:30 in Amsterdam, zomer en winter. */
+export function verzendMoment(vandaag: string): { woensdag: string; uur: string } {
   const maandag = maandagVanWeekIso(new Date(`${vandaag}T12:00:00Z`));
-  let vrijdag = vrijdagVanWeek(maandag);
-  if (vrijdag < vandaag) vrijdag = voegDagenToe(vrijdag, 7);
-  const uur = new Intl.DateTimeFormat('en-GB', {
+  let woensdag = woensdagVanWeek(maandag);
+  if (woensdag < vandaag) woensdag = voegDagenToe(woensdag, 7);
+  return { woensdag, uur: '11:30' };
+}
+
+/** Minuten sinds middernacht in Amsterdam, of null als de klok niet te lezen is. */
+function minutenAmsterdam(datum: Date): { datum: string; minuten: number } | null {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Amsterdam',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).format(new Date(`${vrijdag}T09:30:00Z`));
-  return { vrijdag, uur };
+  }).formatToParts(datum);
+  const waarde = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+  const jaar = waarde('year');
+  const maand = waarde('month');
+  const dag = waarde('day');
+  const uur = Number(waarde('hour'));
+  const minuut = Number(waarde('minute'));
+  if (!jaar || !maand || !dag || Number.isNaN(uur) || Number.isNaN(minuut)) return null;
+  return { datum: `${jaar}-${maand}-${dag}`, minuten: uur * 60 + minuut };
+}
+
+/**
+ * De twee UTC-crons op woensdag dekken de zomertijd.
+ * Alleen het uurvak rond 11:30 Amsterdam verstuurt; de andere aanroep slaat over.
+ * Een vertraging tot 12:20 telt nog mee. 12:30 (de zomertijd-tweeling) niet.
+ */
+export function isNieuwsbriefVerzendmoment(datum: Date): boolean {
+  const klok = minutenAmsterdam(datum);
+  if (!klok) return false;
+  const woensdag = woensdagVanWeek(maandagVanWeekIso(new Date(`${klok.datum}T12:00:00Z`)));
+  if (klok.datum !== woensdag) return false;
+  return klok.minuten >= 11 * 60 + 25 && klok.minuten <= 12 * 60 + 20;
 }
 
 /**
@@ -59,7 +89,7 @@ export function conceptMaandagen(vandaag: string, weken = NIEUWSBRIEF_DOORLOOPTI
 }
 
 /**
- * Het concept is op tijd als het op of vóór de vrijdag min de doorlooptijd bestond.
+ * Het concept is op tijd als het op of vóór de woensdag min de doorlooptijd bestond.
  * Zonder aanmaakdatum is het niet op tijd.
  */
 export function conceptIsOpTijd(
@@ -69,7 +99,7 @@ export function conceptIsOpTijd(
 ): boolean {
   const aangemaakt = (aangemaaktOp ?? '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(aangemaakt) || !/^\d{4}-\d{2}-\d{2}$/.test(weekMaandag)) return false;
-  return aangemaakt <= voegDagenToe(vrijdagVanWeek(weekMaandag), -dagen);
+  return aangemaakt <= voegDagenToe(woensdagVanWeek(weekMaandag), -dagen);
 }
 
 export function conceptStatusLabel(input: {
@@ -83,7 +113,7 @@ export function conceptStatusLabel(input: {
   if (input.verstuurd) return 'Verstuurd';
   if (input.overgeslagen) return 'Overgeslagen';
   if (input.goedgekeurd) return 'Goedgekeurd';
-  if (vrijdagVanWeek(input.week) < input.vandaag) return 'Concept';
+  if (woensdagVanWeek(input.week) < input.vandaag) return 'Concept';
   if (!input.aangemaaktOp) return 'Concept';
   return conceptIsOpTijd(input.aangemaaktOp, input.week)
     ? 'Concept, klaar om te versturen'

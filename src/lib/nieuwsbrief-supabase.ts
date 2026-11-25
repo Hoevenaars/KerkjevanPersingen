@@ -1,6 +1,7 @@
 /**
- * Nieuwsbriefverzending op Supabase met geblokkeerde maildelivery.
- * Dry-run bepaalt ontvangers, kiest de template en legt testverzendingen vast.
+ * Nieuwsbriefverzending op Supabase.
+ * De woensdagcron verstuurt als de schakelaar aan staat.
+ * De dry-run hieronder legt alleen een concept vast en roept geen provider aan.
  */
 
 import type { Activiteit, AgendaOverzicht } from './content.ts';

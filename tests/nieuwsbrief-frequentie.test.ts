@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isoWeekNummer,
-  isEersteVrijdagVanMaand,
+  isEersteWoensdagVanMaand,
   ontvangtDezeVerzending,
   isGeldigeFrequentie,
   programmaPeriode,
@@ -24,13 +24,13 @@ describe('isoWeekNummer', () => {
   });
 });
 
-describe('isEersteVrijdagVanMaand', () => {
-  test('6 maart 2026 is de eerste vrijdag van maart', () => {
-    assert.equal(isEersteVrijdagVanMaand(new Date('2026-03-06T09:30:00Z')), true);
+describe('isEersteWoensdagVanMaand', () => {
+  test('4 maart 2026 is de eerste woensdag van maart', () => {
+    assert.equal(isEersteWoensdagVanMaand(new Date('2026-03-04T10:30:00Z')), true);
   });
 
-  test('13 maart 2026 is de tweede vrijdag', () => {
-    assert.equal(isEersteVrijdagVanMaand(new Date('2026-03-13T09:30:00Z')), false);
+  test('11 maart 2026 is de tweede woensdag', () => {
+    assert.equal(isEersteWoensdagVanMaand(new Date('2026-03-11T10:30:00Z')), false);
   });
 });
 
@@ -77,9 +77,9 @@ describe('ontvangtDezeVerzending', () => {
     assert.equal(ontvangtDezeVerzending('tweewekelijks', new Date('2026-08-21T09:30:00Z')), true);
   });
 
-  test('maandelijks alleen op de eerste vrijdag', () => {
-    assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-06T09:30:00Z')), true);
-    assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-13T09:30:00Z')), false);
+  test('maandelijks alleen op de eerste woensdag', () => {
+    assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-04T10:30:00Z')), true);
+    assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-11T10:30:00Z')), false);
   });
 
   test('ontbrekende frequentie valt terug op wekelijks', () => {
