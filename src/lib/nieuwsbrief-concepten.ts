@@ -2,7 +2,7 @@
  * Concepten voor de vriendenmail.
  * Een week wordt vier weken voor de verzendwoensdag klaargezet.
  * Verzenden mag pas als dat concept die doorlooptijd heeft gehad.
- * De cron vuurt op 09:30 en 10:30 UTC; alleen 11:30 in Amsterdam verstuurt.
+ * De cron vuurt woensdag elke vijf minuten; alleen 11:30 in Amsterdam begint een nieuwe brief.
  */
 
 import { voegDagenToe } from '../platform/datum.ts';
@@ -54,17 +54,35 @@ function minutenAmsterdam(datum: Date): { datum: string; minuten: number } | nul
   return { datum: `${jaar}-${maand}-${dag}`, minuten: uur * 60 + minuut };
 }
 
+const START_VAN = 11 * 60 + 30;
+const START_TOT = 12 * 60 + 20;
+/** Een lopende ronde mag door tot 15:00 Amsterdam. */
+const VERVOLG_TOT = 15 * 60;
+
+function woensdagKlok(datum: Date): { minuten: number } | null {
+  const klok = minutenAmsterdam(datum);
+  if (!klok) return null;
+  const woensdag = woensdagVanWeek(maandagVanWeekIso(new Date(`${klok.datum}T12:00:00Z`)));
+  if (klok.datum !== woensdag) return null;
+  return klok;
+}
+
 /**
- * De twee UTC-crons op woensdag dekken de zomertijd.
- * Alleen het uurvak rond 11:30 Amsterdam verstuurt; de andere aanroep slaat over.
- * Een vertraging tot 12:20 telt nog mee. 12:30 (de zomertijd-tweeling) niet.
+ * De vijf-minutencron dekt winter- en zomertijd.
+ * Een nieuwe brief begint tussen 11:30 en 12:20 Amsterdam.
+ * 12:30 in de zomertijd is het uur erna en begint geen nieuwe brief.
  */
 export function isNieuwsbriefVerzendmoment(datum: Date): boolean {
-  const klok = minutenAmsterdam(datum);
+  const klok = woensdagKlok(datum);
   if (!klok) return false;
-  const woensdag = woensdagVanWeek(maandagVanWeekIso(new Date(`${klok.datum}T12:00:00Z`)));
-  if (klok.datum !== woensdag) return false;
-  return klok.minuten >= 11 * 60 + 25 && klok.minuten <= 12 * 60 + 20;
+  return klok.minuten >= START_VAN && klok.minuten <= START_TOT;
+}
+
+/** Zelfde woensdag, na 12:20, tot 15:00. Alleen om een lopende verzending af te maken. */
+export function isNieuwsbriefVervolgmoment(datum: Date): boolean {
+  const klok = woensdagKlok(datum);
+  if (!klok) return false;
+  return klok.minuten > START_TOT && klok.minuten <= VERVOLG_TOT;
 }
 
 /**

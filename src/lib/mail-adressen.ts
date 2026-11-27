@@ -13,6 +13,9 @@ export const VAN_ADRES = `Het Kerkje van Persingen <${NOREPLY_ADRES}>`;
  * voor bestuursnotificaties. Eerst MX/SPF in Vercel DNS. Zie README.
  */
 export const CONTRACTBEHEER_EMAIL = 'contractbeheer.kvp@gmail.com';
+/** Antwoorden op de vriendenmail. De postbus zelf ontvangt de mail, niet Resend. */
+export const VOORZITTER_EMAIL = 'voorzitter@kerkjepersingen.nl';
+export const VOORZITTER_NAAM = 'Voorzitter';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -136,6 +139,7 @@ export function replyToVoor(input: {
   replyTo?: string | null;
   richting?: 'intern' | 'aanvrager';
 }): string {
+  if (input.sleutel === 'nieuwsbrief') return VOORZITTER_EMAIL;
   if (richtingVoorMail(input) === 'aanvrager') return CONTRACTBEHEER_EMAIL;
   return replyToInterneAanvraag([input.aanvragerEmail, input.replyTo], {
     sleutel: input.sleutel ?? input.templateId,

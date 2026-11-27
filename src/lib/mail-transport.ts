@@ -12,8 +12,16 @@ import {
   providerPayloadIsTestveilig,
   type Mailmodus,
 } from '../platform/testmail.ts';
-import { CONTRACTBEHEER_EMAIL, VAN_ADRES, isNoreplyAdres, replyToHeader, replyToVoor, richtingVoorMail } from './mail-adressen.ts';
+import { CONTRACTBEHEER_EMAIL, VAN_ADRES, VOORZITTER_EMAIL, VOORZITTER_NAAM, isNoreplyAdres, replyToHeader, replyToVoor, richtingVoorMail } from './mail-adressen.ts';
 import { isInterneKerkjeSleutel, toezichtBcc } from './toezicht-bcc.ts';
+
+/** Resend vroeg om langzamer te gaan. De lopende ronde stopt; de volgende cron gaat verder. */
+export class MailTempoLimiet extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MailTempoLimiet';
+  }
+}
 
 export interface MailBericht {
   sleutel: string;
@@ -209,7 +217,7 @@ export function bouwResendInhoud(input: {
     text: input.tekst,
     html: input.html,
     replyTo,
-    replyToNaam: replyTo === CONTRACTBEHEER_EMAIL ? 'Contractbeheer' : input.aanvragerNaam ?? undefined,
+    replyToNaam: replyToNaamVoor(replyTo, input.aanvragerNaam),
     ...(input.bcc?.length ? { bcc: input.bcc } : {}),
     ...(input.headers ? { headers: input.headers } : {}),
   };
@@ -313,8 +321,19 @@ export async function verstuurMetResend(
     ...(inhoud.tags?.length ? { tags: inhoud.tags } : {}),
     ...(attachments ? { attachments } : {}),
   }, inhoud.idempotentieSleutel ? { idempotencyKey: inhoud.idempotentieSleutel } : undefined);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.name === 'rate_limit_exceeded' || /too many requests|rate limit/i.test(error.message)) {
+      throw new MailTempoLimiet(error.message);
+    }
+    throw new Error(error.message);
+  }
   return data?.id ?? null;
+}
+
+function replyToNaamVoor(replyTo: string, aanvragerNaam?: string | null): string | undefined {
+  if (replyTo === CONTRACTBEHEER_EMAIL) return 'Contractbeheer';
+  if (replyTo === VOORZITTER_EMAIL) return VOORZITTER_NAAM;
+  return aanvragerNaam ?? undefined;
 }
 
 function resendTransport(): MailTransport {

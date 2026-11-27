@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { bestuurMail } from '../src/lib/aanvraag.ts';
 import { KERKJE_LOGO_URL, KERKJE_MAIL_MERK, kerkjeMail } from '../src/lib/kerkje-mail.ts';
 import { bouwResendInhoud } from '../src/lib/mail-transport.ts';
-import { CONTRACTBEHEER_EMAIL } from '../src/lib/mail-adressen.ts';
+import { CONTRACTBEHEER_EMAIL, VOORZITTER_EMAIL } from '../src/lib/mail-adressen.ts';
 import { nieuwsbriefEnvelop, NIEUWSBRIEF_REPLY_TO } from '../src/lib/nieuwsbrief-html.ts';
 import { mailMeta, NIEUWSBRIEF_INTRO } from '../src/lib/nieuwsbrief-frequentie.ts';
 import { renderMailBericht } from '../src/platform/mailtemplates/render.ts';
@@ -171,7 +171,7 @@ describe('centrale Kerkje-mail', () => {
       mailMeta('wekelijks'),
     );
     assert.equal(brief.replyTo, NIEUWSBRIEF_REPLY_TO);
-    assert.equal(brief.replyTo, CONTRACTBEHEER_EMAIL);
+    assert.equal(brief.replyTo, VOORZITTER_EMAIL);
     assert.equal(brief.html.includes(KERKJE_MAIL_MERK), false);
     assert.match(brief.html, /vrienden\/afmelden/);
     assert.match(brief.html, /verhuur-ruimte\.jpg/);

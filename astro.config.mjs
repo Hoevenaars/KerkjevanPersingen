@@ -14,6 +14,8 @@ export default defineConfig({
   adapter: vercel({
     imageService: true,
     webAnalytics: { enabled: false },
+    // De vriendenmail stuurt twaalf brieven achter elkaar, met een korte pauze ertussen.
+    maxDuration: 60,
   }),
   compressHTML: true,
 

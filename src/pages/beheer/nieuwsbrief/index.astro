@@ -10,6 +10,7 @@ import { sessieSupabaseUitAstro } from '../../../lib/supabase.ts';
 import { bereikVanRijen } from '../../../lib/nieuwsbrief-bereik.ts';
 import { bereikVoorBeheer } from '../../../lib/nieuwsbrief-bereik-opslag.ts';
 import { magSchrijven } from '../../../platform/rechten.ts';
+import { NIEUWSBRIEF_PER_RONDE } from '../../../platform/nieuwsbrief-keten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const vandaag = ymdInAmsterdam(new Date());
@@ -31,7 +32,7 @@ const kanGoedkeuren = !Astro.locals.beheer?.viewAs && magSchrijven(rechten, 'nie
     <div>
       <h1>Nieuwsbrief</h1>
       <p class="bh-hint">
-        Controle voor {verzendDatum}. Verzenden op {verzendDatum} om {moment.uur}. Je kunt meerdere weken vooruit goedkeuren.
+        Controle voor {verzendDatum}. De verzending begint op {verzendDatum} om {moment.uur} en gaat daarna in groepjes van {NIEUWSBRIEF_PER_RONDE} verder, ongeveer elke vijf minuten. Je kunt meerdere weken vooruit goedkeuren.
       </p>
     </div>
   </header>

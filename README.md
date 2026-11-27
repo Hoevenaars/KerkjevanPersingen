@@ -57,10 +57,11 @@ adressen gebruiken.
 | `bestuur@kerkjepersingen.nl` | het adres waar bestuursnotificaties nu naartoe gaan |
 | `contractbeheer@kerkjepersingen.nl` | `contractbeheer.kvp@gmail.com` |
 
-In de code is dat nu één Gmail-adres: Reply-To, de terugval voor aanvragen
+In de code is dat nu één Gmail-adres: Reply-To van verhuur- en contractmail, de terugval voor aanvragen
 (`CONTACT_FALLBACK_EMAIL`), de coördinator op het contract en het adres in de
 privacyverklaring. Bestuurs- en contractmail gaan dus nog naar dezelfde postbus,
 tenzij `CONTACT_FALLBACK_EMAIL` of `ontvangst_adres` iets anders zegt.
+De vriendenmail wijkt daarvan af: een antwoord daarop gaat naar `voorzitter@kerkjepersingen.nl`.
 Persoonlijke BCC (`nhoevenaars@gmail.com`, `kerkjevanpersingenhm@gmail.com`)
 hoort niet bij deze wissel.
 
@@ -253,12 +254,18 @@ Supabase. De ontvangerslijst ziet alleen de webmaster.
   Steun ons linkt ernaar.
 - Uitschrijven: persoonlijke link in elke mail (`/vrienden/afmelden/?token=…`).
 - Elke ochtend zet de workflowcron ontbrekende concepten klaar, van deze week tot en met vier weken verder.
-- Woensdag 11:30 Nederlandse tijd, in winter- en zomertijd: verzending naar actieve vrienden,
-  alleen als iemand de week in beheer heeft goedgekeurd, het concept minstens vier weken
+- Woensdag 11:30 Nederlandse tijd, in winter- en zomertijd: de brief gaat in groepjes van
+  twaalf de deur uit, ongeveer elke vijf minuten, tot iedereen van die ronde hem heeft of tot 15:00.
+  Een ronde verstuurt pas als iemand de week in beheer heeft goedgekeurd, het concept minstens vier weken
   voor die woensdag bestond én er dat weekend een publieke activiteit is, inclusief de winterstop.
   Een stille week of een niet-goedgekeurde week gaat niet de deur uit.
-  Vercel kent alleen UTC, dus de route staat op 09:30 en 10:30 UTC. Alleen het tijdstip
-  dat in Amsterdam 11:30 is verstuurt; de andere aanroep slaat over. Er is geen dry-run-cron.
+  Vercel kent alleen UTC, dus de route draait woensdag elke vijf minuten van 09:00 tot 13:55 UTC.
+  Alleen een aanroep die in Amsterdam tussen 11:30 en 12:20 valt, begint een nieuwe brief.
+  Latere aanroepen diezelfde woensdag, tot 15:00, maken een lopende verzending af.
+  Een aanroep vóór 11:30 of na 15:00 slaat over. Er is geen dry-run-cron.
+- Antwoorden op de vriendenmail gaan naar `voorzitter@kerkjepersingen.nl`.
+  De afzender blijft `noreply@send.kerkjepersingen.nl`. Het publieke MX-record wijst naar
+  TransIP, dus die postbus moet daar bestaan.
 
 Handmatig de brief opbouwen, zonder verzending (niet naar de vriendenlijst):
 

@@ -5,6 +5,7 @@ import {
   conceptIsOpTijd,
   conceptMaandagen,
   conceptStatusLabel,
+  isNieuwsbriefVervolgmoment,
   isNieuwsbriefVerzendmoment,
   kortNieuwsVoorConcept,
   nieuwsbrievenOpDatum,
@@ -103,6 +104,13 @@ test('alleen woensdag rond 11:30 Amsterdam is het verzendmoment', () => {
   assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-07-01T10:30:00Z')), false);
   assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T11:15:00Z')), true);
   assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-20T10:30:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-25T10:30:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-25T11:30:00Z')), true);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-07-01T10:30:00Z')), true);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-07-01T10:30:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-07-01T13:00:00Z')), true);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-07-01T13:05:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-20T12:00:00Z')), false);
 });
 
 test('de lijst toont de eerstvolgende week bovenaan en verstopt verstuurde weken', () => {

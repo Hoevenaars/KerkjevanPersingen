@@ -4,7 +4,9 @@ import { STANDAARD_AUTOMATISERINGEN } from '../src/platform/automatisering.ts';
 import { geheugenNieuwsbrief } from '../src/lib/nieuwsbrief-supabase.ts';
 import { verstuurPreview, verstuurWekelijkseNieuwsbrief } from '../src/lib/nieuwsbrief.ts';
 import { geheugenVrienden, type Vriend } from '../src/lib/vrienden-supabase.ts';
-import type { MailBericht } from '../src/lib/mail-transport.ts';
+import { MailTempoLimiet, type MailBericht } from '../src/lib/mail-transport.ts';
+import { VOORZITTER_EMAIL } from '../src/lib/mail-adressen.ts';
+import { NIEUWSBRIEF_PER_RONDE } from '../src/platform/nieuwsbrief-keten.ts';
 
 const DATUM = new Date('2026-09-30T12:00:00Z');
 const VRIEND: Vriend = {
@@ -64,6 +66,7 @@ test('aan stuurt de weektekst naar de vriend en markeert de week', async () => {
   assert.equal(uit.overgeslagen, 'aan');
   assert.equal(verzonden.length, 1);
   assert.equal(verzonden[0].naar, 'bo@example.test');
+  assert.equal(verzonden[0].replyTo, VOORZITTER_EMAIL);
   assert.deepEqual(verzonden[0].tags, [
     { name: 'soort', value: 'nieuwsbrief' },
     { name: 'editie', value: '9' },
@@ -136,5 +139,123 @@ test('preview is een dry-run en laat de week open', async () => {
   assert.equal(uit.tekst.includes('De klok is gerepareerd.'), false);
   assert.match(uit.tekst, /token=preview/);
   assert.equal(bron.verzendingen.length, 0);
+  assert.equal(bron.weken[0].verstuurd, false);
+});
+
+function vriendNummer(n: number): Vriend {
+  return {
+    _id: String(n),
+    naam: `Vriend ${n}`,
+    email: `vriend${n}@example.test`,
+    actief: true,
+    frequentie: 'wekelijks',
+    uitschrijfToken: `tok-${n}`,
+  };
+}
+
+test('aan stuurt twaalf vrienden per ronde en maakt de week pas af bij de laatste', async () => {
+  const bron = bronMetNieuws();
+  const aantal = NIEUWSBRIEF_PER_RONDE + 1;
+  const vrienden = geheugenVrienden(Array.from({ length: aantal }, (_, index) => vriendNummer(index + 1)));
+  const verzonden: string[] = [];
+  const pauzes: number[] = [];
+  const eerste = await verstuurWekelijkseNieuwsbrief({
+    register: register('actief'),
+    datum: DATUM,
+    vrienden,
+    bron,
+    pauzeMs: 500,
+    wacht: async (ms) => {
+      pauzes.push(ms);
+    },
+    transport: {
+      async verstuur(brief) {
+        verzonden.push(brief.naar);
+      },
+    },
+  });
+  assert.equal(eerste.verstuurd, NIEUWSBRIEF_PER_RONDE);
+  assert.equal(eerste.overgeslagen, 'gespreid, nog 1');
+  assert.equal(pauzes.length, NIEUWSBRIEF_PER_RONDE - 1);
+  assert.deepEqual(pauzes, Array.from({ length: NIEUWSBRIEF_PER_RONDE - 1 }, () => 500));
+  assert.equal(bron.weken[0].verstuurd, false);
+  assert.deepEqual(verzonden, Array.from({ length: NIEUWSBRIEF_PER_RONDE }, (_, index) => `vriend${index + 1}@example.test`));
+
+  const tweede = await verstuurWekelijkseNieuwsbrief({
+    register: register('actief'),
+    datum: DATUM,
+    vrienden,
+    bron,
+    pauzeMs: 0,
+    transport: {
+      async verstuur(brief) {
+        verzonden.push(brief.naar);
+      },
+    },
+  });
+  assert.equal(tweede.verstuurd, 1);
+  assert.equal(tweede.overgeslagen, 'aan');
+  assert.equal(verzonden.at(-1), 'vriend13@example.test');
+  assert.equal(bron.weken[0].verstuurd, true);
+});
+
+test('een tempo-limiet stopt de ronde en de volgende ronde gaat verder waar die bleef', async () => {
+  const bron = bronMetNieuws();
+  const vrienden = geheugenVrienden([vriendNummer(1), vriendNummer(2), vriendNummer(3)]);
+  let poging = 0;
+  const eerste = await verstuurWekelijkseNieuwsbrief({
+    register: register('actief'),
+    datum: DATUM,
+    vrienden,
+    bron,
+    pauzeMs: 0,
+    transport: {
+      async verstuur(brief) {
+        poging += 1;
+        if (poging === 2) throw new MailTempoLimiet('Too many requests');
+        return brief.naar;
+      },
+    },
+  });
+  assert.equal(eerste.verstuurd, 1);
+  assert.equal(eerste.overgeslagen, 'resend 429, nog 2');
+  assert.equal(bron.weken[0].verstuurd, false);
+
+  const vervolg = await verstuurWekelijkseNieuwsbrief({
+    register: register('actief'),
+    datum: DATUM,
+    vrienden,
+    bron,
+    alleenVervolg: true,
+    pauzeMs: 0,
+    transport: {
+      async verstuur() {
+        return 'ok';
+      },
+    },
+  });
+  assert.equal(vervolg.verstuurd, 2);
+  assert.equal(vervolg.overgeslagen, 'aan');
+  assert.equal(bron.weken[0].verstuurd, true);
+});
+
+test('een vervolgronde begint geen nieuwe brief', async () => {
+  const bron = bronMetNieuws();
+  let aangeroepen = 0;
+  const uit = await verstuurWekelijkseNieuwsbrief({
+    register: register('actief'),
+    datum: DATUM,
+    vrienden: geheugenVrienden([VRIEND]),
+    bron,
+    alleenVervolg: true,
+    transport: {
+      async verstuur() {
+        aangeroepen += 1;
+      },
+    },
+  });
+  assert.equal(aangeroepen, 0);
+  assert.equal(uit.verstuurd, 0);
+  assert.equal(uit.overgeslagen, 'wacht op het verzendmoment');
   assert.equal(bron.weken[0].verstuurd, false);
 });

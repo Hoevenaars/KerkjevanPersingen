@@ -8,6 +8,8 @@ import {
   CONTRACTBEHEER_EMAIL,
   NOREPLY_ADRES,
   VAN_ADRES,
+  VOORZITTER_EMAIL,
+  VOORZITTER_NAAM,
   replyToHeader,
   replyToInterneAanvraag,
   replyToVoor,
@@ -222,6 +224,17 @@ test('centrale helpers zetten from en reply-to per richting', async () => {
   });
   assert.equal(naarAanvrager.replyTo, CONTRACTBEHEER_EMAIL);
   assert.equal(replyToHeader(naarAanvrager.replyTo, naarAanvrager.replyToNaam), `Contractbeheer <${CONTRACTBEHEER_EMAIL}>`);
+
+  const vriendenmail = bouwResendInhoud({
+    naar: 'vriend@example.test',
+    onderwerp: 'Deze week in Persingen',
+    tekst: 'groet',
+    sleutel: 'nieuwsbrief',
+    replyTo: CONTRACTBEHEER_EMAIL,
+    aanvragerEmail: 'vriend@example.test',
+  });
+  assert.equal(vriendenmail.replyTo, VOORZITTER_EMAIL);
+  assert.equal(replyToHeader(vriendenmail.replyTo, vriendenmail.replyToNaam), `${VOORZITTER_NAAM} <${VOORZITTER_EMAIL}>`);
 
   const bevestigingAan = STANDAARD_AUTOMATISERINGEN.find((item) => item.sleutel === 'aanvraag_bevestiging');
   assert.ok(bevestigingAan);

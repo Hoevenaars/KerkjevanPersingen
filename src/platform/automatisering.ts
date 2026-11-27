@@ -111,11 +111,11 @@ export const STANDAARD_AUTOMATISERINGEN: Automatisering[] = [
   {
     sleutel: 'nieuwsbrief',
     naam: 'Nieuwsbrief',
-    omschrijving: 'Wekelijkse vriendenmail. Verzending woensdag om 11:30 Nederlandse tijd.',
+    omschrijving: 'Wekelijkse vriendenmail. Begint woensdag om 11:30 Nederlandse tijd en gaat daarna in groepjes van twaalf verder.',
     categorie: 'automatisering',
     status: 'actief',
     mailcategorie: 'automatisering',
-    trigger: 'Cron woensdag 11:30',
+    trigger: 'Cron woensdag vanaf 11:30, daarna elke vijf minuten',
     actieveTrigger: true,
     ontvangerstype: 'Vrienden',
     risicovol: true,

@@ -19,10 +19,10 @@ import {
 } from './nieuwsbrief-frequentie.ts';
 
 export type { NieuwsbriefMailMeta };
-import { CONTRACTBEHEER_EMAIL } from './mail-adressen.ts';
+import { VOORZITTER_EMAIL } from './mail-adressen.ts';
 
 /** Vast Reply-To voor de vriendenmail. Niet de transportfallback. */
-export const NIEUWSBRIEF_REPLY_TO = CONTRACTBEHEER_EMAIL;
+export const NIEUWSBRIEF_REPLY_TO = VOORZITTER_EMAIL;
 
 const PINE = '#4A5235';
 const BRICK = '#9C4A2F';

@@ -10,6 +10,7 @@ import { magSchrijven } from '../../../platform/rechten.ts';
 import NieuwsbriefBereik from '../../../components/beheer/NieuwsbriefBereik.astro';
 import { bereikVanRijen } from '../../../lib/nieuwsbrief-bereik.ts';
 import { bereikVoorBeheer } from '../../../lib/nieuwsbrief-bereik-opslag.ts';
+import { NIEUWSBRIEF_PER_RONDE } from '../../../platform/nieuwsbrief-keten.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
@@ -102,7 +103,7 @@ const meting = bereik.fout ? 'fout' : snapshot.bron === 'supabase' ? 'live' : 'v
   <header class="bh-top">
     <div>
       <h1>Week van {formatNl(brief.week)}</h1>
-      <p class="bh-hint">Het voorbeeld is de brief van deze week. Goedkeuren bewaart alleen die keuze. De mail gaat woensdag om 11.30 de deur uit als de week is goedgekeurd.</p>
+      <p class="bh-hint">Het voorbeeld is de brief van deze week. Goedkeuren bewaart alleen die keuze. De mail gaat woensdag om 11.30 de deur uit, in groepjes van {NIEUWSBRIEF_PER_RONDE}, als de week is goedgekeurd.</p>
     </div>
   </header>
 
