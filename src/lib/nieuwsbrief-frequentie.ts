@@ -15,7 +15,7 @@ export type NieuwsbriefMailMeta = {
 export const NIEUWSBRIEF_KOP = 'Een groet uit Persingen';
 export const NIEUWSBRIEF_ONDERTITEL = 'Speciaal voor de vrienden van ons kerkje';
 export const NIEUWSBRIEF_INTRO = 'Wat fijn dat u ons kerkje een warm hart toedraagt. Iedere week houden we u graag op de hoogte van wat er in en rondom het kerkje gebeurt. Zo blijft u betrokken bij alles wat deze bijzondere plek te bieden heeft.';
-export const NIEUWSBRIEF_AFSLUITING = 'We hopen u binnenkort weer eens te mogen begroeten in ons mooie Persingen!';
+export const NIEUWSBRIEF_AFSLUITING = 'We hopen u dit weekend weer te mogen begroeten in ons mooie Persingen!';
 export const NIEUWSBRIEF_GROET = 'Hartelijke groeten,';
 
 export const FREQUENTIE_LABELS: Record<VriendFrequentie, string> = {

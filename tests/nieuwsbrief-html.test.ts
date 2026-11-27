@@ -93,7 +93,7 @@ describe('bouwNieuwsbriefHtml', () => {
     assert.equal(html.includes('Een groet uit Persingen'), true);
     assert.equal(html.includes('Speciaal voor de vrienden van ons kerkje'), true);
     assert.equal(html.includes('Wat fijn dat u ons kerkje een warm hart toedraagt.'), true);
-    assert.equal(html.includes('We hopen u binnenkort weer eens te mogen begroeten in ons mooie Persingen!'), true);
+    assert.equal(html.includes('We hopen u dit weekend weer te mogen begroeten in ons mooie Persingen!'), true);
     assert.equal(html.includes('Hartelijke groeten,'), true);
     assert.equal(html.includes('Steun het kerkje'), false);
     assert.equal(html.includes('Kort nieuws'), false);
