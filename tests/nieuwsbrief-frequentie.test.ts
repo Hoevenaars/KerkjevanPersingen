@@ -77,9 +77,10 @@ describe('ontvangtDezeVerzending', () => {
     assert.equal(ontvangtDezeVerzending('tweewekelijks', new Date('2026-08-21T09:30:00Z')), true);
   });
 
-  test('maandelijks alleen op de eerste woensdag', () => {
+  test('maandelijks op de maandag van de week met de eerste woensdag', () => {
+    assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-02T09:30:00Z')), true);
     assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-04T10:30:00Z')), true);
-    assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-11T10:30:00Z')), false);
+    assert.equal(ontvangtDezeVerzending('maandelijks', new Date('2026-03-09T09:30:00Z')), false);
   });
 
   test('ontbrekende frequentie valt terug op wekelijks', () => {

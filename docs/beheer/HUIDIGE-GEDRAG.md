@@ -42,7 +42,7 @@ Nieuw: origineel → websitevariant → nieuwsbriefvariant. Nog niet aangesloten
 - Wekelijks: eerstvolgende / dit weekend.
 - Tweewekelijks: 14 dagen.
 - Maandelijks: rest van de kalendermaand.
-- Tweewekelijks volgt even ISO-weeknummers; maandelijks de eerste woensdag.
+- Tweewekelijks volgt even ISO-weeknummers. Maandelijks is de maandag van de week waarvan de woensdag de eerste van de maand is. De brief gaat maandag om 10:30 de deur uit.
 
 ## Vrienden
 

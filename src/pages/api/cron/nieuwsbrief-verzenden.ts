@@ -15,7 +15,7 @@ export const GET: APIRoute = async ({ request }) => {
     const nu = new Date();
     const start = isNieuwsbriefVerzendmoment(nu);
     if (!start && !isNieuwsbriefVervolgmoment(nu)) {
-      return new Response(JSON.stringify({ verstuurd: 0, gepland: 0, overgeslagen: 'buiten verzendmoment woensdag 11:30', concepten }), { status: 200 });
+      return new Response(JSON.stringify({ verstuurd: 0, gepland: 0, overgeslagen: 'buiten verzendmoment maandag 10:30', concepten }), { status: 200 });
     }
     const besluit = await besluitVoor('nieuwsbrief');
     if (besluit.modus !== 'aan') {

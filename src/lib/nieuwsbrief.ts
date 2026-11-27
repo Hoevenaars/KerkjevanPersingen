@@ -1,7 +1,7 @@
 /**
  * Nieuwsbriefcron.
  * Uit stuurt niets. Test gaat naar het testmailadres.
- * Aan begint woensdag om 11:30 en stuurt daarna twaalf brieven per vijf minuten.
+ * Aan begint maandag om 10:30 en stuurt daarna twaalf brieven per vijf minuten.
  */
 
 import { bereidNieuwsbrief, draaiNieuwsbriefDryRun, supabaseNieuwsbrief, vulNieuwsbriefConcepten, type NieuwsbriefBron } from './nieuwsbrief-supabase.ts';
@@ -31,7 +31,7 @@ export interface NieuwsbriefLoopOpties {
   bron?: NieuwsbriefBron;
   transport?: MailTransport;
   testadres?: string | null;
-  /** Na 12:20: alleen verder als deze editie al deels verstuurd is. */
+  /** Na 11:20: alleen verder als deze editie al deels verstuurd is. */
   alleenVervolg?: boolean;
   /** Milliseconden tussen twee verzendingen in dezelfde ronde. Tests zetten dit op 0. */
   pauzeMs?: number;

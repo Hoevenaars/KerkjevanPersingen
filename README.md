@@ -254,15 +254,16 @@ Supabase. De ontvangerslijst ziet alleen de webmaster.
   Steun ons linkt ernaar.
 - Uitschrijven: persoonlijke link in elke mail (`/vrienden/afmelden/?token=…`).
 - Elke ochtend zet de workflowcron ontbrekende concepten klaar, van deze week tot en met vier weken verder.
-- Woensdag 11:30 Nederlandse tijd, in winter- en zomertijd: de brief gaat in groepjes van
+- Maandag 10:30 Nederlandse tijd, in winter- en zomertijd: de brief gaat in groepjes van
   twaalf de deur uit, ongeveer elke vijf minuten, tot iedereen van die ronde hem heeft of tot 15:00.
   Een ronde verstuurt pas als iemand de week in beheer heeft goedgekeurd, het concept minstens vier weken
-  voor die woensdag bestond én er dat weekend een publieke activiteit is, inclusief de winterstop.
+  voor de woensdag van die week bestond én er dat weekend een publieke activiteit is, inclusief de winterstop.
   Een stille week of een niet-goedgekeurde week gaat niet de deur uit.
-  Vercel kent alleen UTC, dus de route draait woensdag elke vijf minuten van 09:00 tot 13:55 UTC.
-  Alleen een aanroep die in Amsterdam tussen 11:30 en 12:20 valt, begint een nieuwe brief.
-  Latere aanroepen diezelfde woensdag, tot 15:00, maken een lopende verzending af.
-  Een aanroep vóór 11:30 of na 15:00 slaat over. Er is geen dry-run-cron.
+  Vercel kent alleen UTC, dus de route draait maandag elke vijf minuten van 08:00 tot 14:55 UTC.
+  In de winter is 10:30 dan 09:30 UTC, in de zomer 08:30 UTC.
+  Alleen een aanroep die in Amsterdam tussen 10:30 en 11:20 valt, begint een nieuwe brief.
+  Latere aanroepen diezelfde maandag, tot 15:00, maken een lopende verzending af.
+  Een aanroep vóór 10:30 of na 15:00 slaat over. Er is geen dry-run-cron.
 - Antwoorden op de vriendenmail gaan naar `voorzitter@kerkjepersingen.nl`.
   De afzender blijft `noreply@send.kerkjepersingen.nl`. Het publieke MX-record wijst naar
   TransIP, dus die postbus moet daar bestaan.

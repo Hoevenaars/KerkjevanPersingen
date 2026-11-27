@@ -59,7 +59,7 @@ if (Astro.request.method === 'POST') {
     doel.searchParams.set('fout', 'De week is niet goedgekeurd. Er is niets opgeslagen.');
     return Astro.redirect(doel.toString());
   }
-  doel.searchParams.set('melding', 'Goedgekeurd. Deze week kan woensdag om 11.30 worden verstuurd.');
+  doel.searchParams.set('melding', 'Goedgekeurd. Deze week kan maandag om 10.30 worden verstuurd.');
   return Astro.redirect(doel.toString());
 }
 
@@ -103,7 +103,7 @@ const meting = bereik.fout ? 'fout' : snapshot.bron === 'supabase' ? 'live' : 'v
   <header class="bh-top">
     <div>
       <h1>Week van {formatNl(brief.week)}</h1>
-      <p class="bh-hint">Het voorbeeld is de brief van deze week. Goedkeuren bewaart alleen die keuze. De mail gaat woensdag om 11.30 de deur uit, in groepjes van {NIEUWSBRIEF_PER_RONDE}, als de week is goedgekeurd.</p>
+      <p class="bh-hint">Het voorbeeld is de brief van deze week. Goedkeuren bewaart alleen die keuze. De mail gaat maandag om 10.30 de deur uit, in groepjes van {NIEUWSBRIEF_PER_RONDE}, als de week is goedgekeurd.</p>
     </div>
   </header>
 
