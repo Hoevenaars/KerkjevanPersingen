@@ -50,12 +50,9 @@ export async function annuleerBoeking(
   if (typeof jobsVoor !== 'number') return { ok: false, melding: jobsVoor.fout };
   const huidig = await db.leesStatus(id);
   if ('fout' in huidig) return { ok: false, melding: huidig.fout };
-  if (huidig.status === 'geannuleerd') {
-    const sync = await db.annuleerGekoppeldeActiviteiten(id, reden);
-    if (sync.fout) return { ok: false, melding: sync.fout };
-    return { ok: true, melding: 'Boeking was al geannuleerd.' };
-  }
-
+  // Ook bij herhaling uitvoeren: de databasetrigger trekt teken-/beslislinks in
+  // en stopt procesjobs in dezelfde transactie als de boekingsstatus. Hiermee
+  // herstelt een herhaalde annulering ook eerder achtergebleven open stappen.
   const gezet = await db.zetGeannuleerd(id);
   if ('fout' in gezet) return { ok: false, melding: gezet.fout };
   if ('leeg' in gezet || gezet.status !== 'geannuleerd') {
@@ -71,6 +68,9 @@ export async function annuleerBoeking(
   }
   const sync = await db.annuleerGekoppeldeActiviteiten(id, reden);
   if (sync.fout) return { ok: false, melding: sync.fout };
+  if (huidig.status === 'geannuleerd') {
+    return { ok: true, melding: 'Boeking was al geannuleerd.' };
+  }
 
   const rij: AnnuleerAudit = {
     actor_id: actor.id && UUID.test(actor.id) ? actor.id : null,
@@ -162,11 +162,20 @@ export function annuleerDbVanSessie(client: AnnuleerSessie): AnnuleerDb {
   };
 }
 
-export function annuleerBoekingViaSessie(
+export async function annuleerBoekingViaSessie(
   client: AnnuleerSessie,
   id: number,
   reden: string,
   actor: AnnuleerActor,
 ): Promise<AnnuleerResultaat> {
-  return annuleerBoeking(annuleerDbVanSessie(client), id, reden, actor);
+  const uit = await annuleerBoeking(annuleerDbVanSessie(client), id, reden, actor);
+  if (uit.ok && process.env.VERHUUR_MACHINE === 'true') {
+    try {
+      // De statuscommit heeft links/jobs gestopt en wachtende dossiers gewekt.
+      // Deze wake-up is aanvullend; de opgeslagen queue blijft leidend.
+      const { verwerkVerhuurmachine } = await import('../verhuurmachine/proces.ts');
+      await verwerkVerhuurmachine(process.env, { maxJobs: 8 });
+    } catch { /* De geplande worker herneemt de al vastgelegde vervolgstappen. */ }
+  }
+  return uit;
 }

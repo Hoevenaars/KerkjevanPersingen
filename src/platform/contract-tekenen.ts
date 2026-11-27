@@ -61,11 +61,12 @@ export function tekenCookieGeldig(waarde: string, tokenHash: string, nu: string,
   if (scheiding < 1) return false;
   const hash = tekst.slice(0, scheiding);
   const tot = tekst.slice(scheiding + 1);
-  return hash === tokenHash && tot >= nu;
+  return hash === tokenHash && Number.isFinite(Date.parse(tot)) && Date.parse(tot) > Date.parse(nu);
 }
 
 export interface TekenDossier {
   boekingId: string;
+  aanvraagId?: number | null;
   versie: number;
   contractnummer: string;
   tokenHash: string;
@@ -83,6 +84,13 @@ export interface TekenDossier {
   bevestigingId: string | null;
   pakket: PakketBron;
   huurderNaam: string;
+  /** De productieadapter leest deze velden samen met het bevroren contract. */
+  boekingStatus?: string;
+  actueleVersie?: number;
+  ingetrokkenOp?: string | null;
+  bestuurAkkoord?: boolean;
+  pdfHash?: string | null;
+  machineProces?: boolean;
 }
 
 export interface TekenBewijs {
@@ -133,7 +141,9 @@ export type TekenUitkomst =
 export interface TekenWinkel {
   lees(tokenHash: string): Promise<TekenDossier | null>;
   bewaarCode(tokenHash: string, codeHash: string, verloopt: string, pogingen: number): Promise<void>;
-  zetGeverifieerd(tokenHash: string, op: string): Promise<void>;
+  registreerFouteCode?(tokenHash: string, verwachteCodeHash: string): Promise<void>;
+  zetGeverifieerd(tokenHash: string, op: string, verwachteCodeHash?: string): Promise<void>;
+  leesGetekendePdf?(dossier: TekenDossier): Promise<Uint8Array | null>;
   legOndertekening(input: {
     tokenHash: string;
     naam: string;
@@ -151,7 +161,15 @@ function plusMinuten(iso: string, minuten: number): string {
 
 function openDossier(dossier: TekenDossier | null, nu: string): { ok: true; dossier: TekenDossier } | { ok: false; melding: string } {
   if (!dossier) return { ok: false, melding: 'Deze link is ongeldig.' };
-  if (dossier.verlooptOp < nu && !dossier.ondertekendOp) return { ok: false, melding: 'Deze link is verlopen.' };
+  if (dossier.ingetrokkenOp || dossier.boekingStatus === 'geannuleerd') {
+    return { ok: false, melding: 'Deze link is ingetrokken. Neem contact op met het kerkje.' };
+  }
+  if (!dossier.ondertekendOp && dossier.actueleVersie != null && dossier.actueleVersie !== dossier.versie) {
+    return { ok: false, melding: 'Er is een nieuwere contractversie. Gebruik de meest recente link.' };
+  }
+  if (!dossier.ondertekendOp && (!Number.isFinite(Date.parse(dossier.verlooptOp)) || Date.parse(dossier.verlooptOp) <= Date.parse(nu))) {
+    return { ok: false, melding: 'Deze link is verlopen.' };
+  }
   return { ok: true, dossier };
 }
 
@@ -170,6 +188,20 @@ export async function voerTekenstap(
   winkel: TekenWinkel,
   opties?: { sjabloon?: Uint8Array | null },
 ): Promise<TekenUitkomst> {
+  try {
+    return await verwerkTekenstap(stap, winkel, opties);
+  } catch {
+    // Ook een time-out kan ná een commit optreden. Alleen opnieuw lezen mag
+    // bevestigen dat er is getekend; een uitzondering is nooit "al ondertekend".
+    return { ok: false, melding: 'De bewerking kon niet worden bevestigd. Er is geen nieuwe ondertekening bevestigd. Probeer opnieuw of neem contact op met het kerkje.' };
+  }
+}
+
+async function verwerkTekenstap(
+  stap: TekenStap,
+  winkel: TekenWinkel,
+  opties?: { sjabloon?: Uint8Array | null },
+): Promise<TekenUitkomst> {
   if (!tokenVormGeldig(stap.token)) return { ok: false, melding: 'Deze link is ongeldig.' };
   const hash = hashTekenToken(stap.token);
   const gelezen = openDossier(await winkel.lees(hash), stap.nu);
@@ -179,17 +211,12 @@ export async function voerTekenstap(
 
   if (stap.soort === 'bekijk' || stap.soort === 'download') {
     if (stap.soort === 'download' && dossier.ondertekendOp) {
-      const bewijs: TekenBewijs = {
-        naam: dossier.naam || dossier.huurderNaam,
-        email: dossier.email,
-        op: dossier.ondertekendOp,
-        contractnummer: dossier.contractnummer,
-        versie: dossier.versie,
-        documentHash: dossier.documentHash || '',
-      };
-      const basis = await pdfUitDossier(dossier, opties?.sjabloon ?? null);
-      if (!basis.ok) return basis;
-      const pdf = opties?.sjabloon ? await voegTekstAanPdf(basis.pdf, bewijsTekst(bewijs)) : ondertekendePdf(dossier, bewijs);
+      // Bewijs is de werkelijk opgeslagen PDF. Een gewijzigd sjabloon mag
+      // een historische handtekening nooit een andere inhoud geven.
+      const pdf = await winkel.leesGetekendePdf?.(dossier);
+      if (!pdf || (dossier.pdfHash && sha256Hex(pdf) !== dossier.pdfHash)) {
+        return { ok: false, melding: 'De opgeslagen ondertekende PDF kon niet worden gecontroleerd. Neem contact op met het kerkje.' };
+      }
       return { ok: true, melding: 'Getekend contract.', dossier, pdf };
     }
     const los = await pdfUitDossier(dossier, opties?.sjabloon ?? null);
@@ -202,6 +229,9 @@ export async function voerTekenstap(
   }
   if (!dossier.vrijgegeven) {
     return { ok: false, melding: 'Deze versie is nog niet vrijgegeven om te ondertekenen.' };
+  }
+  if ((dossier.boekingStatus != null && !['optie', 'definitief'].includes(dossier.boekingStatus)) || dossier.bestuurAkkoord === false) {
+    return { ok: false, melding: 'Deze boeking is niet vrijgegeven om te ondertekenen. Neem contact op met het kerkje.' };
   }
 
   if (stap.soort === 'code') {
@@ -217,10 +247,11 @@ export async function voerTekenstap(
     }
     if (dossier.pogingen >= 5) return { ok: false, melding: 'Te veel pogingen. Vraag het kerkje om een nieuwe link.' };
     if (!codeKlopt(stap.code.trim(), hash, stap.geheim, dossier.codeHash)) {
-      await winkel.bewaarCode(hash, dossier.codeHash, dossier.codeVerloopt, dossier.pogingen + 1);
+      if (winkel.registreerFouteCode) await winkel.registreerFouteCode(hash, dossier.codeHash);
+      else await winkel.bewaarCode(hash, dossier.codeHash, dossier.codeVerloopt, dossier.pogingen + 1);
       return { ok: false, melding: 'De code klopt niet.' };
     }
-    await winkel.zetGeverifieerd(hash, stap.nu);
+    await winkel.zetGeverifieerd(hash, stap.nu, dossier.codeHash);
     const tot = plusMinuten(stap.nu, 30);
     return {
       ok: true,
@@ -248,12 +279,16 @@ export async function voerTekenstap(
     documentHash,
   };
   const pdf = opties?.sjabloon ? await voegTekstAanPdf(ongetekend.pdf, bewijsTekst(bewijs)) : ondertekendePdf(dossier, bewijs);
+  const pdfHash = sha256Hex(pdf);
+  // Iedere bewijsinhoud heeft een eigen onveranderlijk pad. De database kiest
+  // onder een boekinglock één winnaar; een tweede request kan die niet overschrijven.
+  const pdfPad = `contracten/${dossier.boekingId}/getekend-v${dossier.versie}-${pdfHash}.pdf`;
   const stand = await winkel.legOndertekening({
     tokenHash: hash,
     naam,
     op: stap.nu,
     documentHash,
-    pdfPad: `contracten/${dossier.boekingId}/getekend-v${dossier.versie}.pdf`,
+    pdfPad,
     pdf,
     audit: {
       ipHash: stap.ipHash,
@@ -262,13 +297,24 @@ export async function voerTekenstap(
       documentHash,
     },
   });
+  const bevestigd = openDossier(await winkel.lees(hash), stap.nu);
+  if (!bevestigd.ok) return bevestigd;
+  const opgeslagen = bevestigd.dossier;
+  if (!opgeslagen.ondertekendOp || !opgeslagen.naam || !opgeslagen.documentHash || !opgeslagen.pdfPad ||
+      opgeslagen.tokenHash !== hash || opgeslagen.boekingId !== dossier.boekingId || opgeslagen.versie !== dossier.versie) {
+    return { ok: false, melding: 'De ondertekening is niet aantoonbaar vastgelegd. Er is geen bevestigingsmail verstuurd.' };
+  }
   if (stand === 'al') {
-    return { ok: true, melding: 'Dit contract is al ondertekend. Er is geen nieuwe mail verstuurd.', dossier: { ...dossier, ondertekendOp: stap.nu, naam } };
+    return { ok: true, melding: 'Dit contract is al ondertekend. Er is geen nieuwe mail verstuurd.', dossier: opgeslagen };
+  }
+  if (opgeslagen.pdfPad !== pdfPad || opgeslagen.documentHash !== documentHash || opgeslagen.naam !== naam ||
+      Date.parse(opgeslagen.ondertekendOp) !== Date.parse(stap.nu) || (opgeslagen.pdfHash && opgeslagen.pdfHash !== pdfHash)) {
+    return { ok: false, melding: 'Het opgeslagen bewijs wijkt af. Er is geen bevestigingsmail verstuurd; neem contact op met het kerkje.' };
   }
   return {
     ok: true,
     melding: 'Het contract is ondertekend. Dit is geen gekwalificeerde elektronische handtekening.',
-    dossier: { ...dossier, ondertekendOp: stap.nu, naam, documentHash },
+    dossier: opgeslagen,
     pdf,
     mail: 'bevestiging',
   };

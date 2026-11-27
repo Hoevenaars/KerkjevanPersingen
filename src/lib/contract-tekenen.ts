@@ -6,11 +6,13 @@ import { createHash } from 'node:crypto';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES } from './mail-adressen.ts';
 import { verstuurGecontroleerd } from './mail-transport.ts';
 import { maakBeheerAdminClient } from './supabase.ts';
-import { contractPakketTekst, PRIVACY_URL } from '../platform/contract-pakket.ts';
-import { kerkjeMail } from './kerkje-mail.ts';
+import { contractPakketTekst } from '../platform/contract-pakket.ts';
+import { ondertekenbrief } from './operatie/ondertekenbevestiging.ts';
 import { leesContractSjabloon } from './contract-sjabloon-opslag.ts';
 import {
   voerTekenstap,
+  hashTekenToken,
+  tokenVormGeldig,
   type TekenDossier,
   type TekenStap,
   type TekenUitkomst,
@@ -19,121 +21,15 @@ import {
 import { besluitVoor } from './automatisering-register.ts';
 import { promoveerIndienKlaar } from './operatie/definitief-auto.ts';
 import { getTestMailRecipient } from './testmail-adres.ts';
+import { tekenwinkelVanClient, type ContractTekenClient } from './operatie/contract-tekenwinkel.ts';
 
 type Rij = Record<string, unknown>;
 
-function tekst(waarde: unknown): string {
-  return waarde == null ? '' : String(waarde);
-}
-
-export function dossierUitRijen(tekening: Rij, versie: Rij, boeking: Rij): TekenDossier {
-  return {
-    boekingId: tekst(tekening.boeking_id),
-    versie: Number(tekening.versie),
-    contractnummer: tekst(versie.contractnummer),
-    tokenHash: tekst(tekening.token_hash),
-    verlooptOp: tekst(tekening.verloopt_op),
-    codeHash: tekening.code_hash == null ? null : tekst(tekening.code_hash),
-    codeVerloopt: tekening.code_verloopt == null ? null : tekst(tekening.code_verloopt),
-    pogingen: Number(tekening.pogingen ?? 0),
-    geverifieerdOp: tekening.geverifieerd_op == null ? null : tekst(tekening.geverifieerd_op),
-    ondertekendOp: tekening.ondertekend_op == null ? null : tekst(tekening.ondertekend_op),
-    naam: tekening.naam == null ? null : tekst(tekening.naam),
-    email: tekst(tekening.email),
-    vrijgegeven: tekening.vrijgegeven === true,
-    documentHash: tekening.document_hash == null ? null : tekst(tekening.document_hash),
-    pdfPad: tekening.pdf_pad == null ? null : tekst(tekening.pdf_pad),
-    bevestigingId: tekening.bevestiging_id == null ? null : tekst(tekening.bevestiging_id),
-    huurderNaam: tekst(boeking.huurder_naam_snapshot),
-    pakket: {
-      tekst: tekst(versie.tekst),
-      voorwaardenTekst: tekst(versie.voorwaarden_tekst),
-      huisregelsTekst: tekst(versie.huisregels_tekst),
-      plattegrondTekst: tekst(versie.plattegrond_tekst),
-      soort: tekst(boeking.verhuurtype_sleutel),
-    },
-  };
-}
+export { dossierUitRijen } from './operatie/contract-tekenwinkel.ts';
 
 export function supabaseTekenwinkel(env: Record<string, unknown> = process.env): TekenWinkel | null {
-  const client = maakBeheerAdminClient(env) as unknown as {
-    from(tabel: string): {
-      select(kolommen: string): {
-        eq(kolom: string, waarde: unknown): {
-          eq(kolom: string, waarde: unknown): { maybeSingle(): Promise<{ data: Rij | null; error: { message: string } | null }> };
-          maybeSingle(): Promise<{ data: Rij | null; error: { message: string } | null }>;
-        };
-      };
-      update(rij: Rij): {
-        eq(kolom: string, waarde: unknown): {
-          eq(kolom: string, waarde: unknown): Promise<{ error: { message: string } | null }>;
-        } & Promise<{ error: { message: string } | null }>;
-      };
-      insert(rij: Rij): Promise<{ error: { message: string } | null }>;
-    };
-    storage: {
-      from(bucket: string): {
-        upload(pad: string, body: Uint8Array, opties: { contentType: string; upsert: boolean }): Promise<{ error: { message: string } | null }>;
-      };
-    };
-  } | null;
-  if (!client) return null;
-  return {
-    async lees(tokenHash) {
-      const tekening = await client.from('contract_tekeningen').select('*').eq('token_hash', tokenHash).maybeSingle();
-      if (tekening.error || !tekening.data) return null;
-      const versie = await client.from('contractversies').select('*').eq('boeking_id', tekening.data.boeking_id).eq('versie', tekening.data.versie).maybeSingle();
-      if (versie.error || !versie.data) return null;
-      const boeking = await client.from('boekingen').select('huurder_naam_snapshot,verhuurtype_sleutel').eq('id', tekening.data.boeking_id).maybeSingle();
-      if (boeking.error || !boeking.data) return null;
-      const dossier = dossierUitRijen(tekening.data, versie.data, boeking.data);
-      if (dossier.tokenHash !== tokenHash) return null;
-      return dossier;
-    },
-    async bewaarCode(tokenHash, codeHash, verloopt, pogingen) {
-      await client.from('contract_tekeningen').update({
-        code_hash: codeHash,
-        code_verloopt: verloopt,
-        pogingen,
-      }).eq('token_hash', tokenHash);
-    },
-    async zetGeverifieerd(tokenHash, op) {
-      await client.from('contract_tekeningen').update({ geverifieerd_op: op, pogingen: 0 }).eq('token_hash', tokenHash);
-    },
-    async legOndertekening(input) {
-      const upload = await client.storage.from('booking-documents').upload(input.pdfPad, input.pdf, { contentType: 'application/pdf', upsert: false });
-      if (upload.error && !/already exists|Duplicate/i.test(upload.error.message)) return 'al';
-      const gezet = await client.from('contract_tekeningen').update({
-        ondertekend_op: input.op,
-        naam: input.naam,
-        document_hash: input.documentHash,
-        pdf_pad: input.pdfPad,
-        audit: input.audit,
-      }).eq('token_hash', input.tokenHash);
-      if (gezet.error) return 'al';
-      const huidig = await client.from('contract_tekeningen').select('boeking_id,versie,ondertekend_op').eq('token_hash', input.tokenHash).maybeSingle();
-      if (!huidig.data?.ondertekend_op) return 'al';
-      await client.from('contractversies').update({
-        ondertekening: 'ontvangen',
-        ondertekening_actor: input.naam,
-        ondertekening_op: input.op,
-        ondertekening_versie: huidig.data.versie,
-      }).eq('boeking_id', huidig.data.boeking_id).eq('versie', huidig.data.versie);
-      await client.from('documenten').insert({
-        boeking_id: Number(huidig.data.boeking_id),
-        type: 'getekend_contract',
-        bestandsnaam: `getekend-v${huidig.data.versie}.pdf`,
-        storage_pad: input.pdfPad,
-        mime_type: 'application/pdf',
-        grootte_bytes: input.pdf.byteLength,
-      });
-      await promoveerIndienKlaar(client as never, Number(huidig.data.boeking_id), {
-        naam: 'Ondertekening',
-        type: 'systeem',
-      }).catch(() => null);
-      return huidig.data.ondertekend_op === input.op ? 'nieuw' : 'al';
-    },
-  };
+  const client = maakBeheerAdminClient(env);
+  return client ? tekenwinkelVanClient(client as unknown as ContractTekenClient) : null;
 }
 
 async function mailMetPdf(input: {
@@ -173,15 +69,63 @@ export async function behandelTekenpagina(input: {
   stap: TekenStap;
   winkel?: TekenWinkel | null;
   env?: Record<string, unknown>;
+  /** Alleen een wake-up/herstelhook: de machinejob wordt al in de SQL-transactie vastgelegd. */
+  naOndertekening?: (dossier: TekenDossier) => Promise<void>;
 }): Promise<TekenUitkomst> {
   const env = input.env ?? process.env;
   const winkel = input.winkel === undefined ? supabaseTekenwinkel(env) : input.winkel;
   if (!winkel) return { ok: false, melding: 'Ondertekenen is nu niet beschikbaar.' };
+  if (input.stap.soort === 'download' && tokenVormGeldig(input.stap.token)) {
+    try {
+      const bewaard = await winkel.lees(hashTekenToken(input.stap.token));
+      if (bewaard?.ondertekendOp) {
+        // Een bewijsdownload blijft beschikbaar als het actieve sjabloon later
+        // is veranderd of ontbreekt. De platformlaag controleert de link opnieuw.
+        const uit = await voerTekenstap(input.stap, winkel);
+        return uit.ok ? { ...uit, metSjabloon: true } : uit;
+      }
+    } catch {
+      return { ok: false, melding: 'De opgeslagen ondertekende PDF kon niet worden gecontroleerd.' };
+    }
+  }
   const sjabloon = await leesContractSjabloon(env);
   if (sjabloon.fout) return { ok: false, melding: sjabloon.fout };
   const uit = await voerTekenstap(input.stap, winkel, { sjabloon: sjabloon.bytes });
   if (!uit.ok) return uit;
-  const antwoord = { ...uit, metSjabloon: Boolean(sjabloon.bytes && sjabloon.bytes.byteLength > 0) };
+  let vervolgMelding: string | null = null;
+  if (input.stap.soort === 'onderteken' && uit.dossier.ondertekendOp) {
+    if (uit.dossier.machineProces) {
+      try {
+        if (input.naOndertekening) await input.naOndertekening(uit.dossier);
+        else {
+          const { verwerkVerhuurmachine } = await import('./verhuurmachine/proces.ts');
+          await verwerkVerhuurmachine(env, { aanvraagId: uit.dossier.aanvraagId ?? undefined, maxJobs: 3 });
+        }
+      } catch {
+        // Het bewijs en beide vervolgjobs zijn al gecommit. Een mislukte wake-up
+        // verandert de ondertekening niet; de volgende worker hervat de queue.
+      }
+    } else {
+      try {
+        if (input.naOndertekening) await input.naOndertekening(uit.dossier);
+        // Bestaande handmatig beheerde dossiers behouden hun afronding. Nieuwe
+        // machineboekingen vervolgen uitsluitend vanuit hun duurzame SQL-job.
+        const client = maakBeheerAdminClient(env);
+        if (client) {
+          const vervolg = await promoveerIndienKlaar(client as never, Number(uit.dossier.boekingId), { naam: 'Ondertekening', type: 'systeem' });
+          if (!vervolg.ok) vervolgMelding = 'Het contract is ondertekend. De administratieve afronding vraagt controle door het kerkje.';
+        }
+      } catch {
+        vervolgMelding = 'Het contract is ondertekend. De administratieve afronding vraagt controle door het kerkje.';
+      }
+    }
+  }
+  const antwoord = { ...uit, melding: vervolgMelding ?? uit.melding, metSjabloon: Boolean(sjabloon.bytes && sjabloon.bytes.byteLength > 0) };
+  if (uit.mail === 'bevestiging' && uit.dossier.machineProces) {
+    // De onderteken-RPC heeft de mailjob in dezelfde transactie aangemaakt.
+    // Dit request verzendt niet nogmaals naast de geclaimde worker.
+    return { ...antwoord, mail: undefined };
+  }
   if (!antwoord.mail) return antwoord;
   if (uit.mail === 'code' && uit.code) {
     const id = await mailMetPdf({
@@ -198,19 +142,7 @@ export async function behandelTekenpagina(input: {
   }
   if (uit.mail === 'bevestiging' && uit.pdf) {
     const naam = `${uit.dossier.contractnummer}-getekend.pdf`;
-    const aanhefNaam = uit.dossier.naam || uit.dossier.huurderNaam;
-    const brief = kerkjeMail({
-      titel: 'Uw ondertekende huurovereenkomst',
-      aanhef: `Beste ${aanhefNaam},`,
-      hoofdtekst: [
-        'Uw elektronische ondertekening is vastgelegd. De definitieve PDF zit bij deze mail.',
-        'Dit is een elektronische bevestiging en geen gekwalificeerde elektronische handtekening.',
-        'Het concept en de ondertekende PDF blijven in het verhuurdossier bewaard.',
-        'De reservering wordt definitief volgens de betaalafspraken in het contract.',
-        `Privacyverklaring: ${PRIVACY_URL}`,
-      ].join('\n\n'),
-      ondertekening: 'Team Kerkje van Persingen',
-    });
+    const brief = ondertekenbrief(uit.dossier);
     let id: string | null = null;
     try {
       id = await mailMetPdf({

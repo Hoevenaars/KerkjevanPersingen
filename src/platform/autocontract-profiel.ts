@@ -10,6 +10,7 @@ export interface AutocontractProfiel {
   betalingBinnenDagen: number;
   restantMaandenVoorStart: number;
   kortVoorStartVolledig: boolean;
+  restFactuurDagenVoorVerval?: number;
 }
 
 export type ContractBetalingVoorstel = {
@@ -60,6 +61,7 @@ export function leesAutocontractProfiel(waarde: unknown): AutocontractProfiel | 
       !Number.isInteger(v.betalingBinnenDagen) || Number(v.betalingBinnenDagen) < 1 || Number(v.betalingBinnenDagen) > 45 ||
       !Number.isInteger(v.restantMaandenVoorStart) || Number(v.restantMaandenVoorStart) < 1 || Number(v.restantMaandenVoorStart) > 12 ||
       typeof v.kortVoorStartVolledig !== 'boolean') return null;
+  if (v.restFactuurDagenVoorVerval != null && (!Number.isInteger(v.restFactuurDagenVoorVerval) || Number(v.restFactuurDagenVoorVerval) < 0 || Number(v.restFactuurDagenVoorVerval) > 90)) return null;
   return v as unknown as AutocontractProfiel;
 }
 

@@ -6,9 +6,10 @@ interface Props {
   velden: ContractWizardVelden;
   adresHint: string;
   vervangt?: boolean;
+  expositieWaarschuwing?: boolean;
 }
 
-const { actie, velden, adresHint, vervangt = false } = Astro.props;
+const { actie, velden, adresHint, vervangt = false, expositieWaarschuwing = false } = Astro.props;
 const rest = restTekst(velden);
 ---
 
@@ -63,6 +64,13 @@ const rest = restTekst(velden);
     <input id="personen" name="personen" value={velden.personen} />
     <label for="contactpersoon">Contactpersoon</label>
     <input id="contactpersoon" name="contactpersoon" value={velden.contactpersoon} />
+    <label for="bijzondereAfspraken">Bijzondere afspraken voor deze overeenkomst</label>
+    {expositieWaarschuwing && <div class="bh-flash" id="bijzondere-afspraken-hint">
+      <p>Er is een waarschuwing over de termijn tussen exposities. Het bestuur mag hiervan afwijken. Leg een toegestane uitzondering ook in deze overeenkomst vast.</p>
+      <p>Voorgestelde tekst om na beoordeling over te nemen:</p>
+      <blockquote>Het bestuur heeft voor deze expositie uitdrukkelijk een uitzondering toegestaan op de termijn van 18 maanden uit de verhuurvoorwaarden. Deze uitzondering geldt uitsluitend voor de deelnemers en periode van deze goedgekeurde aanvraag.</blockquote>
+    </div>}
+    <textarea id="bijzondereAfspraken" name="bijzondereAfspraken" rows="4" maxlength="6000" aria-describedby={expositieWaarschuwing ? 'bijzondere-afspraken-hint' : undefined}>{velden.bijzondereAfspraken ?? ''}</textarea>
 
     <h3>Bedragen</h3>
     <label for="huurprijs">Huurprijs in euro</label>
@@ -74,6 +82,9 @@ const rest = restTekst(velden);
     <p>{rest}</p>
     <label for="restVerval">Vervaldatum restbetaling</label>
     <input id="restVerval" name="restVerval" type="date" value={velden.restVerval} />
+    <label for="restFactuurDagenVoorVerval">Resterende huur factureren: aantal dagen vóór de vervaldatum</label>
+    <input id="restFactuurDagenVoorVerval" name="restFactuurDagenVoorVerval" type="number" min="0" max="90" step="1" value={velden.restFactuurDagenVoorVerval ?? '0'} required />
+    <p class="bh-muted">Bij 0 dagen staat de factuurdatum gelijk aan de vervaldatum. Bij één volledige betaling zonder aanbetaling hoort deze planning bij de volledige huursom.</p>
 
     <h3>Verhuurder</h3>
     <label for="ondertekenaarNaam">Ondertekenaar</label>

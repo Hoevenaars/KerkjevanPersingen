@@ -47,6 +47,10 @@ export interface FaseAanvraag {
   start: string;
   eind: string;
   boekingId?: string;
+  /** Expliciet mandaat van de nieuwe mailroute; oudere dossiers houden hun bestaande faseafleiding. */
+  bestuursBesluit?: 'open' | 'ja' | 'nee';
+  procesStatus?: string;
+  blokkadeReden?: string;
 }
 
 export interface FaseBoeking {
@@ -445,7 +449,8 @@ export function beoordeelAanvraag(aanvraag: FaseAanvraag, wereld: FaseWereld): A
   const boeking = boekingBij(aanvraag, wereld);
   const checklist = checklistVan(boeking, wereld);
   const beschikbaarheid = beschikbaarheidVoor(aanvraag, wereld);
-  const geschikt = aanvraag.status === 'in_behandeling' || aanvraag.status === 'goedgekeurd' || aanvraag.status === 'wacht_op_aanvrager';
+  const machineAkkoord = aanvraag.bestuursBesluit === 'ja';
+  const geschikt = machineAkkoord || aanvraag.status === 'in_behandeling' || aanvraag.status === 'goedgekeurd' || aanvraag.status === 'wacht_op_aanvrager';
   let fase: AanvraagFase;
   if (aanvraag.status === 'afgewezen') fase = 'afgewezen';
   else if (aanvraag.status === 'gesloten') fase = 'gesloten';
@@ -455,7 +460,7 @@ export function beoordeelAanvraag(aanvraag: FaseAanvraag, wereld: FaseWereld): A
     && checklist.compleet
     && beschikbaarheid.uitkomst === 'beschikbaar'
   ) fase = 'gereed';
-  else if (aanvraag.status === 'nieuw' || (aanvraag.status === 'in_behandeling' && !boeking)) fase = 'nieuw';
+  else if (!machineAkkoord && (aanvraag.status === 'nieuw' || (aanvraag.status === 'in_behandeling' && !boeking))) fase = 'nieuw';
   else fase = 'in_behandeling';
 
   let volgendeActie = 'Geen actie';
@@ -466,6 +471,11 @@ export function beoordeelAanvraag(aanvraag: FaseAanvraag, wereld: FaseWereld): A
     else volgendeActie = 'Goedkeuren en in behandeling nemen';
   } else if (fase === 'in_behandeling') {
     if (aanvraag.status === 'wacht_op_aanvrager') volgendeActie = 'Wachten op de aanvrager';
+    else if (machineAkkoord && ['wacht_prijs', 'prijs_nodig', 'wacht_op_prijs'].includes(aanvraag.procesStatus ?? '')) volgendeActie = 'Huurprijs vaststellen';
+    else if (machineAkkoord && !boeking && (['wacht_beschikbaarheid', 'wacht_op_beschikbaarheid', 'conflict'].includes(aanvraag.procesStatus ?? '') || beschikbaarheid.uitkomst === 'bezet' || beschikbaarheid.uitkomst === 'aanvraag')) volgendeActie = 'Wachten op beschikbaarheid';
+    else if (machineAkkoord && !boeking && beschikbaarheid.uitkomst === 'onvolledig') volgendeActie = 'Periode ontbreekt';
+    else if (machineAkkoord && !boeking && aanvraag.blokkadeReden?.trim()) volgendeActie = 'Uitzondering controleren';
+    else if (machineAkkoord && !boeking) volgendeActie = 'Reservering voorbereiden';
     else if (!boeking) volgendeActie = 'Goedkeuren en in behandeling nemen';
     else if (beschikbaarheid.uitkomst === 'bezet' || beschikbaarheid.uitkomst === 'aanvraag') volgendeActie = 'Conflict oplossen';
     else if (!checklist.verzonden) volgendeActie = 'Contract verzenden';

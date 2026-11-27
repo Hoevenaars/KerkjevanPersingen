@@ -14,6 +14,7 @@ import {
 import { statusTeltVoorOverlap } from '../../platform/status-overgang.ts';
 import type { Actor } from './kern.ts';
 import { legAutomatischDefinitief, type DossierResultaat, type DossierSessie } from './dossier-sessie.ts';
+import { promoveerMachineAlsKlaar } from './verhuur-promotie.ts';
 
 type Rij = Record<string, unknown>;
 
@@ -47,9 +48,11 @@ export async function promoveerIndienKlaar(
   if (!Number.isInteger(boekingId)) {
     return { ok: true, gepromoveerd: false, melding: 'Geen boeking om definitief te maken.' };
   }
+  const machine = await promoveerMachineAlsKlaar(client, boekingId, actor);
+  if (machine.behandeld) return { ok: machine.ok, gepromoveerd: machine.gepromoveerd, melding: machine.melding };
   const boeking = await client
     .from('boekingen')
-    .select('id,status,start_datum,eind_datum,aanvraag_id,aanbetaling_bedrag,aanbetaling_ontvangen,nummer')
+    .select('id,status,start_datum,eind_datum,aanvraag_id,tarief_bedrag,betaling_vereist,aanbetaling_bedrag,aanbetaling_ontvangen,nummer')
     .eq('id', boekingId)
     .maybeSingle();
   if (boeking.error) return { ok: false, gepromoveerd: false, melding: 'De boeking kon niet worden gelezen. Definitief maken is geblokkeerd.' };
@@ -80,12 +83,18 @@ export async function promoveerIndienKlaar(
       bestuurVerplicht: huidig.bestuur_verplicht !== false,
     }
     : null;
-  const betalingen = await rijen(client, 'betalingen', 'soort,status', 'boeking_id', boekingId);
+  const betalingen = await rijen(client, 'betalingen', 'soort,status,bedrag,ontvangen_bedrag', 'boeking_id', boekingId);
   if (!betalingen.ok) return { ok: false, gepromoveerd: false, melding: 'De betalingen konden niet worden gecontroleerd. Boeking blijft op optie.' };
   const betaling = aanbetalingVoorwaarde(
     betalingen.data.map((rij) => ({ soort: tekst(rij.soort), status: tekst(rij.status) })),
     boeking.data.aanbetaling_ontvangen === true,
   );
+  const actief = betalingen.data.filter((r) => r.status !== 'geannuleerd' && ['aanbetaling', 'restant'].includes(tekst(r.soort)));
+  const huur = getal(boeking.data.tarief_bedrag);
+  const totaalCent = actief.reduce((som, r) => som + Math.round((getal(r.bedrag) ?? NaN) * 100), 0);
+  const volledigBetaald = huur != null && huur > 0 && totaalCent === Math.round(huur * 100) && actief.length > 0 &&
+    actief.every((r) => ['ontvangen', 'betaald'].includes(tekst(r.status)) &&
+      (r.ontvangen_bedrag == null || Math.round((getal(r.ontvangen_bedrag) ?? 0) * 100) >= Math.round((getal(r.bedrag) ?? Infinity) * 100)));
   const anderen = await client.from('boekingen').select('id,status,start_datum,eind_datum').in('status', ['optie', 'definitief']);
   if (anderen.error || !Array.isArray(anderen.data)) return { ok: false, gepromoveerd: false, melding: 'De bezetting kon niet worden gecontroleerd. Boeking blijft op optie.' };
   const start = tekst(boeking.data.start_datum);
@@ -105,6 +114,9 @@ export async function promoveerIndienKlaar(
     aanbetalingBedrag: getal(boeking.data.aanbetaling_bedrag),
     aanbetalingOntvangen: betaling.ontvangen,
     aanbetalingTegenstrijdig: betaling.tegenstrijdig,
+    betalingVereist: ['aanbetaling', 'volledig', 'geen'].includes(tekst(boeking.data.betaling_vereist))
+      ? tekst(boeking.data.betaling_vereist) as 'aanbetaling' | 'volledig' | 'geen' : undefined,
+    volledigBetaald,
     overlapt,
   });
   if (!klaar) return { ok: true, gepromoveerd: false, melding: 'De checklist is nog niet compleet.' };

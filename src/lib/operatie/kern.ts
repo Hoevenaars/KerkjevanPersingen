@@ -297,7 +297,7 @@ export interface DienstContext {
   /** Dag waarop betalingscommunicatie op Aan is gezet. Leeg: geen betalingsmail. */
   betalingsActiefVanaf?: string | null;
   /** Alleen gezet door de workflowcron. Een uitgeschakelde kindschakelaar wordt dan overgeslagen. */
-  sjabloonOpen?: (templateId: string) => boolean;
+  sjabloonOpen?: (templateId: string, boekingId?: string) => boolean;
 }
 
 export function legeWereld(): Wereld {
@@ -656,6 +656,12 @@ function contextVan(
   };
 }
 
+/** Hercontrole vlak vóór de duurzame vervolgmail, op de actuele dossierstatus. */
+export function isVervolgmailNodig(wereld: Wereld, boekingId: string, templateId: string, vandaag: string): boolean {
+  const boeking = wereld.boekingen.find(b => b.id === boekingId);
+  return Boolean(boeking && actueleVerzendingen(contextVan(wereld, boeking, vandaag)).some(stap => stap.templateId === templateId));
+}
+
 function templateVoor(wereld: Wereld, id: string): import('../../platform/mailtemplates/types.ts').MailTemplateDef | undefined {
   if (wereld.mailtemplates) return wereld.mailtemplates.find((item) => item.id === id);
   return standaardTemplate(id);
@@ -733,7 +739,7 @@ function communicatieMutaties(
     }
 
     for (const stapItem of actueleVerzendingen(comm)) {
-      if (ctx.sjabloonOpen && !ctx.sjabloonOpen(stapItem.templateId)) continue;
+      if (ctx.sjabloonOpen && !ctx.sjabloonOpen(stapItem.templateId, boeking.id)) continue;
       const dedup = jobDedupSleutel(boeking.id, stapItem.templateId);
       const bestaand = wereld.jobs.find((job) => job.dedup === dedup);
       if (bestaand && (bestaand.status === 'verzonden' || bestaand.status === 'fout' || bestaand.status === 'geannuleerd')) {

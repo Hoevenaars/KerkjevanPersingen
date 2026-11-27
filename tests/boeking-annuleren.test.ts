@@ -181,8 +181,29 @@ test('een al geannuleerde boeking haalt de gekoppelde activiteit alsnog van de a
   assert.equal(uit.ok, true);
   assert.equal(uit.melding, 'Boeking was al geannuleerd.');
   assert.deepEqual(updates, [
+    'boekingen:geannuleerd:',
+    'communicatie_jobs:geannuleerd:',
     'publieke_activiteiten:geannuleerd:Weg afgesloten. Exposant verwacht minder bezoekers.',
   ]);
+});
+
+test('een herhaalde annulering voert de atomaire stop opnieuw uit en meldt fouten eerlijk', async () => {
+  const db = geheugen('geannuleerd');
+  let gestopt = 0;
+  db.zetGeannuleerd = async () => { gestopt += 1; return { fout: 'De keten kon niet atomair worden gestopt.' }; };
+  const uit = await annuleerBoeking(db, 48, '', { type: 'gebruiker', naam: 'Beheer' });
+  assert.equal(gestopt, 1);
+  assert.equal(uit.ok, false);
+  assert.match(uit.melding, /atomair/);
+  assert.equal(db.audits.length, 0);
+});
+
+test('een eerder geannuleerde boeking bevestigt geen succes als open jobs niet stoppen', async () => {
+  const db = geheugen('geannuleerd');
+  db.annuleerOpenJobs = async () => ({ fout: 'Open jobs konden niet worden gestopt.' });
+  const uit = await annuleerBoeking(db, 48, '', { type: 'gebruiker', naam: 'Beheer' });
+  assert.equal(uit.ok, false);
+  assert.match(uit.melding, /jobs/);
 });
 
 test('een redirect houdt status 303 nadat beheerheaders zijn gezet', () => {

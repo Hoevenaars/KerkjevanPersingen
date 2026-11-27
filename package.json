@@ -12,7 +12,9 @@
     "consolidatie:dry-run": "node --experimental-strip-types scripts/consolidatie-dry-run.ts",
     "huuroverzicht:delta": "node --experimental-strip-types scripts/huuroverzicht-delta-migratie.ts",
     "import:historical-rentals": "node --experimental-strip-types scripts/import-historische-huur.ts",
-    "nieuwsbrief:preview": "node --experimental-strip-types scripts/verstuur-nieuwsbrief-preview.ts"
+    "nieuwsbrief:preview": "node --experimental-strip-types scripts/verstuur-nieuwsbrief-preview.ts",
+    "test:verhuur": "node scripts/test-verhuur-offline.mjs",
+    "test:verhuur:sql": "node tests/sql/run-verhuur-lokaal.mjs"
   },
   "dependencies": {
     "@astrojs/vercel": "^8.0.0",

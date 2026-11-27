@@ -1,0 +1,352 @@
+---
+import type { BeoordelingsDossier, Rij } from '../../lib/verhuurmachine/beoordeling.ts';
+import type { MachineConceptBeoordeling } from '../../lib/operatie/verhuur-concept-herbeoordeling.ts';
+
+interface Props {
+  dossier: BeoordelingsDossier | null;
+  besluit: Rij | null;
+  jobs: readonly Rij[];
+  claims: readonly {
+    id: string;
+    boekingId: string;
+    type: 'contract' | 'factuur';
+    soort: string;
+    status: string;
+    versie: string;
+    providerId: string;
+  }[];
+  ontvangstClaims?: readonly Rij[];
+  concept?: MachineConceptBeoordeling | null;
+  conceptFout?: string;
+  uitzondering?: { reden: string; eigenaar: string; opvolgenVoor: string } | null;
+  geactiveerd: boolean;
+  fout?: string;
+  schrijven: boolean;
+  actie: string;
+  aanvraagId: string;
+}
+
+const { dossier, besluit, jobs, claims, ontvangstClaims = [], concept = null, conceptFout = '',
+  uitzondering = null, geactiveerd, fout = '', schrijven, actie, aanvraagId } = Astro.props;
+const tekst = (v: unknown) => v == null ? '' : String(v);
+// De conceptbron heeft een eigen hash en waarschuwingen. Laat precies de
+// beoordeling zien die bij het opgeslagen contract wordt goedgekeurd.
+const beoordeling = concept?.beoordeling ?? dossier?.beoordeling;
+const magUitvoeren = schrijven && geactiveerd && !fout;
+const besluitStatus = tekst(besluit?.status);
+const besluitLabels: Record<string, string> = {
+  wacht_op_beschikbaarheid: 'Ja, wacht op beschikbaarheid', toegewezen: 'Ja, periode toegewezen',
+  herbeoordelen: 'Opnieuw beoordelen', afgewezen: 'Afgewezen', geannuleerd: 'Geannuleerd',
+};
+const taakLabels: Record<string, string> = {
+  bestuursmail: 'Bestuursmail', contract: 'Contractpakket', controleer_definitief: 'Controle definitieve boeking',
+  afwijzingsmail: 'Afwijzing versturen', definitiefmail: 'Definitieve bevestiging', agenda: 'Agenda bijwerken',
+  financieel: 'Facturen en betalingen', hervatten: 'Beschikbaarheid opvolgen',
+  ondertekenbevestiging: 'Ontvangstbevestiging ondertekening', opvolgmail: 'Opvolgmail aan huurder',
+};
+const statusLabels: Record<string, string> = {
+  te_doen: 'Ingepland', bezig: 'Bezig', afgerond: 'Afgerond', wacht_op_mens: 'Actie nodig',
+  onzeker: 'Uitkomst controleren', geannuleerd: 'Vervallen',
+};
+const datumTijd = (waarde: unknown) => {
+  const d = new Date(tekst(waarde));
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Amsterdam' })
+    : 'Nog niet vastgelegd';
+};
+const euro = (waarde: number) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(waarde);
+const heeftBoeking = Boolean(dossier?.aanvraagRij.boeking_id || besluit?.boeking_id || concept);
+const openBesluit = Boolean(dossier && !heeftBoeking && (!besluit || besluitStatus === 'herbeoordelen')
+  && ['nieuw', 'in_behandeling', 'wacht_op_aanvrager'].includes(tekst(dossier.aanvraagRij.status)));
+const kanBesluiten = magUitvoeren && openBesluit;
+const conceptAfwijkingOntbreekt = Boolean(concept && concept.beoordeling.historieWaarschuwingen.length > 0
+  && !/uitzondering[\s\S]*18 maanden/.test(tekst(concept.wizard.bijzondereAfspraken)));
+const kanConceptGoedkeuren = magUitvoeren && !conceptFout && !conceptAfwijkingOntbreekt && concept?.toelaatbaar === true;
+const gegevensBlokkerenJa = Boolean(beoordeling?.meldingen.some((m) => ['periode_onvolledig', 'beleid_onvolledig', 'aanvraag_niet_actief'].includes(m.code)));
+const kanToewijzen = magUitvoeren && besluit?.besluit === 'ja' && besluitStatus === 'wacht_op_beschikbaarheid'
+  && beoordeling && !beoordeling.hardeBlokkade;
+const wachtJob = jobs.find((job) => job.taak === 'hervatten' && job.status === 'wacht_op_mens' && job.opvolgen_voor)
+  ?? jobs.find((job) => job.taak === 'hervatten' && ['te_doen', 'wacht_op_mens', 'onzeker'].includes(tekst(job.status)));
+const specifiekHerstel = (job: Rij) => job.taak === 'ondertekenbevestiging' || claims.some((claim) =>
+  (job.taak === 'contract' && claim.type === 'contract') || (job.taak === 'financieel' && claim.type === 'factuur'));
+const ontvangstHerstelJobs = jobs.filter((job) => job.taak === 'ondertekenbevestiging'
+  && (['onzeker', 'wacht_op_mens'].includes(tekst(job.status)) || (job.status === 'bezig'
+    && Number.isFinite(new Date(tekst(job.geclaimd_op)).getTime())
+    && Date.now() - new Date(tekst(job.geclaimd_op)).getTime() > 15 * 60 * 1000)));
+const ontvangstHerstel = ontvangstHerstelJobs.flatMap((job) => {
+  const payload = job.payload && typeof job.payload === 'object' && !Array.isArray(job.payload) ? job.payload as Rij : {};
+  const contractversieId = Number(payload.contractversie_id), boekingId = Number(job.boeking_id);
+  if (!Number.isSafeInteger(contractversieId) || contractversieId <= 0 || !Number.isSafeInteger(boekingId) || boekingId <= 0) return [];
+  return (['huurder', 'bestuur'] as const).map((richting) => {
+    const claim = ontvangstClaims.find((rij) => Number(rij.boeking_id) === boekingId
+      && Number(rij.contractversie_id) === contractversieId && rij.richting === richting);
+    return { boekingId, contractversieId, richting, status: tekst(claim?.status) || 'ontbreekt',
+      providerId: tekst(claim?.provider_id), melding: tekst(claim?.melding),
+      eigenaar: tekst(job.verantwoordelijke) || 'Bestuur', opvolgenVoor: job.opvolgen_voor,
+      sleutel: `${boekingId}-${contractversieId}-${richting}` };
+  });
+});
+const opgeslagenPrijs = Number(besluit?.huurprijs_euro);
+---
+
+<section class="bh-kaart vm-paneel" id="verhuurproces" aria-labelledby="verhuurproces-titel">
+  <p class="bh-label">Bestuursbesluit en uitvoering</p>
+  <h2 id="verhuurproces-titel">{besluitLabels[besluitStatus] ?? 'Wacht op bestuursbesluit'}</h2>
+  {!geactiveerd && <p class="bh-flash">Dit verhuurproces is gepauzeerd. De bestaande besluiten en voortgang blijven zichtbaar. Heractiveer het proces en de toepasselijke startscope om de uitvoering te hervatten.</p>}
+  {fout && <p class="bh-flash" role="alert">{fout} Er kan vanuit dit paneel niets worden gewijzigd zolang deze controle niet is gelukt.</p>}
+  {besluit && (
+    <dl class="bh-dl">
+      <dt>Vastgelegd door</dt><dd>{tekst(besluit.actor_label) || 'Bestuur'}</dd>
+      <dt>Vastgelegd op</dt><dd>{datumTijd(besluit.vastgelegd_op)}</dd>
+      {Number.isFinite(opgeslagenPrijs) && opgeslagenPrijs > 0 && <><dt>{besluitStatus === 'herbeoordelen' ? 'Eerder vastgestelde huurprijs' : 'Vastgestelde huurprijs'}</dt><dd>{euro(opgeslagenPrijs)}</dd></>}
+      {besluit.blokkade_reden && <><dt>Wacht op</dt><dd>{tekst(besluit.blokkade_reden)}</dd></>}
+      {besluitStatus === 'wacht_op_beschikbaarheid' && <><dt>Eigenaar</dt><dd>{tekst(wachtJob?.verantwoordelijke) || 'Bestuur'}</dd><dt>Opvolgen vóór</dt><dd>{datumTijd(wachtJob?.opvolgen_voor)}</dd></>}
+    </dl>
+  )}
+  {besluitStatus === 'herbeoordelen' && <p class="bh-flash">De aanvraag of afspraken zijn gewijzigd. Het eerdere akkoord is niet voldoende om de uitvoering te hervatten. Beoordeel de actuele gegevens hieronder.</p>}
+
+  {conceptFout && <p class="bh-flash" role="alert">{conceptFout}</p>}
+  {uitzondering && <article class="vm-waarschuwing">
+    <h3>Bestaande afspraken eerst afhandelen</h3>
+    <p>{uitzondering.reden}</p>
+    <dl class="bh-dl"><dt>Eigenaar</dt><dd>{uitzondering.eigenaar}</dd><dt>Opvolgen vóór</dt><dd>{datumTijd(uitzondering.opvolgenVoor)}</dd></dl>
+  </article>}
+  {concept && <div class="vm-concept" id="verhuur-conceptbeoordeling">
+    <h3>{concept.toelaatbaar ? 'Opgeslagen concept opnieuw goedkeuren' : 'Bestaande contractafspraken controleren'}</h3>
+    <p>Controleer contract <strong>{tekst(concept.contract.contractnummer)}</strong>, versie {tekst(concept.contract.versie)}. Dit zijn de opgeslagen afspraken en betaaltermijnen waarop het nieuwe bestuursakkoord betrekking heeft.</p>
+    <dl class="bh-dl">
+      <dt>Huurder</dt><dd>{tekst(concept.wizard.naam) || 'Zie de volledige contracttekst'}</dd>
+      <dt>Periode</dt><dd>{tekst(concept.wizard.periodeVan) || 'Zie de contracttekst'} tot {tekst(concept.wizard.periodeTot) || 'zie de contracttekst'}</dd>
+      <dt>Gebruikstijden</dt><dd>{tekst(concept.wizard.tijdVan) || 'Niet vastgelegd'} – {tekst(concept.wizard.tijdTot) || 'niet vastgelegd'}</dd>
+      <dt>Opbouw</dt><dd>{tekst(concept.wizard.opbouw) || 'Niet afzonderlijk vastgelegd'}</dd>
+      <dt>Afbouw</dt><dd>{tekst(concept.wizard.afbouw) || 'Niet afzonderlijk vastgelegd'}</dd>
+      <dt>Totale huurprijs</dt><dd>€ {tekst(concept.wizard.huurprijs) || 'Niet vastgelegd'}</dd>
+      <dt>Aanbetaling</dt><dd>€ {tekst(concept.wizard.aanbetaling) || 'Niet vastgelegd'}</dd>
+      <dt>Bijzondere afspraken</dt><dd>{tekst(concept.wizard.bijzondereAfspraken) || 'Geen aanvullende afspraken vastgelegd'}</dd>
+    </dl>
+    <h4>Opgeslagen betaaltermijnen</h4>
+    <div class="vm-tabel-wrap"><table class="bh-tabel">
+      <thead><tr><th>Termijn</th><th>Bedrag</th><th>Vervaldatum</th><th>Factuur op</th></tr></thead>
+      <tbody>{concept.betalingen.map((termijn) => <tr>
+        <td>{termijn.soort === 'aanbetaling' ? 'Aanbetaling' : termijn.soort === 'restant' ? 'Resterende huursom' : tekst(termijn.soort)}</td>
+        <td>{Number.isFinite(Number(termijn.bedrag)) ? euro(Number(termijn.bedrag)) : 'Niet vastgelegd'}</td>
+        <td>{tekst(termijn.vervaldatum) || 'Niet vastgelegd'}</td><td>{tekst(termijn.factuur_op) || 'Niet vastgelegd'}</td>
+      </tr>)}</tbody>
+    </table></div>
+    <p><a href={`${actie}?document=contract&versie=${encodeURIComponent(tekst(concept.contract.versie))}`}>Bekijk PDF van precies deze contractversie</a></p>
+    <details><summary>Volledige opgeslagen contracttekst en bijlagen</summary>
+      <h4>Overeenkomst</h4><pre>{tekst(concept.contract.tekst)}</pre>
+      <h4>Voorwaarden</h4><pre>{tekst(concept.contract.voorwaarden_tekst)}</pre>
+      <h4>Huisregels</h4><pre>{tekst(concept.contract.huisregels_tekst)}</pre>
+      <h4>Plattegrond en gebruik</h4><pre>{tekst(concept.contract.plattegrond_tekst)}</pre>
+    </details>
+    {!concept.toelaatbaar && <article class="vm-waarschuwing">
+      <h4>Afzonderlijke afhandeling nodig</h4>
+      <p>{concept.blokkade || 'Dit contract kan nog niet opnieuw worden gemandateerd.'}</p>
+      <dl class="bh-dl"><dt>Eigenaar</dt><dd>{concept.eigenaar}</dd><dt>Opvolgen vóór</dt><dd>{datumTijd(concept.opvolgenVoor)}</dd></dl>
+      <p>Bestaande overeenkomsten, facturen en ontvangstbewijzen blijven behouden. Het bestuur en de penningmeester bepalen eerst hoe de wijziging wordt afgehandeld.</p>
+    </article>}
+    {concept.toelaatbaar && conceptAfwijkingOntbreekt && <p class="bh-flash">De exposantencontrole geeft een waarschuwing. Als het bestuur de uitzondering toestaat, leg die eerst via een nieuwe conceptversie vast bij Bijzondere afspraken. Daarna kan dit concrete contract worden goedgekeurd.</p>}
+    {kanConceptGoedkeuren && <form method="post" action={actie} class="bh-form">
+      <input type="hidden" name="aanvraagId" value={aanvraagId} />
+      <input type="hidden" name="contractversieId" value={tekst(concept.contract.id)} />
+      <input type="hidden" name="aanvraagVersie" value={concept.aanvraagVersie} />
+      <input type="hidden" name="bronVersie" value={concept.bronVersie} />
+      <label for="vm-concept-reden">Reden voor het nieuwe akkoord</label>
+      <textarea id="vm-concept-reden" name="reden" rows="3" minlength="20" maxlength="2000" required></textarea>
+      <p>U keurt deze opgeslagen contractversie, prijs, termijnen en de actuele waarschuwingen hieronder goed. Een afwijking van de exposantenregeling wordt bij dit akkoord bewaard.</p>
+      <button class="bh-btn" type="submit" name="actie" value="vm_concept_goedkeuren">Keur deze conceptafspraken goed</button>
+    </form>}
+  </div>}
+
+  {beoordeling && (
+    <div class="vm-beoordeling">
+      <h3>Actuele controle</h3>
+      {beoordeling.beschikbaarheid === 'beschikbaar' && <p>Er is nu geen overlappende aanvraag, reservering of blokkade gevonden.</p>}
+      {beoordeling.beschikbaarheid === 'onvolledig' && <p class="bh-flash">De beschikbaarheid kan nog niet betrouwbaar worden vastgesteld.</p>}
+      {beoordeling.conflicts.map((conflict) => (
+        <article class="vm-waarschuwing">
+          <h4>{conflict.type === 'aanvraag' ? 'Let op: er loopt al een aanvraag' : 'Let op: de periode is gereserveerd of geblokkeerd'}</h4>
+          <p><strong>{conflict.naam}</strong> · {conflict.start} tot {conflict.eind} · {conflict.status}</p>
+          <p>{conflict.melding}</p>
+          {conflict.binnengekomenOp && <p class="bh-muted">Ontvangen: {datumTijd(conflict.binnengekomenOp)}</p>}
+          {conflict.type === 'aanvraag' && <a href={`/beheer/aanvragen/${encodeURIComponent(conflict.id)}/`}>Bekijk aanvraag {conflict.id}</a>}
+          {(conflict.type === 'boeking' || conflict.type === 'optie') && <a href={`/beheer/boekingen/${encodeURIComponent(conflict.id)}/`}>Bekijk boeking {conflict.id}</a>}
+        </article>
+      ))}
+      {beoordeling.conflicts.length > 0 && <p>Ja legt het inhoudelijke akkoord vast. Daarna blijft deze aanvraag in behandeling totdat het bestuur de periode kan toewijzen. Een bestaande reservering wordt niet overschreven.</p>}
+      {beoordeling.historieWaarschuwingen.map((waarschuwing) => (
+        <article class="vm-waarschuwing">
+          <h4>Let op: {beoordeling.beleid.maanden}-maandenregeling voor {waarschuwing.persoon}</h4>
+          <p>{waarschuwing.melding}</p>
+          <p class="bh-muted">{waarschuwing.zekerheid === 'bevestigd' ? 'Bevestigde persoonskoppeling' : waarschuwing.zekerheid === 'waarschijnlijk' ? 'Waarschijnlijke overeenkomst' : 'Mogelijke overeenkomst; controleer de persoon'} · {waarschuwing.voorlopig ? 'Voorlopige aanvraag of optie' : 'Vastgelegde expositie'}.</p>
+          {waarschuwing.regulierVanaf && <p>Volgens deze termijn regulier weer mogelijk vanaf {waarschuwing.regulierVanaf}.</p>}
+          <p class="bh-muted">Bron: {waarschuwing.bron} · {waarschuwing.referentie}</p>
+        </article>
+      ))}
+      {beoordeling.meldingen.map((melding) => <p class="bh-flash">{melding.tekst}</p>)}
+      {dossier?.aanvraag.soort === 'expositie' && <p class="bh-muted">De termijn is {beoordeling.beleid.maanden} kalendermaanden van {beoordeling.beleid.grondslag === 'einde_begin' ? 'het einde van de vorige expositie tot het begin van de volgende' : 'het begin van de vorige expositie tot het begin van de volgende'}. Het bestuur mag hiervan afwijken.</p>}
+      <p class="bh-muted">Extra opbouw- of afbouwdagen moeten in de gereserveerde periode staan. Bij bevestigen wordt de controle opnieuw uitgevoerd.</p>
+    </div>
+  )}
+
+  {kanBesluiten && dossier && beoordeling ? (
+    <form method="post" action={actie} class="bh-form" id="verhuur-bestuursbesluit">
+      <input type="hidden" name="aanvraagId" value={aanvraagId} />
+      <input type="hidden" name="aanvraagVersie" value={dossier.aanvraagVersie} />
+      <input type="hidden" name="bronVersie" value={dossier.bronVersie} />
+      <h3>Past deze aanvraag bij het Kerkje van Persingen?</h3>
+      {beoordeling.prijs.moetVaststellen ? (
+        <>
+          <p>{beoordeling.prijs.reden}</p>
+          {beoordeling.prijs.indicatieCent != null && <p class="bh-muted">Indicatie{beoordeling.prijs.prijstype === 'vanaf' ? ' vanaf' : ''}: {euro(beoordeling.prijs.indicatieCent / 100)}. Dit is nog geen prijsafspraak.</p>}
+          <label for="vm-huurprijs">Definitieve totale huurprijs in euro</label>
+          <input id="vm-huurprijs" name="huurprijs" inputmode="decimal" type="text" pattern="[0-9]{1,8}([,.][0-9]{1,2})?" maxlength="11" placeholder="Bijvoorbeeld 150,00" required />
+        </>
+      ) : (
+        <>
+          <p>Huurprijs: <strong>{euro((beoordeling.prijs.bedragCent ?? 0) / 100)}</strong>. {beoordeling.prijs.reden}</p>
+          <input type="hidden" name="huurprijs" value={((beoordeling.prijs.bedragCent ?? 0) / 100).toFixed(2)} />
+        </>
+      )}
+      <label for="vm-reden">Toelichting of reden bij Nee (optioneel)</label>
+      <textarea id="vm-reden" name="reden" rows="2" maxlength="2000"></textarea>
+      <p>Bij Ja bevestigt u de actuele aanvraag, huurprijs en getoonde beleidswaarschuwingen. Een afwijking van de exposantenregeling wordt bij het besluit vastgelegd.</p>
+      {gegevensBlokkerenJa && <p class="bh-flash">Herstel eerst de onvolledige aanvraag of beleidsinstelling. Afwijzen blijft mogelijk.</p>}
+      <div class="bh-acties">
+        <button class="bh-btn" type="submit" name="actie" value="vm_ja" disabled={gegevensBlokkerenJa}>Ja, akkoord</button>
+        <button class="bh-btn bh-btn--gevaar" type="submit" name="actie" value="vm_nee" formnovalidate>Nee, afwijzen</button>
+      </div>
+    </form>
+  ) : !schrijven && <p class="bh-muted">U kunt deze beoordeling en voortgang bekijken. Besluiten en herstel zijn beschikbaar voor het bestuur met schrijfrechten.</p>}
+
+  {besluitStatus === 'wacht_op_beschikbaarheid' && (
+    <div class="vm-toewijzing">
+      <h3>Periode bewust toewijzen</h3>
+      <p>Er geldt geen automatische volgorde op basis van binnenkomst. Kies welke aanvraag de periode krijgt nadat de betrokken aanvragen zijn beoordeeld.</p>
+      {kanToewijzen ? (
+        <form method="post" action={actie}>
+          <input type="hidden" name="aanvraagId" value={aanvraagId} />
+          <p>Deze aanvraag krijgt de periode. Andere aanvragen blijven bestaan en ontvangen hierdoor geen toezegging.</p>
+          <button class="bh-btn" type="submit" name="actie" value="vm_toewijzen">Wijs de periode aan deze aanvraag toe</button>
+        </form>
+      ) : <p class="bh-muted">Toewijzen kan zodra er een geldig akkoord is en geen reservering, blokkade of onvolledige beschikbaarheidscontrole meer in de weg staat.</p>}
+    </div>
+  )}
+
+  <h3>Voortgang en opvolging</h3>
+  {jobs.length === 0 ? <p class="bh-muted">Er zijn nog geen uitvoerstappen geregistreerd.</p> : (
+    <div class="vm-tabel-wrap">
+      <table class="bh-tabel">
+        <thead><tr><th>Stap</th><th>Stand en vervolgstap</th><th>Eigenaar</th><th>Opvolgen vóór</th></tr></thead>
+        <tbody>{jobs.map((job) => (
+          <tr>
+            <td>{taakLabels[tekst(job.taak)] ?? tekst(job.taak)}</td>
+            <td>
+              <strong>{statusLabels[tekst(job.status)] ?? tekst(job.status)}</strong>
+              {job.last_fout && <p>{tekst(job.last_fout)}</p>}
+              {job.status === 'te_doen' && <p class="bh-muted">Ingepland: {datumTijd(job.gepland_op)}</p>}
+              {job.provider_id && <p class="bh-muted">Verzendbewijs: {tekst(job.provider_id)}</p>}
+              {job.taak === 'ondertekenbevestiging' ? (
+                ontvangstHerstelJobs.includes(job) ? <p>Controleer de ontvangstbevestiging voor huurder en bestuur afzonderlijk in het herstelblok hieronder.</p> : null
+              ) : specifiekHerstel(job) ? <p>Controleer het verzendbewijs in het herstelblok hieronder.</p> : magUitvoeren && ['wacht_op_mens', 'onzeker'].includes(tekst(job.status)) && (
+                <details>
+                  <summary>Stap gecontroleerd herstellen</summary>
+                  <form method="post" action={actie} class="bh-form">
+                    <input type="hidden" name="jobId" value={tekst(job.id)} />
+                    {job.status === 'onzeker' ? (
+                      <>
+                        <p>Controleer bij de mailprovider of de verzending is geaccepteerd. Gebruik het bestaande bericht-ID of bevestig dat er niets is verstuurd.</p>
+                        <label for={`vm-provider-${job.id}`}>Bericht-ID bij de mailprovider</label>
+                        <input id={`vm-provider-${job.id}`} name="providerId" type="text" maxlength="240" />
+                        <label><input type="checkbox" name="bewezenNietVerzonden" value="ja" /> Ik heb gecontroleerd dat de mail niet is verstuurd.</label>
+                      </>
+                    ) : <p>Los de genoemde oorzaak op. Daarna wordt alleen deze stap opnieuw ingepland.</p>}
+                    <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="vm_herstel">Leg herstel vast</button>
+                  </form>
+                </details>
+              )}
+            </td>
+            <td>{tekst(job.verantwoordelijke) || 'Bestuur'}</td>
+            <td>{job.opvolgen_voor ? datumTijd(job.opvolgen_voor) : '—'}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  )}
+
+  {claims.length > 0 && (
+    <div id="verhuur-verzendherstel">
+      <h3>Verzendbewijs controleren</h3>
+      <p>Een onderbroken verzending kan al door de mailprovider zijn geaccepteerd. Controleer eerst het bewijs; de registratie en eventuele factuur worden daarna samen hersteld.</p>
+      {claims.map((claim) => (
+        <article class="vm-waarschuwing">
+          <h4>{claim.type === 'contract' ? `Contract${claim.versie ? ` versie ${claim.versie}` : ''}` : 'Factuur of betalingsherinnering'} · {claim.soort}</h4>
+          <p>Registratie: {claim.id} · {claim.status}{claim.providerId ? ` · Bericht-ID: ${claim.providerId}` : ''}</p>
+          {magUitvoeren && (
+            <form method="post" action={actie} class="bh-form">
+              <input type="hidden" name="boekingId" value={claim.boekingId} />
+              <input type="hidden" name="type" value={claim.type} />
+              <input type="hidden" name="claimId" value={claim.id} />
+              <label for={`vm-uitkomst-${claim.type}-${claim.id}`}>Uitkomst controle bij de mailprovider</label>
+              <select id={`vm-uitkomst-${claim.type}-${claim.id}`} name="uitkomst" required>
+                <option value="">Kies de vastgestelde uitkomst</option>
+                <option value="geaccepteerd">De mail is geaccepteerd</option>
+                <option value="niet_verzonden">Er is geen mail verstuurd</option>
+              </select>
+              <label for={`vm-bewijs-provider-${claim.type}-${claim.id}`}>Bericht-ID (verplicht bij geaccepteerd)</label>
+              <input id={`vm-bewijs-provider-${claim.type}-${claim.id}`} name="providerId" value={claim.providerId} maxlength="200" />
+              <label for={`vm-bewijs-${claim.type}-${claim.id}`}>Controle en bewijs</label>
+              <textarea id={`vm-bewijs-${claim.type}-${claim.id}`} name="bewijs" rows="2" minlength="20" maxlength="2000" placeholder="Waar en wanneer is gecontroleerd, en wat was de uitkomst?" required></textarea>
+              <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="vm_herstel_verzending">Leg verzendbewijs en herstel vast</button>
+            </form>
+          )}
+        </article>
+      ))}
+    </div>
+  )}
+
+  {ontvangstHerstelJobs.length > 0 && <div id="verhuur-ontvangstherstel">
+    <h3>Ontvangstbevestiging per ontvanger controleren</h3>
+    <p>Na de ondertekening gaan afzonderlijke bevestigingen naar de huurder en het bestuur. Controleer iedere ontvanger bij de mailprovider. Een bewezen verstuurde mail blijft behouden; alleen een aantoonbaar ontbrekende bevestiging kan opnieuw worden ingepland.</p>
+    {ontvangstHerstel.length === 0 && <p class="bh-flash">De contractversie ontbreekt in de uitvoerstap. Het bestuur moet eerst de koppeling met de ondertekende overeenkomst herstellen. Er kan hier geen verzendbewijs aan een andere versie worden gekoppeld.</p>}
+    {ontvangstHerstel.map((ontvangst) => <article class="vm-waarschuwing">
+      <h4>Bevestiging aan {ontvangst.richting === 'huurder' ? 'de huurder' : 'het bestuur'}</h4>
+      <p>Contractversie-ID: {ontvangst.contractversieId} · {ontvangst.status === 'ontbreekt' ? 'Nog geen ontvangersregistratie gevonden' : ontvangst.status === 'verzonden' ? 'Verzending bewezen' : ontvangst.status === 'niet_verzonden' ? 'Gecontroleerd: niet verstuurd' : ontvangst.status === 'bezig' ? 'Verzending onderbroken; controle nodig' : 'Verzenduitkomst onzeker'}</p>
+      {ontvangst.providerId && <p>Bericht-ID: {ontvangst.providerId}</p>}
+      {ontvangst.melding && <p>{ontvangst.melding}</p>}
+      <dl class="bh-dl"><dt>Eigenaar</dt><dd>{ontvangst.eigenaar}</dd><dt>Opvolgen vóór</dt><dd>{datumTijd(ontvangst.opvolgenVoor)}</dd></dl>
+      {ontvangst.status === 'verzonden' ? <p>Voor deze ontvanger is het verzendbewijs al vastgelegd. Deze bevestiging wordt niet opnieuw verstuurd.</p> : magUitvoeren && <form method="post" action={actie} class="bh-form">
+        <input type="hidden" name="aanvraagId" value={aanvraagId} />
+        <input type="hidden" name="boekingId" value={String(ontvangst.boekingId)} />
+        <input type="hidden" name="contractversieId" value={String(ontvangst.contractversieId)} />
+        <input type="hidden" name="richting" value={ontvangst.richting} />
+        <label for={`vm-ontvangst-uitkomst-${ontvangst.sleutel}`}>Uitkomst bij deze ontvanger</label>
+        <select id={`vm-ontvangst-uitkomst-${ontvangst.sleutel}`} name="uitkomst" required>
+          <option value="">Kies de gecontroleerde uitkomst</option>
+          <option value="geaccepteerd">De mail is geaccepteerd</option>
+          <option value="niet_verzonden">Er is geen mail verstuurd</option>
+        </select>
+        <label for={`vm-ontvangst-provider-${ontvangst.sleutel}`}>Bericht-ID (verplicht bij geaccepteerd)</label>
+        <input id={`vm-ontvangst-provider-${ontvangst.sleutel}`} name="providerId" value={ontvangst.providerId} maxlength="200" />
+        <label for={`vm-ontvangst-bewijs-${ontvangst.sleutel}`}>Controle en bewijs voor deze ontvanger</label>
+        <textarea id={`vm-ontvangst-bewijs-${ontvangst.sleutel}`} name="bewijs" rows="2" minlength="20" maxlength="2000" required></textarea>
+        <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="vm_herstel_ontvangst">Leg bewijs voor deze ontvanger vast</button>
+      </form>}
+    </article>)}
+  </div>}
+</section>
+
+<style>
+  .vm-paneel { margin-block: 1.5rem; }
+  .vm-paneel h3 { margin-top: 1.6rem; }
+  .vm-waarschuwing { margin-block: 1rem; padding: 1rem 1.2rem; border-left: 3px solid #a87924; background: #fbf4e6; }
+  .vm-waarschuwing h4 { margin: 0 0 .6rem; }
+  .vm-waarschuwing p:last-child { margin-bottom: 0; }
+  .vm-toewijzing { padding-block: .5rem; }
+  .vm-tabel-wrap { overflow-x: auto; }
+  .vm-paneel details { margin-top: .75rem; }
+  .vm-paneel summary { cursor: pointer; }
+  .vm-paneel input[type="checkbox"] { width: auto; margin-right: .4rem; }
+  .vm-concept pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; padding: 1rem; background: #f4f3ef; }
+</style>

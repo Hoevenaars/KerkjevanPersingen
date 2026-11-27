@@ -19,10 +19,12 @@ export interface DefinitiefInvoer {
   aanbetalingBedrag: number | null;
   aanbetalingOntvangen: boolean;
   aanbetalingTegenstrijdig: boolean;
+  betalingVereist?: 'aanbetaling' | 'volledig' | 'geen';
+  volledigBetaald?: boolean;
   overlapt: boolean;
 }
 
-export const DEFINITIEF_REDEN = 'Checklist compleet: goedgekeurde aanvraag, ondertekende contractversie en aanbetaling. Er is geen mail verstuurd.';
+export const DEFINITIEF_REDEN = 'Checklist compleet: goedgekeurde aanvraag, actuele ondertekende contractversie en de vereiste betaling.';
 
 export function aanbetalingVoorwaarde(
   regels: readonly { soort: string; status: string }[],
@@ -42,8 +44,9 @@ export function magAutomatischDefinitief(invoer: DefinitiefInvoer): boolean {
   if (invoer.aanvraagStatus !== 'goedgekeurd') return false;
   if (!invoer.versie || invoer.versie.ondertekening !== 'ontvangen') return false;
   if (invoer.versie.bestuurVerplicht && invoer.versie.bestuur !== 'akkoord') return false;
-  const bedrag = invoer.aanbetalingBedrag ?? 0;
-  if (bedrag > 0 && (invoer.aanbetalingTegenstrijdig || !invoer.aanbetalingOntvangen)) return false;
+  const vereist = invoer.betalingVereist ?? ((invoer.aanbetalingBedrag ?? 0) > 0 ? 'aanbetaling' : 'volledig');
+  if (vereist === 'aanbetaling' && (invoer.aanbetalingTegenstrijdig || !invoer.aanbetalingOntvangen)) return false;
+  if (vereist === 'volledig' && invoer.volledigBetaald !== true) return false;
   if (invoer.overlapt) return false;
   return true;
 }

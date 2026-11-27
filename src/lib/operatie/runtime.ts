@@ -23,6 +23,7 @@ import { leesbareAuthFout, voerDossierViaSessie, type DossierSessie } from './do
 import { koppelGastherenViaSessie, leesBegeleiderKeuzes, type GastheerSessie } from './gastheer-koppelen.ts';
 import {
   legeWereld,
+  isVervolgmailNodig,
   readinessVanBoeking,
   voerOpdrachtUit,
   type Actor,
@@ -382,11 +383,12 @@ export async function voerOperationeel(
     nu?: Date;
     actiefVanaf?: string | null;
     betalingsActiefVanaf?: string | null;
-    sjabloonOpen?: (templateId: string) => boolean;
+    sjabloonOpen?: (templateId: string, boekingId?: string) => boolean;
+    wereld?: Wereld;
   },
 ): Promise<{ ok: boolean; melding: string; links?: { doel: string; url: string }[] }> {
   const env = opties.env ?? process.env;
-  const wereld = await laadWereld();
+  const wereld = opties.wereld ?? await laadWereld();
   const uit = await voerOpdrachtUit(wereld, opdracht, {
     nu: opties.nu ?? new Date(),
     env,
@@ -431,31 +433,64 @@ async function bewaarIntakeTekst(
   return null;
 }
 
+export async function verhuurOpvolgmailActueel(boekingId: number, templateId: string): Promise<boolean> {
+  return isVervolgmailNodig(await laadWereld(), String(boekingId), templateId, ymdInAmsterdam(new Date()));
+}
+
 export async function draaiWorkflow(env: Record<string, unknown> = process.env, basisUrl = 'https://kerkjepersingen.nl'): Promise<{ ok: boolean; melding: string }> {
   if (!operationeelSupabase(env)) return { ok: true, melding: 'Overgeslagen: database niet gekoppeld.' };
-  const { besluitVoor } = await import('../automatisering-register.ts');
-  const besluit = await besluitVoor('workflow', undefined, env);
-  if (besluit.modus !== 'aan') {
-    return { ok: true, melding: `Workflowmail geblokkeerd: ${besluit.reden}` };
-  }
-  const { laadAutomatiseringsregister } = await import('../automatisering-register.ts');
-  const register = await laadAutomatiseringsregister(env);
+  const client = maakBeheerAdminClient(env);
+  if (!client) return { ok: false, melding: 'De serververbinding ontbreekt.' };
+  const machineAan = env.VERHUUR_MACHINE === 'true';
   const vandaag = ymdInAmsterdam(new Date());
+  let verwerkt = 0;
+  // Contracten, beslismails en financiële opvolging hebben eigen schakelaars.
+  // De oude workflow-hoofdschakelaar mag hun duurzame wachtrij niet blokkeren.
+  if (machineAan) {
+    const wakker = await (client as any).rpc('verhuur_wek_wachtenden', { p_gebeurtenis: `cron:${vandaag}` });
+    if (wakker.error) return { ok: false, melding: 'De beschikbaarheidsopvolging kon niet worden gestart.' };
+    const { verwerkVerhuurmachine } = await import('../verhuurmachine/proces.ts');
+    verwerkt += (await verwerkVerhuurmachine(env, { client: client as never, maxJobs: 25 })).verwerkt;
+  }
+  // Ook bij tijdelijk uitgeschakelde machine blijven haar dossiers buiten het
+  // oude verzendpad. Alleen een nog niet geïnstalleerde tabel is een lege lijst.
+  const besluiten = await (client as any).from('verhuur_besluiten').select('boeking_id');
+  if (besluiten.error && !['42P01','PGRST205'].includes(besluiten.error.code)) {
+    return { ok: false, melding: 'Machineboekingen konden niet worden afgeschermd van de oude planner.' };
+  }
+  const machineIds = new Set<string>((besluiten.data ?? []).filter((d: any) => d.boeking_id != null).map((d: any) => String(d.boeking_id)));
+  const { besluitVoor, laadAutomatiseringsregister } = await import('../automatisering-register.ts');
+  const besluit = await besluitVoor('workflow', undefined, env);
+  if (besluit.modus !== 'aan') return { ok: true, melding: `${verwerkt} processtappen verwerkt. Workflowmail geblokkeerd: ${besluit.reden}` };
+  const register = await laadAutomatiseringsregister(env);
   const grens = grensVoorActivatie(await leesActiefVanaf('workflow', env), vandaag);
   const betaalAan = magAutomatiseringUitvoeren('betalingscommunicatie', register).modus === 'aan';
   const betaalGrens = betaalAan ? await leesActiefVanaf('betalingscommunicatie', env) : null;
-  return voerOperationeel({ soort: 'scheduler' }, {
-    env,
-    actor: { type: 'systeem', naam: 'planner' },
-    basisUrl,
-    actiefVanaf: grens,
-    betalingsActiefVanaf: betaalGrens,
-    sjabloonOpen: (templateId) => {
-      if (isBetalingsTemplate(templateId) && (!betaalAan || !betaalGrens)) return false;
-      const sleutel = automatiseringVoorTemplate(templateId);
-      return Boolean(sleutel) && magAutomatiseringUitvoeren(sleutel as string, register).modus === 'aan';
-    },
+  const sjabloonOpen = (templateId: string) => {
+    if (isBetalingsTemplate(templateId) && (!betaalAan || !betaalGrens)) return false;
+    const sleutel = automatiseringVoorTemplate(templateId);
+    return Boolean(sleutel) && magAutomatiseringUitvoeren(sleutel as string, register).modus === 'aan';
+  };
+  const wereld = await laadWereld();
+  if (machineAan && machineIds.size) {
+    const { planVerhuurOpvolging } = await import('../verhuurmachine/opvolging.ts');
+    const { verhuurBasisUrl } = await import('../../platform/verhuur-beslislink.ts');
+    await planVerhuurOpvolging({ client: client as never, wereld, boekingIds: machineIds, ctx: {
+      nu: new Date(), env, actor: { type: 'systeem', naam: 'planner' }, basisUrl: verhuurBasisUrl(env),
+      internEmail: String(env.CONTACT_FALLBACK_EMAIL ?? ''), actiefVanaf: grens,
+      betalingsActiefVanaf: betaalGrens, sjabloonOpen,
+    } });
+  }
+  const uit = await voerOperationeel({ soort: 'scheduler' }, {
+    env, actor: { type: 'systeem', naam: 'planner' }, basisUrl,
+    actiefVanaf: grens, betalingsActiefVanaf: betaalGrens, sjabloonOpen,
+    wereld: { ...wereld, boekingen: wereld.boekingen.filter(b => !machineIds.has(b.id)) },
   });
+  if (machineAan) {
+    const { verwerkVerhuurmachine } = await import('../verhuurmachine/proces.ts');
+    verwerkt += (await verwerkVerhuurmachine(env, { client: client as never, maxJobs: 25 })).verwerkt;
+  }
+  return { ok: uit.ok, melding: `${verwerkt} processtappen verwerkt. ${uit.melding}` };
 }
 
 async function leesActiefVanaf(sleutel: string, env: Record<string, unknown>): Promise<string | null> {
@@ -723,6 +758,34 @@ export async function postAlsSupabase(input: {
   try {
     const data = input.formulier ?? await input.request.formData();
     const actie = String(data.get('actie') ?? '');
+    const machineId = Number(data.get('aanvraagId') || (input.url.pathname.startsWith('/beheer/aanvragen/') ? input.url.pathname.split('/')[3] : ''));
+    if (actie.startsWith('vm_')) {
+      if (!isDossierSessie(input.sessie) || !Number.isSafeInteger(machineId) || machineId <= 0) {
+        doel.searchParams.set('fout', 'Een geldige aanvraag en ingelogde bestuursbevoegdheid zijn vereist.');
+        return beheerRedirect(doel);
+      }
+      const { verwerkMachineBeheer } = await import('../verhuurmachine/beheer.ts');
+      const uit = await verwerkMachineBeheer({ client: input.sessie as never, actor: input.actor, formulier: data, aanvraagId: machineId, env: input.env });
+      doel.searchParams.set(uit.ok ? 'melding' : 'fout', uit.melding);
+      doel.hash = 'verhuurproces';
+      return beheerRedirect(doel);
+    }
+    if (Number.isSafeInteger(machineId) && machineId > 0 &&
+        ['ja_activiteit','nee_activiteit','optie','akkoord','weiger','geschikt','nieuw'].includes(actie)) {
+      if (!isDossierSessie(input.sessie) || !input.sessie.rpc) {
+        doel.searchParams.set('fout', 'De actuele bestuursroute kon niet worden gecontroleerd.');
+        return beheerRedirect(doel);
+      }
+      const scope = await input.sessie.rpc('verhuur_machine_in_scope', { p_id: machineId });
+      const besluit = await (input.sessie as any).from('verhuur_besluiten').select('aanvraag_id').eq('aanvraag_id', machineId).maybeSingle();
+      const ontbreekt = (fout: any) => fout && ['42P01','42883','PGRST202','PGRST205'].includes(fout.code);
+      const leesfout = (scope.error && !ontbreekt(scope.error)) || (besluit.error && !ontbreekt(besluit.error))
+        || (input.env.VERHUUR_MACHINE === 'true' && (scope.error || besluit.error));
+      if (leesfout || scope.data === true || besluit.data) {
+        doel.searchParams.set('fout', 'Dit dossier gebruikt het bestuursbesluit met actuele waarschuwingen en prijs. Een gepauzeerde machine valt niet terug op de oude route.');
+        return beheerRedirect(doel);
+      }
+    }
     const keuzes = actie === 'bewaar' ? leesBegeleiderKeuzes(data) : [];
     if (keuzes.length > 0) {
       if (!isDossierSessie(input.sessie)) {

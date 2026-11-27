@@ -145,3 +145,35 @@ export async function markeerFactuurVerzonden(client: DossierSessie, factuurId: 
 export function factuurpakketAan(env: Record<string, unknown>): boolean {
   return env.FACTUURPAKKET_V3 === 'true';
 }
+
+/** Latere betaaltermijn: dezelfde fiscale snapshot en unieke nummering als het contractpakket. */
+export async function geefFactuurVoorTermijn(client: DossierSessie, input: {
+  boekingId: number; versie: number; betalingId: number; betalingscommunicatieAan: boolean;
+}): Promise<Resultaat> {
+  if (!input.betalingscommunicatieAan) return { ok: false, melding: BETALING_DICHT };
+  if (!client.rpc) return { ok: false, melding: 'De veilige termijnfactuurfunctie ontbreekt.' };
+  const antwoord = await client.rpc('factuur_voor_termijn', {
+    p_boeking_id: input.boekingId, p_versie: input.versie, p_betaling_id: input.betalingId,
+  });
+  const r = (Array.isArray(antwoord.data) ? antwoord.data[0] : antwoord.data) as Record<string, unknown> | null;
+  if (antwoord.error || !r || Number(r.boeking_id) !== input.boekingId || Number(r.contract_versie) !== input.versie || Number(r.betaling_id) !== input.betalingId) {
+    return { ok: false, melding: antwoord.error?.message || 'De termijnfactuur is niet bevestigd door de database.' };
+  }
+  return factuurVanRij(r);
+}
+
+export function factuurVanRij(r: Record<string, unknown>): Resultaat {
+  const factuur: FactuurSnapshot = {
+    factuurnummer: s(r.factuurnummer), factuurdatum: s(r.factuurdatum).slice(0, 10), vervaldatum: s(r.vervaldatum).slice(0, 10),
+    fase: r.fase === 'aanbetaling' ? 'aanbetaling' : 'restant', bedragCent: cent(r.bedrag),
+    exclusiefCent: cent(r.exclusief_btw), btwCent: cent(r.btw_bedrag), btwRegime: s(r.btw_regime) as BtwRegime,
+    btwNummer: s(r.btw_nummer), btwToelichting: s(r.btw_toelichting),
+    verhuurderNaam: s(r.verhuurder_naam), verhuurderAdres: s(r.verhuurder_adres), verhuurderKvk: s(r.verhuurder_kvk), verhuurderIban: s(r.verhuurder_iban),
+    huurderNaam: s(r.huurder_naam), huurderAdres: s(r.huurder_adres), omschrijving: s(r.omschrijving),
+    contractnummer: s(r.contractnummer), boekingsnummer: s(r.boekingsnummer), periodeVan: s(r.periode_van), periodeTot: s(r.periode_tot),
+  };
+  const fout = factuurSnapshotFout(factuur);
+  const id = Number(r.id);
+  if (fout || !Number.isSafeInteger(id) || id <= 0) return { ok: false, melding: fout ?? 'Ongeldig factuur-id.' };
+  return { ok: true, factuur, id, eerderVerzonden: Boolean(s(r.provider_bericht_id)) };
+}

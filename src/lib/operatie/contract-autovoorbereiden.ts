@@ -10,6 +10,8 @@ import { berekenAutocontractTermijnen, leesAutocontractProfiel } from '../../pla
 import type { Actor } from './kern.ts';
 import type { DossierSessie } from './dossier-sessie.ts';
 import { bewaarDefinitiefContract, type ContractWizardSessie } from './contract-wizard-sessie.ts';
+import { leesGecontroleerdMandaat } from './verhuur-mandaat.ts';
+import { kiesGoedgekeurdePrijs } from '../../platform/verhuur-financieel.ts';
 
 type Rij = Record<string, unknown>;
 const tekst = (v: unknown) => v == null ? '' : String(v).trim();
@@ -27,6 +29,10 @@ export async function probeerContractAutoVoorbereiden(input: {
     return { voorbereid: false, melding: 'Automatisch contract maken vereist eerst de veilige, transactionele contractopslag.' };
   }
   try {
+    const machine = input.actor.type === 'systeem';
+    const mandaatAntwoord = machine ? await leesGecontroleerdMandaat(input.client, input.aanvraagId, input.boekingId) : null;
+    if (mandaatAntwoord && !mandaatAntwoord.ok) return { voorbereid: false, melding: mandaatAntwoord.melding };
+    const mandaat = mandaatAntwoord?.ok ? mandaatAntwoord.mandaat : null;
     const [aanvraag, boeking, tariefAntwoord, instellingAntwoord] = await Promise.all([
       input.client.from('aanvragen').select('id,naam,email,telefoon,straat,huisnummer,huisnummer_toevoeging,postcode,woonplaats,verhuurtype_sleutel,start_datum,eind_datum,aantal_personen').eq('id', input.aanvraagId).maybeSingle(),
       input.client.from('boekingen').select('id,status,verhuurtype_sleutel,interne_titel,tarief_bedrag,start_datum,eind_datum').eq('id', input.boekingId).maybeSingle(),
@@ -57,22 +63,24 @@ export async function probeerContractAutoVoorbereiden(input: {
       geldigVanaf: tekst(r.geldig_vanaf), geldigTot: tekst(r.geldig_tot) || null,
     }));
     const tarief = kiesTarief(alleTarieven, soort, start);
-    if (!tarief || tarief.prijstype !== 'vast' || !Number.isFinite(tarief.bedrag) || tarief.bedrag == null || tarief.bedrag <= 0) {
-      return { voorbereid: false, melding: 'Er is geen definitief vast tarief. Laat het bestuur eerst de huurprijs vaststellen.' };
-    }
-    if (b.tarief_bedrag != null && getal(b.tarief_bedrag) !== tarief.bedrag) {
-      return { voorbereid: false, melding: 'Het bestaande boekingstarief wijkt af van het vaste tarief. Niet automatisch overschrijven.' };
-    }
+    const prijs = kiesGoedgekeurdePrijs({ soort, catalogus: tarief,
+      boekingBedrag: b.tarief_bedrag == null ? null : getal(b.tarief_bedrag),
+      mandaat: mandaat ? { ...mandaat, geverifieerd: true } : null });
+    if (!prijs.ok) return { voorbereid: false, melding: prijs.melding };
     const instellingen = (instellingAntwoord.data ?? []) as { sleutel: string; waarde: unknown }[];
     const profielData = instellingen.find((r) => r.sleutel === 'verhuur_autocontract_profielen')?.waarde;
     const profielen = profielData && typeof profielData === 'object' && !Array.isArray(profielData)
       ? profielData as Record<string, unknown> : {};
-    const profiel = leesAutocontractProfiel(profielen[soort]);
+    const profiel = leesAutocontractProfiel(mandaat ? mandaat.contractProfiel : profielen[soort]);
     if (!profiel) return { voorbereid: false, melding: 'Voor dit verhuurtype zijn nog geen volledige standaardcontractafspraken vastgelegd.' };
     const termijnen = berekenAutocontractTermijnen({
-      prijsEuro: tarief.bedrag, profiel, vandaag: ymdInAmsterdam(new Date()), start,
+      prijsEuro: prijs.prijsEuro, profiel,
+      vandaag: ymdInAmsterdam(mandaat ? new Date(mandaat.vastgelegdOp) : new Date()), start,
     });
     if (!termijnen.ok) return { voorbereid: false, melding: termijnen.melding };
+    const eersteVerval = termijnen.termijnen.aanbetalingVerval || termijnen.termijnen.restVerval;
+    if (eersteVerval < ymdInAmsterdam(new Date())) return { voorbereid: false,
+      melding: 'De goedgekeurde betalingstermijn is verstreken. Laat een concreet concept met actuele termijnen beoordelen.' };
     const inst = leesInstellingen(instellingen);
     const wizard = wizardUitDossier({
       boekingId: String(input.boekingId), soortLabel: soort,
@@ -82,7 +90,7 @@ export async function probeerContractAutoVoorbereiden(input: {
       toevoeging: tekst(a.huisnummer_toevoeging), postcode: tekst(a.postcode),
       woonplaats: tekst(a.woonplaats), periodeVan: start, periodeTot: eind,
       personen: tekst(a.aantal_personen),
-      huurprijs: tarief.bedrag.toFixed(2),
+      huurprijs: prijs.prijsEuro.toFixed(2),
       aanbetaling: String(termijnen.termijnen.aanbetaling),
     }, inst);
     Object.assign(wizard, {
@@ -90,6 +98,9 @@ export async function probeerContractAutoVoorbereiden(input: {
       opbouw: profiel.opbouw, afbouw: profiel.afbouw,
       aanbetalingVerval: termijnen.termijnen.aanbetalingVerval,
       restVerval: termijnen.termijnen.restVerval,
+      restFactuurDagenVoorVerval: String(profiel.restFactuurDagenVoorVerval ?? 0),
+      bijzondereAfspraken: mandaat?.beleid.afwijking18Maanden === true
+        ? 'Het bestuur heeft voor deze expositie uitdrukkelijk een uitzondering toegestaan op de termijn van 18 maanden uit de verhuurvoorwaarden. Deze uitzondering geldt uitsluitend voor de deelnemers en periode van deze goedgekeurde aanvraag.' : '',
     });
     const ontbreekt = controleerWizard(wizard);
     if (ontbreekt.length > 0) {
@@ -100,7 +111,7 @@ export async function probeerContractAutoVoorbereiden(input: {
       velden: wizard, actor: input.actor, atomair: true,
     });
     return opgeslagen.ok
-      ? { voorbereid: true, melding: 'Het contractpakket is automatisch voorbereid; het bestuur kan nu het tweede Ja/Nee-besluit nemen.' }
+      ? { voorbereid: true, melding: machine ? 'Het contractpakket is voorbereid op het vastgelegde bestuursmandaat.' : 'Het contractpakket is automatisch voorbereid; het bestuur kan nu het tweede Ja/Nee-besluit nemen.' }
       : { voorbereid: false, melding: `Het contract kon niet worden voorbereid: ${opgeslagen.melding}` };
   } catch (error) {
     console.error('Automatische contractvoorbereiding onvolledig:', error);

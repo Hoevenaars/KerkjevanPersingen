@@ -90,6 +90,8 @@ function versieUitRij(rij: Rij, verzendingen: ContractVerzending[]): ContractVer
       opbouw: tekst(afspraken.opbouw),
       afbouw: tekst(afspraken.afbouw),
       contactpersoon: tekst(afspraken.contactpersoon),
+      ...(tekst(afspraken.bijzondereAfspraken).trim() ? { bijzondereAfspraken: tekst(afspraken.bijzondereAfspraken) } : {}),
+      ...(Number(afspraken.restFactuurDagenVoorVerval) > 0 ? { restFactuurDagenVoorVerval: Number(afspraken.restFactuurDagenVoorVerval) } : {}),
     },
     bestuurVerplicht: rij.bestuur_verplicht !== false,
     bestuur: (tekst(rij.bestuur) || 'open') as ContractVersie['bestuur'],
@@ -146,7 +148,7 @@ export async function leesDocumentenDossier(
   const boekingen = await lees(
     client,
     'boekingen',
-    'id,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_naam_snapshot,huurder_email_snapshot,huurder_telefoon_snapshot,tarief_bedrag,aanbetaling_bedrag,aanbetaling_ontvangen,gastheer_relatie_id,aantal_personen,toelichting,aangemaakt_op,aanvraag_id',
+    'id,status,verhuurtype_sleutel,interne_titel,start_datum,eind_datum,huurder_naam_snapshot,huurder_email_snapshot,huurder_telefoon_snapshot,tarief_bedrag,betaling_vereist,aanbetaling_bedrag,aanbetaling_ontvangen,gastheer_relatie_id,aantal_personen,toelichting,aangemaakt_op,aanvraag_id',
     { kolom: 'id', waarde: id },
   );
   if ('mist' in boekingen) return { ok: false, melding: 'De documentenflow is nog niet gemigreerd.' };
@@ -217,6 +219,13 @@ export async function leesDocumentenDossier(
         instellingen: leesInstellingen('data' in instellingRijen ? instellingRijen.data.map((rij) => ({ sleutel: tekst(rij.sleutel), waarde: rij.waarde })) : []),
         versies: versieRijen.data.map((rij) => versieUitRij(rij, verzendingen)),
         betaling: betalingStand({ vlag: boeking.aanbetaling_ontvangen === true, regels }),
+        betalingVereist: ['aanbetaling', 'volledig', 'geen'].includes(tekst(boeking.betaling_vereist))
+          ? tekst(boeking.betaling_vereist) as 'aanbetaling' | 'volledig' | 'geen' : undefined,
+        volledigeHuurOntvangen: regels.filter((r) => r.status !== 'geannuleerd' && ['aanbetaling', 'restant'].includes(r.soort)).length > 0 &&
+          regels.filter((r) => r.status !== 'geannuleerd' && ['aanbetaling', 'restant'].includes(r.soort))
+            .every((r) => ['ontvangen', 'betaald'].includes(r.status)) &&
+          regels.filter((r) => r.status !== 'geannuleerd' && ['aanbetaling', 'restant'].includes(r.soort))
+            .reduce((t, r) => t + Math.round((r.bedrag ?? NaN) * 100), 0) === geld.huurprijsCent,
         bron: {
           boekingId: String(id),
           soort,

@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Beheer from '../../../layouts/Beheer.astro';
 import { SOORT_LABEL, demoNaActie, formatNl } from '../../../platform/demo-data';
-import { bedragUitWeergave, beoordeelAanvraag, contractStaatVanVersie, magFaseTerug, wereldZonderVervallenContract, type FaseWereld } from '../../../platform/aanvraag-fase';
+import { bedragUitWeergave, beoordeelAanvraag, contractStaatVanVersie, magFaseTerug, wereldZonderVervallenContract, type FaseAanvraag, type FaseWereld } from '../../../platform/aanvraag-fase';
 import { periodeLabel } from '../../../platform/verhuur-overzicht';
 import { labelAangevraagdOp, labelAkkoordVoorwaarden } from '../../../platform/aanvraag-weergave';
 import { toonMedeExposanten } from '../../../platform/mede-exposanten';
@@ -21,7 +21,7 @@ import Mailconcept from '../../../components/beheer/Mailconcept.astro';
 import { verwerkMailconcept } from '../../../lib/mailconcept-actie.ts';
 import { besluitVoor } from '../../../lib/automatisering-register.ts';
 import { magAanvraagWijzigen } from '../../../platform/aanvraag.ts';
-import { magSchrijven } from '../../../platform/rechten.ts';
+import { magLezen, magSchrijven } from '../../../platform/rechten.ts';
 import { zetReservelijstViaAanvraag } from '../../../lib/operatie/aanvraag-reservelijst.ts';
 import { laadMailtemplatesUitSupabase } from '../../../platform/mailtemplates/supabase-bron.ts';
 import type { MailTemplateDef } from '../../../platform/mailtemplates/types.ts';
@@ -53,12 +53,59 @@ import ContractOpvolging from '../../../components/beheer/ContractOpvolging.astr
 import { verwerkOntvangst } from '../../../lib/operatie/ontvangst.ts';
 import { besluitContractViaSessie } from '../../../lib/operatie/contract-besluit.ts';
 import { documentenflowAan } from '../../../platform/documentenflow-vlag.ts';
+import VerhuurMachine from '../../../components/beheer/VerhuurMachine.astro';
+import { leesVerhuurBeoordeling, type BeoordelingsDossier, type MachineClient, type Rij } from '../../../lib/verhuurmachine/beoordeling.ts';
+import { leesMachineConceptBeoordeling, type MachineConceptBeoordeling } from '../../../lib/operatie/verhuur-concept-herbeoordeling.ts';
 
 const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
 const id = beheerId(Astro.params.id);
 const aanvraag = snapshot.aanvragen.find((a) => a.id === id);
 
 const mailSessie = sessieSupabaseUitAstro(Astro);
+const machineVlagAan = omgevingsRecord().VERHUUR_MACHINE === 'true';
+// Een tijdelijke pauze geeft een bestaand machinedossier nooit terug aan de
+// oude besluit- of verzendroute. Dezelfde lezing beschermt GET én handmatige POST.
+async function leesMachineRoute(client: MachineClient, aanvraagId: number, vlagAan: boolean) {
+  const jobKolommen = 'id,aanvraag_id,boeking_id,taak,sleutel,status,payload,last_fout,provider_id,verantwoordelijke,opvolgen_voor,gepland_op,geclaimd_op,bijgewerkt_op';
+  const [scopeUit, besluitUit, openJobsUit, historieUit] = await Promise.allSettled([
+    client.rpc('verhuur_machine_in_scope', { p_id: aanvraagId }),
+    client.from('verhuur_besluiten').select('aanvraag_id,aanvraag_versie,besluit,status,huurprijs_euro,prijs_bron,actor_label,vastgelegd_op,boeking_id,blokkade_reden').eq('aanvraag_id', aanvraagId).maybeSingle(),
+    client.from('verhuur_proces_jobs').select(jobKolommen).eq('aanvraag_id', aanvraagId).in('status', ['te_doen', 'bezig', 'wacht_op_mens', 'onzeker']).order('aangemaakt_op', { ascending: false }),
+    client.from('verhuur_proces_jobs').select(jobKolommen).eq('aanvraag_id', aanvraagId).in('status', ['afgerond', 'geannuleerd']).order('aangemaakt_op', { ascending: false }).limit(100),
+  ]);
+  const uitkomsten = [scopeUit, besluitUit, openJobsUit, historieUit];
+  const schemaOntbreekt = !vlagAan && uitkomsten.every((uit) => uit.status === 'fulfilled'
+    && ['42P01', '42883', 'PGRST202', 'PGRST205'].includes(String(uit.value.error?.code ?? '')));
+  if (schemaOntbreekt) return { toon: false, actief: false, besluit: null as Rij | null, jobs: [] as Rij[], fout: '' };
+  const fouten: string[] = [];
+  const inScope = scopeUit.status === 'fulfilled' && !scopeUit.value.error && scopeUit.value.data === true;
+  if (scopeUit.status !== 'fulfilled' || scopeUit.value.error) fouten.push('De procesinstelling kon niet worden gecontroleerd.');
+  const besluit = besluitUit.status === 'fulfilled' && !besluitUit.value.error ? besluitUit.value.data as Rij | null : null;
+  if (besluitUit.status !== 'fulfilled' || besluitUit.value.error) fouten.push('Het vastgelegde bestuursbesluit kon niet worden gelezen.');
+  const openJobs = openJobsUit.status === 'fulfilled' && !openJobsUit.value.error ? (openJobsUit.value.data ?? []) as Rij[] : [];
+  const historie = historieUit.status === 'fulfilled' && !historieUit.value.error ? (historieUit.value.data ?? []) as Rij[] : [];
+  const jobs = [...new Map([...openJobs, ...historie].map((job) => [String(job.id), job])).values()];
+  if (openJobsUit.status !== 'fulfilled' || openJobsUit.value.error) fouten.push('De open uitvoerstappen konden niet worden geladen.');
+  if (historieUit.status !== 'fulfilled' || historieUit.value.error) fouten.push('De proceshistorie kon niet worden geladen.');
+  return { toon: inScope || Boolean(besluit) || jobs.length > 0 || fouten.length > 0,
+    actief: vlagAan && inScope && fouten.length === 0, besluit, jobs, fout: fouten.join(' ') };
+}
+let machineRouteCache: Awaited<ReturnType<typeof leesMachineRoute>> | null = null;
+const actueleMachineRoute = async () => machineRouteCache ??= await leesMachineRoute(
+  mailSessie as unknown as MachineClient, Number(aanvraag?.id), machineVlagAan,
+);
+function machineWizardToegang(input: {
+  toon: boolean; actief: boolean; fout: string; status: unknown; heeftVersie: boolean;
+  conceptToelaatbaar: boolean; conceptFout: string; bestaandBewijs: string; jobs: readonly Rij[];
+}) {
+  if (!input.toon) return { eerste: true, vervangen: true };
+  if (!input.actief || input.fout || input.conceptFout || input.bestaandBewijs) return { eerste: false, vervangen: false };
+  return {
+    eerste: !input.heeftVersie && (input.status === 'herbeoordelen'
+      || input.jobs.some((job) => job.taak === 'contract' && job.status === 'wacht_op_mens')),
+    vervangen: input.heeftVersie && input.conceptToelaatbaar,
+  };
+}
 const mailtemplates: MailTemplateDef[] = mailSessie ? await laadMailtemplatesUitSupabase(mailSessie) : [];
 let mailPreview: { onderwerp: string; text: string } | null = null;
 let mailMelding = '';
@@ -67,12 +114,12 @@ let wizardPost: ContractWizardVelden | null = null;
 if (Astro.request.method === 'POST') {
   const formulier = await Astro.request.formData();
   const actie = String(formulier.get('actie') ?? '');
-  if ((actie === 'ja_activiteit' || actie === 'nee_activiteit') && (!Astro.locals.beheer || Astro.locals.beheer.viewAs || snapshot.alleenLezen || snapshot.bron !== 'supabase' || !mailSessie)) {
+  if ((actie.startsWith('vm_') || actie === 'ja_activiteit' || actie === 'nee_activiteit') && (!Astro.locals.beheer || Astro.locals.beheer.viewAs || snapshot.alleenLezen || snapshot.bron !== 'supabase' || !mailSessie)) {
     const doel = new URL(Astro.url.pathname, Astro.url.origin);
     doel.searchParams.set('fout', 'Deze bestuursbeslissing kan alleen in de actieve beheeromgeving worden vastgelegd.');
     return Astro.redirect(doel.toString());
   }
-  if (aanvraag && (actie === 'ondertekening_ontvangen' || actie === 'aanbetaling_ontvangen')) {
+  if (aanvraag && ['ondertekening_ontvangen', 'aanbetaling_ontvangen', 'volledige_betaling_ontvangen', 'restbetaling_ontvangen'].includes(actie)) {
     const bestand = formulier.get('bestand');
     const uit = await verwerkOntvangst(actie, {
       client: snapshot.bron === 'supabase' && mailSessie ? mailSessie as never : null,
@@ -92,6 +139,16 @@ if (Astro.request.method === 'POST') {
       const doel = new URL(Astro.url.pathname, Astro.url.origin);
       doel.searchParams.set('fout', 'Alleen in de actieve beheeromgeving kunnen contractbesluiten worden vastgelegd. Er is niets gewijzigd of verstuurd.');
       return Astro.redirect(doel.toString());
+    }
+    if (['df_ja_en_verzend', 'df_nee_contract', 'df_akkoord', 'df_terug', 'df_voorleggen', 'df_verzend', 'df_opnieuw', 'df_gereed'].includes(actie)) {
+      const route = await actueleMachineRoute();
+      if (route.toon) {
+        const doel = new URL(Astro.url.pathname, Astro.url.origin);
+        doel.searchParams.set('fout', route.fout
+          ? 'De actuele procescontrole kon niet worden uitgevoerd. Er is niets gewijzigd of verstuurd.'
+          : 'Gebruik het bestuursbesluit en het gecontroleerde herstel in dit dossier. Dit verhuurproces heeft geen tweede contractbesluit of parallelle verzendroute.');
+        return Astro.redirect(doel.toString());
+      }
     }
     const bestand = formulier.get('bestand');
     const bijlage = bestand instanceof File && bestand.size > 0
@@ -228,7 +285,7 @@ if (Astro.request.method === 'POST') {
     mailMelding = uit.melding;
   } else if (aanvraag && (actie === 'reservelijst_aan' || actie === 'reservelijst_uit')) {
     const doel = new URL(Astro.url.pathname, Astro.url.origin);
-    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs || snapshot.alleenLezen) {
       doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
     } else if (snapshot.bron !== 'supabase' || !mailSessie) {
       doel.searchParams.set('fout', 'Dit is de voorbeeldweergave. Er is niets opgeslagen en er is geen mail verstuurd.');
@@ -249,7 +306,7 @@ if (Astro.request.method === 'POST') {
       const waarde = Astro.url.searchParams.get(sleutel);
       if (waarde) doel.searchParams.set(sleutel, waarde);
     }
-    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs || snapshot.alleenLezen) {
       doel.searchParams.set('contract', String(formulier.get('nieuwe_versie') ?? '') === 'ja' ? 'nieuw' : 'genereren');
       doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
       return Astro.redirect(doel.toString());
@@ -258,13 +315,18 @@ if (Astro.request.method === 'POST') {
       wizardPost = velden;
       mailMelding = 'Dit is de voorbeeldweergave. Het contract is niet opgeslagen en er is geen mail verstuurd.';
     } else {
+      const route = await actueleMachineRoute();
+      if (route.toon && (!route.actief || route.fout)) {
+        doel.searchParams.set('fout', route.fout || 'Dit verhuurproces is gepauzeerd. Bestaande contractafspraken kunnen pas na heractivering worden gewijzigd.');
+        return Astro.redirect(doel.toString());
+      }
       const uit = await bewaarDefinitiefContract(mailSessie as never, {
         boekingId: Number(aanvraag.boekingId),
         aanvraagId: /^\d+$/.test(aanvraag.id) ? Number(aanvraag.id) : null,
         velden,
         actor: actorVanSessie(Astro.locals.beheer),
         vervang: String(formulier.get('nieuwe_versie') ?? '') === 'ja',
-        atomair: omgevingsRecord().V4_ATOMAIR_CONTRACT === 'true',
+        atomair: route.toon || omgevingsRecord().V4_ATOMAIR_CONTRACT === 'true',
       });
       if (!uit.ok) {
         wizardPost = velden;
@@ -276,11 +338,16 @@ if (Astro.request.method === 'POST') {
     }
   } else if (aanvraag && actie === 'fase_terug') {
     const doel = new URL(Astro.url.pathname, Astro.url.origin);
-    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs) {
+    if (!Astro.locals.beheer || Astro.locals.beheer.viewAs || snapshot.alleenLezen) {
       doel.searchParams.set('fout', 'In deze weergave is niets gewijzigd.');
     } else if (snapshot.bron !== 'supabase' || !mailSessie) {
       doel.searchParams.set('fout', 'Dit is de voorbeeldweergave. Er is niets gewijzigd en er is geen mail verstuurd.');
     } else {
+      const route = await actueleMachineRoute();
+      if (route.toon && (!route.actief || route.fout)) {
+        doel.searchParams.set('fout', route.fout || 'Dit verhuurproces is gepauzeerd. Het contract kan in deze stand niet worden ingetrokken.');
+        return Astro.redirect(doel.toString());
+      }
       const uit = await trekFaseTerug(mailSessie as never, Number(aanvraag.id), actorVanSessie(Astro.locals.beheer));
       if (uit.ok) {
         doel.searchParams.set('contract', 'genereren');
@@ -384,6 +451,90 @@ const kanBeoordelen = !Astro.locals.beheer?.viewAs
     Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} },
   );
 
+// Hetzelfde dossier bewaart ook tijdens een pauze de proceshistorie. Bij een
+// onzekere controle valt het niet terug op een tweede schrijfroute.
+let toonVerhuurMachine = false;
+let machineActief = false;
+let machineFout = '';
+let machineDossier: BeoordelingsDossier | null = null;
+let machineBesluit: Rij | null = null;
+let machineJobs: Rij[] = [];
+let machineClaims: { id: string; boekingId: string; type: 'contract' | 'factuur'; soort: string; status: string; versie: string; providerId: string }[] = [];
+let machineOntvangstClaims: Rij[] = [];
+let machineContractVersie: Rij | null = null;
+let machineConcept: MachineConceptBeoordeling | null = null;
+let machineConceptFout = '';
+let machineBestaandBewijs = '';
+const machineRechten = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+if (snapshot.bron === 'supabase' && mailSessie && /^\d+$/.test(aanvraag.id)) {
+  const client = mailSessie as unknown as MachineClient;
+  try {
+    const route = await actueleMachineRoute();
+    toonVerhuurMachine = route.toon;
+    machineActief = route.actief;
+    machineBesluit = route.besluit;
+    machineJobs = route.jobs;
+    machineFout = route.fout;
+    if (toonVerhuurMachine) {
+      try { machineDossier = await leesVerhuurBeoordeling(client, Number(aanvraag.id)); }
+      catch { machineFout += ' De actuele beoordeling kon niet worden geladen.'; }
+      const boekingId = String(machineBesluit?.boeking_id ?? aanvraag.boekingId ?? '');
+      if (/^\d+$/.test(boekingId)) {
+        const onzekereContractJob = machineJobs.some((job) => job.taak === 'contract' && ['onzeker', 'wacht_op_mens'].includes(String(job.status)));
+        const onzekereFactuurJob = machineJobs.some((job) => job.taak === 'financieel' && ['onzeker', 'wacht_op_mens'].includes(String(job.status)));
+        const oudGenoeg = (waarde: unknown) => {
+          const op = new Date(String(waarde ?? '')).getTime();
+          return Number.isFinite(op) && Date.now() - op >= 15 * 60 * 1000;
+        };
+        const [contractUit, facturenUit, ontvangstUit, versieUit] = await Promise.allSettled([
+          client.from('contract_verzendingen').select('id,boeking_id,versie,soort,status,bericht_id,op').eq('boeking_id', Number(boekingId)),
+          magLezen(machineRechten, 'finance')
+            ? client.from('facturen').select('id').eq('boeking_id', Number(boekingId))
+            : Promise.resolve({ data: [], error: null }),
+          client.from('contract_ontvangstmail_claims').select('id,boeking_id,contractversie_id,richting,status,provider_id,bijgewerkt_op,melding').eq('boeking_id', Number(boekingId)),
+          client.from('contractversies').select('id,versie,bestuur,ondertekening,mandaat_aanvraag_versie').eq('boeking_id', Number(boekingId)).order('versie', { ascending: false }).limit(1).maybeSingle(),
+        ]);
+        if (contractUit.status === 'fulfilled' && !contractUit.value.error) {
+          if (((contractUit.value.data ?? []) as Rij[]).some((r) => ['contract', 'herhaling'].includes(String(r.soort))
+            && (['bezig', 'verzonden'].includes(String(r.status)) || r.bericht_id))) {
+            machineBestaandBewijs = 'Er is al een lopende, geaccepteerde of onzekere contractverzending. Controleer eerst het bestaande verzendbewijs; het contract kan hier niet worden vervangen.';
+          }
+          machineClaims.push(...((contractUit.value.data ?? []) as Rij[])
+            .filter((r) => ['contract', 'herhaling'].includes(String(r.soort))
+              && ((r.status === 'bezig' && (onzekereContractJob || oudGenoeg(r.op))) || (r.status === 'verzonden' && onzekereContractJob)))
+            .map((r) => ({ id: String(r.id), boekingId, type: 'contract' as const, soort: String(r.soort), status: String(r.status), versie: String(r.versie ?? ''), providerId: String(r.bericht_id ?? '') })));
+        } else machineFout += ' Het contractverzendbewijs kon niet worden geladen.';
+        if (facturenUit.status === 'fulfilled' && !facturenUit.value.error) {
+          const factuurIds = ((facturenUit.value.data ?? []) as Rij[]).map((r) => r.id);
+          if (factuurIds.length > 0) {
+            machineBestaandBewijs = 'Er is al een factuur uitgegeven. Bestuur en penningmeester moeten eerst het bestaande fiscale traject afhandelen voordat afspraken worden vervangen.';
+            const factuurClaims = await client.from('verhuur_factuurverzendingen').select('id,factuur_id,soort,status,bericht_id,bijgewerkt_op').in('factuur_id', factuurIds);
+            if (!factuurClaims.error) {
+              machineClaims.push(...((factuurClaims.data ?? []) as Rij[])
+                .filter((r) => r.status === 'onzeker' || (r.status === 'bezig' && (onzekereFactuurJob || oudGenoeg(r.bijgewerkt_op))))
+                .map((r) => ({ id: String(r.id), boekingId, type: 'factuur' as const, soort: String(r.soort), status: String(r.status), versie: '', providerId: String(r.bericht_id ?? '') })));
+            } else machineFout += ' Het factuurverzendbewijs kon niet worden geladen.';
+          }
+        } else machineFout += ' De gekoppelde facturen konden niet worden geladen.';
+        if (ontvangstUit.status === 'fulfilled' && !ontvangstUit.value.error) machineOntvangstClaims = (ontvangstUit.value.data ?? []) as Rij[];
+        else machineFout += ' Het bewijs van de ondertekenbevestiging kon niet worden geladen.';
+        if (versieUit.status === 'fulfilled' && !versieUit.value.error) machineContractVersie = versieUit.value.data as Rij | null;
+        else machineConceptFout = 'De actuele contractversie kon niet worden gelezen. Maak pas een nieuw concept nadat dit is opgelost.';
+        if (machineContractVersie && (machineBesluit?.status === 'herbeoordelen' || machineContractVersie.bestuur !== 'akkoord')) {
+          try {
+            machineConcept = await leesMachineConceptBeoordeling(client, Number(aanvraag.id), Number(machineContractVersie.id));
+          } catch {
+            machineConceptFout = 'De opgeslagen conceptafspraken en hun actuele beoordeling konden niet worden geladen. De contractuitvoering blijft wachten op controle door het bestuur.';
+          }
+        }
+      }
+    }
+  } catch {
+    toonVerhuurMachine = true;
+    machineFout = 'De actuele verhuurcontrole is niet beschikbaar. Controleer de verbinding en procesinstellingen.';
+  }
+}
+
 const emailNorm = aanvraag.email.trim().toLowerCase();
 const gekoppeldeRelatie = aanvraag.relatieId
   ? snapshot.relaties.find((r) => r.id === aanvraag.relatieId)
@@ -449,13 +600,18 @@ const wereld: FaseWereld = {
       levenscyclus: item.levenscyclus ?? 'actief',
     })),
 };
-const faseAanvraag = {
+const faseAanvraag: FaseAanvraag = {
   id: aanvraag.id,
   status: aanvraag.status,
   naam: aanvraag.naam,
   start: aanvraag.start,
   eind: aanvraag.eind,
   boekingId: aanvraag.boekingId,
+  ...(toonVerhuurMachine && machineBesluit ? {
+    bestuursBesluit: machineBesluit.status === 'herbeoordelen' ? 'open' : machineBesluit.besluit === 'ja' ? 'ja' : machineBesluit.besluit === 'nee' ? 'nee' : 'open',
+    procesStatus: String(machineBesluit.status ?? ''),
+    blokkadeReden: String(machineBesluit.blokkade_reden ?? ''),
+  } : {}),
 };
 let beeld = beoordeelAanvraag(faseAanvraag, wereld);
 const flowBoeking = snapshot.boekingen.find((item) => item.id === beeld.boeking?.id) ?? null;
@@ -534,15 +690,40 @@ if (contractVersies.length > 0 && flowBoeking) {
   }
 }
 const rechtenNu = Astro.locals.beheer?.effectieveRechten ?? { isSuperAdmin: false, perModule: {} };
+if (toonVerhuurMachine && flowBoeking && !machineBestaandBewijs) {
+  if (!['optie', 'optie_verlopen'].includes(flowBoeking.status)) {
+    machineBestaandBewijs = 'Dit dossier is geen onuitgegeven optie. Bestuur en penningmeester moeten een wijziging van de bestaande boeking afzonderlijk afhandelen.';
+  } else if (contractVersies.some((versie) => versie.ondertekening === 'ontvangen')
+    || snapshot.documenten.some((document) => document.boekingId === flowBoeking.id && document.soort === 'getekend_contract')) {
+    machineBestaandBewijs = 'Er is al een ondertekende overeenkomst. Het bestuur moet eerst een bewuste wijziging of beëindiging van die afspraak afspreken.';
+  } else if (flowBoeking.aanbetalingBinnen || (snapshot.betalingen ?? []).some((regel) => regel.boekingId === flowBoeking.id && ['ontvangen', 'betaald', 'deels'].includes(regel.status))) {
+    machineBestaandBewijs = 'Er zijn ontvangsten vastgelegd. De penningmeester moet deze eerst aan de bestaande afspraak koppelen.';
+  } else if (machineJobs.some((job) => ['contract', 'financieel'].includes(String(job.taak)) && ['bezig', 'onzeker'].includes(String(job.status)))) {
+    machineBestaandBewijs = 'Er loopt een contract- of financiële uitvoerstap of de uitkomst is onzeker. Controleer eerst het bestaande bewijs.';
+  }
+}
+const machineWizard = machineWizardToegang({ toon: toonVerhuurMachine, actief: machineActief,
+  fout: machineFout, status: machineBesluit?.status, heeftVersie: Boolean(machineContractVersie),
+  conceptToelaatbaar: machineConcept?.toelaatbaar === true, conceptFout: machineConceptFout,
+  bestaandBewijs: machineBestaandBewijs, jobs: machineJobs });
+const machineUitzondering = toonVerhuurMachine && !machineContractVersie && machineBestaandBewijs
+  && (machineBesluit?.status === 'herbeoordelen' || machineJobs.some((job) => job.taak === 'contract' && ['wacht_op_mens', 'onzeker'].includes(String(job.status))))
+  ? { reden: machineBestaandBewijs, eigenaar: 'Bestuur en penningmeester',
+      opvolgenVoor: String(machineJobs.find((job) => ['wacht_op_mens', 'onzeker'].includes(String(job.status)))?.opvolgen_voor ?? '') }
+  : null;
 // De bestaande, volledige wizard blijft ook bij DOCUMENTENFLOW=true bereikbaar.
 // Anders loopt een aanvraag na 'Ja, geschikt' vast op ontbrekende bedragen of tijden.
 const kanContract = !Astro.locals.beheer?.viewAs
+  && !snapshot.alleenLezen
   && magContractBeheren(rechtenNu)
+  && machineWizard.eerste
   && beeld.fase === 'in_behandeling'
   && Boolean(beeld.boeking)
   && !beeld.checklist.verzonden;
 const magNieuweVersie = !Astro.locals.beheer?.viewAs
+  && !snapshot.alleenLezen
   && magContractBeheren(rechtenNu)
+  && machineWizard.vervangen
   && Boolean(beeld.boeking)
   && (beeld.fase === 'in_behandeling' || beeld.fase === 'gereed');
 let contractDefinitief = false;
@@ -583,9 +764,9 @@ const wizardVelden = wizardPost ?? wizardUitDossier({
   aanbetaling: flowBoeking?.aanbetaling ?? '',
 }, leesInstellingen(instellingRijen), bewaardeWizard);
 const contractParam = Astro.url.searchParams.get('contract');
-const wizardOpen = Boolean(beeld.boeking) && !Astro.locals.beheer?.viewAs && magContractBeheren(rechtenNu) && (
+const wizardOpen = Boolean(beeld.boeking) && !Astro.locals.beheer?.viewAs && !snapshot.alleenLezen && magContractBeheren(rechtenNu) && (
   (kanContract && (wizardPost != null || contractParam === 'genereren'))
-  || (contractDefinitief && (wizardPost != null || contractParam === 'nieuw'))
+  || (magNieuweVersie && contractDefinitief && (wizardPost != null || contractParam === 'nieuw'))
 );
 const contractLink = (() => {
   const params = new URLSearchParams(Astro.url.searchParams);
@@ -603,7 +784,7 @@ const nieuweVersieLink = (() => {
   params.set('contract', 'nieuw');
   return `${dossierPad}?${params.toString()}#contract-wizard`;
 })();
-const kanGoedkeuren = magSchrijven(rechtenNu, 'instellingen')
+const kanGoedkeuren = !toonVerhuurMachine && magSchrijven(rechtenNu, 'instellingen')
   && !snapshot.alleenLezen
   && (aanvraag.status === 'nieuw' || aanvraag.status === 'in_behandeling')
   && !aanvraag.boekingId && beeld.beschikbaarheid.uitkomst === 'beschikbaar' && beeld.fase === 'nieuw';
@@ -613,8 +794,15 @@ const magVastleggen = !Astro.locals.beheer?.viewAs
   && Boolean(beeld.boeking);
 const magTekenen = magVastleggen && magContractBeheren(rechtenNu);
 const magBetalen = magVastleggen && (magContractBeheren(rechtenNu) || magSchrijven(rechtenNu, 'finance'));
-const toonBeoordeling = beeld.fase === 'nieuw';
+const toonBeoordeling = !toonVerhuurMachine && beeld.fase === 'nieuw';
 const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed';
+const restTermijnen = (snapshot.betalingen ?? []).filter((regel) => regel.boekingId === beeld.boeking?.id && regel.soort === 'restant' && regel.status !== 'geannuleerd');
+const openRestTermijn = restTermijnen.length === 1 && restTermijnen[0].status !== 'ontvangen' ? restTermijnen[0] : null;
+const volledigeHuursom = bedragUitWeergave(flowBoeking?.aanbetaling) === 0;
+const opvolgingVoorWeergave = opvolging && toonVerhuurMachine ? {
+  ...opvolging, kanGoedkeuren: false, kanTerug: false, kanAkkoord: false, kanVoorleggen: false,
+  kanVerzenden: false, kanOpnieuw: false, kanProef: false, kanGereed: false,
+} : opvolging;
 ---
 
 <Beheer titel={aanvraag.naam}>
@@ -635,13 +823,20 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
   {mailMelding && <p class="bh-flash">{mailMelding}</p>}
   {Astro.url.searchParams.get('fout') && <p class="bh-flash">{Astro.url.searchParams.get('fout')}</p>}
 
+  {toonVerhuurMachine && (
+    <VerhuurMachine dossier={machineDossier} besluit={machineBesluit} jobs={machineJobs} claims={machineClaims}
+      ontvangstClaims={machineOntvangstClaims} concept={machineConcept} conceptFout={machineConceptFout}
+      uitzondering={machineUitzondering} geactiveerd={machineActief}
+      fout={machineFout} schrijven={kanBeoordelen} actie={dossierPad} aanvraagId={aanvraag.id} />
+  )}
+
   <section class="bh-kaart bh-fase-paneel" id="beoordeling" aria-label="Fase">
     <p class="bh-label">Fase</p>
     <h2 class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.faseLabel}</h2>
     <p class="bh-muted">Aangevraagd op {labelAangevraagdOp(aanvraag.binnengekomen)}</p>
     <p class="bh-volgende">Volgende actie: <strong class={`bh-fase bh-fase--${beeld.toon}`}>{beeld.volgendeActie}</strong></p>
     {
-      kanBeoordelen && magFaseTerug(beeld).ok && (
+      kanBeoordelen && (!toonVerhuurMachine || machineActief) && magFaseTerug(beeld).ok && (
         <form method="post" action={dossierPad} class="bh-acties" onsubmit="return confirm('Het openstaande contract wordt ingetrokken. De tekenlink werkt daarna niet meer. Daarna kun je het contract opnieuw genereren. Er gaat geen mail uit.')">
           <button class="bh-btn bh-btn--sec" type="submit" name="actie" value="fase_terug">Eén fase terug</button>
         </form>
@@ -656,7 +851,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
             opvolging && (
               <p>
                 Definitieve bevestiging: {opvolging.regels.find((regel) => regel.label === 'Definitieve bevestiging')?.waarde ?? 'Nog niet verstuurd'}.
-                Die mail gaat alleen als je haar hieronder verstuurt.
+                {toonVerhuurMachine ? 'Het verhuurproces verzorgt deze bevestiging.' : 'Die mail gaat alleen als je haar hieronder verstuurt.'}
               </p>
             )
           }
@@ -743,13 +938,13 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
           }
           {
             beeld.fase === 'in_behandeling' && !beeld.checklist.verzonden && beeld.boeking && (
-              <p>Na opslaan keurt het bestuur deze versie goed. Verzenden stuurt het PDF-pakket mee. Zonder bijlage wordt er niet gemaild.</p>
+              <p>{toonVerhuurMachine ? 'Het verhuurproces gebruikt het vastgelegde bestuursakkoord. Ontbrekende of gewijzigde afspraken vragen eerst controle; het complete PDF-pakket gaat daarna mee.' : 'Na opslaan keurt het bestuur deze versie goed. Verzenden stuurt het PDF-pakket mee. Zonder bijlage wordt er niet gemaild.'}</p>
             )
           }
           {
             kanContract && contractDefinitief && !wizardOpen && (
               <p>
-                Contract {contractNummer} is opgeslagen. Goedkeuren en verzenden staan bij het contract hieronder.
+                Contract {contractNummer} is opgeslagen. {toonVerhuurMachine ? 'De uitvoering en eventuele herstelactie staan bij het verhuurproces.' : 'Goedkeuren en verzenden staan bij het contract hieronder.'}
                 {' '}<a href={nieuweVersieLink}>Nieuwe versie</a>.
               </p>
             )
@@ -772,6 +967,14 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
               </form>
             )
           }
+          {magBetalen && openRestTermijn && (
+            <form method="post" action={dossierPad}>
+              <p class="bh-muted">Leg dit vast nadat de volledige openstaande {volledigeHuursom ? 'huursom' : 'resttermijn'} op de rekening is gecontroleerd. De actieve betaaltermijn wordt als ontvangen geregistreerd.</p>
+              <button class="bh-btn" type="submit" name="actie" value={volledigeHuursom ? 'volledige_betaling_ontvangen' : 'restbetaling_ontvangen'}>
+                {volledigeHuursom ? 'Volledige huursom ontvangen' : 'Restbetaling ontvangen'}
+              </button>
+            </form>
+          )}
         </>
       )
     }
@@ -904,9 +1107,9 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
     }
   </div>
 
-  {opvolging && (
+  {opvolgingVoorWeergave && (
     <ContractOpvolging
-      opvolging={opvolging}
+      opvolging={opvolgingVoorWeergave}
       actie={dossierPad}
       betalingToelichting={opvolgingBetaling}
       toonMaken={false}
@@ -922,6 +1125,7 @@ const toonChecklist = beeld.fase === 'in_behandeling' || beeld.fase === 'gereed'
         velden={wizardVelden}
         adresHint={!wizardVelden.straat && !wizardVelden.huisnummer ? aanvraag.adres : ''}
         vervangt={contractDefinitief}
+        expositieWaarschuwing={toonVerhuurMachine && Boolean((machineConcept?.beoordeling ?? machineDossier?.beoordeling)?.historieWaarschuwingen.length)}
       />
     )
   }
