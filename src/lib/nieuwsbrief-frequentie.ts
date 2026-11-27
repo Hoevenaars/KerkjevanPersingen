@@ -157,9 +157,9 @@ export function isEersteWoensdagVanMaand(datum: Date): boolean {
 
 /**
  * Bepaalt of een vriend de nieuwsbrief van deze verzendronde moet ontvangen.
- * - wekelijks: elke woensdag
+ * - wekelijks: elke maandag
  * - tweewekelijks: om de week (even ISO-weeknummers)
- * - maandelijks: alleen op de eerste woensdag van de maand
+ * - maandelijks: de maandag van de week waarvan de woensdag de eerste van de maand is
  */
 export function ontvangtDezeVerzending(
   frequentie: VriendFrequentie | undefined,

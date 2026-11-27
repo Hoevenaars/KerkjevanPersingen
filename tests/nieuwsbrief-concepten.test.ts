@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { STANDAARD_AUTOMATISERINGEN } from '../src/platform/automatisering.ts';
 import {
   conceptIsOpTijd,
   conceptMaandagen,
   conceptStatusLabel,
+  isNieuwsbriefVervolgmoment,
   isNieuwsbriefVerzendmoment,
   kortNieuwsVoorConcept,
   nieuwsbrievenOpDatum,
@@ -90,19 +92,42 @@ test('kort nieuws komt uit het programma van die week', () => {
   assert.equal(kortNieuwsVoorConcept('2026-10-05', PROGRAMMA), '');
 });
 
-test('de lijst noemt de eerstvolgende woensdag en 11:30', () => {
-  assert.deepEqual(verzendMoment('2026-11-17'), { woensdag: '2026-11-18', uur: '11:30' });
-  assert.deepEqual(verzendMoment('2026-07-01'), { woensdag: '2026-07-01', uur: '11:30' });
-  assert.equal(verzendMoment('2026-11-21').woensdag, '2026-11-25');
+test('de lijst noemt de eerstvolgende maandag en 10:30', () => {
+  assert.deepEqual(verzendMoment('2026-11-17'), { datum: '2026-11-23', uur: '10:30' });
+  assert.deepEqual(verzendMoment('2026-11-30'), { datum: '2026-11-30', uur: '10:30' });
+  assert.deepEqual(verzendMoment('2026-07-01'), { datum: '2026-07-06', uur: '10:30' });
+  assert.equal(verzendMoment('2026-11-27').datum, '2026-11-30');
 });
 
-test('alleen woensdag rond 11:30 Amsterdam is het verzendmoment', () => {
-  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T10:30:00Z')), true);
-  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T09:30:00Z')), false);
-  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-07-01T09:30:00Z')), true);
-  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-07-01T10:30:00Z')), false);
-  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T11:15:00Z')), true);
-  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-20T10:30:00Z')), false);
+test('alleen maandag rond 10:30 Amsterdam is het verzendmoment', () => {
+  const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')) as {
+    crons: { path: string; schedule: string }[];
+  };
+  const cron = vercel.crons.find((item) => item.path === '/api/cron/nieuwsbrief-verzenden');
+  assert.equal(cron?.schedule, '*/5 8-14 * * 1');
+
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-30T09:30:00Z')), true);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-30T09:30:00Z')), false);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-30T09:25:00Z')), false);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-30T10:20:00Z')), true);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-30T10:25:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-30T10:25:00Z')), true);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-30T14:00:00Z')), true);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-30T14:05:00Z')), false);
+
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-06-29T08:30:00Z')), true);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-06-29T08:25:00Z')), false);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-06-29T09:20:00Z')), true);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-06-29T09:25:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-06-29T09:25:00Z')), true);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-06-29T13:00:00Z')), true);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-06-29T13:05:00Z')), false);
+
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-25T10:30:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-11-25T10:30:00Z')), false);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-07-01T09:30:00Z')), false);
+  assert.equal(isNieuwsbriefVervolgmoment(new Date('2026-07-01T09:30:00Z')), false);
+  assert.equal(isNieuwsbriefVerzendmoment(new Date('2026-11-30T08:30:00Z')), false);
 });
 
 test('de lijst toont de eerstvolgende week bovenaan en verstopt verstuurde weken', () => {

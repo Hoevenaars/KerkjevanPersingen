@@ -2,7 +2,7 @@
  * Concepten voor de vriendenmail.
  * Een week wordt vier weken voor de verzendwoensdag klaargezet.
  * Verzenden mag pas als dat concept die doorlooptijd heeft gehad.
- * De cron vuurt op 09:30 en 10:30 UTC; alleen 11:30 in Amsterdam verstuurt.
+ * De cron vuurt maandag elke vijf minuten; alleen 10:30 in Amsterdam begint een nieuwe brief.
  */
 
 import { voegDagenToe } from '../platform/datum.ts';
@@ -25,12 +25,11 @@ export function woensdagVanWeek(maandag: string): string {
   return voegDagenToe(maandag, 2);
 }
 
-/** Eerstvolgende verzendwoensdag. Het uur is 11:30 in Amsterdam, zomer en winter. */
-export function verzendMoment(vandaag: string): { woensdag: string; uur: string } {
-  const maandag = maandagVanWeekIso(new Date(`${vandaag}T12:00:00Z`));
-  let woensdag = woensdagVanWeek(maandag);
-  if (woensdag < vandaag) woensdag = voegDagenToe(woensdag, 7);
-  return { woensdag, uur: '11:30' };
+/** Eerstvolgende verzendmaandag. Het uur is 10:30 in Amsterdam, zomer en winter. */
+export function verzendMoment(vandaag: string): { datum: string; uur: string } {
+  let maandag = maandagVanWeekIso(new Date(`${vandaag}T12:00:00Z`));
+  if (maandag < vandaag) maandag = voegDagenToe(maandag, 7);
+  return { datum: maandag, uur: '10:30' };
 }
 
 /** Minuten sinds middernacht in Amsterdam, of null als de klok niet te lezen is. */
@@ -54,17 +53,35 @@ function minutenAmsterdam(datum: Date): { datum: string; minuten: number } | nul
   return { datum: `${jaar}-${maand}-${dag}`, minuten: uur * 60 + minuut };
 }
 
+const START_VAN = 10 * 60 + 30;
+const START_TOT = 11 * 60 + 20;
+/** Een lopende ronde mag door tot 15:00 Amsterdam. */
+const VERVOLG_TOT = 15 * 60;
+
+function maandagKlok(datum: Date): { minuten: number } | null {
+  const klok = minutenAmsterdam(datum);
+  if (!klok) return null;
+  const maandag = maandagVanWeekIso(new Date(`${klok.datum}T12:00:00Z`));
+  if (klok.datum !== maandag) return null;
+  return klok;
+}
+
 /**
- * De twee UTC-crons op woensdag dekken de zomertijd.
- * Alleen het uurvak rond 11:30 Amsterdam verstuurt; de andere aanroep slaat over.
- * Een vertraging tot 12:20 telt nog mee. 12:30 (de zomertijd-tweeling) niet.
+ * De vijf-minutencron dekt winter- en zomertijd.
+ * Een nieuwe brief begint tussen 10:30 en 11:20 Amsterdam.
+ * 11:30 is het uur erna en begint geen nieuwe brief.
  */
 export function isNieuwsbriefVerzendmoment(datum: Date): boolean {
-  const klok = minutenAmsterdam(datum);
+  const klok = maandagKlok(datum);
   if (!klok) return false;
-  const woensdag = woensdagVanWeek(maandagVanWeekIso(new Date(`${klok.datum}T12:00:00Z`)));
-  if (klok.datum !== woensdag) return false;
-  return klok.minuten >= 11 * 60 + 25 && klok.minuten <= 12 * 60 + 20;
+  return klok.minuten >= START_VAN && klok.minuten <= START_TOT;
+}
+
+/** Zelfde maandag, na 11:20, tot 15:00. Alleen om een lopende verzending af te maken. */
+export function isNieuwsbriefVervolgmoment(datum: Date): boolean {
+  const klok = maandagKlok(datum);
+  if (!klok) return false;
+  return klok.minuten > START_TOT && klok.minuten <= VERVOLG_TOT;
 }
 
 /**

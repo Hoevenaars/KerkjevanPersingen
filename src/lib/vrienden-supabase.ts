@@ -133,7 +133,7 @@ export function supabaseVrienden(): VriendenBron {
       return data ? vanRij(data) : null;
     },
     async actieve() {
-      const { data, error } = await client.from('vrienden').select('id,naam,email,actief,frequentie,uitschrijf_token').eq('actief', true);
+      const { data, error } = await client.from('vrienden').select('id,naam,email,actief,frequentie,uitschrijf_token').eq('actief', true).order('id', { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []).map(vanRij);
     },

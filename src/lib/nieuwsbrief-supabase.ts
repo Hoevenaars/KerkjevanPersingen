@@ -1,6 +1,6 @@
 /**
  * Nieuwsbriefverzending op Supabase.
- * De woensdagcron verstuurt als de schakelaar aan staat.
+ * De maandagcron verstuurt als de schakelaar aan staat.
  * De dry-run hieronder legt alleen een concept vast en roept geen provider aan.
  */
 

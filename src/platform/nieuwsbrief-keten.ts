@@ -17,6 +17,13 @@ export function dedupNieuwsbrief(editieId: string, email: string): string {
   return `nieuwsbrief:${editieId}:${email.trim().toLowerCase()}`;
 }
 
+/**
+ * Zelfde tempo als de gespreide verzending van Buitengast:
+ * twaalf brieven per ronde, een ronde per vijf minuten, een halve seconde tussen twee aanroepen.
+ */
+export const NIEUWSBRIEF_PER_RONDE = 12;
+export const NIEUWSBRIEF_PAUZE_MS = 500;
+
 export interface NieuwsbriefPlan {
   modus: Mailmodus;
   bedoeldeAantal: number;
@@ -37,7 +44,7 @@ export function planNieuwsbrief(input: {
   batchMax?: number;
   uitgeschreven?: ReadonlySet<string>;
 }): NieuwsbriefPlan {
-  const batchMax = input.batchMax ?? 50;
+  const batchMax = input.batchMax ?? NIEUWSBRIEF_PER_RONDE;
   const uit = input.uitgeschreven ?? new Set<string>();
   const actief = input.ontvangers.filter((item) => item.actief && item.email && !uit.has(item.email.trim().toLowerCase()));
   const open = actief.filter((item) => !input.alVerzonden.has(dedupNieuwsbrief(input.editieId, item.email)));

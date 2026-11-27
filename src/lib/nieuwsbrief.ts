@@ -1,7 +1,7 @@
 /**
  * Nieuwsbriefcron.
  * Uit stuurt niets. Test gaat naar het testmailadres.
- * Aan stuurt woensdag om 11:30 de weekinhoud en de agenda naar de vrienden van deze ronde.
+ * Aan begint maandag om 10:30 en stuurt daarna twaalf brieven per vijf minuten.
  */
 
 import { bereidNieuwsbrief, draaiNieuwsbriefDryRun, supabaseNieuwsbrief, vulNieuwsbriefConcepten, type NieuwsbriefBron } from './nieuwsbrief-supabase.ts';
@@ -10,7 +10,7 @@ import { datumVoorPreview } from './week.ts';
 import { bouwNieuwsbriefHtml } from './nieuwsbrief-html.ts';
 import { kiesActiviteitenVoorMail } from './nieuwsbrief-agenda.ts';
 import type { Automatisering } from '../platform/automatisering.ts';
-import type { MailTransport } from './mail-transport.ts';
+import { MailTempoLimiet, type MailTransport } from './mail-transport.ts';
 
 export { datumVoorPreview, bouwNieuwsbriefHtml, kiesActiviteitenVoorMail, vulNieuwsbriefConcepten };
 
@@ -31,6 +31,11 @@ export interface NieuwsbriefLoopOpties {
   bron?: NieuwsbriefBron;
   transport?: MailTransport;
   testadres?: string | null;
+  /** Na 11:20: alleen verder als deze editie al deels verstuurd is. */
+  alleenVervolg?: boolean;
+  /** Milliseconden tussen twee verzendingen in dezelfde ronde. Tests zetten dit op 0. */
+  pauzeMs?: number;
+  wacht?: (ms: number) => Promise<void>;
 }
 
 /** Donderdagpreview: alleen de brief opbouwen. Geen provider en geen verzendregistratie. */
@@ -83,7 +88,7 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
   if (voorbereid.brieven.length === 0) {
     return { verstuurd: 0, gepland: 0, overgeslagen: 'geen ontvangers deze verzendronde' };
   }
-  const { planNieuwsbrief, dedupNieuwsbrief } = await import('../platform/nieuwsbrief-keten.ts');
+  const { planNieuwsbrief, dedupNieuwsbrief, NIEUWSBRIEF_PAUZE_MS } = await import('../platform/nieuwsbrief-keten.ts');
   const { getTestMailRecipient } = await import('./testmail-adres.ts');
   const { verstuurGecontroleerd } = await import('./mail-transport.ts');
   const testadres = opties.testadres !== undefined
@@ -92,13 +97,15 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
       ? await getTestMailRecipient()
       : null;
   const al = await bron.alLiveVerzonden(voorbereid.week.id);
+  if (opties.alleenVervolg && al.size === 0) {
+    return { verstuurd: 0, gepland: voorbereid.brieven.length, overgeslagen: 'wacht op het verzendmoment' };
+  }
   const plan = planNieuwsbrief({
     modus: besluit.modus,
     editieId: voorbereid.week.id,
     ontvangers: voorbereid.brieven.map((brief) => ({ id: brief.vriend._id, email: brief.vriend.email, actief: brief.vriend.actief })),
     alVerzonden: new Set([...al].map((email) => dedupNieuwsbrief(voorbereid.week!.id, email))),
     testadres,
-    batchMax: voorbereid.brieven.length,
   });
   if (plan.geblokkeerd || plan.providerAanroepen === 0) {
     return { verstuurd: 0, gepland: plan.bedoeldeAantal, overgeslagen: plan.reden };
@@ -106,39 +113,59 @@ export async function verstuurWekelijkseNieuwsbrief(opties: NieuwsbriefLoopOptie
   const gekozen = besluit.modus === 'test'
     ? voorbereid.brieven.slice(0, 1)
     : voorbereid.brieven.filter((brief) => plan.werkelijkeOntvangers.includes(brief.vriend.email));
+  const pauzeMs = opties.pauzeMs ?? (besluit.modus === 'aan' ? NIEUWSBRIEF_PAUZE_MS : 0);
+  const wacht = opties.wacht ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   let verstuurd = 0;
-  for (const brief of gekozen) {
-    const uit = await verstuurGecontroleerd(
-      {
-        sleutel: 'nieuwsbrief',
-        naar: brief.vriend.email,
-        onderwerp: brief.subject,
-        tekst: brief.text,
-        html: brief.html,
-        replyTo: brief.replyTo,
-        modus: besluit.modus,
-        idempotentieSleutel: dedupNieuwsbrief(voorbereid.week.id, brief.vriend.email),
-        tags: nieuwsbriefTags(voorbereid.week.id, brief.vriend._id),
-        berichtsoort: 'geen_betaling',
-      },
-      { modus: besluit.modus, testadres, transport: opties.transport, register: opties.register },
-    );
-    if (!uit.providerAangeroepen) continue;
-    verstuurd += 1;
-    await bron.legVast({
-      nieuwsbriefId: voorbereid.week.id,
-      vriendId: brief.vriend._id,
-      email: brief.vriend.email,
-      test: besluit.modus === 'test',
-      status: besluit.modus === 'test' ? 'concept' : 'verzonden',
-      templateSleutel: voorbereid.template.sleutel,
-      providerId: uit.providerBerichtId,
-    });
+  let gestopt: string | null = null;
+  for (let index = 0; index < gekozen.length; index += 1) {
+    const brief = gekozen[index];
+    if (index > 0 && pauzeMs > 0) await wacht(pauzeMs);
+    try {
+      const uit = await verstuurGecontroleerd(
+        {
+          sleutel: 'nieuwsbrief',
+          naar: brief.vriend.email,
+          onderwerp: brief.subject,
+          tekst: brief.text,
+          html: brief.html,
+          replyTo: brief.replyTo,
+          modus: besluit.modus,
+          idempotentieSleutel: dedupNieuwsbrief(voorbereid.week.id, brief.vriend.email),
+          tags: nieuwsbriefTags(voorbereid.week.id, brief.vriend._id),
+          berichtsoort: 'geen_betaling',
+        },
+        { modus: besluit.modus, testadres, transport: opties.transport, register: opties.register },
+      );
+      if (!uit.providerAangeroepen) {
+        gestopt = uit.melding || 'niet verstuurd';
+        break;
+      }
+      verstuurd += 1;
+      await bron.legVast({
+        nieuwsbriefId: voorbereid.week.id,
+        vriendId: brief.vriend._id,
+        email: brief.vriend.email,
+        test: besluit.modus === 'test',
+        status: besluit.modus === 'test' ? 'concept' : 'verzonden',
+        templateSleutel: voorbereid.template.sleutel,
+        providerId: uit.providerBerichtId,
+      });
+    } catch (err) {
+      console.error('[nieuwsbrief] ronde gestopt', err);
+      gestopt = err instanceof MailTempoLimiet || /too many requests|rate limit|\b429\b/i.test(err instanceof Error ? err.message : String(err))
+        ? 'resend 429'
+        : 'versturen onderbroken';
+      break;
+    }
   }
-  if (besluit.modus === 'aan' && verstuurd > 0 && plan.resterend === 0) {
-    await bron.markeerVerstuurd(voorbereid.week.id);
-  }
-  return { verstuurd, gepland: plan.bedoeldeAantal, overgeslagen: plan.reden };
+  const nog = plan.resterend + (gekozen.length - verstuurd);
+  const afgerond = besluit.modus === 'aan' && !gestopt && gekozen.length > 0 && verstuurd === gekozen.length && plan.resterend === 0;
+  if (afgerond) await bron.markeerVerstuurd(voorbereid.week.id);
+  return {
+    verstuurd,
+    gepland: plan.bedoeldeAantal,
+    overgeslagen: gestopt ? `${gestopt}, nog ${nog}` : nog > 0 ? `gespreid, nog ${nog}` : plan.reden,
+  };
 }
 
 /** Resend-tags mogen alleen letters, cijfers, _ en -. */
