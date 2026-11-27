@@ -1,60 +1,70 @@
 ---
 export const prerender = false;
-
 import Beheer from '../../../../layouts/Beheer.astro';
-import { laadBeheerSnapshot, beheerSnapshotOpties, schrijfActieFlash } from '../../../../platform/beheer-bron.ts';
 import { STANDAARD_VERHUURTYPEN } from '../../../../platform/types.ts';
+import { magSchrijven } from '../../../../platform/rechten.ts';
+import { leesVerhuurProfielenFormulier } from '../../../../platform/verhuur-profielen-formulier.ts';
+import { sessieSupabaseUitAstro } from '../../../../lib/supabase.ts';
+import type { DossierSessie } from '../../../../lib/operatie/dossier-sessie.ts';
 
+const beheer = Astro.locals.beheer;
+const mag = Boolean(beheer && !beheer.viewAs && magSchrijven(beheer.effectieveRechten, 'instellingen'));
+const db = beheer ? sessieSupabaseUitAstro(Astro) as unknown as DossierSessie | null : null;
+let fout = '';
+let melding = '';
+let form: FormData | null = null;
 if (Astro.request.method === 'POST') {
-  return Astro.redirect('/beheer/instellingen/verhuur/?fout=nog-niet-beschikbaar');
+  form = await Astro.request.formData();
+  const origin = Astro.request.headers.get('origin');
+  const invoer = leesVerhuurProfielenFormulier(form);
+  if (!mag || !db?.rpc) fout = 'Geen actieve schrijfsessie voor verhuurinstellingen.';
+  else if (origin && origin !== Astro.url.origin) fout = 'Ongeldige herkomst van het formulier.';
+  else if (!invoer.ok) fout = invoer.melding;
+  else {
+    const uit = await db.rpc('bewaar_verhuur_profielen', { p_profielen: invoer.profielen, p_machine: invoer.machine });
+    if (uit.error) fout = uit.error.message;
+    else { melding = 'Verhuurprofielen en procesinstellingen zijn opgeslagen.'; form = null; }
+  }
 }
-
-const snapshot = await laadBeheerSnapshot(beheerSnapshotOpties(Astro));
-const flash = Astro.url.searchParams.get('demo') === '1';
-const fout = Astro.url.searchParams.get('fout');
+const antwoord = db ? await db.from('instellingen').select('sleutel,waarde') : null;
+if (antwoord?.error && !fout) fout = 'De bestaande instellingen konden niet worden geladen.';
+const instellingen = new Map((antwoord?.data ?? []).map((r) => [String(r.sleutel), r.waarde]));
+const profielen = (instellingen.get('verhuur_autocontract_profielen') ?? {}) as Record<string, Record<string, unknown>>;
+const machine = (instellingen.get('verhuur_machine') ?? {}) as Record<string, unknown>;
+const value = (naam: string, fallback: unknown = '') => form ? String(form.get(naam) ?? '') : String(fallback ?? '');
+const checked = (naam: string, fallback = false) => form ? form.get(naam) === 'ja' : fallback;
 ---
-
 <Beheer titel="Verhuurinstellingen">
-  <header class="bh-top">
-    <div>
-      <h1>Verhuur</h1>
-      <p class="bh-hint">Typen, optietermijn en dagregels. Niet gekoppeld aan het aanvraagformulier.</p>
-    </div>
-  </header>
-
-  {flash && <p class="bh-flash">{schrijfActieFlash(snapshot.bron)}</p>}
-  {fout && <p class="bh-flash bh-flash--fout">Verhuurinstellingen bewaren is nog niet beschikbaar. Er is niets opgeslagen.</p>}
-
-  <section class="bh-kaart">
-    <h2>Verhuurtypen</h2>
-    <table class="bh-tabel">
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Dagregel</th>
-        </tr>
-      </thead>
-      <tbody>
-        {
-          STANDAARD_VERHUURTYPEN.map((t) => (
-            <tr>
-              <td>{t.naam}</td>
-              <td>{t.dagregel === 'expositie_weekend' ? 'Zaterdag + zondag' : 'Maandag t/m vrijdag'}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-  </section>
-
-  <section class="bh-kaart">
-    <h2>Optie</h2>
-    <form method="post" class="bh-form">
-      <label for="optie">Optietermijn (dagen)</label>
-      <input id="optie" name="optietermijn" type="number" value={snapshot.instellingen.optietermijn} />
-      <div class="bh-acties">
-        <button class="bh-btn" type="button" disabled>Verhuurinstellingen bewaren — nog niet beschikbaar</button>
-      </div>
-    </form>
-  </section>
+  <header class="bh-top"><div><h1>Verhuur</h1><p class="bh-hint">Standaardafspraken voor de interne afhandeling na het bestuursbesluit.</p></div></header>
+  {fout && <p class="bh-flash bh-flash--fout" role="alert">{fout}</p>}
+  {melding && <p class="bh-flash" role="status">{melding}</p>}
+  <form method="post" class="bh-form">
+    <fieldset class="bh-kaart" disabled={!mag}>
+      <legend>Automatische afhandeling</legend>
+      <label><input type="checkbox" name="machine_actief" value="ja" checked={checked('machine_actief', machine.actief === true)} /> Proces actief voor nieuwe aanvragen binnen de startscope</label>
+      <label>Meenemen vanaf ontvangstdatum <input type="date" name="machine_vanaf" value={value('machine_vanaf', machine.vanaf)} /></label>
+      <p class="bh-hint">Kies bewust een startdatum. Historische en migratiedossiers worden niet alsnog automatisch gemaild. De technische vrijgave en bestaande mailpoorten blijven daarnaast vereist.</p>
+      <label><input type="checkbox" name="historie_compleet" value="ja" checked={checked('historie_compleet', machine.historieCompleet === true)} /> De expositiehistorie en deelnemers zijn gecontroleerd en volledig beschikbaar</label>
+      <p>Controlebeleid: 18 kalendermaanden tussen het einde van de eerdere en het begin van de volgende expositie. Het bestuur kan in hetzelfde besluit afwijken. Bij onvolledige historie blijft die onzekerheid zichtbaar.</p>
+    </fieldset>
+    {STANDAARD_VERHUURTYPEN.map((type) => {
+      const profiel = profielen[type.sleutel] ?? {};
+      const naam = (veld: string) => `profiel:${type.sleutel}:${veld}`;
+      return <fieldset class="bh-kaart" disabled={!mag}>
+        <legend>{type.naam}</legend>
+        <label><input type="checkbox" name={naam('actief')} value="ja" checked={checked(naam('actief'), Boolean(profielen[type.sleutel]))} /> Standaardprofiel beschikbaar</label>
+        {['concert', 'diverse'].includes(type.sleutel) && <p>De definitieve totale huurprijs wordt bij het Ja/Nee-besluit door het bestuur ingevuld.</p>}
+        <label>Gebruik vanaf <input type="time" name={naam('tijdVan')} value={value(naam('tijdVan'), profiel.tijdVan)} /></label>
+        <label>Gebruik tot <input type="time" name={naam('tijdTot')} value={value(naam('tijdTot'), profiel.tijdTot)} /></label>
+        <label>Opbouw / toegang <input type="text" name={naam('opbouw')} value={value(naam('opbouw'), profiel.opbouw)} maxlength="500" /></label>
+        <label>Afbouw / oplevering <input type="text" name={naam('afbouw')} value={value(naam('afbouw'), profiel.afbouw)} maxlength="500" /></label>
+        <label>Aanbetaling (EUR) <input type="number" min="0" step="0.01" name={naam('aanbetalingEuro')} value={value(naam('aanbetalingEuro'), profiel.aanbetalingEuro)} /></label>
+        <label>Eerste betaling binnen dagen <input type="number" min="1" max="45" name={naam('betalingBinnenDagen')} value={value(naam('betalingBinnenDagen'), profiel.betalingBinnenDagen)} /></label>
+        <label>Restbetaling maanden vóór aanvang <input type="number" min="1" max="12" name={naam('restantMaandenVoorStart')} value={value(naam('restantMaandenVoorStart'), profiel.restantMaandenVoorStart)} /></label>
+        <label>Restfactuur dagen vóór de vervaldatum <input type="number" min="0" max="90" name={naam('restFactuurDagenVoorVerval')} value={value(naam('restFactuurDagenVoorVerval'), profiel.restFactuurDagenVoorVerval ?? 0)} /></label>
+        <label><input type="checkbox" name={naam('kortVoorStartVolledig')} value="ja" checked={checked(naam('kortVoorStartVolledig'), profiel.kortVoorStartVolledig === true)} /> Bij samenvallende betaaltermijnen de volledige huur vooraf vragen</label>
+      </fieldset>;
+    })}
+    <div class="bh-acties"><button class="bh-btn" type="submit" disabled={!mag}>Verhuurinstellingen bewaren</button></div>
+  </form>
 </Beheer>

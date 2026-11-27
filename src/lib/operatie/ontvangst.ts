@@ -201,6 +201,7 @@ export async function legAanbetalingVast(
   if (!Number.isInteger(boekingId)) {
     return { ok: false, melding: 'Deze boeking is niet gevonden. Er is niets vastgelegd.' };
   }
+  if (client.rpc) return legTermijnOntvangstVast(client, boekingId, actor, 'aanbetaling');
   const boeking = await client.from('boekingen').select('id,status,aanbetaling_bedrag,aanbetaling_ontvangen').eq('id', boekingId).maybeSingle();
   if (boeking.error) return { ok: false, melding: leesbareAuthFout(boeking.error.message) };
   if (!boeking.data) return { ok: false, melding: 'Deze boeking is niet gevonden. Er is niets vastgelegd.' };
@@ -283,7 +284,7 @@ export async function verwerkOntvangst(
     schrijven: boolean;
   },
 ): Promise<DossierResultaat | null> {
-  if (actie !== 'ondertekening_ontvangen' && actie !== 'aanbetaling_ontvangen') return null;
+  if (!['ondertekening_ontvangen', 'aanbetaling_ontvangen', 'volledige_betaling_ontvangen', 'restbetaling_ontvangen'].includes(actie)) return null;
   if (!input.schrijven) return { ok: false, melding: 'In deze weergave is niets gewijzigd.' };
   if (!input.client) {
     return { ok: false, melding: 'Dit is de voorbeeldweergave. Er is niets opgeslagen en er is geen mail verstuurd.' };
@@ -295,7 +296,29 @@ export async function verwerkOntvangst(
   if (actie === 'ondertekening_ontvangen') {
     return legOndertekeningVast(input.client, boekingId, input.actor, input.bestand);
   }
+  if (actie === 'volledige_betaling_ontvangen' || actie === 'restbetaling_ontvangen') {
+    return legTermijnOntvangstVast(input.client, boekingId, input.actor, 'restant');
+  }
   return legAanbetalingVast(input.client, boekingId, input.actor);
+}
+
+/** Handmatige bankcontrole voor de werkelijke termijn, inclusief volledige huur. */
+export async function legTermijnOntvangstVast(client: DossierSessie, boekingId: number, actor: Actor, soort: 'aanbetaling' | 'restant'): Promise<DossierResultaat> {
+  const rechten = actor.rechten ?? { isSuperAdmin: false, perModule: {} };
+  if (!magContractBeheren(rechten) && !magSchrijven(rechten, 'finance')) return { ok: false, melding: 'Geen recht om betaalontvangst vast te leggen.' };
+  if (!client.rpc) return { ok: false, melding: 'De veilige termijnontvangstfunctie is niet beschikbaar. Er is niets vastgelegd.' };
+  const antwoord = await client.from('betalingen').select('id,soort,status').eq('boeking_id', boekingId);
+  if (antwoord.error) return { ok: false, melding: 'De betaaltermijnen konden niet worden gecontroleerd.' };
+  const actief = (antwoord.data ?? []).filter((r) => r.soort === soort && r.status !== 'geannuleerd');
+  if (actief.length !== 1) return { ok: false, melding: 'Er is geen eenduidige actieve betaaltermijn. Controle door Finance is nodig.' };
+  const gezet = await client.rpc('verhuur_markeer_termijn_ontvangen', { p_betaling_id: Number(actief[0]!.id), p_actor_label: actor.naam });
+  if (gezet.error || !gezet.data) return { ok: false, melding: gezet.error?.message || 'De ontvangst is niet bevestigd.' };
+  let vervolg = '';
+  try {
+    const promotie = await promoveerIndienKlaar(client, boekingId, actor);
+    vervolg = promotie.gepromoveerd ? ' De boeking is definitief.' : !promotie.ok ? ` De ontvangst is bewaard; opvolging: ${promotie.melding}` : '';
+  } catch { vervolg = ' De ontvangst is bewaard. De duurzame procesjob controleert de vervolgstap.'; }
+  return { ok: true, melding: `De ${soort === 'aanbetaling' ? 'aanbetaling' : 'resttermijn / volledige huursom'} is als ontvangen vastgelegd.${vervolg}` };
 }
 
 function tekstVanBytes(bytes: Uint8Array): string {

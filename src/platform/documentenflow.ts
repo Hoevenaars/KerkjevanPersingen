@@ -47,6 +47,8 @@ export interface ContractAfspraken {
   opbouw: string;
   afbouw: string;
   contactpersoon: string;
+  bijzondereAfspraken?: string;
+  restFactuurDagenVoorVerval?: number;
 }
 
 export interface ContractBron {
@@ -168,6 +170,8 @@ export interface FlowContext {
   testadres: string | null;
   tekenLink?: string | null;
   tekenVerloopt?: string | null;
+  volledigeHuurOntvangen?: boolean;
+  betalingVereist?: 'aanbetaling' | 'volledig' | 'geen';
 }
 
 export type FlowUitkomst =
@@ -445,6 +449,7 @@ export function contractTekst(
     `Vervaldatum aanbetaling: ${aanRegel.verval}`,
     `Restbetaling: ${restRegel.bedrag}`,
     `Vervaldatum restbetaling: ${restRegel.verval}`,
+    ...(afspraken.restFactuurDagenVoorVerval ? [`De restfactuur wordt ${afspraken.restFactuurDagenVoorVerval} dagen voor de vervaldatum uitgegeven.`] : []),
     `Betalingskenmerk: ${contractnummer}`,
     `Betaalgegevens: ${schoon(instellingen.tenaamstelling)}, ${instellingen.iban}`,
     'Deze huurovereenkomst is zelf geen factuur. Een eventueel bijbehorende factuur wordt als afzonderlijk document verstrekt.',
@@ -453,6 +458,7 @@ export function contractTekst(
     '4. Voorwaarden en zorgvuldig gebruik',
     `Verhuurvoorwaarden: versie ${DOCUMENTVERSIE} / vastgesteld op ${kalenderdatumNl(instellingen.voorwaardenVastgesteldOp)}`,
     `Huisregels: versie ${DOCUMENTVERSIE} / vastgesteld op ${kalenderdatumNl(instellingen.huisregelsVastgesteldOp)}`,
+    ...(afspraken.bijzondereAfspraken?.trim() ? [`Bijzondere afspraak voor deze boeking: ${schoon(afspraken.bijzondereAfspraken)}`] : []),
     '',
     '5. Bevestiging en wijzigingen',
     'Een aanvraag of voorlopig akkoord vormt nog geen definitieve reservering. De reservering wordt definitief zodra de verhuurder dit schriftelijk bevestigt, overeenkomstig de door het bestuur vastgestelde boekings- en betalingsafspraken.',
@@ -860,6 +866,10 @@ export function voerFlowUit(actie: FlowActie, context: FlowContext): FlowUitkoms
   if (!bestuurAkkoord(huidig)) return weiger('Bestuursakkoord op deze versie ontbreekt.');
   if ((context.bron.aanbetalingCent ?? 0) > 0 && context.betaling.stand !== 'ontvangen') {
     return weiger('De aanbetaling is nog niet ontvangen. Een handtekening maakt de boeking niet definitief.');
+  }
+  if ((context.betalingVereist === 'volledig' || ((context.bron.aanbetalingCent ?? 0) === 0 && (context.bron.huurprijsCent ?? 0) > 0)) &&
+      context.betalingVereist !== 'geen' && context.volledigeHuurOntvangen !== true) {
+    return weiger('De vereiste volledige huursom is nog niet ontvangen. Een handtekening maakt de boeking niet definitief.');
   }
   const alDefinitief = ['definitief', 'afgerond', 'gearchiveerd', 'migratie_vastgelegd'].includes(context.bron.boekingStatus);
   const alBevestigd = alVerzonden(context.versies, 'bevestiging');

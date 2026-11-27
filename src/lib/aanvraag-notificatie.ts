@@ -9,6 +9,17 @@ import { leesExtraAanvraagOntvanger, ontvangersZonderBcc, uniekeOntvangers } fro
 import { toezichtBcc } from './toezicht-bcc.ts';
 
 export async function verstuurInterneAanvraagMails(waarden: Aanvraag, aanvraagId?: number): Promise<void> {
+  if (aanvraagId) {
+    try {
+      const { startVerhuurAanvraag } = await import('./verhuurmachine/proces.ts');
+      if (await startVerhuurAanvraag(aanvraagId)) return;
+    } catch {
+      // De database-trigger bewaart de opdracht, ook na foto-/netwerkproblemen.
+      // Geen tweede, onbeveiligde legacy-mail als de machine niet kon afronden.
+      console.error('[verhuurmachine] aanvraag opgeslagen; controleer de proceswachtrij');
+      return;
+    }
+  }
   const { sendInterneAanvraagMail } = await import('./mail-transport.ts');
   const { bestuurMail } = await import('./aanvraag.ts');
   const { legVerzendingVast } = await import('./communicatie-log.ts');

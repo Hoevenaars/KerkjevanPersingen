@@ -51,7 +51,9 @@ function metAnalytics(context: Parameters<MiddlewareHandler>[0], response: Respo
     pad.startsWith('/beheer') ||
     pad.startsWith('/api') ||
     pad.startsWith('/klant') ||
-    pad.startsWith('/admin')
+    pad.startsWith('/admin') ||
+    pad.startsWith('/tekenen/') ||
+    pad === '/bestuur/besluit' || pad === '/bestuur/besluit/'
   ) {
     return response;
   }
@@ -228,7 +230,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 
   // Cron heeft een eigen Bearer-secret. Afmelden moet zonder sitewachtwoord (AVG).
   // Resend meldt openen en klikken met een eigen handtekening, niet met het sitewachtwoord.
-  if (pad.startsWith('/api/cron/') || pad.startsWith('/api/resend/') || pad.startsWith('/vrienden/afmelden') || pad.startsWith('/klant/') || pad.startsWith('/tekenen/')) {
+  if (pad.startsWith('/api/cron/') || pad.startsWith('/api/resend/') || pad.startsWith('/vrienden/afmelden') || pad.startsWith('/klant/') || pad.startsWith('/tekenen/') || pad === '/bestuur/besluit' || pad === '/bestuur/besluit/' || pad === '/api/verhuur/betaalontvangst' || pad === '/api/verhuur/betaalontvangst/') {
     return metAnalytics(context, await next());
   }
 

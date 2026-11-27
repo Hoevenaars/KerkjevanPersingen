@@ -12,8 +12,6 @@ import {
   providerPayloadIsTestveilig,
   type Mailmodus,
 } from '../platform/testmail.ts';
-import { getTestMailRecipient } from './testmail-adres.ts';
-import { resendAttachments } from '../platform/contract-pakket.ts';
 import { CONTRACTBEHEER_EMAIL, VAN_ADRES, isNoreplyAdres, replyToHeader, replyToVoor, richtingVoorMail } from './mail-adressen.ts';
 import { isInterneKerkjeSleutel, toezichtBcc } from './toezicht-bcc.ts';
 
@@ -128,7 +126,8 @@ export async function verstuurGecontroleerd(
   }
   let uitgaand = bericht;
   if (modus === 'test') {
-    const testadres = opties.testadres !== undefined ? opties.testadres : await getTestMailRecipient(opties.env);
+    const testadres = opties.testadres !== undefined ? opties.testadres
+      : await (await import('./testmail-adres.ts')).getTestMailRecipient(opties.env);
     const veilig = pasTestmodusToe(
       {
         to: [bericht.naar],
@@ -296,7 +295,7 @@ export async function verstuurMetResend(
     throw new Error('Reply-To wijst naar het sending-only adres');
   }
   const attachments = inhoud.eisBijlagen || inhoud.bijlagen?.length
-    ? resendAttachments(
+    ? (await import('../platform/contract-pakket.ts')).resendAttachments(
       (inhoud.bijlagen ?? []).map((bijlage) => ({ bestandsnaam: bijlage.bestandsnaam, inhoud: bijlage.inhoud })),
     )
     : undefined;

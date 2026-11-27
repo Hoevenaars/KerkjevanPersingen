@@ -46,6 +46,8 @@ export interface ContractWizardVelden {
   iban: string;
   voorwaardenVastgesteldOp: string;
   huisregelsVastgesteldOp: string;
+  bijzondereAfspraken?: string;
+  restFactuurDagenVoorVerval?: string;
 }
 
 export interface WizardDossier {
@@ -98,6 +100,8 @@ export function legeWizardVelden(): ContractWizardVelden {
     iban: '',
     voorwaardenVastgesteldOp: '',
     huisregelsVastgesteldOp: '',
+    bijzondereAfspraken: '',
+    restFactuurDagenVoorVerval: '0',
   };
 }
 
@@ -180,7 +184,7 @@ export function restTekst(velden: ContractWizardVelden): string {
 }
 
 function verplicht(velden: ContractWizardVelden, sleutel: keyof ContractWizardVelden, label: string, gaten: string[]) {
-  if (!velden[sleutel].trim()) gaten.push(label);
+  if (!String(velden[sleutel] ?? '').trim()) gaten.push(label);
 }
 
 function zonderSpaties(velden: ContractWizardVelden): ContractWizardVelden {
@@ -239,6 +243,8 @@ export function instellingenUitWizard(velden: ContractWizardVelden): Documentenf
 
 export function afsprakenUitWizard(velden: ContractWizardVelden): ContractAfspraken {
   return {
+    ...(Number(velden.restFactuurDagenVoorVerval) > 0 ? { restFactuurDagenVoorVerval: Number(velden.restFactuurDagenVoorVerval) } : {}),
+    ...(velden.bijzondereAfspraken?.trim() ? { bijzondereAfspraken: velden.bijzondereAfspraken.trim() } : {}),
     tijdVan: velden.tijdVan.trim(),
     tijdTot: velden.tijdTot.trim(),
     opbouw: velden.opbouw.trim(),
